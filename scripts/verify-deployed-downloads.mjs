@@ -12,7 +12,7 @@ const retries = Number(process.env.LATEXDO_VERIFY_RETRIES ?? 24);
 const delayMs = Number(process.env.LATEXDO_VERIFY_DELAY_MS ?? 10_000);
 const expectedCommit =
   process.env.LATEXDO_RELEASE_COMMIT ?? process.env.GITHUB_SHA ?? "";
-const expectedRepository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo";
+const expectedRepository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo-desktop";
 const expectedVersion = JSON.parse(
   await readFile(path.join(process.cwd(), "package.json"), "utf8"),
 ).version;
@@ -53,7 +53,7 @@ const expectedReleaseManifestUrl = new URL(
 const expectedReleaseAssetBaseUrl = new URL(
   `${
     process.env.LATEXDO_RELEASE_ASSET_BASE_URL ??
-    `https://github.com/${expectedRepository}/releases/download/${expectedReleaseSlug}`
+    new URL(expectedReleaseSlug, publicDownloadsUrl).href
   }/`.replace(/\/+$/, "/"),
 );
 const deployedLatestUpdateFeedUrl = new URL(

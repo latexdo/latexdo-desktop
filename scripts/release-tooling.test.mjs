@@ -379,7 +379,11 @@ describe("deployment verification against published artifacts", () => {
     ).toHaveLength(4);
     expect(
       fetchMock.mock.calls
-        .filter(([url]) => new URL(url).hostname === "latexdo.org")
+        // Installer HEAD checks also go through latexdo.org (it redirects to GitHub).
+        .filter(
+          ([url, options]) =>
+            new URL(url).hostname === "latexdo.org" && options.method !== "HEAD",
+        )
         .every(
           ([url, options]) =>
             new URL(url).searchParams.has("deploy_verify") &&

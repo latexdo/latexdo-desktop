@@ -1,0 +1,1073 @@
+name: latexdo-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latexdo-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pipeline:
+    name: pipeline / explain
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_enabled: ${{ steps.resolve.outputs.release_enabled }}
+      target_sha: ${{ steps.resolve.outputs.target_sha }}
+
+    steps:
+      - name: Resolve CI and release mode
+        id: resolve
+        shell: bash
+        run: |
+          release_enabled=false
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            release_enabled=true
+          elif [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$GITHUB_REF_NAME" = "main" ]; then
+            release_enabled=true
+          fi
+
+          target_sha="$GITHUB_SHA"
+          if ! [[ "$target_sha" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::Could not resolve a full pipeline target SHA."
+            exit 1
+          fi
+
+          {
+            echo "release_enabled=${release_enabled}"
+            echo "target_sha=${target_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Show pipeline
+        shell: bash
+        run: |
+          {
+            echo "### LatexDo CI pipeline"
+            echo
+            echo "This is the only workflow for validation, packaging, release creation, and downloads publication."
+            echo
+            echo "- Pull requests run quality checks, package installers, verify smoke tests, and upload artifacts."
+            echo "- Pushes to main, version tags, and manual runs on main also publish the GitHub release and update the downloads data in latexdo/latexdo.org."
+            echo "- The release publication stage only stages downloads/ and, when signing is configured, updates/ in latexdo/latexdo.org."
+            echo
+            echo '```mermaid'
+            echo "flowchart TD"
+            echo "  trigger[\"pull_request / main push / version tag / workflow_dispatch\"] --> quality[\"quality: format, lint, types, tests, audit, build\"]"
+            echo "  quality --> macos[\"package macOS: Apple Silicon + Intel DMG\"]"
+            echo "  quality --> windows[\"package Windows: x64 EXE\"]"
+            echo "  quality --> linux[\"package Linux: x64 AppImage\"]"
+            echo "  macos --> installers[\"verify installer bundle + checksums\"]"
+            echo "  windows --> installers"
+            echo "  linux --> installers"
+            echo "  installers --> release{\"main, tag, or manual main?\"}"
+            echo "  release -->|yes| github[\"publish GitHub Release assets\"]"
+            echo "  github --> website[\"commit downloads/ and updates/ to latexdo.org\"]"
+            echo "  website --> validate[\"dispatch latexdo.org validation\"]"
+            echo "  release -->|no| artifacts[\"artifact-only CI\"]"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  quality:
+    name: quality / checks and build
+    needs: pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.pipeline.outputs.target_sha }}
+          # Builds bundle their recent changes for What's New.
+          fetch-depth: 200
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Validate AI source
+        run: npm run ai:check
+
+      - name: Run type checks
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Verify release trust chain
+        run: npm run test:supply-chain
+
+      - name: Build application
+        run: npm run build
+
+  package_macos:
+    name: package / macOS ${{ matrix.label }}
+    needs:
+      - pipeline
+      - quality
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Apple Silicon
+            runner: macos-15
+            arch: arm64
+            artifact: macos-arm64
+            asset: LatexDo-macos-arm64.dmg
+          - label: Intel
+            runner: macos-15-intel
+            arch: x64
+            artifact: macos-x64
+            asset: LatexDo-macos-x64.dmg
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.pipeline.outputs.target_sha }}
+          # Builds bundle their recent changes for What's New.
+          fetch-depth: 200
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+          cache: npm
+
+      - name: Set up Python for native modules
+        id: setup-python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Configure node-gyp Python
+        shell: bash
+        run: |
+          echo "PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+          echo "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Configure Apple signing and notarization
+        id: macos_signing
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          LEGACY_CSC_LINK: ${{ secrets.CSC_LINK }}
+          LEGACY_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          certificate_p12="${MACOS_CERTIFICATE_P12:-${LEGACY_CSC_LINK:-}}"
+          certificate_password="${MACOS_CERTIFICATE_PASSWORD:-${LEGACY_CSC_KEY_PASSWORD:-}}"
+
+          missing=()
+          if [ -z "$certificate_p12" ]; then
+            missing+=("MACOS_CERTIFICATE_P12")
+          fi
+          if [ -z "$certificate_password" ]; then
+            missing+=("MACOS_CERTIFICATE_PASSWORD")
+          fi
+          for name in APPLE_API_KEY_P8 APPLE_API_KEY_ID APPLE_API_ISSUER APPLE_TEAM_ID; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::warning::Apple signing is disabled because these secrets are missing: ${missing[*]}"
+            echo "MACOS_SIGNING_ENABLED=false" >> "$GITHUB_ENV"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          if ! printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$api_key_path"; then
+            echo "::error::APPLE_API_KEY_P8 must be base64-encoded .p8 content."
+            exit 1
+          fi
+          chmod 600 "$api_key_path"
+
+          {
+            echo "CSC_LINK=$certificate_p12"
+            echo "CSC_KEY_PASSWORD=$certificate_password"
+            echo "APPLE_API_KEY=$api_key_path"
+            echo "APPLE_API_KEY_ID=$APPLE_API_KEY_ID"
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+            echo "MACOS_SIGNING_ENABLED=true"
+          } >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Disable Spotlight indexing
+        run: sudo mdutil -a -i off
+
+      - name: Sign, notarize, and package macOS DMG
+        if: ${{ steps.macos_signing.outputs.signed == 'true' }}
+        shell: bash
+        run: |
+          builder_args=(
+            --mac dmg zip
+            --${{ matrix.arch }}
+            --publish never
+            --config.forceCodeSigning=true
+            --config.directories.output=release/${{ matrix.arch }}
+          )
+
+          npx electron-builder "${builder_args[@]}"
+
+      - name: Package ad-hoc signed macOS app
+        if: ${{ steps.macos_signing.outputs.signed != 'true' }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        shell: bash
+        run: |
+          npx electron-builder \
+            --mac dir \
+            --${{ matrix.arch }} \
+            --publish never \
+            --config.mac.identity=- \
+            --config.mac.hardenedRuntime=false \
+            --config.mac.notarize=false \
+            --config.directories.output=release/${{ matrix.arch }}-dir
+
+          app_path="$(find "release/${{ matrix.arch }}-dir" -type d -name 'LatexDo.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "The packaged macOS app bundle was not found."
+            exit 1
+          fi
+
+          codesign --force --deep --sign - "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          echo "MACOS_APP_PATH=$app_path" >> "$GITHUB_ENV"
+
+      - name: Package ad-hoc macOS DMG
+        if: ${{ steps.macos_signing.outputs.signed != 'true' }}
+        shell: bash
+        run: |
+          npx electron-builder \
+            --mac dmg zip \
+            --${{ matrix.arch }} \
+            --prepackaged "$MACOS_APP_PATH" \
+            --publish never \
+            --config.mac.notarize=false \
+            --config.directories.output=release/${{ matrix.arch }}
+
+      - name: Test packaged macOS application
+        shell: bash
+        run: |
+          executable="$(find "release/${{ matrix.arch }}" "release/${{ matrix.arch }}-dir" -type f -path '*/LatexDo.app/Contents/MacOS/LatexDo' -print -quit 2>/dev/null || true)"
+          if [ -z "$executable" ]; then
+            echo "The packaged macOS executable was not found."
+            exit 1
+          fi
+          "$executable" --smoke-test
+
+      - name: Prepare macOS artifact
+        shell: bash
+        run: |
+          package_path="$(find "release/${{ matrix.arch }}" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          if [ -z "$package_path" ]; then
+            echo "No macOS DMG was produced."
+            exit 1
+          fi
+
+          mkdir -p artifacts
+          cp "$package_path" "artifacts/${{ matrix.asset }}"
+
+      - name: Verify Gatekeeper acceptance
+        if: ${{ steps.macos_signing.outputs.signed == 'true' }}
+        run: >
+          bash scripts/verify-macos-release.sh
+          "artifacts/${{ matrix.asset }}"
+          "$APPLE_TEAM_ID"
+
+      - name: Verify ad-hoc macOS signature
+        if: ${{ steps.macos_signing.outputs.signed != 'true' }}
+        run: bash scripts/verify-macos-adhoc-release.sh "artifacts/${{ matrix.asset }}"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: latexdo-${{ matrix.artifact }}
+          path: artifacts/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 14
+
+  package_windows:
+    name: package / Windows EXE
+    needs:
+      - pipeline
+      - quality
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      GYP_MSVS_VERSION: "2022"
+      npm_config_msvs_version: "2022"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.pipeline.outputs.target_sha }}
+          # Builds bundle their recent changes for What's New.
+          fetch-depth: 200
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+          cache: npm
+
+      - name: Set up Python for native modules
+        id: setup-python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Configure node-gyp Python
+        shell: pwsh
+        run: |
+          "PYTHON=${{ steps.setup-python.outputs.python-path }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Configure Windows signing
+        id: windows_signing
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_P12: ${{ secrets.WINDOWS_CERTIFICATE_P12 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_P12 -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            Write-Warning "Publishing an unsigned Windows build. Configure WINDOWS_CERTIFICATE_P12 and WINDOWS_CERTIFICATE_PASSWORD to sign it."
+            "CSC_IDENTITY_AUTO_DISCOVERY=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "signed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            exit 0
+          }
+          "WIN_CSC_LINK=$env:WINDOWS_CERTIFICATE_P12" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WIN_CSC_KEY_PASSWORD=$env:WINDOWS_CERTIFICATE_PASSWORD" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "signed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Package Windows installer
+        shell: pwsh
+        run: |
+          $builderArgs = @(
+            "electron-builder",
+            "--win", "nsis",
+            "--x64",
+            "--publish", "never",
+            "--config.directories.output=release/windows"
+          )
+
+          if ("${{ steps.windows_signing.outputs.signed }}" -eq "true") {
+            $builderArgs += "--config.forceCodeSigning=true"
+          }
+
+          npx @builderArgs
+
+      - name: Package Windows unpacked app
+        shell: pwsh
+        run: |
+          $builderArgs = @(
+            "electron-builder",
+            "--win", "dir",
+            "--x64",
+            "--publish", "never",
+            "--config.directories.output=release/windows-dir"
+          )
+
+          if ("${{ steps.windows_signing.outputs.signed }}" -eq "true") {
+            $builderArgs += "--config.forceCodeSigning=true"
+          }
+
+          npx @builderArgs
+
+      - name: Test packaged Windows application
+        shell: pwsh
+        run: |
+          $executable = Get-ChildItem -Path "release/windows-dir" -Recurse -Filter "LatexDo.exe" -File |
+            Select-Object -First 1
+          if (-not $executable) {
+            throw "The packaged Windows executable was not found."
+          }
+          $smokeStdout = Join-Path $env:RUNNER_TEMP "latexdo-windows-smoke.stdout.log"
+          $smokeStderr = Join-Path $env:RUNNER_TEMP "latexdo-windows-smoke.stderr.log"
+          $process = Start-Process -FilePath $executable.FullName -ArgumentList "--smoke-test" -Wait -PassThru -RedirectStandardOutput $smokeStdout -RedirectStandardError $smokeStderr
+          if (Test-Path $smokeStdout) {
+            Get-Content $smokeStdout
+          }
+          if (Test-Path $smokeStderr) {
+            Get-Content $smokeStderr
+          }
+          if ($process.ExitCode -ne 0) {
+            throw "Packaged Windows smoke test failed with exit code $($process.ExitCode)."
+          }
+
+      - name: Prepare Windows artifact
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem -Path "release/windows" -Filter "*.exe" -File |
+            Select-Object -First 1
+
+          if (-not $package) {
+            throw "No Windows EXE was produced."
+          }
+
+          New-Item -ItemType Directory -Force -Path "artifacts" | Out-Null
+          Copy-Item $package.FullName "artifacts/LatexDo-windows-x64.exe"
+
+      - name: Verify Windows Authenticode signature
+        if: ${{ steps.windows_signing.outputs.signed == 'true' }}
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature artifacts/LatexDo-windows-x64.exe
+          if ($signature.Status -ne "Valid") {
+            throw "Windows installer signature is $($signature.Status): $($signature.StatusMessage)"
+          }
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: latexdo-windows-x64
+          path: artifacts/LatexDo-windows-x64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  package_linux:
+    name: package / Linux AppImage
+    needs:
+      - pipeline
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.pipeline.outputs.target_sha }}
+          # Builds bundle their recent changes for What's New.
+          fetch-depth: 200
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+          cache: npm
+
+      - name: Set up Python for native modules
+        id: setup-python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Configure node-gyp Python
+        shell: bash
+        run: |
+          echo "PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+          echo "NODE_GYP_FORCE_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+
+      - name: Install Linux runtime dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          if apt-cache show libasound2t64 >/dev/null 2>&1; then
+            alsa_package=libasound2t64
+          else
+            alsa_package=libasound2
+          fi
+
+          sudo apt-get install -y \
+            "$alsa_package" \
+            libgbm1 \
+            libgtk-3-0 \
+            libnss3 \
+            libxss1 \
+            xvfb
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Package Linux unpacked app
+        run: >
+          npx electron-builder
+          --linux dir
+          --x64
+          --publish never
+          --config.directories.output=release/linux-dir
+
+      - name: Test packaged Linux application
+        shell: bash
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+        run: |
+          executable="$(find release/linux-dir -type f \( -name LatexDo -o -name latexdo \) -perm -111 -print -quit)"
+          if [ -z "$executable" ]; then
+            echo "The packaged Linux executable was not found."
+            exit 1
+          fi
+
+          xvfb-run -a "$executable" --smoke-test
+
+      - name: Package Linux AppImage
+        run: >
+          npx electron-builder
+          --linux AppImage
+          --x64
+          --publish never
+          --config.directories.output=release/linux-appimage
+
+      - name: Test Linux AppImage
+        shell: bash
+        run: |
+          package_path="$(find release/linux-appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          if [ -z "$package_path" ]; then
+            echo "No Linux AppImage was produced."
+            exit 1
+          fi
+
+          chmod +x "$package_path"
+          xvfb-run -a "$package_path" --smoke-test
+
+      - name: Test Linux AppImage with desktop user-namespace restrictions
+        shell: bash
+        run: |
+          # Ubuntu desktops restrict unprivileged user namespaces, which breaks
+          # Chromium's sandbox inside an AppImage. Hosted runners turn that
+          # restriction off, so switch it on to test what users really run.
+          restriction=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [ ! -e "$restriction" ]; then
+            echo "This runner has no AppArmor user-namespace restriction to enable."
+            exit 0
+          fi
+
+          package_path="$(find release/linux-appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+          trap 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0' EXIT
+          xvfb-run -a "$package_path" --smoke-test
+
+      - name: Prepare Linux artifact
+        shell: bash
+        run: |
+          package_path="$(find release/linux-appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          if [ -z "$package_path" ]; then
+            echo "No Linux AppImage was produced."
+            exit 1
+          fi
+
+          mkdir -p artifacts
+          cp "$package_path" artifacts/LatexDo-linux-x64.AppImage
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: latexdo-linux-x64
+          path: artifacts/LatexDo-linux-x64.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+  installers:
+    name: verify / installers
+    needs:
+      - package_macos
+      - package_windows
+      - package_linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download macOS Apple Silicon artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-macos-arm64
+          path: installers
+
+      - name: Download macOS Intel artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-macos-x64
+          path: installers
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-windows-x64
+          path: installers
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-linux-x64
+          path: installers
+
+      - name: Verify installers
+        shell: bash
+        run: |
+          test -f installers/LatexDo-macos-arm64.dmg
+          test -f installers/LatexDo-macos-x64.dmg
+          test -f installers/LatexDo-windows-x64.exe
+          test -f installers/LatexDo-linux-x64.AppImage
+          sha256sum \
+            installers/LatexDo-macos-arm64.dmg \
+            installers/LatexDo-macos-x64.dmg \
+            installers/LatexDo-windows-x64.exe \
+            installers/LatexDo-linux-x64.AppImage \
+            > installers/SHA256SUMS.txt
+
+      - name: Upload installer bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: latexdo-installer-bundle-${{ github.sha }}
+          path: installers/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish_release:
+    name: publish / GitHub release and latexdo.org downloads
+    needs:
+      - pipeline
+      - installers
+    if: ${{ needs.pipeline.outputs.release_enabled == 'true' && needs.installers.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: latexdo-org-downloads
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.pipeline.outputs.target_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+
+      - name: Validate publication credentials
+        id: publication_credentials
+        shell: bash
+        env:
+          LATEXDO_UPDATE_SIGNING_KEY: ${{ secrets.LATEXDO_UPDATE_SIGNING_KEY }}
+          LATEXDO_WEBSITE_TOKEN: ${{ secrets.LATEXDO_WEBSITE_TOKEN }}
+        run: |
+          if [ -z "${LATEXDO_WEBSITE_TOKEN:-}" ]; then
+            echo "::error::LATEXDO_WEBSITE_TOKEN is required to update latexdo.org downloads."
+            exit 1
+          fi
+          if [ -z "${LATEXDO_UPDATE_SIGNING_KEY:-}" ]; then
+            echo "::warning::Signed update feed disabled; LATEXDO_UPDATE_SIGNING_KEY is not configured. Downloads will be published and latexdo.org updates/ will be left unchanged."
+            echo "update_feed_enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update_feed_enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download macOS Apple Silicon artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-macos-arm64
+          path: artifacts
+
+      - name: Download macOS Intel artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-macos-x64
+          path: artifacts
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-windows-x64
+          path: artifacts
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-linux-x64
+          path: artifacts
+
+      - name: List downloaded artifacts
+        shell: bash
+        run: ls -lh artifacts/
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd artifacts
+          test -f LatexDo-macos-arm64.dmg
+          test -f LatexDo-macos-x64.dmg
+          test -f LatexDo-windows-x64.exe
+          test -f LatexDo-linux-x64.AppImage
+          sha256sum *.dmg *.exe *.AppImage > SHA256SUMS.txt
+
+      - name: Resolve release metadata
+        id: release_metadata
+        shell: bash
+        env:
+          LATEXDO_RELEASE_TARGET_SHA: ${{ needs.pipeline.outputs.target_sha }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          version="${version#v}"
+          short_sha="${LATEXDO_RELEASE_TARGET_SHA::12}"
+          tag="v${version}-build.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.${short_sha}"
+          title="LatexDo v${version} (${short_sha})"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            tag_version="${tag#v}"
+            if [ "$tag_version" != "$version" ]; then
+              echo "::error::Git tag $tag does not match package.json version $version."
+              exit 1
+            fi
+            tag_commit="$(git rev-list -n 1 "$tag")"
+            if [ "$tag_commit" != "$LATEXDO_RELEASE_TARGET_SHA" ]; then
+              echo "::error::Git tag $tag resolves to $tag_commit, expected $LATEXDO_RELEASE_TARGET_SHA."
+              exit 1
+            fi
+            title="LatexDo ${tag}"
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "title=$title"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build downloads website
+        env:
+          LATEXDO_DOWNLOAD_BASE_URL: https://latexdo.org
+          LATEXDO_RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
+          LATEXDO_RELEASE_SLUG: ${{ steps.release_metadata.outputs.tag }}
+          LATEXDO_RELEASE_COMMIT: ${{ needs.pipeline.outputs.target_sha }}
+          # Through latexdo.org, which redirects to this repository's release assets:
+          # apps released from latexdo/latexdo only trust latexdo.org and that repository.
+          LATEXDO_RELEASE_ASSET_BASE_URL: https://latexdo.org/downloads/${{ steps.release_metadata.outputs.tag }}
+          LATEXDO_UPDATE_FEED_ENABLED: ${{ steps.publication_credentials.outputs.update_feed_enabled }}
+          LATEXDO_UPDATE_SIGNING_KEY: ${{ secrets.LATEXDO_UPDATE_SIGNING_KEY }}
+        run: node scripts/build-downloads-page.mjs artifacts public-downloads/downloads
+
+      - name: Verify signed update feeds
+        if: ${{ steps.publication_credentials.outputs.update_feed_enabled == 'true' }}
+        env:
+          RELEASE_TAG: ${{ steps.release_metadata.outputs.tag }}
+        run: |
+          node scripts/verify-update-feed.mjs public-downloads/updates/latest.json
+          node scripts/verify-update-feed.mjs "public-downloads/updates/${RELEASE_TAG}.json"
+
+      - name: Build and sign release notes
+        if: ${{ steps.publication_credentials.outputs.update_feed_enabled == 'true' }}
+        env:
+          LATEXDO_DOWNLOAD_BASE_URL: https://latexdo.org
+          LATEXDO_RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
+          LATEXDO_UPDATE_SIGNING_KEY: ${{ secrets.LATEXDO_UPDATE_SIGNING_KEY }}
+        run: node scripts/build-release-notes.mjs release-notes public-downloads/updates/release-notes
+
+      - name: Verify signed release notes
+        if: ${{ steps.publication_credentials.outputs.update_feed_enabled == 'true' }}
+        env:
+          LATEXDO_RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
+        run: node scripts/verify-release-notes.mjs public-downloads/updates/release-notes
+
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_metadata.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.release_metadata.outputs.title }}
+          RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
+          LATEXDO_RELEASE_TARGET_SHA: ${{ needs.pipeline.outputs.target_sha }}
+        shell: bash
+        run: |
+          assets=(
+            artifacts/LatexDo-macos-arm64.dmg
+            artifacts/LatexDo-macos-x64.dmg
+            artifacts/LatexDo-windows-x64.exe
+            artifacts/LatexDo-linux-x64.AppImage
+            artifacts/SHA256SUMS.txt
+          )
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            release_state="$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName --jq '[.tagName, .isDraft, .isPrerelease] | @tsv')"
+            expected_release_state="$(printf '%s\tfalse\tfalse' "$RELEASE_TAG")"
+            if [ "$release_state" != "$expected_release_state" ]; then
+              echo "::error::Existing release $RELEASE_TAG is not the expected published stable release."
+              exit 1
+            fi
+
+            expected_assets="$(printf '%s\n' "${assets[@]##*/}" | LC_ALL=C sort)"
+            published_assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | LC_ALL=C sort)"
+            if [ "$published_assets" != "$expected_assets" ]; then
+              echo "::error::Existing release $RELEASE_TAG has a different asset set."
+              diff -u <(printf '%s\n' "$expected_assets") <(printf '%s\n' "$published_assets") || true
+              exit 1
+            fi
+
+            mkdir -p existing-release-assets
+            gh release download "$RELEASE_TAG" --dir existing-release-assets
+            for asset in "${assets[@]}"; do
+              published="existing-release-assets/$(basename "$asset")"
+              if ! cmp -s "$asset" "$published"; then
+                echo "::error::Existing release asset $(basename "$asset") does not match this run byte-for-byte."
+                exit 1
+              fi
+            done
+            echo "Release $RELEASE_TAG already contains the exact expected assets; continuing idempotently."
+            exit 0
+          fi
+
+          gh release create "$RELEASE_TAG" "${assets[@]}" \
+            --target "$LATEXDO_RELEASE_TARGET_SHA" \
+            --title "$RELEASE_TITLE" \
+            --notes "LatexDo v${RELEASE_VERSION} desktop installers from ${LATEXDO_RELEASE_TARGET_SHA}."
+
+      - name: Checkout latexdo.org
+        uses: actions/checkout@v6
+        with:
+          repository: latexdo/latexdo.org
+          ref: main
+          path: latexdo-site
+          token: ${{ secrets.LATEXDO_WEBSITE_TOKEN }}
+
+      - name: Update latexdo.org downloads
+        id: update_latexdo_org_downloads
+        shell: bash
+        env:
+          LATEXDO_RELEASE_TARGET_SHA: ${{ needs.pipeline.outputs.target_sha }}
+        run: |
+          echo "updated=false" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=" >> "$GITHUB_OUTPUT"
+          if [ -f public-downloads/updates/latest.json ] && [ -f latexdo-site/updates/latest.json ]; then
+            node --input-type=module - \
+              latexdo-site/updates/latest.json \
+              public-downloads/updates/latest.json <<'NODE'
+          import { readFile } from "node:fs/promises";
+
+          const [currentPath, incomingPath] = process.argv.slice(2);
+          const current = JSON.parse(await readFile(currentPath, "utf8"));
+          const incoming = JSON.parse(await readFile(incomingPath, "utf8"));
+          const escapeRegExp = (value) =>
+            String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const isReleaseSlugForVersion = (release, version) =>
+            release === `v${version}` ||
+            new RegExp(
+              `^v${escapeRegExp(version)}-build\\.\\d+\\.\\d+\\.[a-f0-9]{12}$`,
+            ).test(release);
+          const isBuildReleaseSlugForVersion = (release, version) =>
+            new RegExp(
+              `^v${escapeRegExp(version)}-build\\.\\d+\\.\\d+\\.[a-f0-9]{12}$`,
+            ).test(release);
+          if (
+            current.product !== "LatexDo" ||
+            ![1, 2].includes(current.schemaVersion)
+          ) {
+            throw new Error("Existing app update metadata is malformed.");
+          }
+          if (current.schemaVersion === 2 && current.product === "LatexDo") {
+            const parts = (value) => value.split(".").map(Number);
+            const compare = (left, right) => {
+              const leftParts = parts(left);
+              const rightParts = parts(right);
+              for (let index = 0; index < 3; index += 1) {
+                if (leftParts[index] !== rightParts[index]) {
+                  return leftParts[index] > rightParts[index] ? 1 : -1;
+                }
+              }
+              return 0;
+            };
+            if (
+              !/^\d+\.\d+\.\d+$/.test(current.version ?? "") ||
+              !/^\d+\.\d+\.\d+$/.test(incoming.version ?? "") ||
+              !isReleaseSlugForVersion(current.release, current.version) ||
+              !isReleaseSlugForVersion(incoming.release, incoming.version)
+            ) {
+              throw new Error("Cannot compare malformed app update versions.");
+            }
+            const comparison = compare(incoming.version, current.version);
+            if (comparison < 0) {
+              throw new Error(
+                `Refusing to replace app update ${current.version} with older ${incoming.version}.`,
+              );
+            }
+            if (comparison === 0 && current.commit !== incoming.commit) {
+              if (
+                !isBuildReleaseSlugForVersion(incoming.release, incoming.version)
+              ) {
+                throw new Error(
+                  `Refusing to change the commit for stable version ${current.version}.`,
+                );
+              }
+              const currentPublishedAt = Date.parse(current.publishedAt);
+              const incomingPublishedAt = Date.parse(incoming.publishedAt);
+              if (
+                !Number.isFinite(currentPublishedAt) ||
+                !Number.isFinite(incomingPublishedAt) ||
+                incomingPublishedAt <= currentPublishedAt
+              ) {
+                throw new Error(
+                  `Refusing to move ${current.version} to another build without a newer publication time.`,
+                );
+              }
+            }
+          }
+          NODE
+          fi
+          mkdir -p latexdo-site/downloads
+          rm -f public-downloads/downloads/index.html
+          cp -R public-downloads/downloads/. latexdo-site/downloads/
+          if [ -d public-downloads/updates ]; then
+            mkdir -p latexdo-site/updates
+            cp -R public-downloads/updates/. latexdo-site/updates/
+          else
+            echo "No signed update feed generated; leaving latexdo.org updates/ unchanged."
+          fi
+          LATEXDO_DOWNLOAD_BASE_URL=https://latexdo.org \
+            node scripts/build-downloads-release-index.mjs latexdo-site/downloads --json-only
+
+          git -C latexdo-site config user.name "github-actions[bot]"
+          git -C latexdo-site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C latexdo-site add -- downloads
+          if [ -d public-downloads/updates ]; then
+            git -C latexdo-site add -- updates
+          fi
+
+          staged_paths="$(git -C latexdo-site diff --cached --name-only)"
+          invalid_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(downloads|updates)/' || true)"
+          if [ -n "$invalid_paths" ]; then
+            echo "::error::Release publication must stage only downloads/ and updates/."
+            printf '%s\n' "$invalid_paths"
+            exit 1
+          fi
+
+          if git -C latexdo-site diff --cached --quiet; then
+            echo "No latexdo.org download changes to commit."
+          else
+            git -C latexdo-site commit \
+              -m "Publish LatexDo downloads from latexdo@${LATEXDO_RELEASE_TARGET_SHA}"
+            git -C latexdo-site push origin HEAD:main
+            commit_sha="$(git -C latexdo-site rev-parse HEAD)"
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=${commit_sha}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify latexdo.org update
+        if: ${{ steps.update_latexdo_org_downloads.outputs.updated == 'true' }}
+        shell: bash
+        env:
+          LATEXDO_ORG_COMMIT: ${{ steps.update_latexdo_org_downloads.outputs.commit_sha }}
+        run: |
+          remote_sha="$(git -C latexdo-site ls-remote origin refs/heads/main | awk '{print $1}')"
+          if [ "$remote_sha" != "$LATEXDO_ORG_COMMIT" ]; then
+            echo "::error::latexdo.org main is ${remote_sha}, expected ${LATEXDO_ORG_COMMIT}."
+            exit 1
+          fi
+
+          echo "latexdo.org updated at ${LATEXDO_ORG_COMMIT}."
+          echo "Cloudflare Workers Builds can deploy the pushed latexdo.org commit."
+
+      - name: Dispatch latexdo.org validation after publication
+        if: ${{ steps.update_latexdo_org_downloads.outputs.updated == 'true' }}
+        shell: bash
+        env:
+          DISPATCH_TOKEN: ${{ secrets.LATEXDO_WEBSITE_TOKEN }}
+          TARGET_REPOSITORY: latexdo/latexdo.org
+          TARGET_WORKFLOW: validate.yml
+        run: |
+          payload="$(
+            jq -n \
+              --arg ref "main" \
+              '{ ref: $ref }'
+          )"
+
+          curl --fail-with-body -sSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${TARGET_REPOSITORY}/actions/workflows/${TARGET_WORKFLOW}/dispatches" \
+            -d "$payload"
+
+          echo "Triggered ${TARGET_REPOSITORY}/${TARGET_WORKFLOW} after publication."
+
+  ci_summary:
+    name: summary / pipeline results
+    needs:
+      - pipeline
+      - quality
+      - package_macos
+      - package_windows
+      - package_linux
+      - installers
+      - publish_release
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Write CI result summary
+        shell: bash
+        run: |
+          {
+            echo "### CI results"
+            echo
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| pipeline / explain | ${{ needs.pipeline.result }} |"
+            echo "| quality / checks and build | ${{ needs.quality.result }} |"
+            echo "| package / macOS | ${{ needs.package_macos.result }} |"
+            echo "| package / Windows EXE | ${{ needs.package_windows.result }} |"
+            echo "| package / Linux AppImage | ${{ needs.package_linux.result }} |"
+            echo "| verify / installers | ${{ needs.installers.result }} |"
+            echo "| publish / GitHub release and latexdo.org downloads | ${{ needs.publish_release.result }} |"
+            echo
+            echo "Release publication enabled: ${{ needs.pipeline.outputs.release_enabled }}"
+          } >> "$GITHUB_STEP_SUMMARY"

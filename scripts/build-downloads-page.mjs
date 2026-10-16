@@ -20,7 +20,7 @@ const updateFeedEnabled =
     ? Boolean(updateFeedSigningKey)
     : updateFeedSetting !== "false";
 const commit = process.env.LATEXDO_RELEASE_COMMIT ?? process.env.GITHUB_SHA ?? "";
-const repository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo";
+const repository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo-desktop";
 const siteRootDir = path.dirname(outputDir);
 const baseUrlRoot = baseUrl.replace(/\/$/, "");
 const releaseVersion = normalizeReleaseVersion(
@@ -34,7 +34,7 @@ const releaseDownloadsPageUrl = `${baseUrlRoot}/downloads/${releaseSlug}/`;
 const releaseOutputDir = path.join(outputDir, releaseSlug);
 const releaseAssetBaseUrl = (
   process.env.LATEXDO_RELEASE_ASSET_BASE_URL ??
-  `https://github.com/${repository}/releases/download/${releaseSlug}`
+  `${baseUrlRoot}/downloads/${releaseSlug}`
 ).replace(/\/$/, "");
 
 const downloads = [

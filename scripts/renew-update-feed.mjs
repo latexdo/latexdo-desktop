@@ -218,8 +218,14 @@ function assertReleaseFiles(feed, manifest, checksums) {
     }
     ids.add(file.id);
 
-    const expectedUrl = `https://github.com/${feed.repository}/releases/download/${feed.release}/${encodeURIComponent(file.filename)}`;
-    if (file.url !== expectedUrl) {
+    // Older releases link GitHub directly; newer ones go through latexdo.org,
+    // which redirects to the same immutable GitHub asset.
+    const assetName = encodeURIComponent(file.filename);
+    const expectedUrls = [
+      `https://github.com/${feed.repository}/releases/download/${feed.release}/${assetName}`,
+      `https://latexdo.org/downloads/${feed.release}/${assetName}`,
+    ];
+    if (!expectedUrls.includes(file.url)) {
       throw new Error(`Release URL for ${file.id} does not match its immutable asset.`);
     }
     if (!checksumLines.has(`${file.sha256}  ${file.filename}`)) {

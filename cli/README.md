@@ -10,7 +10,7 @@ paired with its expected `LATEXDO_CLI_SHA256`.
 
 - Publishes the `latexdo` command package.
 - Provides the shell installer used by `https://latexdo.org/install.sh`.
-- Launches the local browser editor from `github.com/latexdo/latexdo`.
+- Launches the local browser editor from `github.com/latexdo/latexdo-desktop`.
 
 ## Requirements
 

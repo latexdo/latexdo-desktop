@@ -11,7 +11,7 @@ const downloadsDir = path.resolve(
 const baseUrl = process.env.LATEXDO_DOWNLOAD_BASE_URL ?? "https://latexdo.org";
 const baseUrlRoot = baseUrl.replace(/\/$/, "");
 const downloadsPageUrl = `${baseUrlRoot}/downloads/`;
-const githubRepository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo";
+const githubRepository = process.env.GITHUB_REPOSITORY ?? "latexdo/latexdo-desktop";
 
 function htmlEscape(value) {
   return String(value)
