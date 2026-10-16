@@ -154,6 +154,7 @@
   --bg-row-hover: var(--surface-raised-hover);
   --bg-row-active: var(--selection-bg);
   --bg-menu: var(--surface-overlay);
+  --bg-elevated: var(--surface-overlay);
   --bg-tooltip: light-dark(rgb(247 250 252 / 98%), rgb(29 34 43 / 96%));
   --bg-drop-target: color-mix(in srgb, var(--accent) 16%, transparent);
   --bg-badge: var(--status-destructive-bg);
