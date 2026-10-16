@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "product": "LatexDo",
+  "releases": [
+    {
+      "version": "0.3.1",
+      "publishedAt": "2026-10-13T12:00:00.000Z",
+      "releaseNotesUrl": "https://latexdo.org/updates/release-notes/0.3.1.json",
+      "sha256": null
+    },
+    {
+      "version": "0.3.0",
+      "publishedAt": "2026-03-01T12:00:00.000Z",
+      "releaseNotesUrl": "https://latexdo.org/updates/release-notes/0.3.0.json",
+      "sha256": null
+    }
+  ]
+}

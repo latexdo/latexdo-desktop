@@ -1,0 +1,40 @@
+import type { useAppWorkspaceState } from "./useAppWorkspaceState";
+import type { useAppPanelAndGitState } from "./useAppPanelAndGitState";
+import type { useAppProjectFiles } from "./useAppProjectFiles";
+import type { useAppProjectLifecycle } from "./useAppProjectLifecycle";
+import type { useAppSourcePdfSync } from "./useAppSourcePdfSync";
+import type { useAppEditorDecorations } from "./useAppEditorDecorations";
+import type { useAppCitationSearch } from "./useAppCitationSearch";
+import type { useAppMonacoSetup } from "./useAppMonacoSetup";
+import type { useAppCollaboration } from "./useAppCollaboration";
+import type { useAppProjectCreation } from "./useAppProjectCreation";
+import type { useAppAiActions } from "./useAppAiActions";
+import type { useAppWorkspaceLayout } from "./useAppWorkspaceLayout";
+import type { useAppGitNavigation } from "./useAppGitNavigation";
+import type { useAppReviewActions } from "./useAppReviewActions";
+import type { useAppRebuttalAndHistory } from "./useAppRebuttalAndHistory";
+import type { useAppDerivedState } from "./useAppDerivedState";
+import type { useAppCitationAssistant } from "./useAppCitationAssistant";
+import type { useAppSessionRestore } from "./useAppSessionRestore";
+
+export type AppCtx01 = ReturnType<typeof useAppWorkspaceState>;
+export type AppCtx02 = AppCtx01 & ReturnType<typeof useAppPanelAndGitState>;
+export type AppCtx03 = AppCtx02 & ReturnType<typeof useAppProjectFiles>;
+export type AppCtx04 = AppCtx03 & ReturnType<typeof useAppProjectLifecycle>;
+export type AppCtx05 = AppCtx04 & ReturnType<typeof useAppSourcePdfSync>;
+export type AppCtx06 = AppCtx05 & ReturnType<typeof useAppEditorDecorations>;
+export type AppCtx07 = AppCtx06 & ReturnType<typeof useAppCitationSearch>;
+export type AppCtx08 = AppCtx07 & ReturnType<typeof useAppMonacoSetup>;
+export type AppCtx09 = AppCtx08 & ReturnType<typeof useAppCollaboration>;
+export type AppCtx10 = AppCtx09 & ReturnType<typeof useAppProjectCreation>;
+export type AppCtx11 = AppCtx10 & ReturnType<typeof useAppAiActions>;
+export type AppCtx12 = AppCtx11 & ReturnType<typeof useAppWorkspaceLayout>;
+export type AppCtx13 = AppCtx12 & ReturnType<typeof useAppGitNavigation>;
+export type AppCtx14 = AppCtx13 & ReturnType<typeof useAppReviewActions>;
+export type AppCtx15 = AppCtx14 & ReturnType<typeof useAppRebuttalAndHistory>;
+export type AppCtx16 = AppCtx15 & ReturnType<typeof useAppDerivedState>;
+export type AppCtx17 = AppCtx16 & ReturnType<typeof useAppCitationAssistant>;
+export type AppCtx18 = AppCtx17 & ReturnType<typeof useAppSessionRestore>;
+
+/** Everything the App component's state hooks provide to its views. */
+export type AppCtx = AppCtx18;

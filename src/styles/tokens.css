@@ -1,0 +1,975 @@
+/* ============================================================================
+   LatexDo design tokens — Phase 1 foundation
+   ----------------------------------------------------------------------------
+   A semantic design-system layer that sits beneath the application.
+
+   Principle: hierarchy comes from space → typography → material → subtle
+   separators → color (color last). Surfaces are a small semantic set, not a
+   per-component palette. Appearance resolution follows the operating system by
+   default (color-scheme: light dark) and can be overridden per window via
+   `data-appearance="light" | "dark"` on the app shell.
+
+   Tokens are authored as light/dark pairs with CSS `light-dark()` so a single
+   value carries both appearances and resolves against the used color-scheme of
+   the element that consumes it.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* Typography ----------------------------------------------------------- */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono:
+    "SFMono-Regular", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+
+  --type-xs: 11px;
+  --type-sm: 12px;
+  --type-md: 13px;
+  --type-lg: 15px;
+  --type-xl: 17px;
+  --type-xxl: 20px;
+  --type-title: 22px;
+
+  --type-weight-regular: 400;
+  --type-weight-medium: 500;
+  --type-weight-semibold: 600;
+  --type-weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.6;
+
+  /* Spacing scale (4pt grid) --------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --control-size-sm: 26px;
+  --control-size-md: 32px;
+  --control-size-lg: 38px;
+  --min-target: 32px;
+
+  /* Radius scale ---------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-pill: 999px;
+
+  /* Elevation ------------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 12%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 18%);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 26%);
+  --shadow-xl: 0 24px 64px rgb(0 0 0 / 38%);
+
+  /* Motion ---------------------------------------------------------------- */
+  --motion-fast: 120ms;
+  --motion-med: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Focus ----------------------------------------------------------------- */
+  --focus-ring-color: var(--accent);
+  --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Semantic surfaces (light, dark) ---------------------------------------- */
+  --surface-window: light-dark(#f3f6fb, #111318);
+  --surface-canvas: light-dark(#ffffff, #15181e);
+  --surface-raised: light-dark(#f8fafc, #191c22);
+  --surface-raised-hover: light-dark(#eef3f8, #1c2127);
+  --surface-overlay: light-dark(#ffffff, #1b1f26);
+  --surface-elevated: light-dark(#ffffff, #1d222a);
+  --surface-chrome: light-dark(#f6f8fc, #17191f);
+  --surface-field: light-dark(#ffffff, #20242b);
+
+  /* Semantic text (light, dark) -------------------------------------------- */
+  --color-text-primary: light-dark(#1f2937, #e0e4eb);
+  --color-text-secondary: light-dark(#374151, #bdc2cb);
+  --color-text-tertiary: light-dark(#667085, #8d939e);
+  --color-text-quaternary: light-dark(#7b8493, #727985);
+  --color-text-placeholder: light-dark(#a0a8b4, #4f5663);
+  --color-on-accent: #ffffff;
+  --color-heading: light-dark(#111827, #d7dde6);
+  --color-soft: light-dark(#6b7280, #858e9c);
+
+  /* Semantics separators (light, dark) ------------------------------------- */
+  --separator-strong: light-dark(#d7dee8, #292d35);
+  --separator-subtle: light-dark(#e6eaf1, #252931);
+  --separator-input: light-dark(#cbd5e1, #343944);
+  --separator-card: light-dark(#d9e1ec, #2e343f);
+  --separator-overlay: light-dark(#b8c4d4, #3a414e);
+  --separator-activity: light-dark(#dfe6ef, #262a31);
+
+  /* Selection -------------------------------------------------------------- */
+  --selection-bg: light-dark(#dce8fb, rgb(66 109 155 / 32%));
+  --selection-bg-inactive: light-dark(#e3ecfb, rgb(48 83 135 / 28%));
+
+  /* Status colors (light, dark) -------------------------------------------- */
+  --status-destructive: light-dark(#b42318, #e18a8a);
+  --status-destructive-border: light-dark(#dc3a30, #df6666);
+  --status-destructive-bg: light-dark(#c43f5f, #c85d66);
+  --status-warning: light-dark(#8a5a00, #dcb365);
+  --status-warning-border: light-dark(#c2871d, #d2a64f);
+  --status-success: light-dark(#177245, #78c48e);
+  --status-info: var(--accent);
+
+  /* Legacy application palette ----------------------------------------------
+     The application was built around a flat list of background/text/border
+     tokens. They are re-derived here from the semantic system so the whole
+     app picks up the OS-following appearance without a per-screen rewrite.
+     Components migrate to the semantic tokens over subsequent phases.     */
+  --bg-root: color-mix(in srgb, var(--surface-window) 96%, var(--theme-tint));
+  --bg-canvas: color-mix(in srgb, var(--surface-canvas) 97%, var(--theme-tint));
+  --bg-surface: var(--surface-raised);
+  --bg-surface-hover: var(--surface-raised-hover);
+  --bg-sidebar: color-mix(in srgb, var(--surface-raised) 97%, var(--theme-tint));
+  --bg-panel: color-mix(in srgb, var(--surface-canvas) 98%, var(--theme-tint));
+  --bg-dialog: var(--surface-overlay);
+  --bg-dialog-content: var(--surface-canvas);
+  --bg-settings-row: var(--surface-raised-hover);
+  --bg-input: var(--surface-field);
+  --bg-select: var(--surface-overlay);
+  --bg-tab-active: var(--surface-canvas);
+  --bg-tab-inactive: var(--surface-raised-hover);
+  --bg-button-secondary: var(--surface-raised);
+  --bg-card: var(--surface-overlay);
+  --bg-tree-row: transparent;
+  --bg-tree-row-hover: var(--surface-raised-hover);
+  --bg-tree-row-active: var(--selection-bg);
+  --bg-scrollbar: light-dark(#c5cfdc, #3a3f49);
+  --bg-scrollbar-hover: light-dark(#9faebe, #4a505b);
+  --bg-activity-bar: var(--surface-chrome);
+  --bg-titlebar: var(--surface-chrome);
+  --bg-statusbar: var(--accent-bg);
+  --bg-modal-backdrop: light-dark(rgb(15 23 42 / 36%), rgb(5 7 11 / 62%));
+  --bg-row-hover: var(--surface-raised-hover);
+  --bg-row-active: var(--selection-bg);
+  --bg-menu: var(--surface-overlay);
+  --bg-tooltip: light-dark(rgb(247 250 252 / 98%), rgb(29 34 43 / 96%));
+  --bg-drop-target: color-mix(in srgb, var(--accent) 16%, transparent);
+  --bg-badge: var(--status-destructive-bg);
+  --bg-badge-soft: var(--accent-soft);
+  --editor-bg: light-dark(#f6f8fd, #15181e);
+  --editor-chrome-bg: color-mix(in srgb, var(--editor-bg) 92%, var(--surface-chrome));
+  --editor-control-bg: color-mix(in srgb, var(--editor-bg) 82%, var(--surface-field));
+  --editor-control-hover: color-mix(
+    in srgb,
+    var(--editor-bg) 72%,
+    var(--surface-raised-hover)
+  );
+  --editor-border: color-mix(in srgb, var(--editor-bg) 70%, var(--border-default));
+
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-tertiary);
+  --text-dim: var(--color-text-quaternary);
+  --text-placeholder: var(--color-text-placeholder);
+  --text-on-accent: var(--color-on-accent);
+  --text-inverse: light-dark(#ffffff, #111318);
+  --text-title: var(--color-text-primary);
+  --text-title-muted: light-dark(#8a94a3, #525862);
+  --text-heading: var(--color-heading);
+  --text-soft: var(--color-soft);
+
+  --border-default: var(--separator-strong);
+  --border-subtle: var(--separator-subtle);
+  --border-card: var(--separator-card);
+  --border-input: var(--separator-input);
+  --border-dialog: var(--separator-overlay);
+  --border-hover: color-mix(in srgb, var(--accent) 82%, var(--bg-canvas));
+  --border-activity: var(--separator-activity);
+  --border-focus: var(--accent);
+
+  --accent-dim: color-mix(in srgb, var(--accent) 84%, light-dark(#000000, #ffffff));
+  --accent-bg: var(--accent);
+  --accent-hover: color-mix(in srgb, var(--accent) 92%, light-dark(#000000, #ffffff));
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-panel: color-mix(in srgb, var(--accent) 13%, var(--bg-surface));
+
+  --error: var(--status-destructive);
+  --error-border: var(--status-destructive-border);
+  --error-bg: var(--status-destructive-bg);
+  --warning: var(--status-warning);
+  --warning-border: var(--status-warning-border);
+  --success: var(--status-success);
+  --info: var(--status-info);
+
+  --theme-tint: light-dark(#f3f6fb, #111318);
+  --accent: light-dark(#2f6fdb, #729bf0);
+
+  color: var(--text-secondary);
+  background: var(--bg-root);
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+/* Appearance resolution -----------------------------------------------------
+   The shell follows the OS by default (auto). Forcing an appearance sets an
+   explicit color-scheme, which `light-dark()` uses everywhere in the subtree.
+   ------------------------------------------------------------------------- */
+.app-shell,
+.app-shell[data-appearance="auto"] {
+  color-scheme: light dark;
+}
+
+.app-shell[data-appearance="light"] {
+  color-scheme: light;
+}
+
+.app-shell[data-appearance="dark"] {
+  color-scheme: dark;
+}
+
+/* Theme personalities --------------------------------------------------------
+   Each theme contributes an accent and a barely-there atmosphere tint for the
+   document canvas. Everything else is owned by the appearance system.       */
+.app-shell[data-theme="graphite"] {
+  --accent: light-dark(#2f6fdb, #729bf0);
+  --theme-tint: light-dark(#f3f6fb, #111318);
+}
+
+.app-shell[data-theme="midnight"] {
+  --accent: light-dark(#2458c8, #5fa8ff);
+  --theme-tint: light-dark(#e8f0fb, #0a1526);
+}
+
+.app-shell[data-theme="forest"] {
+  --accent: light-dark(#2f8f6b, #65c28f);
+  --theme-tint: light-dark(#f2f7f3, #0f1a15);
+}
+
+.app-shell[data-theme="sepia"] {
+  --accent: light-dark(#a06a26, #d69a5b);
+  --theme-tint: light-dark(#fbf5ec, #191309);
+}
+
+.app-shell[data-theme="studio"] {
+  --accent: light-dark(#2f6fdb, #6d96e8);
+  --theme-tint: light-dark(#f7f9fc, #111318);
+}
+
+.app-shell[data-theme="paper"] {
+  --accent: light-dark(#2f8f6b, #6fc795);
+  --theme-tint: light-dark(#fffefa, #161a10);
+}
+
+.app-shell[data-theme="graphite"][data-resolved-appearance="light"] {
+  --editor-bg: #f6f8fd;
+}
+
+.app-shell[data-theme="graphite"][data-resolved-appearance="dark"] {
+  --editor-bg: #15181e;
+}
+
+.app-shell[data-theme="midnight"][data-resolved-appearance="light"] {
+  --editor-bg: #f3f8ff;
+}
+
+.app-shell[data-theme="midnight"][data-resolved-appearance="dark"] {
+  --editor-bg: #0b1424;
+}
+
+.app-shell[data-theme="forest"][data-resolved-appearance="light"] {
+  --editor-bg: #f4f8f5;
+}
+
+.app-shell[data-theme="forest"][data-resolved-appearance="dark"] {
+  --editor-bg: #111a16;
+}
+
+.app-shell[data-theme="sepia"][data-resolved-appearance="light"] {
+  --editor-bg: #faf5ec;
+}
+
+.app-shell[data-theme="sepia"][data-resolved-appearance="dark"] {
+  --editor-bg: #1b1510;
+}
+
+.app-shell[data-theme="studio"] {
+  --editor-bg: #ffffff;
+}
+
+.app-shell[data-theme="paper"] {
+  --editor-bg: #fffefa;
+}
+
+/* Accessibility environment overrides ------------------------------------- */
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-shell,
+  .app-shell[data-appearance="auto"] {
+    color-scheme: light dark;
+  }
+  .app-shell {
+    --bg-modal-backdrop: light-dark(rgb(15 23 42 / 72%), rgb(2 4 8 / 78%));
+    --bg-tooltip: light-dark(#ffffff, #16181d);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .app-shell {
+    --separator-strong: light-dark(#7c8798, #4b5261);
+    --separator-subtle: light-dark(#9aa4b3, #3a414d);
+    --separator-input: light-dark(#6b7686, #4f5866);
+    --text-quaternary: var(--text-tertiary);
+    --text-placeholder: var(--text-tertiary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================================
+   Core primitives
+   ----------------------------------------------------------------------------
+   Small, token-driven controls. Feature components consume these classes
+   rather than inventing colors, radii, shadows, and spacing of their own.
+   ========================================================================== */
+
+.ui-btn {
+  display: inline-flex;
+  min-height: var(--control-size-md);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: var(--type-weight-medium);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--bg-row-hover);
+}
+
+.ui-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ui-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.ui-btn--primary {
+  background: var(--accent-bg);
+  color: var(--text-on-accent);
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ui-btn--secondary {
+  border-color: var(--border-card);
+  background: var(--bg-button-secondary);
+}
+
+.ui-btn--secondary:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background: var(--bg-row-hover);
+}
+
+.ui-btn--subtle {
+  color: var(--text-secondary);
+}
+
+.ui-btn--danger {
+  background: var(--status-destructive-bg);
+  color: var(--text-on-accent);
+}
+
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--status-destructive);
+}
+
+.ui-btn--sm {
+  min-height: var(--control-size-sm);
+  padding: 0 10px;
+  font-size: var(--type-xs);
+  border-radius: var(--radius-sm);
+}
+
+.ui-btn--lg {
+  min-height: var(--control-size-lg);
+  padding: 0 18px;
+  font-size: var(--type-sm);
+}
+
+.ui-btn:focus-visible,
+.ui-btn--sm:focus-visible,
+.ui-btn--lg:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.ui-icon-btn {
+  display: inline-grid;
+  width: var(--control-size-md);
+  height: var(--control-size-md);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.ui-icon-btn:hover:not(:disabled) {
+  background: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+
+.ui-icon-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ui-icon-btn.active,
+.ui-icon-btn[aria-pressed="true"] {
+  background: var(--bg-row-active);
+  color: var(--text-primary);
+}
+
+.ui-icon-btn--sm {
+  width: var(--control-size-sm);
+  height: var(--control-size-sm);
+}
+
+.ui-icon-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+/* Toggle switch ------------------------------------------------------------ */
+
+.ui-toggle {
+  position: relative;
+  display: inline-flex;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.ui-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.ui-toggle .ui-toggle__track {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-scrollbar);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.ui-toggle .ui-toggle__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.ui-toggle input:checked + .ui-toggle__track {
+  background: var(--accent);
+}
+
+.ui-toggle input:checked + .ui-toggle__track + .ui-toggle__knob,
+.ui-toggle input:checked ~ .ui-toggle__knob {
+  transform: translateX(16px);
+}
+
+.ui-toggle input:focus-visible + .ui-toggle__track {
+  box-shadow: var(--focus-ring);
+}
+
+.ui-toggle input:disabled + .ui-toggle__track {
+  opacity: 0.5;
+}
+
+/* Segmented control -------------------------------------------------------- */
+
+.ui-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-button-secondary);
+}
+
+.ui-segmented__item {
+  display: inline-flex;
+  min-height: var(--control-size-sm);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-xs);
+  font-weight: var(--type-weight-medium);
+  white-space: nowrap;
+}
+
+.ui-segmented__item:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.ui-segmented__item.active,
+.ui-segmented__item[aria-pressed="true"] {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-segmented__item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -1px;
+}
+
+/* Fields ------------------------------------------------------------------- */
+
+.ui-field {
+  width: 100%;
+  min-height: var(--control-size-md);
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+}
+
+.ui-field::placeholder {
+  color: var(--text-placeholder);
+}
+
+.ui-field:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+
+.ui-search {
+  display: inline-flex;
+  width: 100%;
+  min-height: var(--control-size-md);
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-muted);
+}
+
+.ui-search svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.ui-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-sm);
+}
+
+.ui-search input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.ui-search:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+
+/* Menu --------------------------------------------------------------------- */
+
+.ui-menu {
+  display: flex;
+  min-width: 220px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-menu);
+  box-shadow: var(--shadow-lg);
+}
+
+.ui-menu__item {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-size-md);
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-sm);
+  text-align: left;
+}
+
+.ui-menu__item:hover,
+.ui-menu__item[aria-selected="true"] {
+  background: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+
+.ui-menu__item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.ui-menu__item--danger {
+  color: var(--status-destructive);
+}
+
+.ui-menu__separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border-subtle);
+}
+
+.ui-menu__label {
+  padding: 6px 10px 2px;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  font-weight: var(--type-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Popover ------------------------------------------------------------------ */
+
+.ui-popover {
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-xl);
+  background: var(--bg-menu);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Dialog ------------------------------------------------------------------- */
+
+.ui-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  background: var(--bg-modal-backdrop);
+  place-items: center;
+}
+
+.ui-dialog {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid var(--border-dialog);
+  border-radius: var(--radius-xl);
+  background: var(--bg-dialog);
+  box-shadow: var(--shadow-xl);
+  color: var(--text-secondary);
+}
+
+/* Inspector (trailing contextual panel) ------------------------------------- */
+
+.ui-inspector {
+  display: flex;
+  min-width: 280px;
+  flex-direction: column;
+  border-left: 1px solid var(--border-default);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.ui-inspector__header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ui-inspector__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-primary);
+  font-size: var(--type-sm);
+  font-weight: var(--type-weight-semibold);
+}
+
+/* Toolbar ------------------------------------------------------------------ */
+
+.ui-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-toolbar__title {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--type-md);
+  font-weight: var(--type-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-toolbar__subtitle {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-toolbar__spacer {
+  flex: 1;
+}
+
+/* Sidebar row -------------------------------------------------------------- */
+
+.ui-sidebar-row {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-xs);
+  text-align: left;
+}
+
+.ui-sidebar-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.ui-sidebar-row.active,
+.ui-sidebar-row[aria-current="true"] {
+  background: var(--bg-row-active);
+  color: var(--text-primary);
+}
+
+.ui-sidebar-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+/* Status message ----------------------------------------------------------- */
+
+.ui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-size-sm);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--type-xs);
+}
+
+.ui-status--success {
+  background: color-mix(in srgb, var(--status-success) 16%, transparent);
+  color: var(--status-success);
+}
+
+.ui-status--warning {
+  background: color-mix(in srgb, var(--status-warning) 16%, transparent);
+  color: var(--status-warning);
+}
+
+.ui-status--danger {
+  background: color-mix(in srgb, var(--status-destructive) 16%, transparent);
+  color: var(--status-destructive);
+}
+
+.ui-status--accent {
+  background: var(--accent-soft);
+  color: var(--accent-dim);
+}
+
+/* Empty state -------------------------------------------------------------- */
+
+.ui-empty {
+  display: grid;
+  min-height: 160px;
+  padding: var(--space-8) var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  line-height: var(--leading-normal);
+  place-items: center;
+  text-align: center;
+}
+
+.ui-empty strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: var(--type-md);
+}
+
+/* Progress ----------------------------------------------------------------- */
+
+.ui-progress {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--bg-scrollbar);
+}
+
+.ui-progress__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  transition: width var(--motion-med) var(--ease-out);
+}
+
+.ui-progress--indeterminate .ui-progress__bar {
+  width: 40%;
+  animation: ui-progress-slide 1.2s var(--ease-in-out) infinite;
+}
+
+@keyframes ui-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* Divider ------------------------------------------------------------------ */
+
+.ui-divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* Kbd ---------------------------------------------------------------------- */
+
+.ui-kbd {
+  display: inline-block;
+  min-height: 18px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-card);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--type-xs);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* Badge -------------------------------------------------------------------- */
+
+.ui-badge {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-dim);
+  font-size: var(--type-xs);
+  font-weight: var(--type-weight-semibold);
+  white-space: nowrap;
+}
+
+.ui-badge--neutral {
+  background: var(--bg-button-secondary);
+  color: var(--text-muted);
+}
+
+.ui-badge--danger {
+  background: var(--status-destructive-bg);
+  color: var(--text-on-accent);
+}
+
+/* Glass (functional chrome that floats above content) ----------------------- */
+
+.ui-glass {
+  background: color-mix(in srgb, var(--surface-chrome) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ui-glass {
+    background: var(--surface-chrome);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

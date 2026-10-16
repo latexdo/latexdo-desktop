@@ -1,0 +1,282 @@
+/**
+ * Table reconstruction.
+ *
+ * Column boundaries are recovered from a vertical projection of the cell contents:
+ * an x interval that no row draws into, in row after row, is a column separator.
+ * That works for both ruled tables and the open booktabs style that dominates
+ * academic writing, where the only rules present are the horizontal ones. Drawn
+ * rules, when present, are used to place `\toprule`, `\midrule` and `\bottomrule`
+ * and to confirm the column grid.
+ */
+
+import type { InlineContext } from "./inline.js";
+import { renderInline } from "./inline.js";
+import type { TextLine } from "./layout.js";
+import { lineText } from "./layout.js";
+import type { Glyph, RuleSegment } from "./model.js";
+import { median } from "./model.js";
+
+export interface TableResult {
+  latex: string;
+  columnCount: number;
+  rowCount: number;
+  confidence: number;
+}
+
+interface CellRun {
+  glyphs: Glyph[];
+  left: number;
+  right: number;
+}
+
+const spannedCellMarker = "__latexdo_spanned_cell__";
+
+/** Splits one line into cell candidates on wide horizontal gaps. */
+function splitIntoRuns(line: TextLine, gapThreshold: number): CellRun[] {
+  const runs: CellRun[] = [];
+  let current: Glyph[] = [];
+  let previous: Glyph | null = null;
+
+  const push = () => {
+    const meaningful = current.filter((glyph) => !glyph.space && glyph.text);
+    if (meaningful.length) {
+      runs.push({
+        glyphs: current,
+        left: Math.min(...meaningful.map((glyph) => glyph.x)),
+        right: Math.max(...meaningful.map((glyph) => glyph.x + glyph.width)),
+      });
+    }
+    current = [];
+  };
+
+  for (const glyph of line.glyphs) {
+    if (previous) {
+      const gap = glyph.x - (previous.x + previous.width);
+      if (gap > gapThreshold) {
+        push();
+      }
+    }
+    current.push(glyph);
+    if (!glyph.space && glyph.text) {
+      previous = glyph;
+    }
+  }
+  push();
+  return runs;
+}
+
+/**
+ * Finds column separator positions: x ranges that stay clear across the rows.
+ */
+function findColumnBoundaries(
+  rows: CellRun[][],
+  left: number,
+  right: number,
+  verticalRules: RuleSegment[],
+): number[] {
+  if (verticalRules.length >= 1) {
+    const positions = verticalRules
+      .map((rule) => (rule.x1 + rule.x2) / 2)
+      .filter((x) => x > left + 2 && x < right - 2)
+      .sort((a, b) => a - b);
+    const deduped = positions.filter(
+      (x, index) => index === 0 || x - positions[index - 1] > 3,
+    );
+    if (deduped.length) {
+      return deduped;
+    }
+  }
+
+  const binSize = 1;
+  const binCount = Math.max(1, Math.ceil((right - left) / binSize) + 1);
+  const coverage = new Array<number>(binCount).fill(0);
+  for (const row of rows) {
+    const touched = new Set<number>();
+    for (const run of row) {
+      const from = Math.max(0, Math.floor((run.left - left) / binSize));
+      const to = Math.min(binCount - 1, Math.ceil((run.right - left) / binSize));
+      for (let bin = from; bin <= to; bin += 1) {
+        touched.add(bin);
+      }
+    }
+    for (const bin of touched) {
+      coverage[bin] += 1;
+    }
+  }
+
+  const boundaries: number[] = [];
+  let runStart = -1;
+  for (let bin = 0; bin < binCount; bin += 1) {
+    const empty = coverage[bin] === 0;
+    if (empty && runStart < 0) {
+      runStart = bin;
+    }
+    if ((!empty || bin === binCount - 1) && runStart >= 0) {
+      const runEnd = empty ? bin : bin - 1;
+      // Ignore the outer margins; only interior corridors separate columns.
+      if (runStart > 0 && runEnd < binCount - 1) {
+        boundaries.push(left + ((runStart + runEnd + 1) / 2) * binSize);
+      }
+      runStart = -1;
+    }
+  }
+  return boundaries;
+}
+
+function alignmentFor(cells: string[]): "l" | "c" | "r" {
+  const filled = cells.filter((cell) => cell.trim());
+  if (!filled.length) {
+    return "l";
+  }
+  const numeric = filled.filter(
+    (cell) =>
+      /^[$(]?[-−+]?[\d.,]+\s*(?:[%)]|\\%)?\s*(?:\$?)$/.test(cell.trim()) ||
+      /^\$?[-−+]?[\d.,]+\s*\\pm\s*[\d.,]+\$?$/.test(cell.trim()),
+  );
+  return numeric.length >= filled.length * 0.6 ? "r" : "l";
+}
+
+/**
+ * Builds a tabular from the lines of a table body.
+ */
+export function reconstructTable(
+  lines: TextLine[],
+  rules: RuleSegment[],
+  context: InlineContext,
+): TableResult | null {
+  const bodyLines = lines.filter((line) => line.glyphs.some((glyph) => glyph.text));
+  if (bodyLines.length < 2) {
+    return null;
+  }
+
+  const left = Math.min(...bodyLines.map((line) => line.left));
+  const right = Math.max(...bodyLines.map((line) => line.right));
+  const size = median(bodyLines.map((line) => line.size)) || context.bodySize;
+  const gapThreshold = size * 0.85;
+
+  const rows = bodyLines.map((line) => splitIntoRuns(line, gapThreshold));
+  const horizontalRules = rules.filter(
+    (rule) => rule.horizontal && rule.x2 - rule.x1 > (right - left) * 0.5,
+  );
+  const verticalRules = rules.filter(
+    (rule) => rule.vertical && rule.y2 - rule.y1 > size,
+  );
+
+  const boundaries = findColumnBoundaries(rows, left, right, verticalRules);
+  const columnCount = boundaries.length + 1;
+  if (columnCount < 2) {
+    return null;
+  }
+  // More than a handful of rows carrying a single cell means this was never a grid.
+  const griddedRows = rows.filter((row) => row.length > 1).length;
+  if (griddedRows < Math.max(2, rows.length * 0.5)) {
+    return null;
+  }
+
+  const edges = [left - 1, ...boundaries, right + 1];
+  const columnIndexFor = (run: CellRun): { start: number; span: number } => {
+    let start = 0;
+    while (start < columnCount - 1 && run.left >= edges[start + 1]) {
+      start += 1;
+    }
+    let end = start;
+    while (end < columnCount - 1 && run.right > edges[end + 1]) {
+      end += 1;
+    }
+    return { start, span: end - start + 1 };
+  };
+
+  const renderedRows: Array<{ baseline: number; cells: string[]; plain: string[] }> =
+    [];
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const cells = new Array<string>(columnCount).fill("");
+    const plain = new Array<string>(columnCount).fill("");
+    for (const run of rows[rowIndex]) {
+      const { start, span } = columnIndexFor(run);
+      const cellLine: TextLine = { ...bodyLines[rowIndex], glyphs: run.glyphs };
+      const rendered = renderInline([cellLine], context);
+      const body = rendered.latex.replace(/\s+/g, " ").trim();
+      const content = span > 1 ? `\\multicolumn{${span}}{c}{${body}}` : body;
+      cells[start] = cells[start] ? `${cells[start]} ${content}` : content;
+      plain[start] = plain[start] ? `${plain[start]} ${rendered.text}` : rendered.text;
+      // Columns covered by a spanning cell must stay empty.
+      for (let offset = 1; offset < span; offset += 1) {
+        cells[start + offset] = spannedCellMarker;
+      }
+    }
+    renderedRows.push({
+      baseline: bodyLines[rowIndex].baseline,
+      cells: cells.filter((cell) => cell !== spannedCellMarker),
+      plain,
+    });
+  }
+
+  const alignments: string[] = [];
+  for (let column = 0; column < columnCount; column += 1) {
+    alignments.push(alignmentFor(renderedRows.map((row) => row.plain[column] ?? "")));
+  }
+
+  const bodyTop = Math.min(...bodyLines.map((line) => line.top));
+  const bodyBottom = Math.max(...bodyLines.map((line) => line.bottom));
+  const ruleAt = (from: number, to: number): boolean =>
+    horizontalRules.some((rule) => rule.y1 > from && rule.y1 < to);
+
+  const output: string[] = [];
+  output.push(`\\begin{tabular}{${alignments.join("")}}`);
+  if (ruleAt(bodyTop - size * 2.5, bodyTop)) {
+    output.push("\\toprule");
+  }
+  renderedRows.forEach((row, index) => {
+    output.push(`${row.cells.join(" & ")} \\\\`);
+    const next = renderedRows[index + 1];
+    if (next && ruleAt(row.baseline + size * 0.2, next.baseline - size * 0.2)) {
+      output.push("\\midrule");
+    }
+  });
+  if (ruleAt(bodyBottom - size * 0.3, bodyBottom + size * 2.5)) {
+    output.push("\\bottomrule");
+  }
+  output.push("\\end{tabular}");
+
+  const filledCells = renderedRows.reduce(
+    (total, row) => total + row.cells.filter((cell) => cell.trim()).length,
+    0,
+  );
+  const confidence = Math.min(
+    1,
+    filledCells / Math.max(1, renderedRows.length * columnCount),
+  );
+
+  return {
+    latex: output.join("\n"),
+    columnCount,
+    rowCount: renderedRows.length,
+    confidence,
+  };
+}
+
+/**
+ * Scores how much a group of lines looks like a table, independent of any caption.
+ * Used to decide whether to attempt reconstruction at all.
+ */
+export function tableLikelihood(lines: TextLine[], bodySize: number): number {
+  if (lines.length < 2) {
+    return 0;
+  }
+  const gapThreshold = bodySize * 0.85;
+  const runCounts = lines.map((line) => splitIntoRuns(line, gapThreshold).length);
+  const multiRun = runCounts.filter((count) => count > 1).length;
+  if (multiRun < 2) {
+    return 0;
+  }
+  const consistent = median(runCounts);
+  const agreeing = runCounts.filter(
+    (count) => Math.abs(count - consistent) <= 1,
+  ).length;
+  const numericRows = lines.filter((line) => /\d/.test(lineText(line))).length;
+  return (
+    (multiRun / lines.length) * 0.5 +
+    (agreeing / lines.length) * 0.3 +
+    (numericRows / lines.length) * 0.2
+  );
+}

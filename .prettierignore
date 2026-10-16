@@ -1,0 +1,9 @@
+coverage
+dist
+dist-electron
+node_modules
+package-lock.json
+release
+out
+*.tsbuildinfo
+.claude/

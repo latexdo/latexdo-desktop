@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "version": "0.3.0",
+  "files": [
+    {
+      "from": "electron/ai/aiIpc.ts",
+      "to": "electron/ai/aiIpc.ts"
+    },
+    {
+      "from": "electron/ai/localLlm.ts",
+      "to": "electron/ai/localLlm.ts"
+    },
+    {
+      "from": "electron/ai/models.ts",
+      "to": "electron/ai/models.ts"
+    },
+    {
+      "from": "electron/ai/ollama.ts",
+      "to": "electron/ai/ollama.ts"
+    },
+    {
+      "from": "src/components/AiSidebar.test.tsx",
+      "to": "src/components/AiSidebar.test.tsx"
+    },
+    {
+      "from": "src/components/AiSidebar.tsx",
+      "to": "src/components/AiSidebar.tsx"
+    },
+    {
+      "from": "src/components/CloudProviderForm.test.tsx",
+      "to": "src/components/CloudProviderForm.test.tsx"
+    },
+    {
+      "from": "src/components/CloudProviderForm.tsx",
+      "to": "src/components/CloudProviderForm.tsx"
+    },
+    {
+      "from": "src/components/ProfileDialog.test.tsx",
+      "to": "src/components/ProfileDialog.test.tsx"
+    },
+    {
+      "from": "src/components/ProfileDialog.tsx",
+      "to": "src/components/ProfileDialog.tsx"
+    },
+    {
+      "from": "src/components/SetupWizard.test.tsx",
+      "to": "src/components/SetupWizard.test.tsx"
+    },
+    {
+      "from": "src/components/SetupWizard.tsx",
+      "to": "src/components/SetupWizard.tsx"
+    },
+    {
+      "from": "src/features/ai/aiAgent.test.ts",
+      "to": "src/features/ai/aiAgent.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiAgent.ts",
+      "to": "src/features/ai/aiAgent.ts"
+    },
+    {
+      "from": "src/features/ai/aiCatalog.test.ts",
+      "to": "src/features/ai/aiCatalog.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiCatalog.ts",
+      "to": "src/features/ai/aiCatalog.ts"
+    },
+    {
+      "from": "src/features/ai/aiClient.ts",
+      "to": "src/features/ai/aiClient.ts"
+    },
+    {
+      "from": "src/features/ai/aiCloud.test.ts",
+      "to": "src/features/ai/aiCloud.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiCloud.ts",
+      "to": "src/features/ai/aiCloud.ts"
+    },
+    {
+      "from": "src/features/ai/aiConfig.test.ts",
+      "to": "src/features/ai/aiConfig.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiConfig.ts",
+      "to": "src/features/ai/aiConfig.ts"
+    },
+    {
+      "from": "src/features/ai/aiMentions.test.ts",
+      "to": "src/features/ai/aiMentions.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiMentions.ts",
+      "to": "src/features/ai/aiMentions.ts"
+    },
+    {
+      "from": "src/features/ai/aiModels.ts",
+      "to": "src/features/ai/aiModels.ts"
+    },
+    {
+      "from": "src/features/ai/aiSystemPrompt.test.ts",
+      "to": "src/features/ai/aiSystemPrompt.test.ts"
+    },
+    {
+      "from": "src/features/ai/aiSystemPrompt.ts",
+      "to": "src/features/ai/aiSystemPrompt.ts"
+    },
+    {
+      "from": "src/features/ai/aiTools.ts",
+      "to": "src/features/ai/aiTools.ts"
+    },
+    {
+      "from": "src/features/ai/aiTypes.ts",
+      "to": "src/features/ai/aiTypes.ts"
+    },
+    {
+      "from": "src/features/ai/cloudProviders.ts",
+      "to": "src/features/ai/cloudProviders.ts"
+    },
+    {
+      "from": "src/features/ai/orcid.test.ts",
+      "to": "src/features/ai/orcid.test.ts"
+    },
+    {
+      "from": "src/features/ai/orcid.ts",
+      "to": "src/features/ai/orcid.ts"
+    },
+    {
+      "from": "src/features/ai/researcherProfile.test.ts",
+      "to": "src/features/ai/researcherProfile.test.ts"
+    },
+    {
+      "from": "src/features/ai/researcherProfile.ts",
+      "to": "src/features/ai/researcherProfile.ts"
+    },
+    {
+      "from": "src/features/ai/useAiAgent.ts",
+      "to": "src/features/ai/useAiAgent.ts"
+    },
+    {
+      "from": "src/localLlmHistory.test.ts",
+      "to": "src/localLlmHistory.test.ts"
+    }
+  ],
+  "styleFragments": [
+    {
+      "from": "src/styles.css",
+      "to": "src/styles.css",
+      "startMarker": "/* ===================== AI Assistant + Setup Wizard ===================== */",
+      "endMarker": "/* ---------- Knowledge graph ---------- */"
+    }
+  ]
+}

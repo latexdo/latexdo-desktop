@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "product": "LatexDo",
+  "version": "0.3.0",
+  "title": "LatexDo 0.3.0",
+  "summary": "Faster compiles, reworked citations, and a reviewer workspace.",
+  "publishedAt": "2026-03-01T12:00:00.000Z",
+  "releaseUrl": "https://latexdo.org/downloads/",
+  "highlights": [
+    {
+      "id": "latex-reengines",
+      "category": "compiler",
+      "title": "Reworked compilation engine",
+      "description": "Iterative compiles for large documents are noticeably faster, with clearer failing-command diagnostics."
+    },
+    {
+      "id": "citations-overhauled",
+      "category": "editor",
+      "title": "Citations overhauled",
+      "description": "Insert and preview citations inline, with warning badges for incomplete or duplicate keys."
+    },
+    {
+      "id": "reviewer-workspace",
+      "category": "review",
+      "title": "Reviewer workspace",
+      "description": "A dedicated sidebar for comments, change tracking, and conflict resolution during reviews."
+    }
+  ],
+  "fixes": [
+    "Fixed an intermittent failure reading PDF previews immediately after a recompile.",
+    "Fixed a crash when opening projects with deeply nested include trees.",
+    "Fixed citation warnings misreporting keys inside escaped environments."
+  ],
+  "breakingChanges": [],
+  "security": []
+}

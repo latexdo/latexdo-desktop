@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "product": "LatexDo",
+  "version": "0.3.1",
+  "title": "LatexDo 0.3.1",
+  "summary": "Updates that follow every build, a PDF builder that installs itself, and a clearer first run.",
+  "publishedAt": "2026-10-13T12:00:00.000Z",
+  "releaseUrl": "https://latexdo.org/downloads/",
+  "highlights": [
+    {
+      "id": "updates-follow-every-build",
+      "category": "updates",
+      "title": "Updates follow every build",
+      "description": "LatexDo now recognises a newer build even when the version number is the same, and confirms after restarting that the new build is really the one running."
+    },
+    {
+      "id": "pdf-builder-installs-itself",
+      "category": "compiler",
+      "title": "The PDF builder installs itself",
+      "description": "If this computer has no TeX distribution, setup downloads and verifies one for you, with a single progress bar and time remaining."
+    },
+    {
+      "id": "tour-shows-you",
+      "category": "new",
+      "title": "A tour that shows you",
+      "description": "Each tour step is one sentence, highlights the real control, and Show me performs the step in your own project without changing your document."
+    }
+  ],
+  "fixes": [
+    "Fixed the file picker not appearing the first time @ is typed in the AI composer.",
+    "Fixed tour steps that highlighted nothing or could not be completed.",
+    "Fixed Linux AppImage startup on desktops that restrict unprivileged user namespaces."
+  ],
+  "breakingChanges": [],
+  "security": [
+    {
+      "title": "Automatic installation requires a signed update",
+      "description": "LatexDo only installs an update automatically when it is signed by LatexDo. Unsigned update information can only open the downloads page."
+    },
+    {
+      "title": "Update signing key rotated",
+      "description": "Updates are now signed with a new key. Earlier builds update once through the downloads list and then trust the new key."
+    }
+  ]
+}

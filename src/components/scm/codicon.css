@@ -1,0 +1,20 @@
+/* Codicon glyphs; the font is registered in Codicon.tsx. */
+.scm-codicon {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  font: normal normal normal 16px/1 "latexdo-codicon";
+  text-align: center;
+  text-decoration: none;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.scm-codicon.spin {
+  animation: scm-codicon-spin 1.2s linear infinite;
+}
+@keyframes scm-codicon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,622 @@
+import { AiIcon } from "../../components/AiIcon";
+import {
+  BookOpenText,
+  Box,
+  Building2,
+  CircleAlert,
+  ExternalLink,
+  Files,
+  GitBranch,
+  ImageUp,
+  LoaderCircle,
+  Link,
+  WandSparkles,
+  PanelBottom,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
+  Plus,
+  Puzzle,
+  RefreshCw,
+  Settings,
+  Waypoints,
+  User,
+  Variable,
+  X,
+} from "lucide-react";
+import FileTree from "../../FileTree";
+import { ActivityItems } from "../../components/ActivityItems";
+import { productConfig, productIsPro } from "../../productConfig";
+import { AiSidebar } from "../../components/AiSidebar";
+import { pathForDisplay } from "../../pathDisplay";
+import { flattenEntries } from "../../features/project/projectUtils";
+import { extensionStoreSiteUrl } from "../../extensions";
+import { AppIcon, aiChatStateStorageKey } from "../appShared";
+import { toolTabIds } from "../../features/workspace/toolTabs";
+import type { AppCtx } from "../appContext";
+
+export function renderTitlebar(ctx: AppCtx) {
+  const {
+    activeDocumentIsLatex,
+    activePanel,
+    applyLatexPrettier,
+    diagnostics,
+    openPanel,
+    openShareDialog,
+    panelVisible,
+    paperReviewImporting,
+    previewShown,
+    projectId,
+    projectName,
+    reviewPaper,
+    shareButtonDisabled,
+    sidebarVisible,
+    togglePanel,
+    togglePreview,
+    toggleSidebar,
+  } = ctx;
+  return (
+    <header className="titlebar">
+      <div className="titlebar-drag">
+        <span className="title-center">
+          <AppIcon className="app-mark" />
+          <span className="title-project">{projectName}</span>
+          <span className="title-separator">—</span>
+          <span>{productConfig.shortName}</span>
+        </span>
+      </div>
+      <div className="title-actions">
+        <button
+          type="button"
+          className="title-history-button title-prettier-button"
+          onClick={applyLatexPrettier}
+          disabled={!activeDocumentIsLatex}
+          title={
+            activeDocumentIsLatex
+              ? "Tidy up the LaTeX layout"
+              : "Open a TeX file to tidy it up"
+          }
+          aria-label="Tidy up the LaTeX layout"
+        >
+          <WandSparkles size={15} aria-hidden="true" />
+          <span>Tidy</span>
+        </button>
+        <button
+          type="button"
+          className="title-history-button title-review-paper-button"
+          onClick={() => void reviewPaper()}
+          disabled={paperReviewImporting}
+          title="Read and review a PDF paper"
+          aria-label="Read and review a PDF paper"
+        >
+          {paperReviewImporting ? (
+            <LoaderCircle size={15} className="spin" />
+          ) : (
+            <BookOpenText size={15} aria-hidden="true" />
+          )}
+          <span>{paperReviewImporting ? "Opening" : "Review"}</span>
+        </button>
+        {projectId ? null : (
+          // With a project open, Share lives in the editor toolbar; here it
+          // only joins someone else's project from the welcome screen.
+          <button
+            type="button"
+            className="title-history-button"
+            onClick={openShareDialog}
+            disabled={shareButtonDisabled}
+            title="Join shared project"
+            aria-label="Join shared project"
+          >
+            <Link size={15} aria-hidden="true" />
+            <span>Join</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className={`icon-button ${sidebarVisible ? "active" : ""}`}
+          onClick={toggleSidebar}
+          title="Toggle sidebar (Cmd/Ctrl+B)"
+          aria-label="Toggle sidebar"
+          aria-pressed={sidebarVisible}
+        >
+          {sidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        </button>
+        <button
+          type="button"
+          className={`icon-button workbench-toggle ${
+            panelVisible && activePanel === "problems" ? "active" : ""
+          }`}
+          onClick={() => openPanel("problems")}
+          title="Open problems"
+          aria-label="Open problems panel"
+          aria-pressed={panelVisible && activePanel === "problems"}
+          data-tour-id="problems"
+        >
+          <CircleAlert size={16} />
+          {diagnostics.length ? (
+            <span className="icon-button-badge">{diagnostics.length}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          className={`icon-button ${panelVisible ? "active" : ""}`}
+          onClick={togglePanel}
+          title="Toggle bottom panel"
+          aria-label="Toggle bottom panel"
+          aria-pressed={panelVisible}
+        >
+          <PanelBottom size={16} />
+        </button>
+        <button
+          type="button"
+          className={`icon-button ${previewShown ? "active" : ""}`}
+          onClick={() => void togglePreview()}
+          title="Toggle PDF preview"
+          aria-label="Toggle PDF preview"
+          aria-pressed={previewShown}
+        >
+          {previewShown ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+export function renderActivityBar(ctx: AppCtx) {
+  const {
+    activeSidebar,
+    extensionToolAvailability,
+    knowledgeGraphActive,
+    openKnowledgeGraph,
+    openSidebar,
+    profileOpen,
+    setProfileOpen,
+    setSettingsOpen,
+    settingsOpen,
+    sidebarVisible,
+    activePath,
+    toggleToolTab,
+  } = ctx;
+  return (
+    <nav className="activity-bar">
+      <ActivityItems>
+        <button
+          className={`activity-button ${
+            sidebarVisible && activeSidebar === "explorer" ? "active" : ""
+          }`}
+          onClick={() => openSidebar("explorer")}
+          title="Explorer"
+        >
+          <Files size={22} />
+        </button>
+        <button
+          className={`activity-button ${
+            sidebarVisible && activeSidebar === "sourceControl" ? "active" : ""
+          }`}
+          onClick={() => openSidebar("sourceControl")}
+          title="Source control"
+        >
+          <GitBranch size={21} />
+        </button>
+        {productIsPro ? (
+          <button
+            className={`activity-button ${
+              sidebarVisible && activeSidebar === "enterprise" ? "active" : ""
+            }`}
+            onClick={() => openSidebar("enterprise")}
+            title="Enterprise"
+          >
+            <Building2 size={21} />
+          </button>
+        ) : null}
+        <button
+          className={`activity-button ${knowledgeGraphActive ? "active" : ""}`}
+          onClick={openKnowledgeGraph}
+          title="Knowledge graph"
+        >
+          <Waypoints size={21} />
+        </button>
+        <button
+          className={`activity-button ${
+            sidebarVisible && activeSidebar === "ai" ? "active" : ""
+          }`}
+          onClick={() => openSidebar("ai")}
+          title="AI assistant"
+        >
+          <AiIcon size={21} />
+        </button>
+        <button
+          className={`activity-button ${activePath === toolTabIds.tikzCanvas ? "active" : ""}`}
+          onClick={() => toggleToolTab(toolTabIds.tikzCanvas)}
+          title="TikZ drawing"
+        >
+          <Pencil size={21} />
+        </button>
+        {extensionToolAvailability.tableGenerator ? (
+          <button
+            className={`activity-button ${
+              activePath === toolTabIds.tableGenerator ? "active" : ""
+            }`}
+            onClick={() => toggleToolTab(toolTabIds.tableGenerator)}
+            title="Table Generator"
+          >
+            <Box size={21} />
+          </button>
+        ) : null}
+        {extensionToolAvailability.tikzConverter ? (
+          <button
+            className={`activity-button ${
+              activePath === toolTabIds.tikzConverter ? "active" : ""
+            }`}
+            onClick={() => toggleToolTab(toolTabIds.tikzConverter)}
+            title="Figure → TikZ Converter"
+          >
+            <ImageUp size={21} />
+          </button>
+        ) : null}
+        {extensionToolAvailability.notationManager ? (
+          <button
+            className={`activity-button ${
+              activePath === toolTabIds.notationManager ? "active" : ""
+            }`}
+            onClick={() => toggleToolTab(toolTabIds.notationManager)}
+            title="Notation Manager"
+          >
+            <Variable size={21} />
+          </button>
+        ) : null}
+        {extensionToolAvailability.projectBibliography ? (
+          <button
+            className={`activity-button ${
+              activePath === toolTabIds.citationManager ? "active" : ""
+            }`}
+            onClick={() => toggleToolTab(toolTabIds.citationManager)}
+            title="Citation Manager"
+          >
+            <BookOpenText size={21} />
+          </button>
+        ) : null}
+        <button
+          className={`activity-button ${
+            sidebarVisible && activeSidebar === "extensions" ? "active" : ""
+          }`}
+          onClick={() => openSidebar("extensions")}
+          title="Extensions"
+        >
+          <Puzzle size={21} />
+        </button>
+      </ActivityItems>
+      <div>
+        <button
+          type="button"
+          className={`activity-button ${profileOpen ? "active" : ""}`}
+          onClick={() => setProfileOpen(true)}
+          title="Account"
+          aria-label="Open account"
+          aria-pressed={profileOpen}
+        >
+          <User size={21} />
+        </button>
+        <button
+          type="button"
+          className={`activity-button ${settingsOpen ? "active" : ""}`}
+          onClick={() => setSettingsOpen(true)}
+          title="Settings"
+          aria-label="Open settings"
+          aria-pressed={settingsOpen}
+        >
+          <Settings size={21} />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+export function renderSidebar(ctx: AppCtx) {
+  const {
+    activeAiChatId,
+    activeAiSidebarApiRef,
+    activeWorkspaceTab,
+    aiChats,
+    aiConfig,
+    aiIsDesktop,
+    aiSidebarExpanded,
+    aiTabTargets,
+    closeAiChat,
+    contextForWorkspaceTab,
+    documents,
+    handleAiSidebarClickCapture,
+    openAiSettings,
+    openExternalLink,
+    setActiveAiChatId,
+    setAiSidebarExpanded,
+    setAiTabTargets,
+    setSidebarVisible,
+    sidebarWidthStyle,
+    workspaceTabs,
+  } = ctx;
+  return (
+    <aside
+      className={`sidebar ${aiSidebarExpanded ? "ai-sidebar-expanded" : ""}`}
+      data-view="ai"
+      style={sidebarWidthStyle}
+      data-tour-id="ai-sidebar"
+      onClickCapture={handleAiSidebarClickCapture}
+    >
+      <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
+        {aiChats.map((chat) => {
+          const active = chat.id === activeAiChatId;
+          return (
+            <div
+              key={chat.id}
+              className={`ai-chat-tab-shell ${active ? "active" : ""}`}
+            >
+              <button
+                type="button"
+                id={`ai-tab-${chat.id}`}
+                role="tab"
+                className="ai-chat-tab"
+                aria-selected={active}
+                aria-controls={`ai-panel-${chat.id}`}
+                onClick={() => setActiveAiChatId(chat.id)}
+              >
+                {chat.title}
+              </button>
+              <button
+                type="button"
+                className="ai-chat-tab-close"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeAiChat(chat.id);
+                }}
+                aria-label={`Close ${chat.title}`}
+                title={`Close ${chat.title}`}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="ai-chat-panes">
+        {aiChats.map((chat) => {
+          const active = chat.id === activeAiChatId;
+          const targetId = aiTabTargets[chat.id] ?? "active";
+          const resolvedTarget = targetId === "active" ? activeWorkspaceTab : targetId;
+          return (
+            <div
+              key={chat.id}
+              id={`ai-panel-${chat.id}`}
+              role="tabpanel"
+              aria-labelledby={`ai-tab-${chat.id}`}
+              className={`ai-chat-pane ${active ? "active" : ""}`}
+            >
+              <AiSidebar
+                storageKey={aiChatStateStorageKey(chat.id)}
+                config={aiConfig}
+                ctx={contextForWorkspaceTab(resolvedTarget)}
+                workspaceTarget={{
+                  value: targetId,
+                  tabs: workspaceTabs.map((tab) => ({
+                    id: tab.id,
+                    label:
+                      documents.find((doc) => doc.path === tab.id)?.relativePath ??
+                      tab.label,
+                  })),
+                  activeLabel:
+                    workspaceTabs.find((tab) => tab.id === activeWorkspaceTab)?.label ??
+                    "No tab",
+                  onChange: (id) => {
+                    setAiTabTargets((current) => ({
+                      ...current,
+                      [chat.id]: id,
+                    }));
+                    workspaceTabs.find((tab) => tab.id === id)?.onSelect();
+                  },
+                }}
+                isDesktop={aiIsDesktop}
+                expanded={aiSidebarExpanded}
+                onToggleExpanded={() => setAiSidebarExpanded((expanded) => !expanded)}
+                onOpenSettings={openAiSettings}
+                onOpenExternal={openExternalLink}
+                apiRef={active ? activeAiSidebarApiRef : undefined}
+                onInsertFigure={(code) => void ctx.insertFigure(code)}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="small-icon ai-sidebar-app-close"
+        onClick={() => setSidebarVisible(false)}
+        aria-label="Close AI assistant"
+        title="Close AI assistant"
+      >
+        <X size={15} />
+      </button>
+    </aside>
+  );
+}
+
+export function renderSmallIcon(ctx: AppCtx) {
+  const { extensionCatalogLoading, openExternalLink, refreshExtensionCatalog } = ctx;
+  return (
+    <>
+      <button
+        className="small-icon"
+        onClick={() => void refreshExtensionCatalog()}
+        title="Refresh extensions"
+        aria-label="Refresh extensions"
+        disabled={extensionCatalogLoading}
+      >
+        <RefreshCw size={14} className={extensionCatalogLoading ? "spin" : ""} />
+      </button>
+      <button
+        className="small-icon"
+        onClick={() => openExternalLink(extensionStoreSiteUrl)}
+        title="Open extension store"
+        aria-label="Open extension store"
+      >
+        <ExternalLink size={14} />
+      </button>
+      <button
+        className="small-icon"
+        onClick={() =>
+          openExternalLink(new URL("builder/", extensionStoreSiteUrl).toString())
+        }
+        title="Build extension"
+        aria-label="Build extension"
+      >
+        <Plus size={14} />
+      </button>
+    </>
+  );
+}
+
+export function renderFileTree(ctx: AppCtx) {
+  const {
+    activePath,
+    chooseImportFiles,
+    compileEntry,
+    copyEntry,
+    copyRelativePath,
+    deleteEntry,
+    importExternalFiles,
+    insertImageReference,
+    moveEntry,
+    openCreateDialogInDirectory,
+    openDocument,
+    projectEntries,
+    revealGitFile,
+    rootFileRef,
+    setRootFile,
+    setStatusMessage,
+  } = ctx;
+  return (
+    <FileTree
+      entries={projectEntries}
+      activePath={activePath}
+      onOpen={openDocument}
+      onCompileFile={(entry) => void compileEntry(entry)}
+      onSetRootFile={(entry) => {
+        setRootFile(entry.relativePath);
+        rootFileRef.current = entry.relativePath;
+        setStatusMessage(`Main file set to ${pathForDisplay(entry.relativePath)}`);
+      }}
+      onMoveEntry={(sourcePath, destination) => void moveEntry(sourcePath, destination)}
+      onImportExternalFiles={(files, destination) =>
+        void importExternalFiles(files, destination)
+      }
+      onChooseImportFilesInDirectory={chooseImportFiles}
+      onCreateFileInDirectory={(entry) => openCreateDialogInDirectory("file", entry)}
+      onCreateFolderInDirectory={(entry) =>
+        openCreateDialogInDirectory("folder", entry)
+      }
+      onCopyRelativePath={(entry) => void copyRelativePath(entry)}
+      onInsertFileReference={insertImageReference}
+      onRevealFile={(entry) => void revealGitFile(entry.relativePath)}
+      onCopyPath={(entry) => {
+        void navigator.clipboard
+          ?.writeText(entry.path)
+          .then(() => setStatusMessage(`Copied ${pathForDisplay(entry.path)}`))
+          .catch(() => setStatusMessage("Could not copy the path."));
+      }}
+      onRenameEntry={(entry, newName) => void moveEntry(entry.path, null, newName)}
+      onDeleteEntry={(entry) => void deleteEntry(entry)}
+      onDuplicateEntry={(entry) => {
+        const parent = entry.relativePath.includes("/")
+          ? (flattenEntries(projectEntries).find(
+              (candidate) =>
+                candidate.type === "directory" &&
+                candidate.relativePath ===
+                  entry.relativePath.slice(0, entry.relativePath.lastIndexOf("/")),
+            ) ?? null)
+          : null;
+        void copyEntry(entry.path, parent);
+      }}
+      onPasteEntry={(sourcePath, mode, destination) =>
+        void (mode === "cut"
+          ? moveEntry(sourcePath, destination)
+          : copyEntry(sourcePath, destination))
+      }
+    />
+  );
+}
+
+export function renderReviewFiles(ctx: AppCtx) {
+  const {
+    activePath,
+    chooseImportFiles,
+    compileEntry,
+    copyEntry,
+    copyRelativePath,
+    deleteEntry,
+    importExternalFiles,
+    insertImageReference,
+    moveEntry,
+    openCreateDialogInDirectory,
+    openDocument,
+    projectEntries,
+    revealGitFile,
+    rootFileRef,
+    setRootFile,
+    setStatusMessage,
+  } = ctx;
+  return (
+    <details className="review-files" open>
+      <summary>Files</summary>
+      <FileTree
+        entries={projectEntries}
+        activePath={activePath}
+        onOpen={openDocument}
+        onCompileFile={(entry) => void compileEntry(entry)}
+        onSetRootFile={(entry) => {
+          setRootFile(entry.relativePath);
+          rootFileRef.current = entry.relativePath;
+          setStatusMessage(`Main file set to ${pathForDisplay(entry.relativePath)}`);
+        }}
+        onMoveEntry={(sourcePath, destination) =>
+          void moveEntry(sourcePath, destination)
+        }
+        onImportExternalFiles={(files, destination) =>
+          void importExternalFiles(files, destination)
+        }
+        onChooseImportFilesInDirectory={chooseImportFiles}
+        onCreateFileInDirectory={(entry) => openCreateDialogInDirectory("file", entry)}
+        onCreateFolderInDirectory={(entry) =>
+          openCreateDialogInDirectory("folder", entry)
+        }
+        onCopyRelativePath={(entry) => void copyRelativePath(entry)}
+        onInsertFileReference={insertImageReference}
+        onRevealFile={(entry) => void revealGitFile(entry.relativePath)}
+        onCopyPath={(entry) => {
+          void navigator.clipboard
+            ?.writeText(entry.path)
+            .then(() => setStatusMessage(`Copied ${pathForDisplay(entry.path)}`))
+            .catch(() => setStatusMessage("Could not copy the path."));
+        }}
+        onRenameEntry={(entry, newName) => void moveEntry(entry.path, null, newName)}
+        onDeleteEntry={(entry) => void deleteEntry(entry)}
+        onDuplicateEntry={(entry) => {
+          const parent = entry.relativePath.includes("/")
+            ? (flattenEntries(projectEntries).find(
+                (candidate) =>
+                  candidate.type === "directory" &&
+                  candidate.relativePath ===
+                    entry.relativePath.slice(0, entry.relativePath.lastIndexOf("/")),
+              ) ?? null)
+            : null;
+          void copyEntry(entry.path, parent);
+        }}
+        onPasteEntry={(sourcePath, mode, destination) =>
+          void (mode === "cut"
+            ? moveEntry(sourcePath, destination)
+            : copyEntry(sourcePath, destination))
+        }
+      />
+    </details>
+  );
+}

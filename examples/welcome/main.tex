@@ -1,0 +1,56 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+\definecolor{latexdoblue}{HTML}{6B9BFF}
+
+\title{\textbf{\textcolor{latexdoblue}{Welcome to LatexDo}}}
+\author{A focused workspace for beautiful documents}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+LatexDo brings a modern code editor, fast local compilation, useful diagnostics,
+and a PDF preview into one calm workspace. Edit this file and press
+\textbf{Compile} to see your changes.
+\end{abstract}
+
+\section{Write without friction}
+
+The editor understands LaTeX commands, keeps your project files close, and
+builds with the same trusted TeX toolchain used by professional workflows.
+
+\begin{itemize}
+  \item Monaco-powered editing
+  \item One-click \texttt{latexmk} compilation
+  \item Automatic bibliography and reference passes
+  \item Build errors linked back to source lines
+\end{itemize}
+
+\section{A small example}
+
+Euler's identity is often called one of the most beautiful equations:
+\[
+  e^{i\pi} + 1 = 0.
+\]
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Shortcut & Action \\
+    \midrule
+    \texttt{Cmd/Ctrl + S} & Save current file \\
+    \texttt{Cmd/Ctrl + Enter} & Compile project \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\end{document}

@@ -1,0 +1,44 @@
+.latexdo-next-edit-remove {
+  -webkit-box-decoration-break: clone;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  border-radius: 3px;
+  box-decoration-break: clone;
+  color: color-mix(in srgb, #ff6b6b 88%, currentColor);
+  font-weight: 600;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #ff6b6b 86%, transparent);
+  text-decoration-thickness: 1.5px;
+}
+
+.latexdo-next-edit-add {
+  -webkit-box-decoration-break: clone;
+  background: color-mix(in srgb, #18a058 22%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, #23c86f 82%, transparent);
+  border-radius: 3px;
+  box-decoration-break: clone;
+  color: color-mix(in srgb, #28d879 88%, currentColor);
+  font-weight: 600;
+  font-style: normal;
+  margin-left: 1px;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.latexdo-next-edit-tab-hint {
+  background: color-mix(in srgb, #111827 70%, #23c86f);
+  border: 1px solid color-mix(in srgb, #23c86f 74%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #23c86f 18%, transparent);
+  color: #d8ffe9;
+  display: inline-flex;
+  font-size: 0.76em;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  margin-left: 0.8em;
+  pointer-events: none;
+  padding: 0.14em 0.42em 0.16em;
+  transform: translateY(-0.03em);
+  vertical-align: middle;
+}

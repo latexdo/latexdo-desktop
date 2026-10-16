@@ -1,0 +1,42 @@
+[Unit]
+Description=LatexDo collaboration backend
+Documentation=https://latexdo.org
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=latexdo
+Group=latexdo
+WorkingDirectory=/opt/latexdo
+EnvironmentFile=/etc/latexdo/collaborations.env
+ExecStart=/usr/bin/node /opt/latexdo/server.mjs
+Restart=always
+RestartSec=3
+
+# Logging: everything goes to the journal.
+#   journalctl -u latexdo-collaborations -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=latexdo-collaborations
+
+# Hardening: the service only needs to read its code and write its data dir.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/var/lib/latexdo-collaborations
+
+# Resource ceilings so one process cannot exhaust the host.
+LimitNOFILE=1048576
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+services:
+  latexdo-collaborations:
+    build:
+      context: ..
+      dockerfile: collaborations/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - latexdo-collaborations-data:/data
+
+volumes:
+  latexdo-collaborations-data:

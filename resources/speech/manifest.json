@@ -1,0 +1,6 @@
+{
+  "name": "LatexDo bundled local speech runtime",
+  "baseUrl": "http://localhost:8080/v1",
+  "model": "whisper-1",
+  "loopbackOnly": true
+}

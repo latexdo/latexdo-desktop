@@ -1,0 +1,174 @@
+{
+  "name": "latexdo",
+  "version": "0.3.1",
+  "private": true,
+  "description": "A focused desktop LaTeX editor with live PDF preview.",
+  "author": "LatexDo",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "web": "vite --host 127.0.0.1",
+    "collab:start": "node collaborations/server.mjs",
+    "collab:check": "node --check collaborations/server.mjs",
+    "ai:sync": "node scripts/sync-ai.mjs",
+    "ai:check": "npm run ai:check:catalog && npm run ai:check:source",
+    "ai:check:catalog": "node scripts/validate-catalog.mjs catalog/latexdo-ai-catalog.v1.json",
+    "ai:check:source": "node scripts/validate-sync.mjs latexdo-sync.json",
+    "build": "npm run ai:sync && tsc -b && vite build && node scripts/verify-built-assets.mjs && tsc -p tsconfig.electron.json && node scripts/write-build-info.mjs dist-electron",
+    "start": "electron .",
+    "typecheck": "npm run ai:sync && tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "posttest:coverage": "node scripts/update-coverage-badge.mjs",
+    "test:diagnostics": "node --experimental-strip-types scripts/test-latex-diagnostics.ts",
+    "test:supply-chain": "node scripts/verify-supply-chain.mjs && node scripts/test-supply-chain-runtime.mjs",
+    "test:packaged": "node scripts/run-packaged-app-tests.mjs",
+    "test:packaged:e2e": "node scripts/run-packaged-app-tests.mjs --e2e",
+    "release:check": "npm run lint && npm run typecheck && npm test && npm run test:coverage && npm audit --audit-level=high && npm run test:supply-chain && npm run package && npm run test:packaged",
+    "release-notes:build": "node scripts/build-release-notes.mjs release-notes public-downloads/updates/release-notes",
+    "release-notes:verify": "node scripts/verify-release-notes.mjs public-downloads/updates/release-notes",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@codemirror/autocomplete": "^6.20.3",
+    "@monaco-editor/react": "^4.7.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "bibtex-parse": "2.1.0",
+    "lib0": "^0.2.117",
+    "lucide-react": "^0.468.0",
+    "mathjax-full": "^3.2.1",
+    "monaco-editor": "^0.52.2",
+    "node-llama-cpp": "^3.7.0",
+    "node-pty": "^1.1.0",
+    "pdfjs-dist": "^4.10.38",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "y-indexeddb": "^9.0.12",
+    "y-monaco": "^0.1.6",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.31"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^4.1.11",
+    "concurrently": "9.2.5",
+    "cross-env": "^7.0.3",
+    "electron": "43.5.0",
+    "electron-builder": "26.15.3",
+    "eslint": "^10.5.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^6.0.5",
+    "vitest": "^4.1.11",
+    "wait-on": "^8.0.1"
+  },
+  "overrides": {
+    "@electron/asar": "4.2.1",
+    "@electron/get": "5.0.0",
+    "@electron/universal": "3.0.6",
+    "baseline-browser-mapping": "2.11.24",
+    "brace-expansion": "5.0.12",
+    "browserslist": "4.29.0",
+    "dir-compare": "5.0.0",
+    "electron-winstaller": "5.4.4",
+    "fast-uri": "4.1.5",
+    "filelist": "2.0.2",
+    "glob": "13.0.2",
+    "joi": "18.2.9",
+    "js-yaml": "5.4.2",
+    "minimatch": "10.2.5",
+    "node-llama-cpp": {
+      "simple-git": "4.0.2"
+    },
+    "plist": {
+      "@xmldom/xmldom": "0.8.15"
+    },
+    "postcss": "8.5.23",
+    "speech-rule-engine": {
+      "@xmldom/xmldom": "0.9.12"
+    },
+    "tar": "7.5.22"
+  },
+  "build": {
+    "appId": "com.latexdo.editor",
+    "productName": "LatexDo",
+    "icon": "build/icon.png",
+    "npmRebuild": true,
+    "afterPack": "scripts/after-pack-linux.cjs",
+    "asarUnpack": [
+      "**/node_modules/node-pty/**",
+      "**/node_modules/node-llama-cpp/**",
+      "**/node_modules/@node-llama-cpp/**"
+    ],
+    "toolsets": {
+      "appimage": "1.0.3"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "collaborations/server.mjs",
+      "collaborations/security.mjs",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/update-public-key.pem",
+        "to": "update-public-key.pem"
+      },
+      {
+        "from": "examples/welcome",
+        "to": "examples/welcome"
+      },
+      {
+        "from": "resources/speech",
+        "to": "speech"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "type": "distribution",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true,
+      "extendInfo": {
+        "NSDocumentsFolderUsageDescription": "LatexDo needs access to open and save LaTeX projects in your Documents folder.",
+        "NSDownloadsFolderUsageDescription": "LatexDo needs access to export generated PDFs and project files to Downloads."
+      }
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "category": "Office",
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}
