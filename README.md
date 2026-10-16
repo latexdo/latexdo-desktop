@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="LatexDo with LaTeX source on the left and the compiled PDF on the right" width="100%" />
+  <img src="docs/images/hero.gif" alt="LatexDo with LaTeX source on the left and the compiled PDF on the right" width="100%" />
 </p>
 
 ## Why LatexDo
@@ -35,16 +35,25 @@
 - **Review and rebuttal.** Annotate PDFs, answer each reviewer, and get a response letter.
 - **Your files stay yours.** Projects are ordinary folders. No account, no upload.
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/ai-approve.png" alt="An AI edit shown as a diff, waiting for approval" /><br /><sub><b>AI edits wait for you.</b> Every change is a diff you approve or reject.</sub></td>
-    <td width="50%"><img src="docs/images/citations.png" alt="Citation search and the knowledge graph" /><br /><sub><b>Citations.</b> Search papers, cite them, and explore how they connect.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/images/table-generator.png" alt="The table generator" /><br /><sub><b>Tables like a spreadsheet.</b> Type or paste cells, get clean LaTeX.</sub></td>
-    <td width="50%"><img src="docs/images/checks.png" alt="Checks before submission" /><br /><sub><b>Ready to submit.</b> Structure, citations and the PDF are checked for you.</sub></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/images/ai-approve.gif" alt="An AI edit shown as a diff, waiting for approval" width="100%" /><br />
+  <sub><b>AI edits wait for you.</b> Every change is a diff you approve or reject.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/citations.gif" alt="Citation search and the knowledge graph" width="100%" /><br />
+  <sub><b>Citations.</b> Search papers, cite them, and explore how they connect.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/table-generator.gif" alt="The table generator" width="100%" /><br />
+  <sub><b>Tables like a spreadsheet.</b> Type or paste cells, get clean LaTeX.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/checks.gif" alt="Checks before submission" width="100%" /><br />
+  <sub><b>Ready to submit.</b> Structure, citations and the PDF are checked for you.</sub>
+</p>
 
 ## Install
 
