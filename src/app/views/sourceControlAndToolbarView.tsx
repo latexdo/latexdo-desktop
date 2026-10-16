@@ -207,6 +207,7 @@ export function renderSidebarPanel(ctx: AppCtx) {
     unstageAllGitEntries,
     unstageGitEntry,
     aiAvailable,
+    branchActions,
     chooseGraphRefs,
     commitFiles,
     commitMenu,
@@ -285,6 +286,7 @@ export function renderSidebarPanel(ctx: AppCtx) {
           onOpenFile: (commit, file) =>
             void openGitCommitRevisionDiff(commit.hash, file.path, commit.parents[0]),
           onContextMenu: (commit, x, y) => setCommitMenu({ commit, x, y }),
+          onBranchContextMenu: (branch) => void branchActions(branch),
           onChooseRefs: () => void chooseGraphRefs(),
           onGoToCurrent: goToCurrentCommit,
           onRefresh: () => void refreshGraph(),

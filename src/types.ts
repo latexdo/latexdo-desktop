@@ -546,6 +546,8 @@ export interface RebuttalItem {
   originalText?: string;
   revisedText?: string;
   insertedInTex?: boolean;
+  /** Who wrote the comment, e.g. "Reviewer 2". Comments are grouped by it. */
+  reviewer?: string;
   reviewerComment: string;
   authorComment: string;
   modificationMade: string;
@@ -658,22 +660,6 @@ export interface NotedSymbol {
   usageCount: number;
   environments: string[];
   similarSymbols: string[];
-}
-
-export interface RebuttalGeneratorSettings {
-  manuscriptId: string;
-  manuscriptTitle: string;
-  fontSize: string;
-  paperSize: string;
-  fontFamily: string;
-  includeDiff: boolean;
-  diffOldFile: string;
-  diffNewFile: string;
-  diffOutput: string;
-  summaryText: string;
-  useOnehalfSpacing: boolean;
-  colorPrimary: string;
-  colorAccent: string;
 }
 
 export interface PdfComplianceSettings {

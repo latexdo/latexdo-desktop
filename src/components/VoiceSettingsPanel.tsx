@@ -1,8 +1,8 @@
 // Voice dictation settings, shown in the AI tab of Settings.
 //
-// Lets the user point speech-to-text at a local OpenAI-compatible endpoint
-// (whisper.cpp, LM Studio, faster-whisper, …) or OpenAI, independent of the
-// chat provider. Changes save as soon as a field is committed.
+// One plain choice first (on this computer, or OpenAI), then the few options
+// people change. Running your own speech server is tucked under Advanced.
+// Changes save as soon as a field is committed.
 
 import React from "react";
 import type { AiConfig } from "../features/ai/aiConfig";
@@ -10,12 +10,13 @@ import { LocalSpeechInstallCard } from "./LocalSpeechInstallCard";
 import { createTranscriptCleanup } from "../features/voice/transcriptCleanup";
 import { useVoiceSettings } from "../features/voice/useVoiceSettings";
 import { useLocalSpeechInstall } from "../features/voice/useLocalSpeechInstall";
-import { Check, PlugZap } from "lucide-react";
+import { Check, Cloud, Laptop, PlugZap } from "lucide-react";
 import {
   detectLocalTranscriptionServers,
   type LocalTranscriptionServer,
 } from "../features/voice/localTranscriptionDetection";
 import {
+  defaultLocalTranscriptionBaseUrl,
   normalizeVoiceSettings,
   type VoiceSettings,
 } from "../features/voice/voiceSettings";
@@ -25,6 +26,20 @@ interface VoiceSettingsPanelProps {
   onSave(next: VoiceSettings): void;
   aiEnhancementAvailable?: boolean;
 }
+
+const cloudModels: Array<[string, string]> = [
+  ["gpt-4o-transcribe", "gpt-4o-transcribe — most accurate"],
+  ["gpt-4o-mini-transcribe", "gpt-4o-mini-transcribe — faster and cheaper"],
+  ["gpt-transcribe", "gpt-transcribe"],
+  ["whisper-1", "whisper-1"],
+];
+
+const recordingLimits: Array<[number, string]> = [
+  [60_000, "1 minute"],
+  [180_000, "3 minutes"],
+  [300_000, "5 minutes"],
+  [600_000, "10 minutes"],
+];
 
 export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
   settings,
@@ -68,64 +83,162 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
   };
 
   const local = settings.sttMode === "local";
+  const customServer =
+    settings.sttBaseUrl.replace(/\/$/, "") !== defaultLocalTranscriptionBaseUrl;
+  const phase = localSpeech.state.phase;
+  const localStatus =
+    phase === "installed"
+      ? "Installed"
+      : phase === "installing"
+        ? "Installing…"
+        : phase === "missing" || phase === "failed"
+          ? "Not installed"
+          : null;
+  const limitOptions = recordingLimits.some(([ms]) => ms === settings.maxDurationMs)
+    ? recordingLimits
+    : [
+        ...recordingLimits,
+        [
+          settings.maxDurationMs,
+          `${Math.round(settings.maxDurationMs / 1000)} seconds`,
+        ] as [number, string],
+      ];
 
   return (
     <div className="voice-settings-panel">
       <div className="settings-section-heading">
-        <strong>🎙️ Voice</strong>
-        <span>Talk to the AI instead of typing.</span>
+        <strong>Voice dictation</strong>
+        <span>
+          Talk to the AI instead of typing: press the microphone, speak, then ■ to edit
+          the text or ↑ to send it.
+        </span>
       </div>
 
-      <div className="settings-row">
-        <span>
-          <strong>Speech engine</strong>
-          <small>
-            {local
-              ? "Runs on this computer. Nothing leaves your machine."
-              : "Sends recordings to OpenAI. Uses your OpenAI key."}
-          </small>
+      <div className="voice-settings-group">
+        <span className="voice-settings-label" id="voice-engine-label">
+          Speech recognition
         </span>
-        <div className="voice-settings-mode" role="group" aria-label="Speech engine">
+        <div
+          className="voice-settings-choices"
+          role="group"
+          aria-labelledby="voice-engine-label"
+        >
           <button
             type="button"
-            className={local ? "active" : ""}
+            className={`voice-settings-choice${local ? " active" : ""}`}
             aria-pressed={local}
-            onClick={() => save({ sttMode: "local" })}
+            onClick={() => !local && save({ sttMode: "local" })}
           >
-            💻 Local
+            <Laptop size={18} aria-hidden="true" />
+            <span className="voice-settings-choice-text">
+              <strong>
+                On this computer
+                {localStatus && !customServer ? (
+                  <em className={phase === "installed" ? "ok" : undefined}>
+                    {phase === "installed" ? (
+                      <Check size={11} aria-hidden="true" />
+                    ) : null}
+                    {localStatus}
+                  </em>
+                ) : null}
+              </strong>
+              <small>
+                Private and works offline. Your voice never leaves this computer.
+              </small>
+            </span>
           </button>
           <button
             type="button"
-            className={!local ? "active" : ""}
+            className={`voice-settings-choice${!local ? " active" : ""}`}
             aria-pressed={!local}
-            onClick={() => save({ sttMode: "openai" })}
+            onClick={() => local && save({ sttMode: "openai" })}
           >
-            ☁️ OpenAI
+            <Cloud size={18} aria-hidden="true" />
+            <span className="voice-settings-choice-text">
+              <strong>OpenAI</strong>
+              <small>
+                Fast on any computer. Recordings are sent to OpenAI with your API key.
+              </small>
+            </span>
           </button>
         </div>
+
+        {local && !customServer && phase !== "installed" ? (
+          <LocalSpeechInstallCard
+            state={localSpeech.state}
+            onInstall={() => void localSpeech.install()}
+          />
+        ) : null}
+
+        {!local ? (
+          <label className="settings-row">
+            <span>
+              <strong>Model</strong>
+            </span>
+            <select
+              aria-label="OpenAI speech model"
+              value={settings.cloudTranscriptionModel}
+              onChange={(e) => save({ cloudTranscriptionModel: e.target.value })}
+            >
+              {cloudModels.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
+      <label className="settings-row settings-toggle">
+        <span>
+          <strong>Clean up what I say</strong>
+          <small>
+            {aiEnhancementAvailable
+              ? "Fixes punctuation and removes filler words like “um” with your local AI."
+              : "Choose a local LatexDo AI model in AI settings to turn this on."}
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          aria-label="Clean up what I say"
+          checked={settings.transcriptMode === "clean" && aiEnhancementAvailable}
+          disabled={!aiEnhancementAvailable}
+          onChange={(e) =>
+            save({ transcriptMode: e.target.checked ? "clean" : "verbatim" })
+          }
+        />
+      </label>
+
+      <label className="settings-row">
+        <span>
+          <strong>Longest recording</strong>
+          <small>Dictation stops and transcribes on its own after this.</small>
+        </span>
+        <select
+          aria-label="Longest recording"
+          value={settings.maxDurationMs}
+          onChange={(e) => save({ maxDurationMs: Number(e.target.value) })}
+        >
+          {limitOptions.map(([ms, label]) => (
+            <option key={ms} value={ms}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
       {local ? (
-        <>
-          {localSpeech.state.phase === "installed" ? null : (
-            <LocalSpeechInstallCard
-              state={localSpeech.state}
-              onInstall={() => void localSpeech.install()}
-            />
-          )}
+        <details className="voice-settings-advanced" open={customServer || undefined}>
+          <summary>Advanced: use your own speech server</summary>
+          <p className="settings-hint compact">
+            For a speech server you run yourself, such as whisper.cpp or faster-whisper,
+            with an OpenAI-compatible API on this computer.
+          </p>
 
           <label className="settings-row">
             <span>
-              <strong>Speech server</strong>
-              <small>
-                {localSpeech.state.phase === "installed" ? (
-                  <>
-                    <Check size={11} /> Installed. Starts when you dictate.
-                  </>
-                ) : (
-                  "Local OpenAI-compatible endpoint."
-                )}
-              </small>
+              <strong>Server address</strong>
             </span>
             <span className="voice-settings-inline">
               <input
@@ -136,7 +249,7 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
                 onBlur={() =>
                   endpoint !== settings.sttBaseUrl && save({ sttBaseUrl: endpoint })
                 }
-                placeholder="http://localhost:8080/v1"
+                placeholder={defaultLocalTranscriptionBaseUrl}
                 spellCheck={false}
               />
               <button
@@ -144,7 +257,7 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
                 className="dialog-cancel"
                 onClick={() => void runDetection()}
                 disabled={detecting}
-                title="Find a running speech server"
+                title="Look for a speech server running on this computer"
               >
                 <PlugZap size={13} />
                 {detecting ? "Finding…" : "Find"}
@@ -179,14 +292,13 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
           ) : null}
           {detected && detected.length === 0 && !detecting ? (
             <p className="settings-hint compact">
-              No speech server is running. LatexDo starts the installed one when you
-              dictate.
+              No speech server is running. LatexDo starts its own when you dictate.
             </p>
           ) : null}
 
           <label className="settings-row">
             <span>
-              <strong>Speech model</strong>
+              <strong>Model name</strong>
             </span>
             <input
               type="text"
@@ -201,44 +313,18 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
               spellCheck={false}
             />
           </label>
-        </>
-      ) : (
-        <label className="settings-row">
-          <span>
-            <strong>Speech model</strong>
-          </span>
-          <select
-            aria-label="OpenAI speech model"
-            value={settings.cloudTranscriptionModel}
-            onChange={(e) => save({ cloudTranscriptionModel: e.target.value })}
-          >
-            <option value="gpt-transcribe">gpt-transcribe</option>
-            <option value="gpt-4o-transcribe">gpt-4o-transcribe</option>
-            <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option>
-            <option value="whisper-1">whisper-1</option>
-          </select>
-        </label>
-      )}
 
-      <label className="settings-row settings-toggle">
-        <span>
-          <strong>✨ Clean up what I say</strong>
-          <small>
-            {aiEnhancementAvailable
-              ? "Fixes punctuation and filler words with your local AI."
-              : "Pick a local LatexDo AI model to turn this on."}
-          </small>
-        </span>
-        <input
-          type="checkbox"
-          aria-label="Clean up what I say"
-          checked={settings.transcriptMode === "clean" && aiEnhancementAvailable}
-          disabled={!aiEnhancementAvailable}
-          onChange={(e) =>
-            save({ transcriptMode: e.target.checked ? "clean" : "verbatim" })
-          }
-        />
-      </label>
+          {customServer ? (
+            <button
+              type="button"
+              className="dialog-cancel voice-settings-reset"
+              onClick={() => save({ sttBaseUrl: defaultLocalTranscriptionBaseUrl })}
+            >
+              Use LatexDo's built-in speech engine
+            </button>
+          ) : null}
+        </details>
+      ) : null}
     </div>
   );
 };

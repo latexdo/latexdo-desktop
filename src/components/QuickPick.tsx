@@ -36,6 +36,8 @@ export interface QuickPickRequest {
   value?: string;
   /** For text input: a message while the value is not acceptable. */
   validate?: (value: string) => string | null;
+  /** Right-clicking an item presses its inline button with this id. */
+  contextButton?: string;
   /** `button` is set when one of the item's inline buttons was pressed. */
   onAccept: (item: QuickPickItem | null, value: string, button?: string) => void;
   onCancel: () => void;
@@ -146,6 +148,12 @@ export function QuickPick({ request }: { request: QuickPickRequest }) {
                   className={`quick-pick-item ${item === current ? "selected" : ""}`}
                   onMouseEnter={() => setHighlight(selectable.indexOf(item))}
                   onClick={() => accept(item)}
+                  onContextMenu={(event) => {
+                    const button = request.contextButton;
+                    if (!button || !item.buttons?.some((b) => b.id === button)) return;
+                    event.preventDefault();
+                    request.onAccept(item, value, button);
+                  }}
                 >
                   {item.icon ? (
                     <span className="quick-pick-icon">{item.icon}</span>

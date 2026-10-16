@@ -138,6 +138,46 @@ describe("Source Control operations", () => {
     ).toContain("unfinished");
   });
 
+  it("renames a branch and merges another into the current one", async () => {
+    await runGitAction(work, { kind: "commit", message: "Draft", all: true });
+    await runGitAction(work, { kind: "create-branch", branch: "draft" });
+    await writeFile(path.join(work, "main.tex"), "revised\n");
+    await runGitAction(work, { kind: "commit", message: "Revise", all: true });
+
+    const renamed = await runGitAction(work, {
+      kind: "rename-branch",
+      branch: "draft",
+      newName: "revision",
+    });
+    expect(renamed.message).toBe("Renamed draft to revision.");
+    expect(
+      (await readGitRepositoryInfo(work)).branches.map((branch) => branch.name).sort(),
+    ).toEqual(["main", "revision"]);
+
+    await runGitAction(work, { kind: "checkout", branch: "main" });
+    expect(await readFile(path.join(work, "main.tex"), "utf8")).toBe("first\n");
+    const merged = await runGitAction(work, {
+      kind: "merge-branch",
+      branch: "revision",
+    });
+    expect(merged.message).toBe("Merged revision into main.");
+    expect(await readFile(path.join(work, "main.tex"), "utf8")).toBe("revised\n");
+  });
+
+  it("validates rename and merge actions from IPC", () => {
+    expect(
+      parseGitAction({ kind: "rename-branch", branch: "a", newName: "b" }),
+    ).toEqual({ kind: "rename-branch", branch: "a", newName: "b" });
+    expect(parseGitAction({ kind: "merge-branch", branch: "a" })).toEqual({
+      kind: "merge-branch",
+      branch: "a",
+    });
+    expect(() =>
+      parseGitAction({ kind: "rename-branch", branch: "a", newName: "--force" }),
+    ).toThrow();
+    expect(() => parseGitAction({ kind: "merge-branch", branch: "-s ours" })).toThrow();
+  });
+
   it("tracks a remote branch on checkout", async () => {
     await runGitAction(work, { kind: "commit", message: "Draft", all: true });
     await runGitAction(work, { kind: "create-branch", branch: "camera-ready" });

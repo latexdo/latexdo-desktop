@@ -52,6 +52,7 @@ export interface ScmGraphView {
   onToggle: (commit: GitGraphCommit) => void;
   onOpenFile: (commit: GitGraphCommit, file: GitCommitFile) => void;
   onContextMenu: (commit: GitGraphCommit, x: number, y: number) => void;
+  onBranchContextMenu?: (branch: string) => void;
   onChooseRefs: () => void;
   onGoToCurrent: () => void;
   onRefresh: () => void;
@@ -905,6 +906,7 @@ export function SourceControlView(props: SourceControlViewProps) {
                 files={graph.files}
                 onOpenFile={graph.onOpenFile}
                 onContextMenu={graph.onContextMenu}
+                onBranchContextMenu={graph.onBranchContextMenu}
                 revealHash={graph.revealHash}
               />
             ) : null}

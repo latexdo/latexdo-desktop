@@ -49,6 +49,7 @@ import {
 } from "../features/voice/voiceSettings";
 import { useVoiceSettings } from "../features/voice/useVoiceSettings";
 import { VoiceDictationButton } from "./VoiceDictationButton";
+import { VoiceRecordingBar, isVoiceBarStatus } from "./VoiceRecordingBar";
 import { LocalSpeechInstallCard } from "./LocalSpeechInstallCard";
 import { useLocalSpeechInstall } from "../features/voice/useLocalSpeechInstall";
 
@@ -204,6 +205,14 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     [config],
   );
   const voiceStatusRef = React.useRef<VoiceDictationStatus>("idle");
+  // Which bar button ended the recording: ↑ sends the transcript, ■ only
+  // puts it in the composer for editing.
+  const [voicePending, setVoicePending] = React.useState<"stop" | "send" | null>(null);
+  const voicePendingRef = React.useRef<"stop" | "send" | null>(null);
+  const setVoiceIntent = (intent: "stop" | "send" | null) => {
+    voicePendingRef.current = intent;
+    setVoicePending(intent);
+  };
   const [suggest, setSuggest] = React.useState<SuggestState | null>(null);
   const [highlight, setHighlight] = React.useState(0);
 
@@ -241,9 +250,17 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     transcriptionProvider,
     cleanup: voiceSettings.transcriptMode === "clean" ? cleanupProvider : null,
     onTranscript: (text) => {
+      const sendNow = voicePendingRef.current === "send" && !isRunning;
+      setVoiceIntent(null);
+      if (sendNow) {
+        const typed = (inputRef.current?.value ?? input).trim();
+        submitText(typed ? `${typed} ${text.trim()}` : text.trim());
+        return;
+      }
       insertVoiceTranscriptIntoComposer(text);
     },
     onError: (voiceError) => {
+      setVoiceIntent(null);
       emitProductEvent({ type: "voice:failed", code: voiceError.code });
     },
     onStatusChange: (next) => {
@@ -276,6 +293,7 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     voiceSettings.sttMode !== "openai" &&
     (!sttEndpoint ||
       sttEndpoint.replace(/\/$/, "") === defaultLocalTranscriptionBaseUrl);
+  const voiceBarVisible = isVoiceBarStatus(voice.status);
   const voiceNeedsInstall =
     voice.error?.cause === "missing-runtime" || voice.error?.cause === "missing-model";
   const handleVoiceStart = () => {
@@ -449,8 +467,9 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
-  const submit = () => {
-    const text = input.trim();
+  const submit = () => submitText(input.trim());
+
+  function submitText(text: string) {
     if (isRunning) return;
     // Compose message: selection context (if attached) + user's own text.
     const block = composerSelection ? buildSelectionMessageText(composerSelection) : "";
@@ -459,7 +478,7 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     setInput("");
     setSuggest(null);
     void send(fullMessage);
-  };
+  }
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (suggest) {
@@ -757,7 +776,7 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
                 onDismiss={() => setSpeechPromptOpen(false)}
               />
             ) : null}
-            <div className="ai-composer-box">
+            <div className={`ai-composer-box${voiceBarVisible ? " is-voice" : ""}`}>
               <textarea
                 ref={inputRef}
                 value={input}
@@ -776,52 +795,78 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
                 onBlur={() => setSuggest(null)}
                 onKeyDown={onInputKeyDown}
               />
-              <div className="ai-composer-toolbar">
-                <button
-                  type="button"
-                  className="ai-composer-plus"
-                  onClick={attachFile}
-                  title="Attach a project file (@)"
-                  aria-label="Attach a project file"
-                >
-                  <Plus size={17} />
-                </button>
-                <button
-                  type="button"
-                  className="ai-composer-model"
-                  onClick={onOpenSettings}
-                  title={`${providerLabel(config)} — change model`}
-                  aria-label={`Model: ${providerLabel(config)}. Change model`}
-                >
-                  <span>{providerLabel(config)}</span>
-                  <ChevronDown size={13} aria-hidden="true" />
-                </button>
-                <div className="ai-composer-voice-controls">
-                  <VoiceDictationButton
-                    status={voice.status}
-                    error={speechPromptOpen ? null : voice.error}
-                    durationMs={voice.durationMs}
-                    onStart={handleVoiceStart}
-                    onStop={() => void voice.stop()}
-                    onCancel={voice.cancel}
-                    onOpenSettings={onOpenSettings}
-                  />
-                </div>
-                {isRunning ? (
-                  <button className="ai-send-button stop" onClick={abort} title="Stop">
-                    <Square size={15} />
-                  </button>
-                ) : (
+              {voiceBarVisible ? (
+                <VoiceRecordingBar
+                  status={voice.status}
+                  levels={voice.levels}
+                  durationMs={voice.durationMs}
+                  canSend={!isRunning}
+                  pending={voicePending}
+                  onCancel={() => {
+                    setVoiceIntent(null);
+                    voice.cancel();
+                  }}
+                  onStop={() => {
+                    setVoiceIntent("stop");
+                    void voice.stop();
+                  }}
+                  onSend={() => {
+                    setVoiceIntent("send");
+                    void voice.stop();
+                  }}
+                />
+              ) : (
+                <div className="ai-composer-toolbar">
                   <button
-                    className="ai-send-button"
-                    onClick={submit}
-                    disabled={!input.trim() && !composerSelection}
-                    title="Send"
+                    type="button"
+                    className="ai-composer-plus"
+                    onClick={attachFile}
+                    title="Attach a project file (@)"
+                    aria-label="Attach a project file"
                   >
-                    <ArrowUp size={16} />
+                    <Plus size={17} />
                   </button>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    className="ai-composer-model"
+                    onClick={onOpenSettings}
+                    title={`${providerLabel(config)} — change model`}
+                    aria-label={`Model: ${providerLabel(config)}. Change model`}
+                  >
+                    <span>{providerLabel(config)}</span>
+                    <ChevronDown size={13} aria-hidden="true" />
+                  </button>
+                  <div className="ai-composer-voice-controls">
+                    <VoiceDictationButton
+                      status={voice.status}
+                      error={speechPromptOpen ? null : voice.error}
+                      durationMs={voice.durationMs}
+                      onStart={handleVoiceStart}
+                      onStop={() => void voice.stop()}
+                      onCancel={voice.cancel}
+                      onOpenSettings={onOpenSettings}
+                    />
+                  </div>
+                  {isRunning ? (
+                    <button
+                      className="ai-send-button stop"
+                      onClick={abort}
+                      title="Stop"
+                    >
+                      <Square size={15} />
+                    </button>
+                  ) : (
+                    <button
+                      className="ai-send-button"
+                      onClick={submit}
+                      disabled={!input.trim() && !composerSelection}
+                      title="Send"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </>

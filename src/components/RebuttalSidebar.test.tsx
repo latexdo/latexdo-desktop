@@ -5,6 +5,7 @@ import type { RebuttalItem } from "../types";
 
 const item: RebuttalItem = {
   id: "item-1",
+  reviewer: "Reviewer 2",
   originalText: "Original manuscript sentence.",
   reviewerComment: "Reviewer asks for more detail.",
   authorComment: "We added the requested explanation.",
@@ -13,58 +14,113 @@ const item: RebuttalItem = {
   insertedInTex: false,
 };
 
+function renderSidebar(
+  props: Partial<React.ComponentProps<typeof RebuttalSidebar>> = {},
+) {
+  return render(
+    <RebuttalSidebar
+      items={[item]}
+      onAddItem={vi.fn()}
+      onAddRebuttalToSource={vi.fn()}
+      onUpdateItem={vi.fn()}
+      onDeleteItem={vi.fn()}
+      {...props}
+    />,
+  );
+}
+
 describe("RebuttalSidebar", () => {
-  it("exposes top-level rebuttal actions", () => {
+  it("adds comments, and says where the letter is saved", () => {
     const onAddItem = vi.fn();
     const onAddRebuttalToSource = vi.fn();
     const onGenerateLetter = vi.fn();
+    renderSidebar({
+      items: [],
+      onAddItem,
+      onAddRebuttalToSource,
+      onGenerateLetter,
+    });
 
-    render(
-      <RebuttalSidebar
-        items={[]}
-        onAddItem={onAddItem}
-        onAddRebuttalToSource={onAddRebuttalToSource}
-        onUpdateItem={vi.fn()}
-        onDeleteItem={vi.fn()}
-        onGenerateLetter={onGenerateLetter}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /new rebuttal item/i }));
-    fireEvent.click(screen.getByRole("button", { name: /insert selection in tex/i }));
-    fireEvent.click(screen.getByRole("button", { name: /export response/i }));
-
+    fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
+    fireEvent.click(screen.getByRole("button", { name: /add comment on selection/i }));
     expect(onAddItem).toHaveBeenCalledTimes(1);
     expect(onAddRebuttalToSource).toHaveBeenCalledTimes(1);
-    expect(onGenerateLetter).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/No rebuttal items yet/i)).toBeVisible();
+
+    const letter = screen.getByRole("region", { name: "Response letter" });
+    expect(letter).toHaveTextContent(
+      "Will be saved as rebuttal-letter.tex in your project folder",
+    );
+    // Nothing to write yet.
+    expect(screen.getByRole("button", { name: /create letter/i })).toBeDisabled();
+    expect(screen.getByText(/No reviewer comments yet/i)).toBeVisible();
   });
 
-  it("updates and deletes rebuttal item fields", () => {
-    const onUpdateItem = vi.fn();
-    const onDeleteItem = vi.fn();
+  it("creates, updates and opens the letter", () => {
+    const onGenerateLetter = vi.fn();
+    const onOpenLetter = vi.fn();
+    const { rerender } = renderSidebar({ onGenerateLetter, onOpenLetter });
 
-    render(
+    fireEvent.click(screen.getByRole("button", { name: /create letter/i }));
+    expect(onGenerateLetter).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+
+    rerender(
       <RebuttalSidebar
         items={[item]}
         onAddItem={vi.fn()}
         onAddRebuttalToSource={vi.fn()}
-        onUpdateItem={onUpdateItem}
-        onDeleteItem={onDeleteItem}
+        onUpdateItem={vi.fn()}
+        onDeleteItem={vi.fn()}
+        onGenerateLetter={onGenerateLetter}
+        letterExists
+        letterPath="rebuttal-letter-2.tex"
+        onOpenLetter={onOpenLetter}
       />,
     );
+    expect(screen.getByRole("region", { name: "Response letter" })).toHaveTextContent(
+      "Saved as rebuttal-letter-2.tex in your project folder",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /update letter/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(onGenerateLetter).toHaveBeenCalledTimes(2);
+    expect(onOpenLetter).toHaveBeenCalledTimes(1);
+  });
 
-    const [textField, reviewerField, authorField, changesField] =
-      screen.getAllByRole("textbox");
-
-    fireEvent.change(textField, { target: { value: "Updated source text." } });
-    fireEvent.change(reviewerField, { target: { value: "Updated review." } });
-    fireEvent.change(authorField, { target: { value: "Updated answer." } });
-    fireEvent.change(changesField, { target: { value: "Updated diff." } });
-
-    expect(onUpdateItem).toHaveBeenCalledWith("item-1", {
-      originalText: "Updated source text.",
+  it("numbers comments by reviewer, like the letter", () => {
+    renderSidebar({
+      items: [
+        { ...item, id: "a", reviewer: "Reviewer 1" },
+        { ...item, id: "b", reviewer: "Reviewer 2" },
+        { ...item, id: "c", reviewer: "Reviewer 1" },
+      ],
     });
+    expect(screen.getByText("Reviewer 1 · Comment 1.1")).toBeVisible();
+    expect(screen.getByText("Reviewer 1 · Comment 1.2")).toBeVisible();
+    expect(screen.getByText("Reviewer 2 · Comment 2.1")).toBeVisible();
+  });
+
+  it("updates and deletes every field of a comment", () => {
+    const onUpdateItem = vi.fn();
+    const onDeleteItem = vi.fn();
+    renderSidebar({ onUpdateItem, onDeleteItem });
+
+    fireEvent.change(screen.getByLabelText("Reviewer"), {
+      target: { value: "Editor" },
+    });
+    fireEvent.change(screen.getByLabelText("Reviewer's comment"), {
+      target: { value: "Updated review." },
+    });
+    fireEvent.change(screen.getByLabelText("Your response"), {
+      target: { value: "Updated answer." },
+    });
+    fireEvent.change(screen.getByLabelText(/Original text/), {
+      target: { value: "Updated source text." },
+    });
+    fireEvent.change(screen.getByLabelText(/Revised text/), {
+      target: { value: "Updated revision." },
+    });
+
+    expect(onUpdateItem).toHaveBeenCalledWith("item-1", { reviewer: "Editor" });
     expect(onUpdateItem).toHaveBeenCalledWith("item-1", {
       reviewerComment: "Updated review.",
     });
@@ -72,32 +128,25 @@ describe("RebuttalSidebar", () => {
       authorComment: "Updated answer.",
     });
     expect(onUpdateItem).toHaveBeenCalledWith("item-1", {
-      revisedText: "Updated diff.",
-      modificationMade: "Updated diff.",
+      originalText: "Updated source text.",
+    });
+    expect(onUpdateItem).toHaveBeenCalledWith("item-1", {
+      revisedText: "Updated revision.",
+      modificationMade: "Updated revision.",
     });
     // Whether an item is in the TeX source is a fact, not a switch.
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.getByText("Notes only")).toBeVisible();
-    expect(screen.getByLabelText("Author Answer")).toBe(authorField);
 
     fireEvent.click(screen.getByRole("button", { name: /delete rebuttal item/i }));
     expect(onDeleteItem).toHaveBeenCalledWith("item-1");
   });
 
-  it("offers to insert a notes-only item at the editor selection", () => {
+  it("offers to mark a notes-only comment at the editor selection", () => {
     const onInsertItemIntoTex = vi.fn();
-    const { rerender } = render(
-      <RebuttalSidebar
-        items={[item]}
-        onAddItem={vi.fn()}
-        onAddRebuttalToSource={vi.fn()}
-        onUpdateItem={vi.fn()}
-        onDeleteItem={vi.fn()}
-        onInsertItemIntoTex={onInsertItemIntoTex}
-      />,
-    );
+    const { rerender } = renderSidebar({ onInsertItemIntoTex });
 
-    fireEvent.click(screen.getByRole("button", { name: /insert at selection/i }));
+    fireEvent.click(screen.getByRole("button", { name: /mark selected text in tex/i }));
     expect(onInsertItemIntoTex).toHaveBeenCalledWith("item-1");
 
     rerender(
@@ -110,7 +159,9 @@ describe("RebuttalSidebar", () => {
         onInsertItemIntoTex={onInsertItemIntoTex}
       />,
     );
-    expect(screen.queryByRole("button", { name: /insert at selection/i })).toBeNull();
-    expect(screen.getByText("In TeX source")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /mark selected text in tex/i }),
+    ).toBeNull();
+    expect(screen.getByText("Marked in TeX")).toBeVisible();
   });
 });

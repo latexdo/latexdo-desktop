@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, GitBranch, Plus, Trash2 } from "lucide-react";
+import { Cloud, Ellipsis, GitBranch, Plus, Trash2 } from "lucide-react";
 import type { GitAction, GitRepositoryInfo } from "../../electron/gitActions";
 import type { GitGraphCommit } from "../types";
 import type { CommitFilesState } from "../components/scm/ScmGraph";
@@ -47,11 +47,19 @@ function rememberMessage(message: string): void {
   }
 }
 
+/** The "…" button on a branch row; right-clicking the row presses it too. */
+const branchActionsButton = {
+  id: "actions",
+  label: "Branch actions",
+  icon: <Ellipsis size={14} />,
+};
+
 /** Actions after which the files on disk may differ from the open tabs. */
 const changesFiles = new Set<GitAction["kind"]>([
   "pull",
   "sync",
   "checkout",
+  "merge-branch",
   "stash",
   "stash-pop",
   "publish",
@@ -107,6 +115,21 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
         });
       }),
     [],
+  );
+
+  const confirm = useCallback(
+    async (title: string, action: string) =>
+      (
+        await ask({
+          title,
+          placeholder: "Continue?",
+          items: [
+            { id: "ok", label: action },
+            { id: "cancel", label: "Cancel" },
+          ],
+        })
+      )?.item?.id === "ok",
+    [ask],
   );
 
   const refreshGitRepoInfo = useCallback(async () => {
@@ -285,6 +308,78 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     await runScmAction({ kind: "create-branch", branch: answer.value.trim() });
   }, [ask, runScmAction]);
 
+  /** Right-click on a branch: checkout, merge, rename or delete it. */
+  const branchActions = useCallback(
+    async (name: string) => {
+      const info = await refreshGitRepoInfo();
+      const branch = info?.branches.find((candidate) => candidate.name === name);
+      if (!info || !branch) {
+        latest.current.ctx.setStatusMessage(`Branch ${name} was not found.`);
+        return;
+      }
+      const current = info.branches.find(
+        (candidate) => candidate.kind === "local" && candidate.current,
+      );
+      const local = branch.kind === "local";
+      const items = [
+        ...(branch.current
+          ? []
+          : [
+              {
+                id: "checkout",
+                label: local ? "Checkout" : "Checkout (track locally)",
+                icon: <GitBranch size={14} />,
+              },
+            ]),
+        ...(!branch.current && current
+          ? [{ id: "merge", label: `Merge into ${current.name}…` }]
+          : []),
+        ...(local ? [{ id: "rename", label: "Rename…" }] : []),
+        ...(local && !branch.current
+          ? [{ id: "delete", label: "Delete…", icon: <Trash2 size={14} /> }]
+          : []),
+      ];
+      if (!items.length) return;
+      const answer = await ask({
+        title: name,
+        placeholder: `Actions for ${name}`,
+        items,
+      });
+      switch (answer?.item?.id) {
+        case "checkout":
+          await runScmAction({ kind: "checkout", branch: name });
+          return;
+        case "merge":
+          if (
+            current &&
+            (await confirm(`Merge ${name} into ${current.name}?`, "Merge"))
+          )
+            await runScmAction({ kind: "merge-branch", branch: name });
+          return;
+        case "rename": {
+          const renamed = await ask({
+            title: `Rename ${name}`,
+            placeholder: "New branch name",
+            value: name,
+            validate: (value) =>
+              value.trim() === name
+                ? "Enter a different name."
+                : branchNameProblem(value),
+          });
+          const newName = renamed?.value.trim();
+          if (newName && newName !== name)
+            await runScmAction({ kind: "rename-branch", branch: name, newName });
+          return;
+        }
+        case "delete":
+          if (await confirm(`Delete the branch ${name}?`, "Delete"))
+            await runScmAction({ kind: "delete-branch", branch: name });
+          return;
+      }
+    },
+    [ask, confirm, refreshGitRepoInfo, runScmAction],
+  );
+
   const branchItems = (
     info: GitRepositoryInfo,
     kinds: ("local" | "remote")[],
@@ -305,10 +400,12 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
           icon: kind === "local" ? <GitBranch size={14} /> : <Cloud size={14} />,
           description: `${branch.current ? "• " : ""}${branch.shortHash}`,
           detail: branch.subject,
-          buttons:
-            options.deletable && kind === "local" && !branch.current
+          buttons: [
+            branchActionsButton,
+            ...(options.deletable && kind === "local" && !branch.current
               ? [{ id: "delete", label: "Delete branch", icon: <Trash2 size={14} /> }]
-              : undefined,
+              : []),
+          ],
         })),
       ];
     });
@@ -322,12 +419,17 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     }
     const answer = await ask({
       placeholder: "Select a branch or tag to checkout",
+      contextButton: branchActionsButton.id,
       items: [
         { id: "+create", label: "Create new branch…", icon: <Plus size={14} /> },
         ...branchItems(info, ["local", "remote"], { deletable: true }),
       ],
     });
     if (!answer?.item) return;
+    if (answer.button === branchActionsButton.id) {
+      await branchActions(answer.item.id);
+      return;
+    }
     if (answer.button === "delete") {
       await runScmAction({ kind: "delete-branch", branch: answer.item.id });
       return;
@@ -339,7 +441,7 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     const target = info.branches.find((branch) => branch.name === answer.item!.id);
     if (target?.current) return;
     await runScmAction({ kind: "checkout", branch: answer.item.id });
-  }, [ask, createBranch, refreshGitRepoInfo, runScmAction]);
+  }, [ask, branchActions, createBranch, refreshGitRepoInfo, runScmAction]);
 
   const deleteBranch = useCallback(async () => {
     const info = await refreshGitRepoInfo();
@@ -504,6 +606,7 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     const branches = info?.branches ?? [];
     const answer = await ask({
       placeholder: "Select the branches to show in the graph",
+      contextButton: branchActionsButton.id,
       items: [
         {
           id: "auto",
@@ -516,13 +619,18 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
           label: branch.name,
           description:
             branch.kind === "remote" ? "remote" : branch.current ? "current" : "",
+          buttons: [branchActionsButton],
         })),
       ],
     });
     if (!answer?.item) return;
+    if (answer.button === branchActionsButton.id) {
+      await branchActions(answer.item.id);
+      return;
+    }
     setGraphLimit(graphPageSize);
     setGraphRefs(answer.item.id);
-  }, [ask]);
+  }, [ask, branchActions]);
 
   const goToCurrentCommit = useCallback(() => {
     const head = graphCommits.find((commit) => commit.isHead);
@@ -583,21 +691,6 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     x: number;
     y: number;
   } | null>(null);
-
-  const confirm = useCallback(
-    async (title: string, action: string) =>
-      (
-        await ask({
-          title,
-          placeholder: "Continue?",
-          items: [
-            { id: "ok", label: action },
-            { id: "cancel", label: "Cancel" },
-          ],
-        })
-      )?.item?.id === "ok",
-    [ask],
-  );
 
   const runCommitAction = useCallback(
     async (
@@ -687,6 +780,7 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     runScmAction,
     commitScm,
     pickBranch,
+    branchActions,
     createBranch,
     deleteBranch,
     publishBranch,

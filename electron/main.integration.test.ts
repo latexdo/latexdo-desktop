@@ -1,7 +1,15 @@
 // @vitest-environment node
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
-import { mkdtemp, mkdir, readFile, rm, writeFile, symlink } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+  symlink,
+} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { runGitText } from "./git.js";
@@ -311,7 +319,7 @@ describe("desktop startup and trusted IPC", () => {
 });
 
 describe("project files and data preservation", () => {
-  it("creates, reads, atomically saves and backs up a document", async () => {
+  it("creates, reads and atomically saves a document", async () => {
     expect(await call("file:read", project.id, "main.tex")).toContain(
       "\\documentclass",
     );
@@ -319,6 +327,10 @@ describe("project files and data preservation", () => {
     await call("file:write", project.id, "notes.tex", "first version");
     await call("file:write", project.id, "notes.tex", "second version");
     expect(await call("file:read", project.id, "notes.tex")).toBe("second version");
+    // Saving leaves only the person's file: no .bak copy and no temporary file.
+    expect(
+      (await readdir(project.rootPath)).filter((name) => name.startsWith("notes.tex")),
+    ).toEqual(["notes.tex"]);
     expect(await call("file:exists", project.id, "notes.tex")).toBe(true);
     expect(await call("file:exists", project.id, "absent.tex")).toBe(false);
     expect(await call("file:create", project.id, "notes.tex")).toBe("notes.tex");

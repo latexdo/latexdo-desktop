@@ -754,19 +754,6 @@ export interface AppSettings {
   maxAbstractWords: number;
 
   // Rebuttal Generator
-  rebuttalManuscriptId: string;
-  rebuttalManuscriptTitle: string;
-  rebuttalFontSize: string;
-  rebuttalPaperSize: string;
-  rebuttalFontFamily: string;
-  rebuttalIncludeDiff: boolean;
-  rebuttalDiffOldFile: string;
-  rebuttalDiffNewFile: string;
-  rebuttalDiffOutput: string;
-  rebuttalSummary: string;
-  rebuttalSpacing: boolean;
-  rebuttalColorPrimary: string;
-  rebuttalColorAccent: string;
 }
 
 export const settingsStorageKey = "latexdo.settings";
@@ -894,22 +881,6 @@ export const defaultSettings: AppSettings = {
   checkType3Fonts: true,
   checkAbstractWordCount: true,
   maxAbstractWords: 250,
-
-  rebuttalManuscriptId: "COLA-D-26-00101",
-  rebuttalManuscriptTitle:
-    "Evaluating Package-Level Scoping Strategies for Repository-Level Code Completion in Pharo",
-  rebuttalFontSize: "11pt",
-  rebuttalPaperSize: "a4paper",
-  rebuttalFontFamily: "newpx",
-  rebuttalIncludeDiff: true,
-  rebuttalDiffOldFile: "oldfile.tex",
-  rebuttalDiffNewFile: "newfile.tex",
-  rebuttalDiffOutput: "diff.tex",
-  rebuttalSummary:
-    "We revised the manuscript substantially in response to the reviewers' comments.",
-  rebuttalSpacing: true,
-  rebuttalColorPrimary: "1E1E1E",
-  rebuttalColorAccent: "D9D9D9",
 };
 
 export function normalizeBookmarkLines(lines: unknown): number[] {
@@ -1517,59 +1488,6 @@ function readSavedSettings(): AppSettings {
         typeof saved.maxAbstractWords === "number"
           ? saved.maxAbstractWords
           : defaultSettings.maxAbstractWords,
-
-      rebuttalManuscriptId:
-        typeof saved.rebuttalManuscriptId === "string"
-          ? saved.rebuttalManuscriptId
-          : defaultSettings.rebuttalManuscriptId,
-      rebuttalManuscriptTitle:
-        typeof saved.rebuttalManuscriptTitle === "string"
-          ? saved.rebuttalManuscriptTitle
-          : defaultSettings.rebuttalManuscriptTitle,
-      rebuttalFontSize:
-        typeof saved.rebuttalFontSize === "string"
-          ? saved.rebuttalFontSize
-          : defaultSettings.rebuttalFontSize,
-      rebuttalPaperSize:
-        typeof saved.rebuttalPaperSize === "string"
-          ? saved.rebuttalPaperSize
-          : defaultSettings.rebuttalPaperSize,
-      rebuttalFontFamily:
-        typeof saved.rebuttalFontFamily === "string"
-          ? saved.rebuttalFontFamily
-          : defaultSettings.rebuttalFontFamily,
-      rebuttalIncludeDiff:
-        typeof saved.rebuttalIncludeDiff === "boolean"
-          ? saved.rebuttalIncludeDiff
-          : defaultSettings.rebuttalIncludeDiff,
-      rebuttalDiffOldFile:
-        typeof saved.rebuttalDiffOldFile === "string"
-          ? saved.rebuttalDiffOldFile
-          : defaultSettings.rebuttalDiffOldFile,
-      rebuttalDiffNewFile:
-        typeof saved.rebuttalDiffNewFile === "string"
-          ? saved.rebuttalDiffNewFile
-          : defaultSettings.rebuttalDiffNewFile,
-      rebuttalDiffOutput:
-        typeof saved.rebuttalDiffOutput === "string"
-          ? saved.rebuttalDiffOutput
-          : defaultSettings.rebuttalDiffOutput,
-      rebuttalSummary:
-        typeof saved.rebuttalSummary === "string"
-          ? saved.rebuttalSummary
-          : defaultSettings.rebuttalSummary,
-      rebuttalSpacing:
-        typeof saved.rebuttalSpacing === "boolean"
-          ? saved.rebuttalSpacing
-          : defaultSettings.rebuttalSpacing,
-      rebuttalColorPrimary:
-        typeof saved.rebuttalColorPrimary === "string"
-          ? saved.rebuttalColorPrimary
-          : defaultSettings.rebuttalColorPrimary,
-      rebuttalColorAccent:
-        typeof saved.rebuttalColorAccent === "string"
-          ? saved.rebuttalColorAccent
-          : defaultSettings.rebuttalColorAccent,
     };
   } catch {
     return defaultSettings;

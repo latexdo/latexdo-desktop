@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
 import { layoutPresetFlags, type LayoutPreset } from "../features/ai/aiConfig";
 import { abortGeneration } from "../features/ai/aiClient";
@@ -6,6 +6,7 @@ import type { AgentContext, EditProposal } from "../features/ai/aiTools";
 import { isAiReady } from "../features/ai/aiConfig";
 import {
   captureEditorSelection,
+  newReformulationRequestId,
   performReformulation,
   buildReformulationProposal,
   validateSelectionForReformulation,
@@ -41,6 +42,10 @@ import {
 import type { AppCtx10 } from "./appContext";
 import { useAppTikzFigures } from "./useAppTikzFigures";
 import { containsTikz } from "../features/tikz/tikzSnippet";
+import {
+  showReformulationProgress,
+  type ReformulationProgress,
+} from "../features/ai/reformulationProgress";
 import { tikzCanvasTabId } from "../features/tikz/tikzWorkspace";
 import { toolTabKey, toolTabLabels } from "../features/workspace/toolTabs";
 
@@ -310,6 +315,20 @@ export function useAppAiActions(ctx: AppCtx10) {
     [setStatusMessage],
   );
 
+  const reformulationProgressRef = useRef<ReformulationProgress | null>(null);
+
+  /** Cancel an in-flight reformulation (Escape or the popup's Cancel button). */
+  const cancelReformulation = useCallback(() => {
+    if (!reformulationInFlightRef.current) return;
+    reformulationCancelledRef.current = true;
+    reformulationProgressRef.current?.dispose();
+    reformulationProgressRef.current = null;
+    if (reformulationRequestIdRef.current) {
+      void abortGeneration(reformulationRequestIdRef.current);
+    }
+    setStatusMessage("Reformulation cancelled.");
+  }, [setStatusMessage]);
+
   /** Reformulate the selected text via the AI provider, then ask for approval. */
   const reformulateSelectionWithAi = useCallback(async () => {
     const editor = editorRef.current;
@@ -339,14 +358,21 @@ export function useAppAiActions(ctx: AppCtx10) {
 
     reformulationInFlightRef.current = true;
     reformulationCancelledRef.current = false;
+    const requestId = newReformulationRequestId();
+    reformulationRequestIdRef.current = requestId;
     setStatusMessage("Reformulating selection…");
+    const progress = editor
+      ? showReformulationProgress(editor, monaco, snapshot.range, cancelReformulation)
+      : null;
+    reformulationProgressRef.current = progress;
     try {
-      const { requestId, step } = await performReformulation(
+      const { step } = await performReformulation(
         aiConfig,
         snapshot,
-        () => {},
+        (text) => progress?.append(text),
+        requestId,
       );
-      reformulationRequestIdRef.current = requestId;
+      progress?.dispose();
       if (reformulationCancelledRef.current) {
         setStatusMessage("Reformulation cancelled.");
         return;
@@ -386,6 +412,10 @@ export function useAppAiActions(ctx: AppCtx10) {
         }`,
       );
     } finally {
+      progress?.dispose();
+      if (reformulationProgressRef.current === progress) {
+        reformulationProgressRef.current = null;
+      }
       reformulationInFlightRef.current = false;
       reformulationRequestIdRef.current = null;
     }
@@ -396,17 +426,8 @@ export function useAppAiActions(ctx: AppCtx10) {
     openSidebar,
     setStatusMessage,
     applyAiSelectionProposal,
+    cancelReformulation,
   ]);
-
-  /** Cancel an in-flight reformulation (invoked via Escape). */
-  const cancelReformulation = useCallback(() => {
-    if (!reformulationInFlightRef.current) return;
-    reformulationCancelledRef.current = true;
-    if (reformulationRequestIdRef.current) {
-      void abortGeneration(reformulationRequestIdRef.current);
-    }
-    setStatusMessage("Reformulation cancelled.");
-  }, [setStatusMessage]);
 
   /** Attach the current selection to the active AI chat for user-directed questions. */
   const askAiAboutSelection = useCallback(() => {

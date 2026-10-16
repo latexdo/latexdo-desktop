@@ -4221,33 +4221,78 @@ describe("App critical UI controls", () => {
     );
     expect(h.model.getValue()).not.toContain("Please clarify this claim.");
   });
+  it("editor integration keeps an edited response letter and saves the new one beside it", async () => {
+    const h = await mountEditorIntegration("A disputed passage.");
+    fireEvent.click(screen.getByTitle("Rebuttal Mode"));
+    fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
+    fireEvent.change(screen.getByLabelText("Reviewer's comment"), {
+      target: { value: "Explain the method." },
+    });
+    // A letter the author has already edited by hand.
+    h.api.fileExists.mockImplementation(
+      async (_id: string, file: string) => file === "rebuttal-letter.tex",
+    );
+    const readText = h.api.readFile.getMockImplementation();
+    h.api.readFile.mockImplementation(async (id: string, file: string) =>
+      file === "rebuttal-letter.tex"
+        ? "\\documentclass{article} my own edits"
+        : readText!(id, file),
+    );
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /create letter/i }));
+
+    await waitFor(() =>
+      expect(h.api.writeFile).toHaveBeenCalledWith(
+        project.id,
+        "rebuttal-letter-2.tex",
+        expect.stringContaining("Explain the method."),
+      ),
+    );
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining("You edited rebuttal-letter.tex"),
+    );
+    expect(h.api.writeFile).not.toHaveBeenCalledWith(
+      project.id,
+      "rebuttal-letter.tex",
+      expect.anything(),
+    );
+  });
   it("editor integration builds and edits rebuttal items and writes a response letter", async () => {
     const h = await mountEditorIntegration("A disputed passage.");
     h.select(2, 10);
     fireEvent.click(screen.getByTitle("Rebuttal Mode"));
-    fireEvent.click(screen.getByRole("button", { name: "New Rebuttal Item" }));
-    fireEvent.change(screen.getByPlaceholderText("What did the reviewer say?"), {
+    fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
+    fireEvent.change(screen.getByLabelText("Reviewer's comment"), {
       target: { value: "Explain the method." },
     });
-    fireEvent.change(screen.getByPlaceholderText("How do you respond?"), {
+    fireEvent.change(screen.getByLabelText("Your response"), {
       target: { value: "We added an explanation." },
     });
-    fireEvent.change(
-      screen.getByPlaceholderText("The manuscript text being discussed."),
-      { target: { value: "Old method" } },
+    fireEvent.change(screen.getByLabelText(/Original text/), {
+      target: { value: "Old method" },
+    });
+    fireEvent.change(screen.getByLabelText(/Revised text/), {
+      target: { value: "Detailed method" },
+    });
+    expect(screen.getByRole("region", { name: "Response letter" })).toHaveTextContent(
+      "rebuttal-letter.tex in your project folder",
     );
-    fireEvent.change(
-      screen.getByPlaceholderText("The revised manuscript text or a unified diff."),
-      { target: { value: "Detailed method" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Export Response" }));
+    fireEvent.click(screen.getByRole("button", { name: /create letter/i }));
     await waitFor(() =>
       expect(h.api.writeFile).toHaveBeenCalledWith(
         project.id,
         "rebuttal-letter.tex",
-        expect.stringContaining("We added an explanation."),
+        expect.stringContaining("\\response We added an explanation."),
       ),
     );
+    const letter = vi
+      .mocked(h.api.writeFile)
+      .mock.calls.find(([, path]) => path === "rebuttal-letter.tex")?.[2] as string;
+    expect(letter).toContain("\\section*{Reviewer 1}");
+    expect(letter).toContain("\\beforechange{Old method}");
+    expect(letter).toContain("\\afterchange{Detailed method}");
+    expect(letter).not.toContain("COLA-D-26-00101");
     fireEvent.click(screen.getByRole("button", { name: "Delete rebuttal item" }));
     expect(screen.queryByDisplayValue("Explain the method.")).not.toBeInTheDocument();
   });

@@ -761,9 +761,8 @@ async function writeResearchSpaceFile(
       kind: folder.kind,
     })),
   };
-  await atomicWriteUtf8(space.filePath, `${JSON.stringify(manifest, null, 2)}\n`, {
-    backup: true,
-  });
+  // Lives in a folder the person chose: no backup copy next to it.
+  await atomicWriteUtf8(space.filePath, `${JSON.stringify(manifest, null, 2)}\n`);
   return readResearchSpaceFile(space.filePath);
 }
 
@@ -6280,7 +6279,9 @@ async function startApp(): Promise<void> {
     const filePath = parseRelativePath(channel, rawFilePath);
     const content = parseTextContent(channel, rawContent);
     const { resolvedPath } = await resolveOpenProjectPath(projectId, filePath);
-    await atomicWriteUtf8(resolvedPath, content, { backup: true });
+    // No backup copy: the write is already atomic, and the project folder must
+    // only ever contain the person's own files.
+    await atomicWriteUtf8(resolvedPath, content);
   });
   ipcMain.handle("file:create", async (_event, ...rawArgs: unknown[]) => {
     const channel = "file:create";

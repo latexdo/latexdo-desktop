@@ -109,13 +109,7 @@ Health check:
 curl http://127.0.0.1:8787/api/health
 ```
 
-For local browser testing:
-
-```sh
-VITE_LATEXDO_API_BASE_URL=http://127.0.0.1:8787 npm run web
-```
-
-For local desktop testing:
+For local testing:
 
 ```sh
 VITE_LATEXDO_API_BASE_URL=http://127.0.0.1:8787 npm run dev
@@ -135,7 +129,7 @@ Install Node.js 22.17 or newer, then:
 sudo useradd --system --home /var/lib/latexdo-collaborations --shell /usr/sbin/nologin latexdo
 sudo mkdir -p /opt /etc/latexdo /var/lib/latexdo-collaborations /var/log/latexdo-collaborations
 sudo chown -R latexdo:latexdo /var/lib/latexdo-collaborations /var/log/latexdo-collaborations
-sudo git clone https://github.com/latexdo/latexdo.git /opt/latexdo
+sudo git clone https://github.com/latexdo/latexdo-desktop.git /opt/latexdo
 cd /opt/latexdo
 sudo npm ci --omit=dev
 sudo cp collaborations/.env.example /etc/latexdo/collaborations.env

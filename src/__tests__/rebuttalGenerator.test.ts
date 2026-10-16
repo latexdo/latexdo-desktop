@@ -1,107 +1,147 @@
 import { describe, expect, it } from "vitest";
-import { generateRebuttalLetter } from "../rebuttalGenerator";
-import type { RebuttalGeneratorSettings, RebuttalItem } from "../types";
+import {
+  generateRebuttalLetter,
+  isUneditedRebuttalLetter,
+  manuscriptTitleFromSource,
+  nextRebuttalLetterName,
+} from "../rebuttalGenerator";
+import type { RebuttalItem } from "../types";
 
-const settings: RebuttalGeneratorSettings = {
-  manuscriptId: "D-1",
-  manuscriptTitle: "A Test Manuscript",
-  fontSize: "11pt",
-  paperSize: "a4paper",
-  fontFamily: "newpx",
-  includeDiff: true,
-  diffOldFile: "old.tex",
-  diffNewFile: "new.tex",
-  diffOutput: "diff.tex",
-  summaryText: "Summary.",
-  useOnehalfSpacing: false,
-  colorPrimary: "1E1E1E",
-  colorAccent: "D9D9D9",
-};
+function item(overrides: Partial<RebuttalItem>): RebuttalItem {
+  return {
+    id: Math.random().toString(36),
+    reviewerComment: "",
+    authorComment: "",
+    modificationMade: "",
+    ...overrides,
+  };
+}
 
 describe("generateRebuttalLetter", () => {
-  it("renders text, reviewer comment, author answer, and diff in order", () => {
-    const item: RebuttalItem = {
-      id: "1",
-      originalText: "The old claim.",
-      revisedText: "The revised claim.",
-      reviewerComment: "Please clarify the claim.",
-      authorComment: "We clarified the claim.",
-      modificationMade: "The revised claim.",
-    };
+  it("groups comments by reviewer and numbers them within each reviewer", () => {
+    const tex = generateRebuttalLetter([
+      item({ reviewer: "Reviewer 1", reviewerComment: "First of R1." }),
+      item({ reviewer: "Reviewer 2", reviewerComment: "First of R2." }),
+      item({ reviewer: "Reviewer 1", reviewerComment: "Second of R1." }),
+    ]);
 
-    const tex = generateRebuttalLetter([item], settings);
-    const textIndex = tex.indexOf("\\begin{OriginalText}");
-    const reviewerIndex = tex.indexOf("\\begin{ReviewerComment}");
-    const answerIndex = tex.indexOf("\\begin{AuthorResponse}");
-    const diffIndex = tex.indexOf("\\begin{ManuscriptChangeDiff}");
-
-    expect(textIndex).toBeGreaterThan(-1);
-    expect(reviewerIndex).toBeGreaterThan(textIndex);
-    expect(answerIndex).toBeGreaterThan(reviewerIndex);
-    expect(diffIndex).toBeGreaterThan(answerIndex);
-    expect(tex).toContain("- The old claim.");
-    expect(tex).toContain("+ The revised claim.");
+    expect(tex.match(/\\section\*\{Reviewer 1\}/g)).toHaveLength(1);
+    expect(tex.match(/\\section\*\{Reviewer 2\}/g)).toHaveLength(1);
+    const order = [
+      "Reviewer 1}",
+      "Comment 1.1",
+      "First of R1.",
+      "Comment 1.2",
+      "Second of R1.",
+      "Reviewer 2}",
+      "Comment 2.1",
+      "First of R2.",
+    ];
+    const positions = order.map((text) => tex.indexOf(text));
+    expect(positions.every((position) => position > -1)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 
-  it("emits valid environment parameters in the ReviewCard header", () => {
-    const tex = generateRebuttalLetter([], settings);
-
-    // ##1 inside \newenvironment expands to a literal "#" and makes pdflatex
-    // fail with "You can't use `macro parameter character #'".
-    expect(tex).toContain("{\\color{white}\\bfseries #1 \\hfill #2}");
-    expect(tex).not.toContain("##1");
+  it("puts comments without a reviewer under Reviewer 1", () => {
+    const tex = generateRebuttalLetter([item({ reviewerComment: "Clarify." })]);
+    expect(tex).toContain("\\section*{Reviewer 1}");
+    expect(tex).toContain("\\subsection*{Comment 1.1}");
   });
 
-  it("escapes LaTeX special characters in user-provided text", () => {
-    const item: RebuttalItem = {
-      id: "1",
-      originalText: "Accuracy is 90% on data_set_A.",
-      revisedText: "Accuracy is 95% on data_set_A & data_set_B.",
-      reviewerComment: "What about $x_i$ and ref #12?",
-      authorComment: "We added ~5 baselines and a \\newcommand table.",
-      modificationMade: "Accuracy is 95% on data_set_A & data_set_B.",
-    };
-
-    const tex = generateRebuttalLetter([item], {
-      ...settings,
-      manuscriptTitle: "neural_nets & robustness #1",
+  it("uses this paper's title and never another project's details", () => {
+    const tex = generateRebuttalLetter([item({ reviewerComment: "Clarify." })], {
+      manuscriptTitle: "Efficient Retrieval for Long Documents",
     });
-
-    expect(tex).toContain("neural\\_nets \\& robustness \\#1");
-    expect(tex).toContain("Accuracy is 90\\% on data\\_set\\_A.");
-    expect(tex).toContain("What about \\$x\\_i\\$ and ref \\#12?");
-    expect(tex).toContain(
-      "We added \\textasciitilde{}5 baselines and a \\textbackslash{}newcommand table.",
-    );
+    expect(tex).toContain("{\\large Efficient Retrieval for Long Documents}");
+    expect(tex).not.toContain("COLA-D");
+    expect(tex).not.toContain("Pharo");
+    expect(tex).not.toContain("diff.tex");
   });
 
-  it("quotes filenames in the latexdiff command instead of LaTeX-escaping them", async () => {
-    const { latexdiffCommand } = await import("../rebuttalGenerator");
-    const command = latexdiffCommand({
-      ...settings,
-      diffOldFile: "old_version.tex",
-      diffNewFile: "new_version.tex",
-      diffOutput: "diff_out.tex",
-    });
-
-    expect(command).toBe(
-      'latexdiff "old_version.tex" "new_version.tex" > "diff_out.tex"',
-    );
+  it("marks what is still to write instead of inventing text", () => {
+    const tex = generateRebuttalLetter([item({ reviewerComment: "Clarify." })]);
+    expect(tex).toContain("\\fillin{Title of the manuscript}");
+    expect(tex).toContain("\\fillin{Write your response to this comment.}");
+    expect(tex).toContain("\\fillin{Summarize the main changes");
+    expect(tex).not.toContain("Thank you for this comment.");
+    expect(tex).not.toContain("No manuscript text recorded");
   });
 
-  it("preserves a pasted unified diff as the changes block", () => {
-    const item: RebuttalItem = {
-      id: "1",
-      reviewerComment: "Please update this.",
-      authorComment: "Updated.",
-      modificationMade:
-        "--- Original\n+++ Revised\n@@ Manuscript change @@\n- old\n+ new",
-    };
+  it("writes the reviewer comment, the response, and the change in order", () => {
+    const tex = generateRebuttalLetter([
+      item({
+        reviewerComment: "Please clarify the claim.",
+        authorComment: "We clarified the claim.",
+        originalText: "The old claim.",
+        revisedText: "The revised claim.",
+      }),
+    ]);
+    const comment = tex.indexOf("Please clarify the claim.");
+    const response = tex.indexOf("\\response We clarified the claim.");
+    const before = tex.indexOf("\\beforechange{The old claim.}");
+    const after = tex.indexOf("\\afterchange{The revised claim.}");
+    expect(comment).toBeGreaterThan(-1);
+    expect(response).toBeGreaterThan(comment);
+    expect(before).toBeGreaterThan(response);
+    expect(after).toBeGreaterThan(before);
+  });
 
-    const tex = generateRebuttalLetter([item], settings);
+  it("leaves the change out when no manuscript text was given", () => {
+    const tex = generateRebuttalLetter([
+      item({ reviewerComment: "A question.", authorComment: "An answer." }),
+    ]);
+    expect(tex).not.toContain("\\begin{manuscriptchange}");
+  });
 
-    expect(tex).toContain(
-      "--- Original\n+++ Revised\n@@ Manuscript change @@\n- old\n+ new",
+  it("turns an older unified diff into before and after text", () => {
+    const tex = generateRebuttalLetter([
+      item({
+        reviewerComment: "Fix it.",
+        revisedText: "--- a\n+++ b\n@@ -1 +1 @@\n- old sentence\n+ new sentence",
+      }),
+    ]);
+    expect(tex).toContain("\\beforechange{old sentence}");
+    expect(tex).toContain("\\afterchange{new sentence}");
+    expect(tex).not.toContain("@@");
+  });
+
+  it("escapes LaTeX special characters in what people typed", () => {
+    const tex = generateRebuttalLetter([
+      item({ reviewerComment: "Use 50% & $5 for x_1.", authorComment: "Done #1." }),
+    ]);
+    expect(tex).toContain("Use 50\\% \\& \\$5 for x\\_1.");
+    expect(tex).toContain("\\response Done \\#1.");
+  });
+});
+
+describe("isUneditedRebuttalLetter", () => {
+  it("recognizes a letter nobody changed, and notices any edit", () => {
+    const tex = generateRebuttalLetter([item({ reviewerComment: "Clarify." })]);
+    expect(isUneditedRebuttalLetter(tex)).toBe(true);
+    expect(isUneditedRebuttalLetter(tex.replace("Clarify.", "Clarify more."))).toBe(
+      false,
+    );
+    expect(isUneditedRebuttalLetter("\\documentclass{article}")).toBe(false);
+  });
+});
+
+describe("manuscriptTitleFromSource", () => {
+  it("reads the title, without \\thanks or line breaks", () => {
+    expect(
+      manuscriptTitleFromSource(
+        "\\title{Efficient \\emph{Retrieval}\\\\ for Long Documents\\thanks{Funded.}}",
+      ),
+    ).toBe("Efficient \\emph{Retrieval} for Long Documents");
+    expect(manuscriptTitleFromSource("\\title[Short]{Full Title}")).toBe("Full Title");
+    expect(manuscriptTitleFromSource("\\section{Intro}")).toBeNull();
+  });
+});
+
+describe("nextRebuttalLetterName", () => {
+  it("finds a free name for a copy", () => {
+    const taken = new Set(["rebuttal-letter-2.tex"]);
+    expect(nextRebuttalLetterName((name) => taken.has(name))).toBe(
+      "rebuttal-letter-3.tex",
     );
   });
 });

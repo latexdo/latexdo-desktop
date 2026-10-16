@@ -153,6 +153,9 @@ export default function App() {
     handleDeleteRebuttalItem,
     handleDeleteReviewChat,
     handleGenerateRebuttalLetter,
+    rebuttalLetterPath,
+    openRebuttalLetter,
+    allProjectEntries,
     handleInsertRebuttalItemIntoTex,
     handleInsertReviewChatIntoTex,
     handleJumpToReviewSelection,
@@ -223,6 +226,10 @@ export default function App() {
     whatsNew,
     whatsNewOpen,
   } = ctx;
+  const projectHasFile = (relativePath: string) =>
+    allProjectEntries.some(
+      (entry) => entry.type === "file" && entry.relativePath === relativePath,
+    );
   // Expanded AI chat is its own full view: it replaces the editor and preview.
   const aiStandalone = sidebarVisible && activeSidebar === "ai" && aiSidebarExpanded;
 
@@ -412,6 +419,9 @@ export default function App() {
                             onUpdateItem={handleUpdateRebuttalItem}
                             onDeleteItem={handleDeleteRebuttalItem}
                             onGenerateLetter={handleGenerateRebuttalLetter}
+                            letterPath={rebuttalLetterPath}
+                            letterExists={projectHasFile(rebuttalLetterPath)}
+                            onOpenLetter={() => void openRebuttalLetter()}
                             onInsertItemIntoTex={handleInsertRebuttalItemIntoTex}
                           />
                         )}

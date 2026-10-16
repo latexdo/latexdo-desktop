@@ -8,8 +8,8 @@ On a fresh **Ubuntu 22.04 / 24.04** (or Debian 12) server, as root, with your
 domain's DNS already pointing at the box:
 
 ```bash
-git clone https://github.com/latexdo/latexdo.git
-cd latexdo
+git clone https://github.com/latexdo/latexdo-desktop.git
+cd latexdo-desktop
 sudo DOMAIN=collaborations.example.com EMAIL=you@example.com \
      bash collaborations/install.sh
 ```

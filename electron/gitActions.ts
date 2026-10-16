@@ -46,6 +46,8 @@ export type GitAction =
   | { kind: "checkout"; branch: string }
   | { kind: "create-branch"; branch: string }
   | { kind: "delete-branch"; branch: string }
+  | { kind: "rename-branch"; branch: string; newName: string }
+  | { kind: "merge-branch"; branch: string }
   | { kind: "commit"; message: string; amend?: boolean; all?: boolean; push?: boolean }
   | { kind: "undo-last-commit" }
   | { kind: "stash"; message?: string }
@@ -235,6 +237,19 @@ export async function runGitAction(
       await runGitText(root, ["branch", "-d", branch]);
       return { message: `Deleted ${branch}.` };
     }
+    case "rename-branch": {
+      const branch = assertBranchName(action.branch);
+      const newName = assertBranchName(action.newName);
+      await runGitText(root, ["branch", "-m", branch, newName]);
+      return { message: `Renamed ${branch} to ${newName}.` };
+    }
+    case "merge-branch": {
+      const branch = assertBranchName(action.branch);
+      // Also refuses to merge on a detached HEAD.
+      const into = await currentBranch(root);
+      await runGitText(root, ["merge", "--no-edit", branch]);
+      return { message: `Merged ${branch} into ${into}.` };
+    }
     case "commit": {
       const message = action.message.trim();
       if (!message && !action.amend) throw new Error("Enter a commit message.");
@@ -377,6 +392,17 @@ export function parseGitAction(value: unknown): GitAction {
     case "create-branch":
     case "delete-branch":
       return { kind: raw.kind, branch: assertBranchName(text("branch", 250) ?? "") };
+    case "rename-branch":
+      return {
+        kind: "rename-branch",
+        branch: assertBranchName(text("branch", 250) ?? ""),
+        newName: assertBranchName(text("newName", 250) ?? ""),
+      };
+    case "merge-branch":
+      return {
+        kind: "merge-branch",
+        branch: assertBranchName(text("branch", 250) ?? ""),
+      };
     case "commit":
       return {
         kind: "commit",

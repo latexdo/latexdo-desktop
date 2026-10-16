@@ -153,12 +153,17 @@ export function validateSelectionForReformulation(
  * No tools, no agent loop — just selected text → proposed text.
  * Returns the request id (for cancellation) plus the generation step.
  */
+export function newReformulationRequestId(): string {
+  return `reform_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
 export async function performReformulation(
   config: AiConfig,
   snapshot: AiSelectionSnapshot,
   onToken?: (text: string) => void,
+  // Pass an id to be able to abort the request while it is generating.
+  requestId: string = newReformulationRequestId(),
 ): Promise<{ requestId: string; step: GenerationStep }> {
-  const requestId = `reform_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
   const runtime = resolveAiRuntime(config);
   const messages = buildReformulationMessages(snapshot);
   const req: GenerateRequest = {

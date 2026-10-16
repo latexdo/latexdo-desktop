@@ -12,14 +12,6 @@ npm install
 npm run dev
 ```
 
-Browser-only editor:
-
-```sh
-npm run web
-```
-
-The browser editor runs at `http://127.0.0.1:5173`.
-
 ## Workspace tabs and AI
 
 The Knowledge button opens the bibliography graph as an editor tab. Drag tabs to
@@ -92,13 +84,13 @@ npm run ai:check          # Validate AI catalog/source sync.
 ## Test Coverage
 
 `npm run test:coverage` measures all JavaScript and TypeScript source under
-`src/`, `electron/`, `collaborations/`, `cli/`, `scripts/`, and `latexdo/`, including
+`src/`, `electron/`, `collaborations/`, `scripts/`, and `latexdo/`, including
 files that no test imports. This includes the application entry points, Monaco
 integration, every feature, Electron preload and backend, collaboration server,
 generated runtime code, and development/release tooling.
 
 Tests, test harnesses, type declarations, dependencies, and compiled build output
-are excluded. Shell scripts (including the current CLI), CSS, HTML, and other
+are excluded. Shell scripts, CSS, HTML, and other
 non-JavaScript assets cannot be instrumented by V8 and are not part of this
 percentage. Code executed only in a separate process is included as uncovered
 unless its coverage is collected; this report does not merge subprocess coverage.

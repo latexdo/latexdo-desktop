@@ -36,6 +36,8 @@ export interface ScmGraphProps {
   files: ReadonlyMap<string, CommitFilesState>;
   onOpenFile: (commit: GitGraphCommit, file: GitCommitFile) => void;
   onContextMenu: (commit: GitGraphCommit, x: number, y: number) => void;
+  /** Right-click on a branch label. */
+  onBranchContextMenu?: (branch: string) => void;
   /** Scrolls this commit into view when it changes (Go to current). */
   revealHash?: string | null;
 }
@@ -73,6 +75,7 @@ export function ScmGraph({
   files,
   onOpenFile,
   onContextMenu,
+  onBranchContextMenu,
   revealHash,
 }: ScmGraphProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -223,6 +226,15 @@ export function ScmGraph({
                         key={`${ref.kind}:${ref.name}`}
                         className={`scm-graph-ref ${ref.kind} ${ref.current ? "current" : ""}`}
                         title={`${ref.kind === "remote-branch" ? "Remote branch" : ref.kind === "tag" ? "Tag" : "Branch"}: ${ref.name}`}
+                        onContextMenu={
+                          onBranchContextMenu && ref.kind !== "tag"
+                            ? (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                onBranchContextMenu(ref.name);
+                              }
+                            : undefined
+                        }
                       >
                         <Codicon
                           name={

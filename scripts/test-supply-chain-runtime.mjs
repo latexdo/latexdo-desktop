@@ -7,7 +7,7 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -189,84 +189,11 @@ async function testFeedRenewal(temporaryRoot) {
   assert.equal(await readFile(feedPath, "utf8"), renewedBytes);
 }
 
-async function testTrustedCachedCheckout(temporaryRoot) {
-  if (process.platform === "win32") return;
-
-  const fixtureRoot = path.join(temporaryRoot, "cli");
-  const appRoot = path.join(fixtureRoot, "app");
-  const homeRoot = path.join(fixtureRoot, "home");
-  const fakeBin = path.join(fixtureRoot, "bin");
-  await mkdir(appRoot, { recursive: true });
-  await mkdir(homeRoot, { recursive: true });
-  await mkdir(fakeBin, { recursive: true });
-  await mkdir(path.join(appRoot, "node_modules"));
-  await writeFile(path.join(appRoot, "package.json"), '{"name":"fixture"}\n');
-
-  await execFile("git", ["init", "-q", appRoot]);
-  await execFile("git", ["-C", appRoot, "config", "user.name", "Fixture"]);
-  await execFile("git", ["-C", appRoot, "config", "user.email", "fixture@example.com"]);
-  await execFile("git", ["-C", appRoot, "add", "package.json"]);
-  await execFile("git", ["-C", appRoot, "commit", "-q", "-m", "fixture"]);
-  const { stdout: commitOutput } = await execFile("git", [
-    "-C",
-    appRoot,
-    "rev-parse",
-    "HEAD",
-  ]);
-  const commit = commitOutput.trim();
-  const statePath = path.join(homeRoot, "update-feed-state.json");
-  const state = {
-    schemaVersion: 1,
-    highestVersion: "1.2.3",
-    highestCommit: commit,
-    highestPublishedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
-
-  for (const name of ["curl", "npm"]) {
-    const executable = path.join(fakeBin, name);
-    await writeFile(executable, "#!/bin/sh\nexit 0\n");
-    await chmod(executable, 0o755);
-  }
-  const environment = {
-    ...process.env,
-    PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
-    LATEXDO_APP_DIR: appRoot,
-    LATEXDO_HOME: homeRoot,
-    LATEXDO_NO_OPEN: "1",
-    LATEXDO_UPDATE_FEED_FILE: path.join(fixtureRoot, "must-not-be-read.json"),
-  };
-  const cliPath = path.join(root, "cli/bin/latexdo");
-  const trusted = await execFile("sh", [cliPath, "open", "--no-update"], {
-    cwd: root,
-    env: environment,
-  });
-  assert.match(trusted.stdout, /Using cached trusted LatexDo release/);
-
-  state.highestCommit = "0".repeat(40);
-  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
-  await assert.rejects(
-    execFile("sh", [cliPath, "open", "--no-update"], {
-      cwd: root,
-      env: environment,
-    }),
-    (error) => {
-      assert.match(
-        error.stderr,
-        /--no-update requires a cached checkout at the last commit verified by the signed update feed/,
-      );
-      return true;
-    },
-  );
-}
-
 const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "latexdo-supply-chain-"));
 try {
   await testFeedRenewal(temporaryRoot);
-  await testTrustedCachedCheckout(temporaryRoot);
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }
 
-console.log("Verified signed feed renewal and trusted cached CLI startup.");
+console.log("Verified signed feed renewal.");

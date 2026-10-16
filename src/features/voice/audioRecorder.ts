@@ -11,7 +11,11 @@ export interface AudioRecorderOptions {
   maxDurationMs?: number;
   /** Called when the recorder auto-stops because the duration cap was reached. */
   onDurationLimit?(): void;
+  /** Microphone loudness while recording, 0 (silence) to 1, a few times a second. */
+  onLevel?(level: number): void;
 }
+
+const levelIntervalMs = 70;
 
 export interface AudioRecorderLike {
   readonly state: AudioRecorderState;
@@ -129,10 +133,16 @@ export class AudioRecorder implements AudioRecorderLike {
 
   private readonly maxDurationMs?: number;
   private readonly onDurationLimit?: () => void;
+  private readonly onLevel?: (level: number) => void;
+  private meter: {
+    context: AudioContext;
+    timer: ReturnType<typeof setInterval>;
+  } | null = null;
 
   constructor(options: AudioRecorderOptions = {}) {
     this.maxDurationMs = options.maxDurationMs;
     this.onDurationLimit = options.onDurationLimit;
+    this.onLevel = options.onLevel;
   }
 
   get state(): AudioRecorderState {
@@ -199,6 +209,7 @@ export class AudioRecorder implements AudioRecorderLike {
     this.recorderState = "recording";
     this.startedAt = Date.now();
     recorder.start(250);
+    this.startMeter(stream);
 
     // Duration cap. Uses a coarse check so a hard limit is never exceeded.
     const maxDurationMs = this.maxDurationMs;
@@ -250,6 +261,39 @@ export class AudioRecorder implements AudioRecorderLike {
     return this.durationLimitReached;
   }
 
+  /** Reports loudness for the waveform. Optional: recording works without it. */
+  private startMeter(stream: MediaStream): void {
+    const onLevel = this.onLevel;
+    if (!onLevel || typeof AudioContext === "undefined") return;
+    try {
+      const context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      const timer = setInterval(() => {
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) {
+          const centered = (sample - 128) / 128;
+          sum += centered * centered;
+        }
+        // Speech sits around 0.05-0.2 RMS; scale it to fill the waveform.
+        onLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5));
+      }, levelIntervalMs);
+      this.meter = { context, timer };
+    } catch {
+      this.meter = null;
+    }
+  }
+
+  private stopMeter(): void {
+    if (!this.meter) return;
+    clearInterval(this.meter.timer);
+    void this.meter.context.close().catch(() => undefined);
+    this.meter = null;
+  }
+
   private limitTimerCleanup(): void {
     if (this.limitTimer) {
       clearInterval(this.limitTimer);
@@ -258,6 +302,7 @@ export class AudioRecorder implements AudioRecorderLike {
   }
 
   private releaseStream(): void {
+    this.stopMeter();
     this.recorderState = "stopped";
     if (this.stream) {
       stopAllTracks(this.stream);

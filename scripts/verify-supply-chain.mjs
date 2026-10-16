@@ -1,29 +1,18 @@
-import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 
 const [
-  cli,
-  installer,
-  publicKey,
   appPackage,
-  cliPackage,
   electronMain,
   ciWorkflow,
   renewalScript,
   downloadsBuilder,
-  downloadsIndexBuilder,
   workflowFiles,
 ] = await Promise.all([
-  readFile("cli/bin/latexdo", "utf8"),
-  readFile("cli/install.sh", "utf8"),
-  readFile("build/update-public-key.pem", "utf8"),
   readFile("package.json", "utf8").then(JSON.parse),
-  readFile("cli/package.json", "utf8").then(JSON.parse),
   readFile("electron/main.ts", "utf8"),
   readFile(".github/workflows/ci.yml", "utf8"),
   readFile("scripts/renew-update-feed.mjs", "utf8"),
   readFile("scripts/build-downloads-page.mjs", "utf8"),
-  readFile("scripts/build-downloads-release-index.mjs", "utf8"),
   readdir(".github/workflows"),
 ]);
 
@@ -36,12 +25,6 @@ if (workflowYamlFiles.length !== 1 || workflowYamlFiles[0] !== "ci.yml") {
   );
 }
 
-if (!cli.includes(publicKey.trim())) {
-  throw new Error("CLI update key does not match build/update-public-key.pem.");
-}
-if (cliPackage.engines?.node !== ">=22.17.0") {
-  throw new Error("CLI Node.js minimum must remain pinned to >=22.17.0.");
-}
 if (appPackage.build?.toolsets?.appimage !== "1.0.3") {
   throw new Error("Linux AppImage builds must use the static appimage toolset.");
 }
@@ -57,31 +40,6 @@ for (const nativeModuleUnpackPattern of [
   }
 }
 
-for (const [label, content] of [
-  ["CLI", cli],
-  ["desktop main process", electronMain],
-  ["downloads builder", downloadsBuilder],
-  ["downloads index builder", downloadsIndexBuilder],
-  ["feed renewal script", renewalScript],
-]) {
-  if (content.includes("app.latexdo.org")) {
-    throw new Error(`${label} must use latexdo.org for downloads and updates.`);
-  }
-}
-
-for (const requiredProtection of [
-  "feed freshness window is invalid or expired",
-  "feed version ${payload.version} is older than previously trusted",
-  "isReleaseSlugForVersion(payload.release, payload.version)",
-  "isBuildReleaseSlugForVersion(payload.release, payload.version)",
-  "trusted_cached_checkout",
-  "state.highestCommit",
-  'cached_commit="$(git -C "$APP_DIR" rev-parse HEAD',
-]) {
-  if (!cli.includes(requiredProtection)) {
-    throw new Error(`CLI update protection is missing: ${requiredProtection}`);
-  }
-}
 for (const requiredProtection of [
   'const updateFeedStateFile = "update-feed-state.json"',
   "Website update feed freshness window is invalid or expired.",
@@ -96,11 +54,6 @@ for (const requiredProtection of [
 
 for (const forbiddenWorkflowControl of [
   "workflow_run:",
-  "repository: latexdo/app.latexdo.org",
-  "repository: latexdo/editor.latexdo.org",
-  "repository: latexdo/cli.latexdo.org",
-  "repository: latexdo/docs.latexdo.org",
-  "repository: latexdo/store.latexdo.org",
   "deploy-editor",
   "deploy-cli",
   "deploy-docs",
@@ -111,7 +64,6 @@ for (const forbiddenWorkflowControl of [
   "wrangler@latest",
   "wrangler deploy",
   "git -C latexdo-site add -A",
-  "git -C latexdo-site add downloads updates bin/latexdo install.sh",
   "Deploy downloads to Cloudflare",
   "Verify deployed downloads",
 ]) {
@@ -217,14 +169,4 @@ for (const requiredDownloadsBuilderControl of [
   }
 }
 
-const expectedHash = installer.match(
-  /CLI_SHA256="\$\{LATEXDO_CLI_SHA256:-([a-f0-9]{64})\}"/,
-)?.[1];
-const actualHash = createHash("sha256").update(cli).digest("hex");
-if (!expectedHash || expectedHash !== actualHash) {
-  throw new Error(`CLI installer hash is stale: expected ${actualHash}.`);
-}
-
-console.log(
-  `Verified single-workflow CI, CLI hash ${actualHash}, and update signing key.`,
-);
+console.log("Verified single-workflow CI and release publication controls.");

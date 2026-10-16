@@ -1,3 +1,4 @@
+import { defaultReviewerName } from "../rebuttalGenerator";
 import { useCallback, useEffect } from "react";
 import {
   DEFAULT_SPLIT_PERCENT,
@@ -125,7 +126,11 @@ export function useAppRebuttalAndHistory(ctx: AppCtx14) {
       authorComment: "",
       modificationMade: "",
     };
-    setRebuttalItems((prev) => [...prev, newItem]);
+    // A new comment usually comes from the same reviewer as the last one.
+    setRebuttalItems((prev) => [
+      ...prev,
+      { ...newItem, reviewer: prev.at(-1)?.reviewer || defaultReviewerName },
+    ]);
   }, []);
 
   const handleInsertRebuttalItemIntoTex = useCallback(

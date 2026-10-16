@@ -38,10 +38,15 @@ function isCancelledLike(err: unknown): boolean {
   return false;
 }
 
+/** How many recent microphone levels the waveform shows. */
+export const voiceLevelHistory = 72;
+
 export function useVoiceDictation(options: UseVoiceDictationOptions): {
   status: VoiceDictationStatus;
   error: VoiceDictationError | null;
   durationMs: number;
+  /** Recent microphone levels (0-1), oldest first, while recording. */
+  levels: number[];
   start(): Promise<void>;
   stop(): Promise<void>;
   cancel(): void;
@@ -50,6 +55,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions): {
   const [status, setStatus] = React.useState<VoiceDictationStatus>("idle");
   const [error, setError] = React.useState<VoiceDictationError | null>(null);
   const [durationMs, setDurationMs] = React.useState(0);
+  const [levels, setLevels] = React.useState<number[]>([]);
 
   const optionsRef = React.useRef(options);
   optionsRef.current = options;
@@ -233,9 +239,14 @@ export function useVoiceDictation(options: UseVoiceDictationOptions): {
     clearTimer();
     startedAtRef.current = Date.now();
     setDurationMs(0);
+    setLevels([]);
 
     const recorder = new AudioRecorder({
       maxDurationMs: o.maxDurationMs,
+      onLevel: (level) => {
+        if (activeRequestIdRef.current !== requestId) return;
+        setLevels((previous) => [...previous, level].slice(-voiceLevelHistory));
+      },
       onDurationLimit: () => {
         // At the cap the recorder stops itself; carry on and transcribe
         // normally, same as a manual stop.
@@ -286,6 +297,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions): {
     abortRef.current = null;
     clearTimer();
     setDurationMs(0);
+    setLevels([]);
     setError(null);
 
     if (s === "recording" || s === "requesting-permission") {
@@ -307,5 +319,5 @@ export function useVoiceDictation(options: UseVoiceDictationOptions): {
     };
   }, [clearTimer]);
 
-  return { status, error, durationMs, start, stop, cancel, reset };
+  return { status, error, durationMs, levels, start, stop, cancel, reset };
 }

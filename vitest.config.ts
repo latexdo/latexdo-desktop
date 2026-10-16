@@ -50,13 +50,13 @@ export default defineConfig({
     // The same applies to the set-up of the Electron main-process suites.
     hookTimeout: 30_000,
     include: [
-      "{src,electron,collaborations,cli,scripts,latexdo}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+      "{src,electron,collaborations,scripts,latexdo}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
     ],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
       include: [
-        "{src,electron,collaborations,cli,scripts,latexdo}/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+        "{src,electron,collaborations,scripts,latexdo}/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
       ],
       exclude: [
         "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",

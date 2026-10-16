@@ -249,6 +249,28 @@ describe("ScmGraph", () => {
     });
   });
 
+  it("opens branch actions when a branch label is right-clicked", () => {
+    const onBranchContextMenu = vi.fn();
+    const onContextMenu = vi.fn();
+    render(
+      <ScmGraph
+        commits={commits}
+        loading={false}
+        hasMore={false}
+        onLoadMore={vi.fn()}
+        expanded={new Set()}
+        onToggle={vi.fn()}
+        files={new Map()}
+        onOpenFile={vi.fn()}
+        onContextMenu={onContextMenu}
+        onBranchContextMenu={onBranchContextMenu}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText("main"));
+    expect(onBranchContextMenu).toHaveBeenCalledWith("main");
+    expect(onContextMenu).not.toHaveBeenCalled();
+  });
+
   it("asks for more commits from the Load more row", () => {
     const onLoadMore = vi.fn();
     render(
@@ -292,6 +314,36 @@ describe("QuickPick", () => {
     expect(onAccept).toHaveBeenCalledWith(
       expect.objectContaining({ id: "draft" }),
       "dra",
+    );
+  });
+
+  it("presses the context button when an item is right-clicked", () => {
+    const onAccept = vi.fn();
+    render(
+      <QuickPick
+        request={{
+          placeholder: "Select the branches to show in the graph",
+          contextButton: "actions",
+          items: [
+            { id: "all", label: "All branches" },
+            {
+              id: "origin/master",
+              label: "origin/master",
+              buttons: [{ id: "actions", label: "Branch actions", icon: "…" }],
+            },
+          ],
+          onAccept,
+          onCancel: vi.fn(),
+        }}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByRole("option", { name: /All branches/ }));
+    expect(onAccept).not.toHaveBeenCalled();
+    fireEvent.contextMenu(screen.getByRole("option", { name: /origin\/master/ }));
+    expect(onAccept).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "origin/master" }),
+      "",
+      "actions",
     );
   });
 

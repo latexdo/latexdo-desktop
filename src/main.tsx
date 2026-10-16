@@ -23,6 +23,16 @@ if (!favicon.parentElement) {
 installBrowserApis();
 installRendererDiagnostics();
 
+// The window never scrolls; panels scroll inside it. Should anything scroll
+// it anyway, snap back so the title bar cannot slide out of view.
+window.addEventListener(
+  "scroll",
+  () => {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  },
+  { passive: true },
+);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RendererErrorBoundary>

@@ -8,7 +8,6 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "web": "vite --host 127.0.0.1",
     "collab:start": "node collaborations/server.mjs",
     "collab:check": "node --check collaborations/server.mjs",
     "ai:sync": "node scripts/sync-ai.mjs",

@@ -1,12 +1,18 @@
 import type { OnMount } from "@monaco-editor/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
-import { generateRebuttalLetter } from "../rebuttalGenerator";
+import {
+  generateRebuttalLetter,
+  isUneditedRebuttalLetter,
+  manuscriptTitleFromSource,
+  nextRebuttalLetterName,
+  rebuttalLetterFileName,
+  defaultReviewerName,
+} from "../rebuttalGenerator";
 import { locateReviewSelection } from "../features/review/reviewAnchor";
 import { setCursorPosition } from "../features/editor/cursorStore";
 import { createReviewId, rebuttalMacro } from "../features/review/rebuttalSource";
 import { escapeLatexText, removeInsertedReviewMarkup } from "../reviewMarkup";
-import type { RebuttalGeneratorSettings } from "../types";
 import type { RebuttalItem, ReviewChat } from "../types";
 import { formatCitation } from "../latex/citationStyle";
 import { getLatexListEnterEdit } from "../latex/listContinuation";
@@ -53,6 +59,7 @@ import {
   offsetFromLineColumn,
 } from "./appShared";
 import type { AppCtx13 } from "./appContext";
+import { reformulatingContextKey } from "../features/ai/reformulationProgress";
 
 export function useAppReviewActions(ctx: AppCtx13) {
   const {
@@ -96,6 +103,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
     pendingSourceRef,
     projectEntriesRef,
     projectIdRef,
+    rootFileRef,
     projectPathRef,
     rebuttalItems,
     reformulateSelectionWithAi,
@@ -111,7 +119,6 @@ export function useAppReviewActions(ctx: AppCtx13) {
     setRebuttalItems,
     setReviewChats,
     setStatusMessage,
-    settings,
     syncCitationSearchAnchor,
     toggleBookmarkAtCurrentLine,
     triggerCitationCompletionIfNeeded,
@@ -237,7 +244,9 @@ export function useAppReviewActions(ctx: AppCtx13) {
       editor.addAction({
         id: "latexdo.ai.cancelReformulation",
         label: "Cancel Reformulation",
-        precondition: "editorTextFocus",
+        // Only while a reformulation runs, so Escape still dismisses
+        // completions, the find widget and everything else Monaco handles.
+        precondition: `editorTextFocus && ${reformulatingContextKey}`,
         keybindings: [monaco.KeyCode.Escape],
         run: () => {
           cancelReformulation();
@@ -564,45 +573,78 @@ export function useAppReviewActions(ctx: AppCtx13) {
       },
     ]);
 
-    setRebuttalItems((prev) => [...prev, newItem]);
+    setRebuttalItems((prev) => [
+      ...prev,
+      { ...newItem, reviewer: prev.at(-1)?.reviewer || defaultReviewerName },
+    ]);
     setStatusMessage(
       "Added a rebuttal block. Fill in the comment and your answer in the sidebar.",
     );
   }, []);
 
+  const [rebuttalLetterPath, setRebuttalLetterPath] = useState(rebuttalLetterFileName);
+
+  /** Writes the response letter into the project, opens it and compiles it. */
   const handleGenerateRebuttalLetter = useCallback(async () => {
     const currentProject = projectIdRef.current;
     if (!currentProject) {
-      setStatusMessage("No project open.");
+      setStatusMessage("Open a project before creating the response letter.");
       return;
     }
 
     try {
-      const s = settings;
-      const rebuttalSettings: RebuttalGeneratorSettings = {
-        manuscriptId: s.rebuttalManuscriptId,
-        manuscriptTitle: s.rebuttalManuscriptTitle,
-        fontSize: s.rebuttalFontSize,
-        paperSize: s.rebuttalPaperSize,
-        fontFamily: s.rebuttalFontFamily,
-        includeDiff: s.rebuttalIncludeDiff,
-        diffOldFile: s.rebuttalDiffOldFile,
-        diffNewFile: s.rebuttalDiffNewFile,
-        diffOutput: s.rebuttalDiffOutput,
-        summaryText: s.rebuttalSummary,
-        useOnehalfSpacing: s.rebuttalSpacing,
-        colorPrimary: s.rebuttalColorPrimary,
-        colorAccent: s.rebuttalColorAccent,
-      };
+      // The title comes from this paper, never from another project.
+      const rootPath = normalizeRelativePath(rootFileRef.current ?? "");
+      const openRoot = documentsRef.current.find(
+        (document) =>
+          isTextDocument(document) &&
+          normalizeRelativePath(document.relativePath) === rootPath,
+      );
+      const rootSource =
+        openRoot && isTextDocument(openRoot)
+          ? openRoot.content
+          : rootPath && (await window.latexdo.fileExists(currentProject, rootPath))
+            ? await window.latexdo.readFile(currentProject, rootPath)
+            : "";
+      const tex = generateRebuttalLetter(rebuttalItems, {
+        manuscriptTitle: manuscriptTitleFromSource(rootSource) ?? undefined,
+      });
 
-      const tex = generateRebuttalLetter(rebuttalItems, rebuttalSettings);
-      if (!tex || tex.length < 50) {
-        setStatusMessage("Generated response is empty — check items and settings.");
-        return;
+      const projectFiles = new Set(
+        flattenEntries(projectEntriesRef.current)
+          .filter((entry) => entry.type === "file")
+          .map((entry) => normalizeRelativePath(entry.relativePath)),
+      );
+      let outName = rebuttalLetterFileName;
+      if (await window.latexdo.fileExists(currentProject, outName)) {
+        const existing = await window.latexdo.readFile(currentProject, outName);
+        const openLetter = documentsRef.current.find(
+          (document) =>
+            isTextDocument(document) &&
+            normalizeRelativePath(document.relativePath) === outName,
+        );
+        const edited =
+          !isUneditedRebuttalLetter(existing) ||
+          Boolean(
+            openLetter &&
+            isTextDocument(openLetter) &&
+            openLetter.content !== openLetter.savedContent,
+          );
+        if (
+          edited &&
+          !window.confirm(
+            `You edited ${outName} after it was created.\n\n` +
+              "OK: replace it with a new letter (your edits are lost).\n" +
+              "Cancel: keep your edited letter and save the new one as a separate file.",
+          )
+        ) {
+          outName = nextRebuttalLetterName((name) => projectFiles.has(name));
+        }
       }
-      const outName = "rebuttal-letter.tex";
+
       await window.latexdo.writeFile(currentProject, outName, tex);
       await refreshProject(currentProject);
+      setRebuttalLetterPath(outName);
       setDocuments((current) => {
         const nextDocuments = current.map((document) =>
           normalizeRelativePath(document.relativePath) === outName
@@ -619,16 +661,30 @@ export function useAppReviewActions(ctx: AppCtx13) {
       );
       if (entry) {
         await openDocument(entry);
-        setStatusMessage(`Generated ${outName} — compiling…`);
+        setStatusMessage(
+          `Saved the response letter as ${outName} in your project folder.`,
+        );
         await compileEntry(entry);
       } else {
-        setStatusMessage(`Generated response file ${outName} — open to compile.`);
+        setStatusMessage(
+          `Saved the response letter as ${outName} in your project folder.`,
+        );
       }
     } catch (e) {
       const err = e instanceof Error ? e.message : String(e);
-      setStatusMessage(`Failed: ${err}`);
+      setStatusMessage(`Could not create the response letter: ${err}`);
     }
-  }, [compileEntry, openDocument, rebuttalItems, refreshProject, settings]);
+  }, [compileEntry, openDocument, rebuttalItems, refreshProject]);
+
+  const openRebuttalLetter = useCallback(async () => {
+    const entry = flattenEntries(projectEntriesRef.current).find(
+      (candidate) =>
+        candidate.type === "file" &&
+        normalizeRelativePath(candidate.relativePath) === rebuttalLetterPath,
+    );
+    if (entry) await openDocument(entry);
+    else setStatusMessage(`${rebuttalLetterPath} is no longer in the project.`);
+  }, [openDocument, projectEntriesRef, rebuttalLetterPath, setStatusMessage]);
 
   const handleAddReviewComment = useCallback(
     (chatId: string, text: string) => {
@@ -912,6 +968,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
     handleAddReviewChat,
     handleAddRebuttalToSource,
     handleGenerateRebuttalLetter,
+    rebuttalLetterPath,
+    openRebuttalLetter,
     handleAddReviewComment,
     handleDeleteReviewChat,
     handleInsertReviewChatIntoTex,
