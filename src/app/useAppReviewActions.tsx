@@ -444,6 +444,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
         config: nextEditConfig,
         semanticPredictor,
         mutationOrigin: editorMutationOriginRef.current,
+        // One search for repeat edits per pause in typing, not per keystroke.
+        patternDebounceMs: 90,
       });
     }
     const pendingCitation = pendingGraphCitationRef.current;

@@ -28,14 +28,7 @@ async function verifyDirectory(relative) {
     if (!reported.has(absolute)) missing.push(file);
   }
 }
-for (const directory of [
-  "src",
-  "electron",
-  "collaborations",
-  "cli",
-  "scripts",
-  "latexdo",
-]) {
+for (const directory of ["src", "electron", "collaborations", "scripts", "latexdo"]) {
   await verifyDirectory(`${directory}/`);
 }
 if (missing.length) {

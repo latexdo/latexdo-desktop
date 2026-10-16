@@ -28,8 +28,21 @@ export interface PatternPredictorOptions {
   editTtlMs?: number;
 }
 
+/** Characters searched on each side of the cursor for repeat-edit candidates. */
+export const NEXT_EDIT_SCAN_RADIUS = 40_000;
+/** The search window moves in steps, so small cursor moves reuse the last result. */
+const SCAN_WINDOW_STEP = 8_192;
+
+interface ScanRange {
+  from: number;
+  to: number;
+}
+
 export class PatternPredictor {
   private readonly patternsByDocument = new Map<string, Map<string, EditPattern>>();
+  /** Bumped whenever learned patterns change, to invalidate the cache. */
+  private patternsVersion = 0;
+  private cache: { key: string; candidates: PatternRawCandidate[] } | null = null;
   private readonly now: () => number;
   private readonly minManualExamples: number;
   private readonly maxRawCandidatesPerPattern: number;
@@ -60,6 +73,7 @@ export class PatternPredictor {
   }
 
   private learnPattern(edit: NormalizedEdit): EditPattern {
+    this.patternsVersion += 1;
     const kind = editKind(edit);
     const insertionAnchor = kind === "insert" ? insertionAnchorFor(edit) : undefined;
     const signature = patternSignature(edit, kind, insertionAnchor);
@@ -97,9 +111,15 @@ export class PatternPredictor {
     return pattern;
   }
 
+  /**
+   * Candidates for repeating a learned edit. With `aroundOffset` only the text
+   * near that offset is searched, which keeps typing fast in long documents.
+   * Results are cached until the text, the patterns or the window change.
+   */
   predictRawCandidates(
     snapshot: DocumentSnapshot,
     session?: DocumentEditSession,
+    aroundOffset?: number,
   ): PatternRawCandidate[] {
     if (snapshot.text.length > this.maxScanChars) return [];
 
@@ -107,6 +127,30 @@ export class PatternPredictor {
     if (!patterns) return [];
 
     const now = this.now();
+    const range = scanRange(snapshot.text.length, aroundOffset);
+    const key = [
+      snapshot.documentKey,
+      snapshot.revision,
+      snapshot.text.length,
+      this.patternsVersion,
+      range.from,
+      range.to,
+      Math.floor(now / 1000),
+      [...(session?.dismissedPatternIds.keys() ?? [])].join(","),
+    ].join("|");
+    if (this.cache?.key === key) return this.cache.candidates;
+    const candidates = this.generateCandidates(patterns, snapshot, session, now, range);
+    this.cache = { key, candidates };
+    return candidates;
+  }
+
+  private generateCandidates(
+    patterns: Map<string, EditPattern>,
+    snapshot: DocumentSnapshot,
+    session: DocumentEditSession | undefined,
+    now: number,
+    range: ScanRange,
+  ): PatternRawCandidate[] {
     const out: PatternRawCandidate[] = [];
     for (const pattern of patterns.values()) {
       if (now - pattern.lastSeenAt > this.editTtlMs) continue;
@@ -122,8 +166,8 @@ export class PatternPredictor {
 
       const generated =
         pattern.kind === "insert"
-          ? this.generateInsertionCandidates(pattern, snapshot)
-          : this.generateTextCandidates(pattern, snapshot);
+          ? this.generateInsertionCandidates(pattern, snapshot, range)
+          : this.generateTextCandidates(pattern, snapshot, range);
       out.push(...generated);
       if (out.length >= this.maxRawCandidatesPerPattern) {
         return out.slice(0, this.maxRawCandidatesPerPattern);
@@ -137,6 +181,7 @@ export class PatternPredictor {
       ? this.patternById(candidate.documentKey, candidate.patternId)
       : null;
     if (pattern) pattern.accepts += 1;
+    this.patternsVersion += 1;
   }
 
   recordDismissed(candidate: { documentKey: string; patternId?: string }): void {
@@ -144,6 +189,7 @@ export class PatternPredictor {
       ? this.patternById(candidate.documentKey, candidate.patternId)
       : null;
     if (pattern) pattern.dismissals += 1;
+    this.patternsVersion += 1;
   }
 
   patterns(documentKey: string): EditPattern[] {
@@ -152,23 +198,26 @@ export class PatternPredictor {
 
   clearDocument(documentKey: string): void {
     this.patternsByDocument.delete(documentKey);
+    this.patternsVersion += 1;
   }
 
   clear(): void {
     this.patternsByDocument.clear();
+    this.patternsVersion += 1;
   }
 
   private generateTextCandidates(
     pattern: EditPattern,
     snapshot: DocumentSnapshot,
+    range: ScanRange,
   ): PatternRawCandidate[] {
     const out: PatternRawCandidate[] = [];
     if (!pattern.oldText) return out;
 
-    let from = 0;
+    let from = range.from;
     while (out.length < this.maxRawCandidatesPerPattern) {
       const index = snapshot.text.indexOf(pattern.oldText, from);
-      if (index < 0) break;
+      if (index < 0 || index >= range.to) break;
       if (textOccurrenceMatchesPattern(pattern, snapshot.text, index)) {
         out.push(
           rawCandidateForPattern(pattern, snapshot, index, pattern.oldText.length),
@@ -182,6 +231,7 @@ export class PatternPredictor {
   private generateInsertionCandidates(
     pattern: EditPattern,
     snapshot: DocumentSnapshot,
+    range: ScanRange,
   ): PatternRawCandidate[] {
     const offsets = new Set<number>();
     const anchor = pattern.insertionAnchor;
@@ -189,11 +239,11 @@ export class PatternPredictor {
 
     for (const example of pattern.examples) {
       const exampleAnchor = insertionAnchorForExample(example);
-      collectExactAnchorOffsets(snapshot.text, exampleAnchor, offsets);
+      collectExactAnchorOffsets(snapshot.text, exampleAnchor, offsets, range);
       if (offsets.size >= this.maxRawCandidatesPerPattern) break;
     }
 
-    collectTokenBoundaryOffsets(snapshot.text, anchor, offsets);
+    collectTokenBoundaryOffsets(snapshot.text, anchor, offsets, range);
 
     return [...offsets]
       .sort((a, b) => a - b)
@@ -405,10 +455,26 @@ function mergeInsertionAnchors(
   };
 }
 
+function scanRange(length: number, aroundOffset: number | undefined): ScanRange {
+  if (aroundOffset === undefined) return { from: 0, to: length };
+  const from = Math.max(
+    0,
+    Math.floor((aroundOffset - NEXT_EDIT_SCAN_RADIUS) / SCAN_WINDOW_STEP) *
+      SCAN_WINDOW_STEP,
+  );
+  const to = Math.min(
+    length,
+    Math.ceil((aroundOffset + NEXT_EDIT_SCAN_RADIUS) / SCAN_WINDOW_STEP) *
+      SCAN_WINDOW_STEP,
+  );
+  return { from, to };
+}
+
 function collectExactAnchorOffsets(
   text: string,
   anchor: InsertionAnchor,
   offsets: Set<number>,
+  range: ScanRange,
 ): void {
   for (const length of [64, 32, 16]) {
     const left = anchor.leftAnchor.slice(-length);
@@ -417,10 +483,10 @@ function collectExactAnchorOffsets(
     const needle = `${left}${right}`;
     if (!needle) continue;
 
-    let from = 0;
+    let from = range.from;
     while (offsets.size < MAX_RAW_CANDIDATES_PER_PATTERN) {
       const index = text.indexOf(needle, from);
-      if (index < 0) break;
+      if (index < 0 || index >= range.to) break;
       offsets.add(index + left.length);
       from = index + Math.max(1, needle.length);
     }
@@ -432,24 +498,27 @@ function collectTokenBoundaryOffsets(
   text: string,
   anchor: InsertionAnchor,
   offsets: Set<number>,
+  range: ScanRange,
 ): void {
   if (anchor.rightClass === "newline") {
     for (
-      let index = text.indexOf("\n");
-      index >= 0;
+      let index = text.indexOf("\n", range.from);
+      index >= 0 && index < range.to;
       index = text.indexOf("\n", index + 1)
     ) {
       if (leftBoundaryMatches(text, index, anchor)) offsets.add(index);
       if (offsets.size >= MAX_RAW_CANDIDATES_PER_PATTERN) return;
     }
-    if (leftBoundaryMatches(text, text.length, anchor)) offsets.add(text.length);
+    if (range.to >= text.length && leftBoundaryMatches(text, text.length, anchor)) {
+      offsets.add(text.length);
+    }
   }
 
   if (anchor.leftToken) {
-    let from = 0;
+    let from = range.from;
     while (offsets.size < MAX_RAW_CANDIDATES_PER_PATTERN) {
       const index = text.indexOf(anchor.leftToken, from);
-      if (index < 0) break;
+      if (index < 0 || index >= range.to) break;
       const offset = index + anchor.leftToken.length;
       if (rightBoundaryMatches(text, offset, anchor)) offsets.add(offset);
       from = index + Math.max(1, anchor.leftToken.length);
@@ -457,10 +526,10 @@ function collectTokenBoundaryOffsets(
   }
 
   if (anchor.rightToken) {
-    let from = 0;
+    let from = range.from;
     while (offsets.size < MAX_RAW_CANDIDATES_PER_PATTERN) {
       const index = text.indexOf(anchor.rightToken, from);
-      if (index < 0) break;
+      if (index < 0 || index >= range.to) break;
       if (leftBoundaryMatches(text, index, anchor)) offsets.add(index);
       from = index + Math.max(1, anchor.rightToken.length);
     }

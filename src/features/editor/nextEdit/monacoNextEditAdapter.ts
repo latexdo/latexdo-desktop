@@ -20,6 +20,8 @@ export interface InstallMonacoNextEditOptions {
   semanticPredictor?: SemanticNextEditPredictor;
   mutationOrigin?: EditorMutationOrigin;
   now?: () => number;
+  /** See NextEditControllerOptions.patternDebounceMs. */
+  patternDebounceMs?: number;
 }
 
 export interface MonacoNextEditAdapter {
@@ -42,6 +44,7 @@ export function installMonacoNextEdit({
   semanticPredictor,
   mutationOrigin = new EditorMutationOrigin(),
   now = () => Date.now(),
+  patternDebounceMs,
 }: InstallMonacoNextEditOptions): MonacoNextEditAdapter {
   const activeController =
     controller ??
@@ -49,6 +52,7 @@ export function installMonacoNextEdit({
       now,
       semanticPredictor,
       semanticEnabled: config.semanticEnabled,
+      patternDebounceMs,
     });
   const model = editor.getModel();
   let currentModel = model;

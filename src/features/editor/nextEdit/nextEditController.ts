@@ -29,6 +29,8 @@ export class NextEditController {
   private cursorOffset = 0;
   private suggestion: NextEditCandidate | null = null;
   private semanticTimer: ReturnType<typeof setTimeout> | null = null;
+  private patternTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly patternDebounceMs: number;
   private semanticAbort: AbortController | null = null;
   private activeSemanticRequestId: string | null = null;
   private disposed = false;
@@ -43,6 +45,7 @@ export class NextEditController {
       options.semanticEnabled && options.semanticPredictor,
     );
     this.semanticDebounceMs = options.semanticDebounceMs ?? 220;
+    this.patternDebounceMs = options.patternDebounceMs ?? 0;
     this.onSuggestionChanged = options.onSuggestionChanged;
   }
 
@@ -57,7 +60,16 @@ export class NextEditController {
 
     if (edit.origin === "user") {
       this.patternPredictor.observeEdit(edit, this.snapshot.language);
-      this.publishBestPatternSuggestion();
+      if (this.patternDebounceMs > 0) {
+        // While typing, a visible suggestion that no longer fits disappears
+        // now; the search for a new one waits for a pause.
+        if (this.suggestion && !this.validateCandidate(this.suggestion)) {
+          this.clearSuggestion();
+        }
+        this.schedulePatternSuggestion();
+      } else {
+        this.publishBestPatternSuggestion();
+      }
       this.scheduleSemanticPrediction();
       return;
     }
@@ -81,7 +93,19 @@ export class NextEditController {
     if (this.suggestion && !this.validateCandidate(this.suggestion)) {
       this.dismissSuggestion("stale");
     }
+    // A search is already scheduled after the last keystroke; it reads the
+    // latest cursor position when it runs.
+    if (this.patternTimer) return;
     this.publishBestPatternSuggestion({ preserveSemanticSuggestion: true });
+  }
+
+  private schedulePatternSuggestion(): void {
+    if (this.patternTimer) clearTimeout(this.patternTimer);
+    this.patternTimer = setTimeout(() => {
+      this.patternTimer = null;
+      if (this.disposed) return;
+      this.publishBestPatternSuggestion({ preserveSemanticSuggestion: true });
+    }, this.patternDebounceMs);
   }
 
   onSelectionChanged(startOffset: number, endOffset: number): void {
@@ -164,6 +188,8 @@ export class NextEditController {
     this.disposed = true;
     this.dismissSuggestion("disposed");
     this.cancelSemanticPrediction();
+    if (this.patternTimer) clearTimeout(this.patternTimer);
+    this.patternTimer = null;
     this.patternPredictor.clear();
     this.history.clear();
   }
@@ -188,7 +214,7 @@ export class NextEditController {
         : [];
     const session = this.history.get(snapshot.documentKey);
     const patternCandidates = this.patternPredictor
-      .predictRawCandidates(snapshot, session)
+      .predictRawCandidates(snapshot, session, this.cursorOffset)
       .filter((candidate) =>
         this.textMatches(
           candidate.startOffset,
@@ -236,6 +262,7 @@ export class NextEditController {
     const patternCandidates = this.patternPredictor.predictRawCandidates(
       snapshot,
       session,
+      this.cursorOffset,
     );
     const deterministicCandidates = rankCandidates({
       patternCandidates,

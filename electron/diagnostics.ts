@@ -18,6 +18,7 @@ export type DiagnosticKind =
   | "renderer-error"
   | "renderer-unhandled-rejection"
   | "renderer-react-error"
+  | "renderer-freeze"
   | "pending-update";
 
 export interface SerializedError {

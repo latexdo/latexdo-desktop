@@ -1928,6 +1928,7 @@ const rendererDiagnosticKinds = new Set<RendererDiagnosticPayload["kind"]>([
   "renderer-error",
   "renderer-unhandled-rejection",
   "renderer-react-error",
+  "renderer-freeze",
 ]);
 
 function parseOptionalDiagnosticString(
@@ -1993,7 +1994,8 @@ function parseRendererDiagnosticPayload(
 
   const kind = parseString(channel, value.kind, {
     rejectControlChars: true,
-    pattern: /^(?:renderer-error|renderer-unhandled-rejection|renderer-react-error)$/,
+    pattern:
+      /^(?:renderer-error|renderer-unhandled-rejection|renderer-react-error|renderer-freeze)$/,
   }) as RendererDiagnosticPayload["kind"];
   if (!rendererDiagnosticKinds.has(kind)) {
     invalidIpcInput(channel);
@@ -6994,7 +6996,12 @@ async function startApp(): Promise<void> {
     const channel = "app:renderer-diagnostic";
     const [rawPayload] = expectIpcArgs(channel, rawArgs, 1);
     const payload = parseRendererDiagnosticPayload(channel, rawPayload);
-    await recordMainDiagnostic(payload.kind, "error", payload.error, payload.context);
+    await recordMainDiagnostic(
+      payload.kind,
+      payload.kind === "renderer-freeze" ? "warning" : "error",
+      payload.error,
+      payload.context,
+    );
   });
   ipcMain.handle("scholarly:fetch-json", async (_event, ...rawArgs: unknown[]) => {
     const channel = "scholarly:fetch-json";

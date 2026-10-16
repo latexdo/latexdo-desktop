@@ -194,6 +194,11 @@ export interface NextEditControllerOptions {
   semanticPredictor?: SemanticNextEditPredictor;
   semanticEnabled?: boolean;
   semanticDebounceMs?: number;
+  /**
+   * Wait this long after the last keystroke before searching for repeat edits,
+   * so a burst of typing costs one search. 0 searches on every edit.
+   */
+  patternDebounceMs?: number;
   onSuggestionChanged?: (candidate: NextEditCandidate | null) => void;
 }
 

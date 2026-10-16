@@ -52,6 +52,37 @@ interface PdfPageProps {
   overlays: PdfPreviewOverlay[];
 }
 
+/** Pages this far outside the visible area are drawn ahead of scrolling. */
+const pagePreloadMargin = "1200px 0px";
+
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
+
+/** True once the page is on screen or about to be; drawing waits for it. */
+function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => setNear(entries.some((entry) => entry.isIntersecting)),
+      { root: scrollParent(element), rootMargin: pagePreloadMargin },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  return near;
+}
+
 interface HighlightRect {
   left: number;
   top: number;
@@ -173,6 +204,9 @@ function PdfPage({
   const [rendered, setRendered] = useState(false);
   const [highlight, setHighlight] = useState<HighlightRect | null>(null);
   const cssScale = scale / 100;
+  // Only pages near the visible area are drawn. Every page still gets its
+  // size up front, so scrolling and the scrollbar behave as before.
+  const nearViewport = useNearViewport(pageRef);
 
   useEffect(() => {
     const pageElement = pageRef.current;
@@ -202,6 +236,12 @@ function PdfPage({
         pageElement.style.height = `${viewport.height}px`;
         pageElement.style.setProperty("--scale-factor", String(cssScale));
         pageElement.style.setProperty("--total-scale-factor", String(cssScale));
+        if (!nearViewport) {
+          // Free the drawing of a page far away; it is drawn again when needed.
+          canvas.width = 0;
+          canvas.height = 0;
+          return;
+        }
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = `${viewport.width}px`;
@@ -242,7 +282,7 @@ function PdfPage({
       renderTask?.cancel();
       textLayer?.cancel();
     };
-  }, [cssScale, pageNumber, pdfDocument, rotation]);
+  }, [cssScale, nearViewport, pageNumber, pdfDocument, rotation]);
 
   useEffect(() => {
     if (!rendered || target?.page !== pageNumber || !pageRef.current) {

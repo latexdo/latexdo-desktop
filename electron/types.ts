@@ -553,7 +553,11 @@ export interface UpdateDownloadProgress {
 }
 
 export interface RendererDiagnosticPayload {
-  kind: "renderer-error" | "renderer-unhandled-rejection" | "renderer-react-error";
+  kind:
+    | "renderer-error"
+    | "renderer-unhandled-rejection"
+    | "renderer-react-error"
+    | "renderer-freeze";
   error: {
     name?: string;
     message: string;

@@ -92,3 +92,57 @@ describe("renderer diagnostics", () => {
     }
   });
 });
+
+describe("freeze watcher", () => {
+  function installFakeObserver() {
+    let callback: ((list: { getEntries: () => PerformanceEntry[] }) => void) | null =
+      null;
+    const disconnect = vi.fn();
+    class FakeObserver {
+      static supportedEntryTypes = ["longtask"];
+      constructor(cb: typeof callback) {
+        callback = cb;
+      }
+      observe() {}
+      disconnect = disconnect;
+    }
+    vi.stubGlobal("PerformanceObserver", FakeObserver);
+    const emit = (...tasks: Array<[startTime: number, duration: number]>) =>
+      callback?.({
+        getEntries: () =>
+          tasks.map(
+            ([startTime, duration]) => ({ startTime, duration }) as PerformanceEntry,
+          ),
+      });
+    return { emit, disconnect };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("logs only pauses people notice, at most once every 30 seconds", async () => {
+    const { watchForFreezes } = await import("./rendererDiagnostics");
+    const { emit, disconnect } = installFakeObserver();
+    const report = vi.fn();
+    const stop = watchForFreezes(report);
+
+    emit([1_000, 120]); // too short to notice
+    emit([2_000, 450], [5_000, 600]); // the second one is too soon after the first
+    emit([40_000, 300]);
+
+    expect(report.mock.calls.map(([ms]) => ms)).toEqual([450, 300]);
+    expect(report.mock.calls[0][1]).toMatchObject({ durationMs: 450 });
+    stop();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it("stops after 20 reports in a session", async () => {
+    const { watchForFreezes } = await import("./rendererDiagnostics");
+    const { emit } = installFakeObserver();
+    const report = vi.fn();
+    watchForFreezes(report);
+    for (let index = 0; index < 30; index += 1) emit([index * 60_000, 500]);
+    expect(report).toHaveBeenCalledTimes(20);
+  });
+});
