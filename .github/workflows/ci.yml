@@ -1012,7 +1012,8 @@ jobs:
 
           git -C latexdo-site config user.name "github-actions[bot]"
           git -C latexdo-site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C latexdo-site add -A -- downloads updates
+          git -C latexdo-site add -- downloads
+          git -C latexdo-site add -- updates
 
           staged_paths="$(git -C latexdo-site diff --cached --name-only)"
           invalid_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(downloads|updates)/' || true)"
