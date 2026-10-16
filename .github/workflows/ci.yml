@@ -790,8 +790,8 @@ jobs:
           LATEXDO_RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
           LATEXDO_RELEASE_SLUG: ${{ steps.release_metadata.outputs.tag }}
           LATEXDO_RELEASE_COMMIT: ${{ needs.pipeline.outputs.target_sha }}
-          # Through latexdo.org, which redirects to this repository's release assets:
-          # apps released from latexdo/latexdo only trust latexdo.org and that repository.
+          # Installers are linked through latexdo.org, which redirects to this
+          # repository's release assets. Installed apps trust latexdo.org/downloads/.
           LATEXDO_RELEASE_ASSET_BASE_URL: https://latexdo.org/downloads/${{ steps.release_metadata.outputs.tag }}
           LATEXDO_UPDATE_FEED_ENABLED: ${{ steps.publication_credentials.outputs.update_feed_enabled }}
           LATEXDO_UPDATE_SIGNING_KEY: ${{ secrets.LATEXDO_UPDATE_SIGNING_KEY }}
@@ -961,6 +961,43 @@ jobs:
           }
           NODE
           fi
+          # Keep only releases published from this repository: installers of
+          # releases published elsewhere are not hosted here.
+          node --input-type=module - latexdo-site "$GITHUB_REPOSITORY" <<'NODE'
+          import { readdir, readFile, rm } from "node:fs/promises";
+          import path from "node:path";
+
+          const [site, repository] = process.argv.slice(2);
+          const readRepository = async (file) => {
+            try {
+              return JSON.parse(await readFile(file, "utf8")).repository ?? null;
+            } catch {
+              return null;
+            }
+          };
+          const entries = async (dir) =>
+            readdir(dir, { withFileTypes: true }).catch(() => []);
+
+          const downloads = path.join(site, "downloads");
+          for (const entry of await entries(downloads)) {
+            if (!entry.isDirectory() || !entry.name.startsWith("v")) continue;
+            const dir = path.join(downloads, entry.name);
+            const from = await readRepository(path.join(dir, "manifest.json"));
+            if (from === repository) continue;
+            await rm(dir, { recursive: true, force: true });
+            console.log(`Removed downloads/${entry.name} (published from ${from ?? "unknown"}).`);
+          }
+
+          const updates = path.join(site, "updates");
+          for (const entry of await entries(updates)) {
+            if (!entry.isFile() || !/^v.+\.json$/.test(entry.name)) continue;
+            const file = path.join(updates, entry.name);
+            const from = await readRepository(file);
+            if (from === repository) continue;
+            await rm(file, { force: true });
+            console.log(`Removed updates/${entry.name} (published from ${from ?? "unknown"}).`);
+          }
+          NODE
           mkdir -p latexdo-site/downloads
           rm -f public-downloads/downloads/index.html
           cp -R public-downloads/downloads/. latexdo-site/downloads/
@@ -975,10 +1012,7 @@ jobs:
 
           git -C latexdo-site config user.name "github-actions[bot]"
           git -C latexdo-site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C latexdo-site add -- downloads
-          if [ -d public-downloads/updates ]; then
-            git -C latexdo-site add -- updates
-          fi
+          git -C latexdo-site add -A -- downloads updates
 
           staged_paths="$(git -C latexdo-site diff --cached --name-only)"
           invalid_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(downloads|updates)/' || true)"

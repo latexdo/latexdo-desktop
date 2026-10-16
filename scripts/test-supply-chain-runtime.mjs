@@ -77,7 +77,7 @@ async function testFeedRenewal(temporaryRoot) {
       size: 123,
       sizeLabel: "123 B",
       sha256,
-      url: `https://github.com/latexdo/latexdo/releases/download/${release}/${filename}`,
+      url: `https://github.com/latexdo/latexdo-desktop/releases/download/${release}/${filename}`,
     },
   ];
   const manifest = {
@@ -86,7 +86,7 @@ async function testFeedRenewal(temporaryRoot) {
     version: "1.2.3",
     publishedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1_000).toISOString(),
     commit,
-    repository: "latexdo/latexdo",
+    repository: "latexdo/latexdo-desktop",
     downloadsPage,
     files,
   };
@@ -98,7 +98,7 @@ async function testFeedRenewal(temporaryRoot) {
     publishedAt: manifest.publishedAt,
     expiresAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1_000).toISOString(),
     commit,
-    repository: "latexdo/latexdo",
+    repository: "latexdo/latexdo-desktop",
     release,
     releaseUrl: downloadsPage,
     downloadsPage,

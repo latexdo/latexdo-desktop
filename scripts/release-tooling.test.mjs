@@ -79,7 +79,7 @@ beforeEach(async () => {
   vi.stubEnv("LATEXDO_RELEASE_VERSION", "0.3.0");
   vi.stubEnv("LATEXDO_RELEASE_SLUG", "v0.3.0");
   vi.stubEnv("LATEXDO_RELEASE_COMMIT", "a".repeat(40));
-  vi.stubEnv("GITHUB_REPOSITORY", "latexdo/latexdo");
+  vi.stubEnv("GITHUB_REPOSITORY", "latexdo/latexdo-desktop");
   vi.stubEnv("LATEXDO_RELEASE_DATE", new Date(Date.now() - 86400000).toISOString());
   vi.stubEnv("LATEXDO_UPDATE_FEED_ENABLED", "true");
 });

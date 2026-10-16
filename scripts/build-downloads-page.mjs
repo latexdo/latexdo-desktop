@@ -424,6 +424,42 @@ function renderDownloadsPage({
 ${cards}
       </section>
 
+      <section class="downloads-meta downloads-first-launch">
+        <h2>First launch</h2>
+        <p>
+          LatexDo is not yet signed with an Apple or Microsoft developer certificate,
+          so your computer may warn you the first time you open it.
+        </p>
+        <dl>
+          <div>
+            <dt>macOS</dt>
+            <dd>
+              Drag LatexDo to Applications and open it. If macOS says it cannot check the app,
+              open System Settings, choose Privacy &amp; Security, and click
+              <strong>Open Anyway</strong> next to LatexDo.
+            </dd>
+          </div>
+          <div>
+            <dt>Windows</dt>
+            <dd>
+              If Windows SmartScreen appears, click <strong>More info</strong>, then
+              <strong>Run anyway</strong>.
+            </dd>
+          </div>
+          <div>
+            <dt>Linux</dt>
+            <dd>
+              Make the AppImage executable with <code>chmod +x LatexDo-linux-x64.AppImage</code>,
+              then run it.
+            </dd>
+          </div>
+        </dl>
+        <p>
+          You only need to do this once. Updates install from inside LatexDo, and every installer
+          is checked against the signed checksum published here.
+        </p>
+      </section>
+
       <section class="downloads-meta downloads-dev">
         <h2>Build information</h2>
         <dl>
@@ -457,7 +493,7 @@ ${cards}
 const latestHtml = renderDownloadsPage({
   pageTitle: "LatexDo Downloads",
   description:
-    "Download the latest LatexDo desktop release from the LatexDo website. Installer files are stored in GitHub Releases and indexed here for updates.",
+    "Download the latest LatexDo desktop release for macOS, Windows and Linux.",
   assetPrefix: "../",
   manifestHref: "manifest.json",
   checksumsHref: "SHA256SUMS.txt",

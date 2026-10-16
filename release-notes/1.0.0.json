@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "product": "LatexDo",
+  "version": "1.0.0",
+  "title": "LatexDo 1.0",
+  "summary": "LatexDo reaches 1.0: sentence completion, project search in Cmd/Ctrl+F, a notification center, and redesigned table and notation tools.",
+  "publishedAt": "2026-10-16T12:00:00.000Z",
+  "releaseUrl": "https://latexdo.org/downloads/",
+  "highlights": [
+    {
+      "id": "sentence-completion",
+      "category": "ai",
+      "title": "Finish the sentence you are writing",
+      "description": "Pause while writing and LatexDo offers the rest of the sentence as grey text. Tab keeps it; typing or Escape dismisses it."
+    },
+    {
+      "id": "table-generator-redesign",
+      "category": "editor",
+      "title": "A table generator that works like a spreadsheet",
+      "description": "Type cells directly, move with Tab and Enter, paste from Excel or Sheets, set each column's alignment, and choose grid, booktabs or minimal rules. Add a caption and label in one click."
+    },
+    {
+      "id": "notation-manager-redesign",
+      "category": "editor",
+      "title": "A clearer notation manager",
+      "description": "Detected symbols are listed one per row with their line and section, and can be filtered by undefined, conflicting or defined."
+    },
+    {
+      "id": "search-in-cmd-f",
+      "category": "editor",
+      "title": "Project search in Cmd/Ctrl+F",
+      "description": "Search the whole project from the same place you search the open file."
+    },
+    {
+      "id": "notification-center",
+      "category": "new",
+      "title": "A notification center",
+      "description": "Errors and system events are collected in one place instead of disappearing after a few seconds."
+    },
+    {
+      "id": "built-in-tools",
+      "category": "new",
+      "title": "Built-in tools need no install",
+      "description": "The table generator, notation manager, citation manager and TikZ converter are ready from the first launch. The store now offers content packs."
+    }
+  ],
+  "fixes": [
+    "Fixed notation detection reporting the letters inside commands such as \\alpha as separate symbols and conflicts.",
+    "Fixed typing being interrupted right after accepting a citation.",
+    "Fixed encoded spaces in file names shown in Problems.",
+    "Fixed a downloaded local AI model not being recognised at launch."
+  ],
+  "breakingChanges": [],
+  "security": [
+    {
+      "title": "Updates come only from LatexDo's release repository",
+      "description": "LatexDo installs updates only from latexdo.org downloads and the latexdo/latexdo-desktop releases, and checks every installer against the signed update feed."
+    }
+  ]
+}

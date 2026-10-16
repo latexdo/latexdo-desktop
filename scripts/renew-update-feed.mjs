@@ -218,8 +218,8 @@ function assertReleaseFiles(feed, manifest, checksums) {
     }
     ids.add(file.id);
 
-    // Older releases link GitHub directly; newer ones go through latexdo.org,
-    // which redirects to the same immutable GitHub asset.
+    // Installers are linked directly on GitHub or through latexdo.org, which
+    // redirects to the same immutable GitHub asset.
     const assetName = encodeURIComponent(file.filename);
     const expectedUrls = [
       `https://github.com/${feed.repository}/releases/download/${feed.release}/${assetName}`,

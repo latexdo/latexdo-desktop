@@ -13,7 +13,7 @@ function manifest(version: string | null): DownloadManifest {
   const releaseVersion = version?.replace(/^v/i, "") ?? null;
   const downloadsPage = version ? `${fallbackUrl}v${releaseVersion}/` : fallbackUrl;
   const assetBaseUrl = releaseVersion
-    ? `https://github.com/latexdo/latexdo/releases/download/v${releaseVersion}/`
+    ? `https://github.com/latexdo/latexdo-desktop/releases/download/v${releaseVersion}/`
     : downloadsPage;
 
   return {
@@ -22,7 +22,7 @@ function manifest(version: string | null): DownloadManifest {
     version,
     publishedAt: "2026-06-27T00:00:00.000Z",
     commit: "abc123",
-    repository: "latexdo/latexdo",
+    repository: "latexdo/latexdo-desktop",
     downloadsPage,
     files: [
       {

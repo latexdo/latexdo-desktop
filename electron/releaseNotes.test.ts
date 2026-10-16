@@ -193,7 +193,9 @@ describe("validation helpers", () => {
       true,
     );
     expect(
-      isApprovedReleaseNotesDocumentUrl("https://github.com/latexdo/latexdo/releases"),
+      isApprovedReleaseNotesDocumentUrl(
+        "https://github.com/latexdo/latexdo-desktop/releases",
+      ),
     ).toBe(true);
     expect(isApprovedReleaseNotesDocumentUrl("https://evil.example/")).toBe(false);
   });

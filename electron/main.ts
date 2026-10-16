@@ -254,11 +254,6 @@ for (const configuredExternalUrl of [
   const host = safeUrlHost(configuredExternalUrl);
   if (host) externalUrlHosts.add(host);
 }
-// Releases moved from latexdo/latexdo to latexdo/latexdo-desktop; both stay trusted.
-const releaseRepositoryPaths = [
-  "/latexdo/latexdo-desktop/releases/download/",
-  "/latexdo/latexdo/releases/download/",
-];
 const updateRedirectHosts = new Set([
   "github.com",
   "objects.githubusercontent.com",
@@ -3269,7 +3264,7 @@ function safeUpdateDownloadUrl(value: unknown): string | null {
     const url = new URL(value.trim());
     const isReleaseAsset =
       url.hostname === "github.com" &&
-      releaseRepositoryPaths.some((prefix) => url.pathname.startsWith(prefix));
+      url.pathname.startsWith("/latexdo/latexdo-desktop/releases/download/");
     const isWebsiteAsset =
       ["latexdo.org", "www.latexdo.org"].includes(url.hostname) &&
       url.pathname.startsWith("/downloads/");
