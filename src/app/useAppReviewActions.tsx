@@ -359,10 +359,27 @@ export function useAppReviewActions(ctx: AppCtx13) {
       }),
       editor.addAction({
         id: "latexdo.prettierLists",
-        label: "Format Document",
+        label: "Tidy Document",
+        keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
         contextMenuGroupId: "1_modification",
         contextMenuOrder: 0,
         run: () => applyLatexPrettier(),
+      }),
+      // Writers expect Cmd/Ctrl+B and +I to format text, as in Overleaf; the
+      // keys keep their workbench meaning (Cmd/Ctrl+B: sidebar) outside TeX.
+      editor.addAction({
+        id: "latexdo.bold",
+        label: "Bold",
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB],
+        precondition: "editorLangId == latex",
+        run: () => applyLatexToolbarCommand("bold"),
+      }),
+      editor.addAction({
+        id: "latexdo.italic",
+        label: "Italic",
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI],
+        precondition: "editorLangId == latex",
+        run: () => applyLatexToolbarCommand("italic"),
       }),
       editor.addAction({
         id: "latexdo.continueLatexList",

@@ -931,6 +931,7 @@ export function useAppAiActions(ctx: AppCtx10) {
 
   return {
     ...tikzFigures,
+    openAiSidebarApi,
     loadSpellCheckerSettings,
     saveSpellCheckerSettings,
     loadProofreadingSettings,

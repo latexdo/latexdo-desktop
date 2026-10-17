@@ -79,6 +79,7 @@ import type {
   LatexDoResearchSpace,
   LatexDoResearchSpaceFolder,
   LatexDoResearchSpaceFolderKind,
+  MenuShortcut,
   OpenProject,
   ProofreadingResult,
   ProofreadingRequestOptions,
@@ -277,6 +278,7 @@ const importDocxChannel = "file:import-docx";
 const importMarkdownChannel = "file:import-markdown";
 const importPdfChannel = "file:import-pdf";
 const closeTabChannel = "file:close-tab";
+const menuCommandChannel = "menu:command";
 const maxHostedImportFileBytes = 5 * 1024 * 1024;
 
 protocol.registerSchemesAsPrivileged([
@@ -797,6 +799,33 @@ async function createResearchSpaceFile(
     folders,
   };
   return writeResearchSpaceFile(space);
+}
+
+async function chooseResearchSpaceFile(
+  window: BrowserWindow | null,
+  suggestedName: string,
+): Promise<string | null> {
+  const saveOptions = {
+    title: "Save LatexDo Research Space",
+    buttonLabel: "Save Research Space",
+    defaultPath: path.join(
+      app.getPath("documents"),
+      `${sanitizeResearchSpaceFolderName(suggestedName, "research-space")}.${researchSpacePrimaryExtension}`,
+    ),
+    filters: [
+      {
+        name: "LatexDo Research Space",
+        extensions: [researchSpacePrimaryExtension],
+      },
+    ],
+  } satisfies Electron.SaveDialogOptions;
+  const result = window
+    ? await dialog.showSaveDialog(window, saveOptions)
+    : await dialog.showSaveDialog(saveOptions);
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+  return withResearchSpaceExtension(result.filePath);
 }
 
 function registerResearchSpace(space: LatexDoResearchSpace): OpenProject {
@@ -2917,22 +2946,158 @@ function installSpellCheckerContextMenu(window: BrowserWindow): void {
   });
 }
 
+function sendToFocusedWindow(channel: string, ...args: unknown[]): void {
+  BrowserWindow.getFocusedWindow()?.webContents.send(channel, ...args);
+}
+
+/**
+ * A menu item the renderer carries out. Items marked `editor` run an editor
+ * action that the editor already binds to the same keys: their accelerator is
+ * shown for reference and only a click runs them, so the key never reaches the
+ * editor from an unrelated field such as the AI chat.
+ */
+function menuCommand(
+  label: string,
+  command: string,
+  accelerator?: string,
+  options: { editor?: boolean } = {},
+): MenuItemConstructorOptions {
+  return {
+    label,
+    accelerator,
+    // Marks the items the shortcut list describes as editor-only.
+    id: options.editor ? `${editorMenuCommandPrefix}${command}` : undefined,
+    click: (_item, _window, event) => {
+      if (options.editor && event.triggeredByAccelerator) {
+        return;
+      }
+      sendToFocusedWindow(menuCommandChannel, command);
+    },
+  };
+}
+
+function editorMenuCommand(
+  label: string,
+  actionId: string,
+  accelerator?: string,
+): MenuItemConstructorOptions {
+  return menuCommand(label, `editor:${actionId}`, accelerator, { editor: true });
+}
+
+const isMac = process.platform === "darwin";
+const editorMenuCommandPrefix = "editor-only:";
+
+// Roles take their keys from the platform; the shortcut list still names them.
+const roleAccelerators: Partial<Record<string, string>> = {
+  undo: "CmdOrCtrl+Z",
+  redo: isMac ? "Shift+Cmd+Z" : "Ctrl+Y",
+  cut: "CmdOrCtrl+X",
+  copy: "CmdOrCtrl+C",
+  paste: "CmdOrCtrl+V",
+  selectall: "CmdOrCtrl+A",
+  resetzoom: "CmdOrCtrl+0",
+  zoomin: "CmdOrCtrl+Plus",
+  zoomout: "CmdOrCtrl+-",
+  togglefullscreen: isMac ? "Ctrl+Cmd+F" : "F11",
+  minimize: "CmdOrCtrl+M",
+  quit: isMac ? "Cmd+Q" : "",
+  hide: "Cmd+H",
+  hideothers: "Alt+Cmd+H",
+  reload: "CmdOrCtrl+R",
+  forcereload: "Shift+CmdOrCtrl+R",
+  toggledevtools: isMac ? "Alt+Cmd+I" : "Ctrl+Shift+I",
+};
+
+const macKeySymbols: Record<string, string> = {
+  CmdOrCtrl: "⌘",
+  CommandOrControl: "⌘",
+  Cmd: "⌘",
+  Command: "⌘",
+  Ctrl: "⌃",
+  Control: "⌃",
+  Alt: "⌥",
+  Option: "⌥",
+  Shift: "⇧",
+  Up: "↑",
+  Down: "↓",
+  Left: "←",
+  Right: "→",
+  Enter: "↩",
+  Return: "↩",
+  Tab: "⇥",
+  Plus: "+",
+};
+
+function formatAccelerator(accelerator: string, mac = isMac): string {
+  // "CmdOrCtrl+Plus" and "CmdOrCtrl+-" both split cleanly on "+".
+  const parts = accelerator.split("+").filter(Boolean);
+  if (mac) {
+    return parts.map((part) => macKeySymbols[part] ?? part).join("");
+  }
+  return parts
+    .map((part) =>
+      part === "CmdOrCtrl" || part === "CommandOrControl"
+        ? "Ctrl"
+        : part === "Plus"
+          ? "+"
+          : part,
+    )
+    .join("+");
+}
+
+let applicationMenuTemplate: MenuItemConstructorOptions[] = [];
+
+function listMenuShortcuts(
+  template: MenuItemConstructorOptions[] = applicationMenuTemplate,
+): MenuShortcut[] {
+  const shortcuts: MenuShortcut[] = [];
+  const visit = (items: MenuItemConstructorOptions[], menu: string) => {
+    for (const item of items) {
+      if (Array.isArray(item.submenu)) {
+        visit(item.submenu, menu);
+        continue;
+      }
+      const accelerator =
+        (typeof item.accelerator === "string" ? item.accelerator : "") ||
+        (item.role ? (roleAccelerators[item.role.toLowerCase()] ?? "") : "");
+      if (!accelerator || !item.label) {
+        continue;
+      }
+      shortcuts.push({
+        menu,
+        label: item.label.replace(/\.\.\.$|…$/, ""),
+        keys: formatAccelerator(accelerator),
+        editorOnly: Boolean(item.id?.startsWith(editorMenuCommandPrefix)),
+      });
+    }
+  };
+  for (const menu of template) {
+    if (Array.isArray(menu.submenu)) {
+      visit(menu.submenu, menu.label ?? "");
+    }
+  }
+  return shortcuts;
+}
+
 function buildApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [];
+  const settingsItem = menuCommand("Settings...", "app.settings", "CmdOrCtrl+,");
 
-  if (process.platform === "darwin") {
+  if (isMac) {
     template.push({
       label: app.name,
       submenu: [
-        { role: "about" },
+        { role: "about", label: `About ${app.name}` },
+        { type: "separator" },
+        settingsItem,
         { type: "separator" },
         { role: "services" },
         { type: "separator" },
-        { role: "hide" },
-        { role: "hideOthers" },
+        { role: "hide", label: `Hide ${app.name}` },
+        { role: "hideOthers", label: "Hide Others" },
         { role: "unhide" },
         { type: "separator" },
-        { role: "quit" },
+        { role: "quit", label: `Quit ${app.name}` },
       ],
     });
   }
@@ -2942,102 +3107,281 @@ function buildApplicationMenu(): void {
       label: "File",
       submenu: [
         {
-          label: "Open Folder...",
-          accelerator: "CmdOrCtrl+O",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(openProjectChannel);
-          },
-        },
-        {
           label: "New File...",
           accelerator: "CmdOrCtrl+N",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(createFileChannel);
-          },
+          click: () => sendToFocusedWindow(createFileChannel),
         },
         {
           label: "New Folder...",
           accelerator: "CmdOrCtrl+Shift+N",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(createFolderChannel);
-          },
+          click: () => sendToFocusedWindow(createFolderChannel),
         },
+        menuCommand("New Project...", "file.newProject"),
+        menuCommand("New Research Space...", "file.newResearchSpace"),
+        { type: "separator" },
         {
-          label: "Import DOCX...",
-          accelerator: "CmdOrCtrl+Shift+I",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(importDocxChannel);
-          },
+          label: "Open Folder or Research Space...",
+          accelerator: "CmdOrCtrl+O",
+          click: () => sendToFocusedWindow(openProjectChannel),
         },
+        { type: "separator" },
+        menuCommand("Add Folder to Research Space...", "file.addFolderToResearchSpace"),
+        menuCommand("Save as Research Space...", "file.saveResearchSpaceAs"),
+        { type: "separator" },
+        menuCommand("Save", "file.save", "CmdOrCtrl+S"),
+        menuCommand("Save All", "file.saveAll"),
+        menuCommand("Revert Files from Disk", "file.reloadFromDisk"),
+        { type: "separator" },
         {
-          label: "Import Markdown...",
-          accelerator: "CmdOrCtrl+Shift+M",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(importMarkdownChannel);
-          },
+          label: "Import",
+          submenu: [
+            {
+              label: "Word Document (DOCX)...",
+              accelerator: "CmdOrCtrl+Shift+I",
+              click: () => sendToFocusedWindow(importDocxChannel),
+            },
+            {
+              label: "Markdown...",
+              accelerator: "CmdOrCtrl+Alt+M",
+              click: () => sendToFocusedWindow(importMarkdownChannel),
+            },
+            {
+              label: "PDF...",
+              accelerator: "CmdOrCtrl+Alt+P",
+              click: () => sendToFocusedWindow(importPdfChannel),
+            },
+          ],
         },
-        {
-          label: "Import PDF...",
-          accelerator: "CmdOrCtrl+Alt+P",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(importPdfChannel);
-          },
-        },
+        menuCommand("Export PDF...", "build.downloadPdf"),
+        { type: "separator" },
+        menuCommand("Share Project...", "file.share"),
         { type: "separator" },
         {
           label: "Close Tab",
           accelerator: "CmdOrCtrl+W",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(closeTabChannel);
-          },
+          click: () => sendToFocusedWindow(closeTabChannel),
         },
-        ...(process.platform === "darwin"
+        ...(isMac
           ? []
-          : ([{ type: "separator" }, { role: "quit" }] as const)),
+          : ([
+              { type: "separator" },
+              settingsItem,
+              { type: "separator" },
+              { role: "quit", label: "Exit" },
+            ] satisfies MenuItemConstructorOptions[])),
       ],
     },
     {
       label: "Edit",
       submenu: [
-        { role: "undo" },
-        { role: "redo" },
+        { role: "undo", label: "Undo" },
+        { role: "redo", label: "Redo" },
         { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" },
+        { role: "cut", label: "Cut" },
+        { role: "copy", label: "Copy" },
+        { role: "paste", label: "Paste" },
+        { type: "separator" },
+        menuCommand("Find", "edit.find", "CmdOrCtrl+F"),
+        editorMenuCommand(
+          "Replace",
+          "editor.action.startFindReplaceAction",
+          isMac ? "Alt+Cmd+F" : "Ctrl+H",
+        ),
+        menuCommand("Find in Files", "edit.findInFiles", "CmdOrCtrl+Shift+F"),
+        { type: "separator" },
+        editorMenuCommand(
+          "Toggle Line Comment",
+          "editor.action.commentLine",
+          "CmdOrCtrl+/",
+        ),
+        editorMenuCommand("Tidy Document", "latexdo.prettierLists", "Shift+Alt+F"),
+        { type: "separator" },
+        editorMenuCommand(
+          "Search Bibliography...",
+          "latexdo.citation.search",
+          "CmdOrCtrl+Alt+C",
+        ),
+      ],
+    },
+    {
+      label: "Selection",
+      submenu: [
+        { role: "selectAll", label: "Select All" },
+        editorMenuCommand(
+          "Expand Selection",
+          "editor.action.smartSelect.expand",
+          isMac ? "Ctrl+Shift+Cmd+Right" : "Shift+Alt+Right",
+        ),
+        editorMenuCommand(
+          "Shrink Selection",
+          "editor.action.smartSelect.shrink",
+          isMac ? "Ctrl+Shift+Cmd+Left" : "Shift+Alt+Left",
+        ),
+        { type: "separator" },
+        editorMenuCommand(
+          "Copy Line Up",
+          "editor.action.copyLinesUpAction",
+          "Shift+Alt+Up",
+        ),
+        editorMenuCommand(
+          "Copy Line Down",
+          "editor.action.copyLinesDownAction",
+          "Shift+Alt+Down",
+        ),
+        editorMenuCommand("Move Line Up", "editor.action.moveLinesUpAction", "Alt+Up"),
+        editorMenuCommand(
+          "Move Line Down",
+          "editor.action.moveLinesDownAction",
+          "Alt+Down",
+        ),
+        editorMenuCommand("Duplicate Selection", "editor.action.duplicateSelection"),
+        editorMenuCommand(
+          "Delete Line",
+          "editor.action.deleteLines",
+          "CmdOrCtrl+Shift+K",
+        ),
+        { type: "separator" },
+        editorMenuCommand(
+          "Add Cursor Above",
+          "editor.action.insertCursorAbove",
+          "CmdOrCtrl+Alt+Up",
+        ),
+        editorMenuCommand(
+          "Add Cursor Below",
+          "editor.action.insertCursorBelow",
+          "CmdOrCtrl+Alt+Down",
+        ),
+        editorMenuCommand(
+          "Add Cursors to Line Ends",
+          "editor.action.insertCursorAtEndOfEachLineSelected",
+          "Shift+Alt+I",
+        ),
+        editorMenuCommand(
+          "Add Next Occurrence",
+          "editor.action.addSelectionToNextFindMatch",
+          "CmdOrCtrl+D",
+        ),
+        editorMenuCommand(
+          "Select All Occurrences",
+          "editor.action.selectHighlights",
+          "CmdOrCtrl+Shift+L",
+        ),
       ],
     },
     {
       label: "View",
       submenu: [
-        { role: "reload" },
-        { role: "forceReload" },
-        { role: "toggleDevTools" },
+        menuCommand("Command Palette...", "view.commandPalette", "CmdOrCtrl+Shift+P"),
         { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
+        menuCommand("Explorer", "view.explorer", "CmdOrCtrl+Shift+E"),
+        menuCommand("Source Control", "view.sourceControl", "Ctrl+Shift+G"),
+        menuCommand("Extensions", "view.extensions", "CmdOrCtrl+Shift+X"),
+        menuCommand("AI Assistant", "view.ai", isMac ? "Ctrl+Cmd+I" : "Ctrl+Alt+I"),
         { type: "separator" },
-        { role: "togglefullscreen" },
+        menuCommand("Problems", "view.problems", "CmdOrCtrl+Shift+M"),
+        menuCommand("Output", "view.output", "CmdOrCtrl+Shift+U"),
+        menuCommand("Terminal", "view.terminal", "Ctrl+`"),
+        { type: "separator" },
+        {
+          label: "Appearance",
+          submenu: [
+            menuCommand("Toggle Sidebar", "view.toggleSidebar", "CmdOrCtrl+B"),
+            menuCommand("Toggle Panel", "view.togglePanel", "CmdOrCtrl+J"),
+            menuCommand("Toggle PDF Preview", "view.togglePreview", "CmdOrCtrl+Alt+V"),
+            { type: "separator" },
+            menuCommand("Focus Layout", "view.layout.focus"),
+            menuCommand("Balanced Layout", "view.layout.balanced"),
+            menuCommand("Full Layout", "view.layout.power"),
+            { type: "separator" },
+            menuCommand("Toggle Word Wrap", "view.toggleWordWrap"),
+            menuCommand("Toggle Minimap", "view.toggleMinimap"),
+            { type: "separator" },
+            { role: "togglefullscreen", label: "Full Screen" },
+          ],
+        },
+        {
+          label: "Tools",
+          submenu: [
+            menuCommand("TikZ Drawing", "view.tool.tikzCanvas"),
+            menuCommand("Figure to TikZ", "view.tool.tikzConverter"),
+            menuCommand("Table Generator", "view.tool.tableGenerator"),
+            menuCommand("Notation Manager", "view.tool.notationManager"),
+            menuCommand("Citation Manager", "view.tool.citationManager"),
+          ],
+        },
+        { type: "separator" },
+        { role: "zoomIn", label: "Zoom In" },
+        { role: "zoomOut", label: "Zoom Out" },
+        { role: "resetZoom", label: "Reset Zoom" },
       ],
     },
     {
-      label: "Window",
+      label: "Go",
       submenu: [
-        { role: "minimize" },
-        { role: "zoom" },
-        ...(process.platform === "darwin"
-          ? ([{ type: "separator" }, { role: "front" }] as const)
-          : ([
-              {
-                label: "Close Window",
-                accelerator: "Alt+F4",
-                click: () => {
-                  BrowserWindow.getFocusedWindow()?.close();
-                },
-              },
-            ] as const)),
+        menuCommand("Go to File...", "go.file", "CmdOrCtrl+P"),
+        editorMenuCommand("Go to Line...", "editor.action.gotoLine", "Ctrl+G"),
+        editorMenuCommand(
+          "Go to Section...",
+          "editor.action.quickOutline",
+          "CmdOrCtrl+Shift+O",
+        ),
+        editorMenuCommand(
+          "Go to Bracket",
+          "editor.action.jumpToBracket",
+          "CmdOrCtrl+Shift+\\",
+        ),
+        { type: "separator" },
+        menuCommand("Next Tab", "go.nextTab", "Ctrl+Tab"),
+        menuCommand("Previous Tab", "go.previousTab", "Ctrl+Shift+Tab"),
+        { type: "separator" },
+        editorMenuCommand("Next Problem", "editor.action.marker.nextInFiles", "F8"),
+        editorMenuCommand(
+          "Previous Problem",
+          "editor.action.marker.prevInFiles",
+          "Shift+F8",
+        ),
+        { type: "separator" },
+        editorMenuCommand("Toggle Bookmark", "latexdo.toggleBookmark", "CmdOrCtrl+F2"),
+        editorMenuCommand("Next Bookmark", "latexdo.nextBookmark", "Alt+F2"),
+        editorMenuCommand(
+          "Previous Bookmark",
+          "latexdo.previousBookmark",
+          "Alt+Shift+F2",
+        ),
+        { type: "separator" },
+        menuCommand("Show Cursor in PDF", "go.syncPdf", "CmdOrCtrl+Alt+J"),
+      ],
+    },
+    {
+      label: "Build",
+      submenu: [
+        menuCommand("Compile", "build.compile", "CmdOrCtrl+Enter"),
+        menuCommand("Stop Compiling", "build.stop"),
+        { type: "separator" },
+        menuCommand("Toggle PDF Preview", "view.togglePreview"),
+        menuCommand("Export PDF...", "build.downloadPdf"),
+      ],
+    },
+    {
+      label: "Insert",
+      submenu: [
+        editorMenuCommand("Bold", "latexdo.bold", "CmdOrCtrl+B"),
+        editorMenuCommand("Italic", "latexdo.italic", "CmdOrCtrl+I"),
+        menuCommand("Underline", "insert.underline"),
+        menuCommand("Inline Math", "insert.math"),
+        { type: "separator" },
+        menuCommand("Section", "insert.section"),
+        menuCommand("Subsection", "insert.subsection"),
+        { type: "separator" },
+        menuCommand("Equation", "insert.equation"),
+        menuCommand("Bulleted List", "insert.itemize"),
+        menuCommand("Numbered List", "insert.enumerate"),
+        { type: "separator" },
+        menuCommand("Citation", "insert.cite"),
+        menuCommand("Cross-Reference", "insert.ref"),
+        menuCommand("Link", "insert.href"),
+        { type: "separator" },
+        menuCommand("Format Table", "insert.formatTable"),
       ],
     },
     {
@@ -3046,21 +3390,72 @@ function buildApplicationMenu(): void {
         {
           label: "Spell Checker...",
           accelerator: "CmdOrCtrl+Alt+S",
-          click: () => {
-            showSpellCheckerMenu();
-          },
+          click: () => showSpellCheckerMenu(),
         },
-        {
-          label: "Writing Tools...",
-          click: () => {
-            showSpellCheckerMenu();
-          },
-        },
+        menuCommand("Check Writing Now", "tools.proofread"),
+        { type: "separator" },
+        menuCommand("Review Paper with AI", "tools.reviewPaper", "CmdOrCtrl+Alt+R"),
+        menuCommand("Review a PDF in Reader Mode...", "tools.reviewPdf"),
+        { type: "separator" },
+        editorMenuCommand(
+          "Reformulate with AI",
+          "latexdo.ai.reformulateSelection",
+          "CmdOrCtrl+Shift+R",
+        ),
+        editorMenuCommand(
+          "Ask AI about Selection",
+          "latexdo.ai.askAboutSelection",
+          "CmdOrCtrl+Shift+A",
+        ),
+        menuCommand("AI Settings...", "tools.aiSettings"),
+        { type: "separator" },
+        editorMenuCommand(
+          "Toggle Git Blame",
+          "latexdo.toggleFileBlame",
+          "CmdOrCtrl+Alt+B",
+        ),
+        { type: "separator" },
+        menuCommand("Share Project...", "file.share"),
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize", label: "Minimize" },
+        { role: "zoom" },
+        ...(isMac
+          ? ([
+              { type: "separator" },
+              { role: "front" },
+            ] satisfies MenuItemConstructorOptions[])
+          : ([
+              {
+                label: "Close Window",
+                accelerator: "Alt+F4",
+                click: () => {
+                  BrowserWindow.getFocusedWindow()?.close();
+                },
+              },
+            ] satisfies MenuItemConstructorOptions[])),
       ],
     },
     {
       label: "Help",
       submenu: [
+        menuCommand("Welcome", "help.welcome"),
+        menuCommand("Keyboard Shortcuts", "help.shortcuts", "CmdOrCtrl+Alt+K"),
+        { type: "separator" },
+        {
+          label: "What's New",
+          click: () => sendToFocusedWindow("app:open-whats-new"),
+        },
+        {
+          label: "Check for Updates",
+          click: () => {
+            void shell.openExternal(downloadsPageUrl);
+          },
+        },
+        { type: "separator" },
         {
           label: "Report an Issue",
           click: () => {
@@ -3075,19 +3470,6 @@ function buildApplicationMenu(): void {
             void shell.openExternal("https://www.latexdo.org/donations/");
           },
         },
-        { type: "separator" },
-        {
-          label: "What's New",
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send("app:open-whats-new");
-          },
-        },
-        {
-          label: "Check for Updates",
-          click: () => {
-            void shell.openExternal(downloadsPageUrl);
-          },
-        },
         {
           label: `${productName} Downloads`,
           click: () => {
@@ -3100,10 +3482,20 @@ function buildApplicationMenu(): void {
             void shell.openExternal(extensionStoreUrl);
           },
         },
+        { type: "separator" },
+        {
+          label: "Developer",
+          submenu: [
+            { role: "reload", label: "Reload Window" },
+            { role: "forceReload", label: "Force Reload Window" },
+            { role: "toggleDevTools", label: "Toggle Developer Tools" },
+          ],
+        },
       ],
     },
   );
 
+  applicationMenuTemplate = template;
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
@@ -6159,6 +6551,101 @@ async function startApp(): Promise<void> {
       await trustWorkspace(folder.path);
     }
     return scheduleProjectGarbageCollection(registerResearchSpace(space));
+  });
+  ipcMain.handle("research-space:save-as", async (event, ...rawArgs: unknown[]) => {
+    const channel = "research-space:save-as";
+    const [rawProjectId] = expectIpcArgs(channel, rawArgs, 1);
+    const projectId = parseProjectId(channel, rawProjectId);
+    const project = openProjects.get(projectId);
+    if (!project) {
+      throw new Error("The requested project is not open.");
+    }
+    const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+    const filePath = await chooseResearchSpaceFile(window, project.name);
+    if (!filePath) {
+      return null;
+    }
+    // A copy of a space keeps its folder names and kinds.
+    const space = isResearchSpaceProject(project)
+      ? await writeResearchSpaceFile({
+          ...project.researchSpace,
+          filePath,
+          name: researchSpaceDefaultName(filePath),
+        })
+      : await createResearchSpaceFile(filePath, [project.rootPath]);
+    await trustWorkspace(path.dirname(space.filePath));
+    return scheduleProjectGarbageCollection(registerResearchSpace(space));
+  });
+  ipcMain.handle("research-space:add-folder", async (event, ...rawArgs: unknown[]) => {
+    const channel = "research-space:add-folder";
+    const [rawProjectId] = expectIpcArgs(channel, rawArgs, 1);
+    const projectId = parseProjectId(channel, rawProjectId);
+    const project = openProjects.get(projectId);
+    if (!project) {
+      throw new Error("The requested project is not open.");
+    }
+    const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+    const openOptions = {
+      properties: ["openDirectory", "multiSelections"],
+      title: "Add folders to the Research Space",
+      buttonLabel: "Add",
+      defaultPath: app.getPath("documents"),
+    } satisfies Electron.OpenDialogOptions;
+    const openResult = window
+      ? await dialog.showOpenDialog(window, openOptions)
+      : await dialog.showOpenDialog(openOptions);
+    if (openResult.canceled || openResult.filePaths.length === 0) {
+      return null;
+    }
+    for (const folderPath of openResult.filePaths) {
+      await trustWorkspace(folderPath);
+    }
+
+    if (!isResearchSpaceProject(project)) {
+      // A plain folder becomes a space holding it and the new folders, like
+      // adding a folder to a Visual Studio Code window.
+      const filePath = await chooseResearchSpaceFile(window, project.name);
+      if (!filePath) {
+        return null;
+      }
+      const folderPaths = [
+        project.rootPath,
+        ...openResult.filePaths.filter(
+          (folderPath) => path.resolve(folderPath) !== path.resolve(project.rootPath),
+        ),
+      ];
+      const space = await createResearchSpaceFile(filePath, folderPaths);
+      await trustWorkspace(path.dirname(space.filePath));
+      return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    }
+
+    const current = project.researchSpace;
+    const known = new Set(current.folders.map((folder) => path.resolve(folder.path)));
+    const usedNames = new Set(current.folders.map((folder) => folder.name));
+    const folders = [...current.folders];
+    for (const folderPath of openResult.filePaths) {
+      const resolvedFolderPath = path.resolve(folderPath);
+      const folderStats = await stat(resolvedFolderPath).catch(() => null);
+      if (known.has(resolvedFolderPath) || !folderStats?.isDirectory()) {
+        continue;
+      }
+      known.add(resolvedFolderPath);
+      const fallback = path.basename(resolvedFolderPath) || "Folder";
+      folders.push({
+        name: uniqueResearchSpaceFolderName(fallback, fallback, usedNames),
+        path: resolvedFolderPath,
+        kind: normalizeResearchSpaceFolderKind(undefined, resolvedFolderPath),
+      });
+    }
+    if (folders.length === current.folders.length) {
+      throw new Error("Those folders are already in this Research Space.");
+    }
+    const space = await writeResearchSpaceFile({ ...current, folders });
+    return scheduleProjectGarbageCollection(registerResearchSpace(space));
+  });
+  ipcMain.handle("app:menu-shortcuts", async (_event, ...rawArgs: unknown[]) => {
+    expectIpcArgs("app:menu-shortcuts", rawArgs, 0);
+    return listMenuShortcuts();
   });
   ipcMain.handle("project:list", async (_event, ...rawArgs: unknown[]) => {
     const channel = "project:list";

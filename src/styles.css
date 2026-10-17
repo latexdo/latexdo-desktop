@@ -163,23 +163,6 @@ button {
   color: var(--text-on-accent);
 }
 
-.title-prettier-button {
-  min-width: 100px;
-  max-width: 108px;
-}
-
-.title-review-paper-button {
-  min-width: 124px;
-  max-width: 142px;
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border-card));
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-button-secondary));
-}
-
-.title-review-paper-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 58%, var(--border-hover));
-  background: color-mix(in srgb, var(--accent) 18%, var(--bg-row-hover));
-}
-
 .title-actions .icon-button {
   width: 30px;
   height: 30px;
@@ -2197,6 +2180,27 @@ button {
 
 .engine-select select {
   min-width: 95px;
+}
+
+.ai-review-button {
+  display: inline-flex;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border-card));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-button-secondary));
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ai-review-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border-hover));
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-row-hover));
 }
 
 .compile-button {
@@ -4474,8 +4478,8 @@ button {
 
 .share-project-dialog {
   display: grid;
-  gap: 14px;
-  padding-bottom: 18px;
+  gap: 18px;
+  padding-bottom: 20px;
 }
 
 .share-link-row {
@@ -4490,19 +4494,48 @@ button {
   display: grid;
   align-items: center;
   gap: 8px;
-  padding: 0 18px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-muted);
   grid-template-columns: auto minmax(0, 1fr);
 }
 
-.share-link-row input,
+.share-name-row:focus-within {
+  border-color: var(--border-focus);
+}
+
 .share-name-row input {
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.share-link-row input {
   min-width: 0;
   height: 32px;
   padding: 0 9px;
   border: 1px solid var(--border-input);
-  border-radius: 5px;
+  border-radius: 6px;
   outline: none;
   background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.share-link-row input:focus {
+  border-color: var(--border-focus);
+}
+
+.share-link-row > svg {
+  color: var(--text-muted);
 }
 
 .permission-management {
@@ -4728,19 +4761,28 @@ button {
 
 .share-modes {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
 .share-mode {
+  position: relative;
   display: grid;
-  align-items: center;
+  align-items: start;
   gap: 10px;
-  padding: 9px 10px;
+  padding: 12px;
   border: 1px solid var(--border-card);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.share-mode:hover {
+  border-color: var(--border-hover);
 }
 
 .share-mode.selected {
@@ -4748,9 +4790,39 @@ button {
   background: var(--accent-soft);
 }
 
-.share-mode span {
+.share-mode:has(.share-mode-radio:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* The whole card is the control; the native radio stays for keyboard and screen readers. */
+.share-mode-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.share-mode-icon {
   display: grid;
-  gap: 2px;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  place-items: center;
+}
+
+.share-mode.selected .share-mode-icon {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.share-mode-text {
+  display: grid;
+  gap: 3px;
 }
 
 .share-mode strong {
@@ -4793,6 +4865,18 @@ button {
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
+}
+
+.share-actions-stacked .share-primary {
+  flex: 1;
+  height: 36px;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.share-divided {
+  padding-top: 18px;
+  border-top: 1px solid var(--border-dialog);
 }
 
 .share-actions button:disabled {
@@ -4846,6 +4930,102 @@ button {
 
 .share-waiting span {
   flex: 1;
+}
+
+.shortcuts-dialog {
+  display: grid;
+  width: min(620px, calc(100vw - 40px));
+  max-height: min(640px, calc(100vh - 120px));
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.shortcuts-search {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin: 14px 18px 6px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.shortcuts-search:focus-within {
+  border-color: var(--border-focus);
+}
+
+.shortcuts-search input {
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.shortcuts-list {
+  overflow-y: auto;
+  padding: 4px 18px 18px;
+}
+
+.shortcuts-group h3 {
+  margin: 14px 0 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shortcuts-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shortcuts-group li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.shortcuts-group li:hover {
+  background: var(--bg-row-hover);
+}
+
+.shortcuts-scope {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.shortcuts-group kbd {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--border-card);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-button-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.shortcuts-empty {
+  margin: 16px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .settings-backdrop {

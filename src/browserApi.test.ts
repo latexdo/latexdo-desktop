@@ -233,6 +233,7 @@ describe("browser capabilities are explicit", () => {
       "onImportMarkdownMenu",
       "onImportPdfMenu",
       "onCloseTabMenu",
+      "onMenuCommand",
     ] as const) {
       const callback = vi.fn();
       api[method](callback)();

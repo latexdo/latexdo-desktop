@@ -281,7 +281,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
         event.preventDefault();
         void compile();
       }
-      if (modifier && event.key.toLowerCase() === "b") {
+      if (modifier && event.key.toLowerCase() === "b" && !event.defaultPrevented) {
         event.preventDefault();
         setSidebarVisible((visible) => !visible);
       }

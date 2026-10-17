@@ -23,6 +23,7 @@ import type {
   GitStatusSummary,
   HostSharingStatus,
   ImportedProjectEntry,
+  MenuShortcut,
   OpenProject,
   OrcidProfileResult,
   PermissionUpdate,
@@ -862,6 +863,10 @@ const api = {
     ipcRenderer.invoke("provider:import-overleaf-project", gitUrl),
   createResearchSpace: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("research-space:create"),
+  saveResearchSpaceAs: (projectId: string): Promise<OpenProject | null> =>
+    ipcRenderer.invoke("research-space:save-as", projectId),
+  addFolderToResearchSpace: (projectId: string): Promise<OpenProject | null> =>
+    ipcRenderer.invoke("research-space:add-folder", projectId),
   listProject: (
     projectId: string,
     options?: ProjectListOptions,
@@ -1473,6 +1478,8 @@ const api = {
   lastUpdateStatus: (): Promise<UpdateAttemptResolution> =>
     ipcRenderer.invoke("app:last-update-status"),
   getWhatsNew: (): Promise<WhatsNewResult> => ipcRenderer.invoke("app:whats-new"),
+  getMenuShortcuts: (): Promise<MenuShortcut[]> =>
+    ipcRenderer.invoke("app:menu-shortcuts"),
   markWhatsNewPresented: (version: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("app:whats-new-mark-presented", version),
   openReleaseNotesPage: (): Promise<{ opened: boolean }> =>
@@ -1699,6 +1706,19 @@ const api = {
 
     return () => {
       ipcRenderer.removeListener("file:import-pdf", listener);
+    };
+  },
+  onMenuCommand: (callback: (command: string) => void) => {
+    const listener = (_event: unknown, command: unknown) => {
+      if (typeof command === "string") {
+        callback(command);
+      }
+    };
+
+    ipcRenderer.on("menu:command", listener);
+
+    return () => {
+      ipcRenderer.removeListener("menu:command", listener);
     };
   },
   onCloseTabMenu: (callback: () => void) => {
