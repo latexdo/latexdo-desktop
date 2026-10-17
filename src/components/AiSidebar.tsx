@@ -48,6 +48,8 @@ import {
   defaultLocalTranscriptionBaseUrl,
 } from "../features/voice/voiceSettings";
 import { useVoiceSettings } from "../features/voice/useVoiceSettings";
+import { chatPrivacyText, type ChatModelOption } from "../features/ai/chatModelOptions";
+import { ModelPicker } from "./ModelPicker";
 import { VoiceDictationButton } from "./VoiceDictationButton";
 import { VoiceRecordingBar, isVoiceBarStatus } from "./VoiceRecordingBar";
 import { LocalSpeechInstallCard } from "./LocalSpeechInstallCard";
@@ -95,6 +97,9 @@ interface AiSidebarProps {
   storageKey?: string;
   /** Pass only for the active chat pane so App can drive selection-AI workflows. */
   apiRef?: React.MutableRefObject<AiSidebarApi | null>;
+  /** Every model the chat can switch to (the header's model menu). */
+  modelOptions?: readonly ChatModelOption[];
+  onSelectModel?: (id: string) => void;
   /** Puts a TikZ figure from an answer into the document and previews it. */
   onInsertFigure?: (code: string) => void;
 }
@@ -160,6 +165,8 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
   storageKey,
   apiRef,
   onInsertFigure,
+  modelOptions = [],
+  onSelectModel,
 }) => {
   const {
     messages,
@@ -589,14 +596,26 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
           ) : (
             <AiIcon size={15} />
           )}
-          <span className="ai-sidebar-model" title={providerLabel(config)}>
-            {providerLabel(config)}
-          </span>
+          {onSelectModel ? (
+            <ModelPicker
+              className="ai-sidebar-model-picker"
+              label={providerLabel(config)}
+              options={modelOptions}
+              onSelect={onSelectModel}
+              onManage={onOpenSettings}
+              disabled={isRunning}
+            />
+          ) : (
+            <span className="ai-sidebar-model" title={providerLabel(config)}>
+              {providerLabel(config)}
+            </span>
+          )}
           <span
-            className="ai-approval-badge"
+            className="ai-approval-badge ai-privacy-badge"
             role="img"
-            aria-label="Approval required"
-            title="Approval required: the assistant must ask before applying edits or writing files."
+            tabIndex={0}
+            aria-label={chatPrivacyText(config)}
+            data-tip={chatPrivacyText(config)}
           >
             <ShieldCheck size={13} />
           </span>
@@ -887,16 +906,28 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
                 >
                   <Plus size={17} />
                 </button>
-                <button
-                  type="button"
-                  className="ai-composer-model"
-                  onClick={onOpenSettings}
-                  title={`${providerLabel(config)} — change model`}
-                  aria-label={`Model: ${providerLabel(config)}. Change model`}
-                >
-                  <span>{providerLabel(config)}</span>
-                  <ChevronDown size={13} aria-hidden="true" />
-                </button>
+                {onSelectModel ? (
+                  <ModelPicker
+                    className="ai-composer-model-picker"
+                    placement="up"
+                    label={providerLabel(config)}
+                    options={modelOptions}
+                    onSelect={onSelectModel}
+                    onManage={onOpenSettings}
+                    disabled={isRunning}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="ai-composer-model"
+                    onClick={onOpenSettings}
+                    title={`${providerLabel(config)} — change model`}
+                    aria-label={`Model: ${providerLabel(config)}. Change model`}
+                  >
+                    <span>{providerLabel(config)}</span>
+                    <ChevronDown size={13} aria-hidden="true" />
+                  </button>
+                )}
                 <div className="ai-composer-voice-controls">
                   <VoiceDictationButton
                     status={voice.status}

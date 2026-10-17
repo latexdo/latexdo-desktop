@@ -230,7 +230,7 @@ function normalizeAccess(value: unknown): AiAccessConfig {
   };
 }
 
-function cloudCredentialId(providerId: string): string {
+export function cloudCredentialId(providerId: string): string {
   return `credential-${providerId || "custom"}-primary`;
 }
 

@@ -205,7 +205,11 @@ describe("AiSidebar", () => {
     expect(
       screen.getByRole("heading", { name: "What are we writing today?" }),
     ).toBeVisible();
-    expect(screen.getByRole("img", { name: "Approval required" })).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: /Private and secure.*never leave this computer.*asks before it changes any file/,
+      }),
+    ).toBeVisible();
     expect(screen.queryByText("Ask me to…")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle("AI settings"));
@@ -509,5 +513,75 @@ describe("AiSidebar", () => {
 
     expect(apiRef.current?.proposeEdit).toBeDefined();
     expect(typeof apiRef.current?.proposeEdit).toBe("function");
+  });
+
+  it("switches models from the chat's model menu, and says why some cannot be used", () => {
+    const onSelectModel = vi.fn();
+    const onOpenSettings = vi.fn();
+    render(
+      <AiSidebar
+        config={makeConfig({
+          provider: "cloud",
+          cloud: {
+            credentialConfigured: true,
+            providerId: "anthropic",
+            model: "claude-opus-5-5",
+          },
+        })}
+        ctx={ctx}
+        isDesktop
+        expanded={false}
+        onToggleExpanded={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        onSelectModel={onSelectModel}
+        modelOptions={[
+          {
+            id: "tier:latexdo-ai",
+            group: "LatexDo AI · on this computer",
+            label: "LatexDo AI",
+            available: false,
+            reason: "Download it in AI settings",
+            active: false,
+          },
+          {
+            id: "cloud:claude-opus-5-5",
+            group: "Anthropic",
+            label: "claude-opus-5-5",
+            available: true,
+            active: true,
+          },
+          {
+            id: "cloud:claude-sonnet-5-5",
+            group: "Anthropic",
+            label: "claude-sonnet-5-5",
+            available: true,
+            active: false,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: /sent only to/ })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Change model/ })[0]!);
+    const menu = screen.getByRole("menu", { name: "Choose a model" });
+    expect(
+      within(menu).getByRole("menuitemradio", { name: /claude-opus-5-5/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(menu).getByRole("menuitemradio", { name: /LatexDo AI/ }),
+    ).toBeDisabled();
+    expect(within(menu).getByText("Download it in AI settings")).toBeVisible();
+
+    fireEvent.click(
+      within(menu).getByRole("menuitemradio", { name: /claude-sonnet-5-5/ }),
+    );
+    expect(onSelectModel).toHaveBeenCalledWith("cloud:claude-sonnet-5-5");
+    expect(
+      screen.queryByRole("menu", { name: "Choose a model" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Change model/ })[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Manage models/ }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });
