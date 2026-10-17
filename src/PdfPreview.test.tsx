@@ -138,6 +138,10 @@ describe("PdfPreview", () => {
 
     await waitFor(() => expect(screen.getByText("1")).toBeInTheDocument());
     const page = await document.getPage(1);
-    expect(page.getViewport).toHaveBeenCalledWith({ scale: 1.25, rotation: 90 });
+    // The page label renders before the page is drawn, which happens after
+    // getPage() resolves in an effect, so wait for the viewport call.
+    await waitFor(() =>
+      expect(page.getViewport).toHaveBeenCalledWith({ scale: 1.25, rotation: 90 }),
+    );
   });
 });
