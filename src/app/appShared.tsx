@@ -31,6 +31,7 @@ import type {
 import { type AppearanceMode } from "../features/settings/settings";
 import { normalizeRelativePath } from "../features/project/projectUtils";
 import { wordColumn } from "../features/pdf/sync";
+import { findSourceWord } from "../features/pdf/wordMatch";
 
 export const PdfPreview = lazy(() => import("../PdfPreview"));
 export const TerminalPanel = lazy(() =>
@@ -762,6 +763,9 @@ export type PendingSourceLocation = {
   endLine?: number;
   endColumn?: number;
   word?: string;
+  /** The PDF word's neighbours, to find its exact occurrence in the source. */
+  before?: string[];
+  after?: string[];
   /** False keeps focus where it is (the find panel steps through matches). */
   focus?: boolean;
 };
@@ -860,6 +864,22 @@ export function sourceSelectionRange(
   const column = clampModelColumn(model, line, pending.column);
 
   if (pending.word) {
+    // The exact word clicked in the PDF: matched with its neighbours near the
+    // line SyncTeX named (which knows no columns and can be a line off).
+    const exact = findSourceWord(model.getValue(), line, {
+      word: pending.word,
+      before: pending.before ?? [],
+      after: pending.after ?? [],
+    });
+    if (exact) {
+      return modelRange(
+        model,
+        exact.line,
+        exact.column,
+        exact.line,
+        exact.column + exact.length,
+      );
+    }
     const match = wordColumn(model.getLineContent(line), pending.word, column);
     if (match.length > 0) {
       return modelRange(model, line, match.column, line, match.column + match.length);

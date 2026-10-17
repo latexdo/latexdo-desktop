@@ -261,7 +261,20 @@ export interface SyncTexPdfLocation {
   v: number;
   width: number;
   height: number;
+  /** Every PDF box of the source line on this page (a line can wrap). */
+  boxes?: SyncTexBox[];
   word?: string;
+  /** The source word's neighbours, to find the exact occurrence in the PDF. */
+  before?: string[];
+  after?: string[];
+}
+
+export interface SyncTexBox {
+  /** Left edge and baseline, in PDF points from the top-left corner. */
+  h: number;
+  v: number;
+  width: number;
+  height: number;
 }
 
 export type GitFileStatus =
