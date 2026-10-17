@@ -30137,3 +30137,463 @@ body.pane-resizing .preview-pane > * {
   margin-left: 4px;
   font-size: 11px;
 }
+
+/* Extension icons: one colored tile per category. */
+.extension-row-icon,
+.extension-page-icon {
+  padding: 0;
+  background: transparent;
+}
+
+.extension-icon {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  place-items: center;
+  color: #fff;
+}
+
+.extension-icon-templates {
+  background: linear-gradient(135deg, #2f6fdb, #5b8def);
+}
+
+.extension-icon-graphics {
+  background: linear-gradient(135deg, #1d7a56, #34a77a);
+}
+
+.extension-icon-bibliography {
+  background: linear-gradient(135deg, #8b4aa6, #b06fcb);
+}
+
+.extension-icon-checking {
+  background: linear-gradient(135deg, #b45309, #e08a2e);
+}
+
+.extension-icon-writing {
+  background: linear-gradient(135deg, #0f766e, #2aa198);
+}
+
+.extension-icon-workflow {
+  background: linear-gradient(135deg, #6d5dfc, #9488ff);
+}
+
+/* Extension preview: an animated look at what the extension does. */
+.extension-preview {
+  margin: 0 0 22px;
+}
+
+.extension-preview-stage {
+  display: grid;
+  min-height: 260px;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background:
+    radial-gradient(
+      circle at 20% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 60%
+    ),
+    var(--bg-surface);
+  place-items: center;
+}
+
+.extension-preview figcaption {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.extension-screenshots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+
+.extension-screenshots figure {
+  margin: 0;
+}
+
+.extension-screenshots img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.extension-screenshots figcaption {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@keyframes xp-appear {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes xp-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes xp-type {
+  from {
+    width: 0;
+  }
+}
+
+@keyframes xp-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+/* A template's first page. */
+.xp-page {
+  display: grid;
+  width: min(300px, 100%);
+  gap: 8px;
+  padding: 18px 16px;
+  border-radius: 4px;
+  background: #fbfbf8;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 35%);
+  color: #23262c;
+  font-family: "Latin Modern Roman", "Times New Roman", serif;
+}
+
+.xp-page-poster,
+.xp-page-slides {
+  width: min(380px, 100%);
+}
+
+.xp-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  animation: xp-appear 0.5s both;
+}
+
+.xp-authors {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.xp-authors span {
+  width: 54px;
+  height: 4px;
+  border-radius: 2px;
+  background: #b9bcc3;
+}
+
+.xp-abstract em,
+.xp-references em {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+.xp-body {
+  display: grid;
+  gap: 10px;
+}
+
+.xp-body.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.xp-column,
+.xp-section {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+
+.xp-section strong {
+  font-size: 8px;
+  animation: xp-appear 0.4s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-line {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: #c9ccd2;
+  transform-origin: left;
+  animation: xp-grow 0.5s ease-out both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-table {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 4px;
+  padding: 3px 0;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
+  animation: xp-appear 0.5s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-table span {
+  height: 3px;
+  background: #c9ccd2;
+}
+
+.xp-figure {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 34px;
+  margin-top: 4px;
+  border: 1px solid #d5d7db;
+  animation: xp-appear 0.5s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-figure span {
+  width: 9px;
+  background: #5b8def;
+}
+
+.xp-figure span:nth-child(1) {
+  height: 40%;
+}
+
+.xp-figure span:nth-child(2) {
+  height: 75%;
+  background: #34a77a;
+}
+
+.xp-figure span:nth-child(3) {
+  height: 55%;
+  background: #e08a2e;
+}
+
+/* A snippet being typed and expanded. */
+.xp-editor {
+  width: min(460px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--editor-bg, #15181e);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 30%);
+  font-family: var(--font-mono);
+}
+
+.xp-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.xp-editor-bar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e5534b;
+}
+
+.xp-editor-bar span:nth-child(2) {
+  background: #d4a72c;
+}
+
+.xp-editor-bar span:nth-child(3) {
+  background: #3fb950;
+}
+
+.xp-editor-bar em {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.xp-editor-body {
+  padding: 12px 14px;
+  font-size: 11.5px;
+}
+
+.xp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xp-typed {
+  display: inline-block;
+  overflow: hidden;
+  width: calc(var(--xp-chars) * 1ch + 2px);
+  border-right: 2px solid var(--accent);
+  color: var(--accent);
+  white-space: nowrap;
+  animation:
+    xp-type 0.7s steps(var(--xp-chars)) both,
+    xp-blink 0.8s step-end 3;
+}
+
+.xp-trigger kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  animation: xp-appear 0.3s both;
+  animation-delay: 0.8s;
+}
+
+.xp-expanded {
+  display: grid;
+  margin: 10px 0 0;
+  color: var(--text-primary);
+  white-space: pre;
+}
+
+.xp-expanded span,
+.xp-code span {
+  animation: xp-appear 0.25s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 0 10px;
+}
+
+.xp-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-default);
+}
+
+.xp-dots span.on {
+  background: var(--accent);
+}
+
+/* A diagram turned into TikZ. */
+.xp-convert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.xp-diagram {
+  display: flex;
+  align-items: center;
+  padding: 18px;
+  border-radius: 8px;
+  background: #fbfbf8;
+}
+
+.xp-node {
+  padding: 6px 10px;
+  border: 1.5px solid #2f6fdb;
+  border-radius: 6px;
+  background: #e8f0fb;
+  color: #1b2a41;
+  font-size: 11px;
+  animation: xp-appear 0.4s both;
+}
+
+.xp-node:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.xp-node:nth-child(5) {
+  animation-delay: 0.3s;
+}
+
+.xp-edge {
+  width: 18px;
+  height: 1.5px;
+  background: #2f6fdb;
+}
+
+.xp-convert-arrow {
+  color: var(--accent);
+  animation: xp-appear 0.4s both;
+  animation-delay: 0.55s;
+}
+
+.xp-code {
+  display: grid;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--editor-bg, #15181e);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Checks an extension adds. */
+.xp-checks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  animation: xp-appear 0.35s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-tick {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3fb950;
+  color: #fff;
+  font-size: 11px;
+  place-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .extension-preview *,
+  .extension-preview *::before,
+  .extension-preview *::after {
+    animation: none !important;
+  }
+}
+
+.xp-expanded span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

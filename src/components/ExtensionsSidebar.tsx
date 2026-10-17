@@ -1,10 +1,10 @@
+import { ExtensionIcon, ExtensionPreview } from "./ExtensionPreview";
 import {
   AlertCircle,
   Check,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  Puzzle,
   Search,
   Settings,
 } from "lucide-react";
@@ -202,7 +202,7 @@ function ExtensionRow({
         title={extension.description}
       >
         <span className="extension-row-icon" aria-hidden="true">
-          <Puzzle size={20} />
+          <ExtensionIcon extension={extension} />
         </span>
         <span className="extension-row-text">
           <span className="extension-row-title">
@@ -276,7 +276,7 @@ export function ExtensionDetailPanel({
     <section className="extension-page" role="region" aria-label="Extension details">
       <header className="extension-page-header">
         <div className="extension-page-icon" aria-hidden="true">
-          <Puzzle size={44} />
+          <ExtensionIcon extension={extension} size={40} />
         </div>
         <div className="extension-page-heading">
           <h1>{extension.name}</h1>
@@ -309,6 +309,21 @@ export function ExtensionDetailPanel({
 
       <div className="extension-page-body">
         <div className="extension-page-main">
+          <ExtensionPreview extension={extension} />
+          {extension.screenshots?.length ? (
+            <div className="extension-screenshots" aria-label="Screenshots">
+              {extension.screenshots.map((shot) => (
+                <figure key={shot.url}>
+                  <img
+                    src={shot.url}
+                    alt={shot.caption ?? `${extension.name} screenshot`}
+                    loading="lazy"
+                  />
+                  {shot.caption ? <figcaption>{shot.caption}</figcaption> : null}
+                </figure>
+              ))}
+            </div>
+          ) : null}
           <h2>What it adds</h2>
           {featureFlags.length ? (
             <ul>
@@ -394,8 +409,17 @@ export function ExtensionDetailPanel({
   );
 }
 
+const featureFlagNames: Record<string, string> = {
+  tikzConverterEnabled:
+    "The Figure → TikZ Converter tool, in the activity bar and Tools menu",
+  tableGeneratorEnabled: "The Table Generator tool",
+  notationManagerEnabled: "The Notation Manager tool",
+};
+
 function formatFeatureFlagName(flag: string): string {
+  if (featureFlagNames[flag]) return featureFlagNames[flag];
   return flag
+    .replace(/Enabled$/, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

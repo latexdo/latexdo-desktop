@@ -86,7 +86,14 @@ export interface LatexDoExtensionManifest {
   tags: string[];
   homepage?: string;
   repository?: string;
+  /** Images or GIFs of the extension at work, hosted on latexdo.org. */
+  screenshots?: ExtensionScreenshot[];
   contributes: LatexDoExtensionContributions;
+}
+
+export interface ExtensionScreenshot {
+  url: string;
+  caption?: string;
 }
 
 export interface LatexDoExtensionCatalog {
@@ -995,6 +1002,7 @@ function normalizeExtensionManifest(value: unknown): LatexDoExtensionManifest | 
     value.kind === "template" ? "template" : "extension";
   const homepage = optionalHttpsUrl(value.homepage);
   const repository = optionalHttpsUrl(value.repository);
+  const screenshots = normalizeScreenshots(value.screenshots);
   const featureFlags = normalizeFeatureFlags(value.contributes.featureFlags);
   const snippets = normalizeSnippets(value.contributes.snippets);
   const templates = normalizeTemplates(value.contributes.templates);
@@ -1026,8 +1034,27 @@ function normalizeExtensionManifest(value: unknown): LatexDoExtensionManifest | 
     tags,
     ...(homepage ? { homepage } : {}),
     ...(repository ? { repository } : {}),
+    ...(screenshots.length ? { screenshots } : {}),
     contributes,
   };
+}
+
+// The app's content security policy only loads images from latexdo.org.
+const screenshotHosts = new Set(["latexdo.org", "www.latexdo.org"]);
+
+function normalizeScreenshots(value: unknown): ExtensionScreenshot[] {
+  if (!Array.isArray(value)) return [];
+  const screenshots: ExtensionScreenshot[] = [];
+  for (const item of value.slice(0, 6)) {
+    if (!isRecord(item)) continue;
+    const url = optionalHttpsUrl(item.url);
+    if (!url || !screenshotHosts.has(new URL(url).hostname)) continue;
+    const caption = isBoundedString(item.caption, 1, 140)
+      ? item.caption.trim()
+      : undefined;
+    screenshots.push(caption ? { url, caption } : { url });
+  }
+  return screenshots;
 }
 
 function normalizeFeatureFlags(

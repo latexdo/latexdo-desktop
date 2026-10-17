@@ -2281,7 +2281,9 @@ describe("App critical UI controls", () => {
     expect(within(details).getByText("Identifier")).toBeVisible();
     expect(within(details).getByText("LatexDo")).toBeVisible();
     expect(within(details).getByText("latexdo.plots")).toBeVisible();
-    expect(within(details).getByText("lineplot")).toBeVisible();
+    expect(
+      within(details).getByText("lineplot", { selector: "li code" }),
+    ).toBeVisible();
   });
 
   it("keeps Citation Manager visible when citation checks are disabled", async () => {
