@@ -5,8 +5,9 @@
   "type": "module",
   "description": "LatexDo's always-on collaboration server on Cloudflare Workers and Durable Objects (free plan).",
   "scripts": {
-    "dev": "wrangler dev --port 8790",
-    "deploy": "wrangler deploy",
+    "build:web": "npm --prefix ../.. run build:guest",
+    "dev": "npm run build:web && wrangler dev --port 8790",
+    "deploy": "npm run build:web && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.mjs"
   },

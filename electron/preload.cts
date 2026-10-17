@@ -252,6 +252,13 @@ function looksLikePeerInvite(input: string): boolean {
   return input.replace(/\s+/g, "").startsWith(peerInvitePrefix);
 }
 
+/** A co-author web link (https://…/join#<invite>) pasted into the app. */
+function inviteFromWebLink(input: string): string {
+  const compact = input.replace(/\s+/g, "");
+  const match = /^https?:\/\/[^/#?]+\/join#([A-Za-z0-9_-]+)$/.exec(compact);
+  return match ? `${peerInvitePrefix}${match[1]}` : input;
+}
+
 function cloudProjectFromSummary(project: { id: string; name: string }): OpenProject {
   return { id: project.id, name: project.name, rootPath: "" };
 }
@@ -639,7 +646,8 @@ type JoinCollaborationResult =
   | { project: OpenProject; collaboration: CollaborationState; pending?: undefined }
   | { pending: true; message: string };
 
-async function joinCloudShare(input: string): Promise<JoinCollaborationResult> {
+async function joinCloudShare(rawInput: string): Promise<JoinCollaborationResult> {
+  const input = inviteFromWebLink(rawInput);
   try {
     if (!looksLikePeerInvite(input)) {
       if (hostsProjectsLocally) {

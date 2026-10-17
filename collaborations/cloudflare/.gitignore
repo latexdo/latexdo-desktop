@@ -1,2 +1,4 @@
 node_modules/
 .wrangler/
+# Built from web/guest by `npm run build:web`.
+public/

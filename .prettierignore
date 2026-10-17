@@ -7,3 +7,4 @@ release
 out
 *.tsbuildinfo
 .claude/
+collaborations/cloudflare/public

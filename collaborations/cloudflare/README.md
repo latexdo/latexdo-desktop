@@ -25,9 +25,26 @@ paste into the app. The server never receives it.
   server (they no longer receive any data), and approval is on by default, so a
   leaked invite alone does not let anyone in.
 
+## Co-author web editor
+
+Co-authors who do not have LatexDo open the project's web link,
+`https://collab.latexdo.org/join#<invite>`, and edit in their browser with no
+account or install. The page (`web/guest` in the desktop repository) is built
+into `public/` and served by this Worker, so it calls the API from the same
+origin and the server still sends no CORS headers.
+
+- It speaks the same encrypted protocol as the desktop app. The key is in the
+  part of the link after `#`, which browsers never send to a server.
+- Approval, roles and removal work as for desktop users; viewers read only.
+- Text files are edited live with cursors; figures and PDFs are decrypted for
+  viewing. Compiling stays in the desktop app.
+- A strict Content Security Policy (`web/guest/public/_headers`) allows only
+  this origin's scripts and connections, and no framing.
+
 ## Protections against abuse
 
-- **No browser access:** no CORS, so web pages cannot call the server.
+- **No access from other websites:** no CORS, so pages elsewhere cannot call
+  the server; only the app and the web editor on this origin can.
 - **No request logs:** URLs carry share tokens and session ids, so
   observability logging is off.
 - **Rate limits** per address across Cloudflare's network: 600 requests and 5
@@ -55,7 +72,7 @@ requests fail until 00:00 UTC and editors keep working offline.
 ```sh
 npm install
 npm run typecheck
-npm run dev                       # wrangler dev on http://127.0.0.1:8790
+npm run dev                       # builds the web editor, then wrangler dev on :8790
 npm test                          # end-to-end tests (COLLAB_URL=… to target another server)
 ```
 
@@ -64,7 +81,7 @@ The desktop app's real-bridge test runs against a server too:
 ```sh
 # from the repository root
 LATEXDO_E2E_CLOUD=1 LATEXDO_COLLAB_URL=http://127.0.0.1:8790 \
-  npx vitest run electron/peerCollab.integration.test.ts
+  npx vitest run electron/peerCollab.integration.test.ts web/guest
 ```
 
 Deploy by hand (there is deliberately no deploy workflow):

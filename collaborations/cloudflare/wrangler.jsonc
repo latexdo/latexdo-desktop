@@ -29,6 +29,13 @@
       "simple": { "limit": 5, "period": 60 },
     },
   ],
+  // The co-author web editor (web/guest, built by `npm run build:web`): served
+  // from this origin, so the API needs no CORS. /api/* always reaches the code.
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
   "routes": [{ "pattern": "collab.latexdo.org", "custom_domain": true }],
   // No request logs: URLs carry share tokens and session ids.
   "observability": { "enabled": false },

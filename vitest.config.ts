@@ -50,7 +50,7 @@ export default defineConfig({
     // The same applies to the set-up of the Electron main-process suites.
     hookTimeout: 30_000,
     include: [
-      "{src,electron,collaborations,scripts,latexdo}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+      "{src,electron,collaborations,scripts,latexdo,web}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
     ],
     // The Cloudflare server has its own end-to-end suite (node --test) that
     // runs against a live server.
