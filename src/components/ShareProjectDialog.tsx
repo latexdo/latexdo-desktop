@@ -31,6 +31,8 @@ export interface ShareProjectDialogProps {
   joinToken: string;
   joining: boolean;
   joinError: string;
+  /** Why sharing could not start, e.g. a file that is too large. */
+  startError?: string;
   displayName: string;
   permissions: CollaboratorPermission[];
   isAdmin: boolean;
@@ -49,6 +51,8 @@ export interface ShareProjectDialogProps {
   onStartSharing?: (mode: HostSharingMode) => void;
   onStopSharing?: () => void;
   onSaveToFolder?: () => void;
+  /** Leaves the shared copy and reopens the owner's own folder. */
+  onReturnToFolder?: () => void;
   onRequireApprovalChange?: (requireApproval: boolean) => void;
   onResolveRequest?: (clientId: string, approve: boolean) => void;
   onClose: () => void;
@@ -70,6 +74,7 @@ export function ShareProjectDialog({
   joinToken,
   joining,
   joinError,
+  startError,
   displayName,
   permissions,
   isAdmin,
@@ -86,6 +91,7 @@ export function ShareProjectDialog({
   onStartSharing,
   onStopSharing,
   onSaveToFolder,
+  onReturnToFolder,
   onRequireApprovalChange,
   onResolveRequest,
   onClose,
@@ -257,9 +263,9 @@ export function ShareProjectDialog({
                     ? "This is the shared copy of your project. Sharing is off."
                     : "Share this project straight from your computer. No account and no server needed."}
                 </p>
-                {host?.phase === "failed" && host.message ? (
+                {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
-                    {host.message}
+                    {startError || host?.message}
                   </div>
                 ) : null}
                 <div
@@ -314,6 +320,12 @@ export function ShareProjectDialog({
                     {busy ? <Loader2 size={14} className="spin" /> : <Link size={14} />}
                     {busy ? "Starting…" : "Start sharing"}
                   </button>
+                  {state.hosted && onReturnToFolder ? (
+                    <button type="button" onClick={onReturnToFolder} disabled={busy}>
+                      <FolderDown size={14} />
+                      Back to my folder
+                    </button>
+                  ) : null}
                   {state.hosted && onSaveToFolder ? (
                     <button type="button" onClick={onSaveToFolder} disabled={busy}>
                       <FolderDown size={14} />

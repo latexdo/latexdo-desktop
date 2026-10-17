@@ -9,6 +9,7 @@ import type {
 import type { CollaboratorPresence } from "../types";
 import type { EditOrigin } from "../features/editor/nextEdit/nextEditTypes";
 import type { EditorMutationOrigin } from "./editProvenance";
+import { remoteCursorCss, type RemoteCursor } from "./collaboratorLook";
 
 export interface CollaborationTextTransaction {
   kind: "local" | "remote";
@@ -38,6 +39,8 @@ export class MonacoCollaborationBinding {
   private transactionRelease: (() => void) | null = null;
   private yTextSnapshot = "";
   private disposed = false;
+  /** Colors and labels the other people's cursors in this editor. */
+  private cursorStyle: HTMLStyleElement | null = null;
 
   constructor(options: MonacoCollaborationBindingOptions) {
     this.key = `${options.projectId}:${options.relativePath}:${options.shareToken ?? ""}:${options.clientName}`;
@@ -58,6 +61,9 @@ export class MonacoCollaborationBinding {
 
   destroy(): void {
     this.disposed = true;
+    this.client.awareness.off("change", this.updateCursorStyle);
+    this.cursorStyle?.remove();
+    this.cursorStyle = null;
     this.releaseTransactionOrigin();
     this.client.doc.off("beforeObserverCalls", this.beforeObserverCalls);
     this.client.doc.off("afterTransaction", this.afterTransaction);
@@ -90,7 +96,32 @@ export class MonacoCollaborationBinding {
       this.updateSelectionAwareness();
     });
     this.updateSelectionAwareness();
+    this.client.awareness.on("change", this.updateCursorStyle);
+    this.updateCursorStyle();
   }
+
+  private updateCursorStyle = (): void => {
+    if (this.disposed || typeof document === "undefined") return;
+    const awareness = this.client.awareness;
+    const cursors: RemoteCursor[] = [];
+    awareness.getStates().forEach((state, clientID) => {
+      if (clientID === awareness.clientID) return;
+      const user = (state as { user?: Record<string, unknown> }).user;
+      if (!user) return;
+      cursors.push({
+        clientID,
+        name: typeof user.name === "string" ? user.name : "",
+        emoji: typeof user.emoji === "string" ? user.emoji : "",
+        color: typeof user.color === "string" ? user.color : "",
+      });
+    });
+    if (!this.cursorStyle) {
+      this.cursorStyle = document.createElement("style");
+      this.cursorStyle.dataset.latexdoRemoteCursors = this.key;
+      document.head.appendChild(this.cursorStyle);
+    }
+    this.cursorStyle.textContent = remoteCursorCss(cursors);
+  };
 
   private beforeObserverCalls = (transaction: Y.Transaction): void => {
     if (!this.transactionTouchesText(transaction)) return;

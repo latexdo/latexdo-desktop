@@ -333,10 +333,10 @@ export function tierUnlockGuidance(
       const needed = availability.requiredAvailableBytes;
       const free = availability.availableBytes;
       return {
-        heading: "Memory is currently low",
+        heading: "Not enough free memory (RAM) right now",
         steps: [
-          `This model needs ~${ramText(needed)} of free memory right now; only ${ramText(free)} is available.`,
-          "Close other applications to free memory, then choose this tier again.",
+          `This model needs about ${ramText(needed)} of free memory (RAM); ${ramText(free)} is free now.`,
+          "Close other apps to free memory. LatexDo checks again every few seconds and unlocks this model as soon as it fits.",
           "Or pick a lighter tier that fits today.",
         ],
       };
@@ -347,7 +347,7 @@ export function tierUnlockGuidance(
       return {
         heading: "Not enough disk space",
         steps: [
-          `This model needs ~${ramText(needed)} of free space; only ${ramText(free)} is available.`,
+          `This model needs about ${ramText(needed)} of free disk space; ${ramText(free)} is free now.`,
           "Free space by removing old projects or snapshots, then try again.",
           "Or pick a lighter tier that fits today.",
         ],
@@ -359,9 +359,9 @@ export function tierUnlockGuidance(
         typeof availability.requiredSystemRamBytes === "number"
       ) {
         return {
-          heading: "Below the memory floor for this model",
+          heading: "This computer has too little memory (RAM) for this model",
           steps: [
-            `This tier needs at least ${ramText(availability.requiredSystemRamBytes)} of physical memory; your machine has ${ramText(availability.detectedSystemRamBytes)}.`,
+            `This model needs at least ${ramText(availability.requiredSystemRamBytes)} of memory (RAM) in total; this computer has ${ramText(availability.detectedSystemRamBytes)}.`,
             "Choose a lighter tier (LatexDo AI or LatexDo AI Plus) that fits.",
             "Connect your own model via Customize (cloud API or Ollama) instead.",
           ],

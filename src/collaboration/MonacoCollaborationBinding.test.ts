@@ -9,8 +9,14 @@ const mocks = vi.hoisted(() => ({
     doc: Y.Doc;
     text: Y.Text;
     awareness: {
+      clientID: number;
+      states: Map<number, unknown>;
+      listeners: Array<() => void>;
       setLocalStateField: ReturnType<typeof vi.fn>;
       destroy: ReturnType<typeof vi.fn>;
+      on: (event: string, listener: () => void) => void;
+      off: ReturnType<typeof vi.fn>;
+      getStates: () => Map<number, unknown>;
     };
     destroy: ReturnType<typeof vi.fn>;
   },
@@ -24,8 +30,18 @@ vi.mock("./CollaborationClient", async () => {
       doc = new Yjs.Doc();
       text = this.doc.getText("content");
       awareness = {
+        clientID: 1,
+        states: new Map<number, unknown>(),
+        listeners: [] as Array<() => void>,
         setLocalStateField: vi.fn(),
         destroy: vi.fn(),
+        on(_event: string, listener: () => void) {
+          this.listeners.push(listener);
+        },
+        off: vi.fn(),
+        getStates() {
+          return this.states;
+        },
       };
       destroy = vi.fn();
 
@@ -113,5 +129,36 @@ describe("MonacoCollaborationBinding provenance", () => {
 
     expect(seen).toContainEqual({ kind: "remote", stackOrigin: "remote" });
     binding.destroy();
+  });
+
+  it("labels other people's cursors with their emoji, name and color", async () => {
+    const binding = new MonacoCollaborationBinding({
+      editor: fakeEditor() as never,
+      projectId: "project",
+      relativePath: "main.tex",
+      shareToken: "token",
+      apiBaseUrl: "http://localhost",
+      clientName: "Alice",
+      color: "#123456",
+      emoji: "🦊",
+    });
+    await Promise.resolve();
+    const awareness = mocks.lastClient!.awareness;
+    awareness.states.set(1, { user: { name: "Alice", color: "#123456", emoji: "🦊" } });
+    awareness.states.set(9, { user: { name: "Bob", color: "#1d7a56", emoji: "🐼" } });
+    awareness.listeners.forEach((listener) => listener());
+
+    const style = document.head.querySelector<HTMLStyleElement>(
+      "style[data-latexdo-remote-cursors]",
+    )!;
+    expect(style.textContent).toContain(
+      '.yRemoteSelectionHead-9::after { content: "🐼 Bob"',
+    );
+    // Your own cursor is not labelled.
+    expect(style.textContent).not.toContain("Alice");
+    binding.destroy();
+    expect(
+      document.head.querySelector("style[data-latexdo-remote-cursors]"),
+    ).toBeNull();
   });
 });

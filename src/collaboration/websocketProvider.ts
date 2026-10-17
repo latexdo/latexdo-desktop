@@ -15,9 +15,11 @@ const reconnectInitialDelayMs = 750;
 const reconnectMaxDelayMs = 10_000;
 const outboundHighWaterBytes = 512 * 1024;
 const maxQueuedMessages = 256;
-const maxQueuedBytes = 2 * 1024 * 1024;
+// A whole document travels in one sync message, and a project shared from
+// someone's computer may hold files up to 32 MB (a large .bib, for example).
+const maxInboundMessageBytes = 64 * 1024 * 1024;
+const maxQueuedBytes = 96 * 1024 * 1024;
 const outboundDrainDelayMs = 50;
-const maxInboundMessageBytes = 512 * 1024;
 const maxPresenceFrameBytes = 128 * 1024;
 const maxPresenceUsers = 50;
 

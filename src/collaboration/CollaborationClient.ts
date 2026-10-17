@@ -27,6 +27,7 @@ export class CollaborationClient {
       user: {
         name: options.clientName,
         color: options.color,
+        emoji: options.emoji,
       },
       file: options.relativePath,
     });

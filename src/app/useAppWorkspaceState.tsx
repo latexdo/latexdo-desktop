@@ -1,3 +1,4 @@
+import { hasFigureToTikzExtension } from "../extensions";
 import {
   useCallback,
   useEffect,
@@ -181,24 +182,27 @@ export function useAppWorkspaceState() {
     setStatusMessage("Accept the Terms of Use and Privacy Policy to continue.");
     return true;
   }, [setStatusMessage]);
-  // These tools are built in: always installed, shown when their setting is on.
+  // Tables, notation and citations are built in. The Figure → TikZ Converter
+  // is a store extension: it appears only once that extension is installed.
+  const figureToTikzInstalled = hasFigureToTikzExtension(installedExtensions);
   const extensionToolInstallation = useMemo(
     () => ({
       projectBibliography: true,
       tableGenerator: true,
-      tikzConverter: true,
+      tikzConverter: figureToTikzInstalled,
       notationManager: true,
     }),
-    [],
+    [figureToTikzInstalled],
   );
   const extensionToolAvailability = useMemo(
     () => ({
       projectBibliography: true,
       tableGenerator: settings.tableGeneratorEnabled,
-      tikzConverter: settings.tikzConverterEnabled,
+      tikzConverter: figureToTikzInstalled && settings.tikzConverterEnabled,
       notationManager: settings.notationManagerEnabled,
     }),
     [
+      figureToTikzInstalled,
       settings.tableGeneratorEnabled,
       settings.tikzConverterEnabled,
       settings.notationManagerEnabled,

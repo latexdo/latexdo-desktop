@@ -268,6 +268,36 @@ describe("CollaborationDialog", () => {
     expect(props.onCancelJoin).toHaveBeenCalledOnce();
   });
 
+  it("shows why sharing could not start inside the dialog", () => {
+    render(
+      <CollaborationDialog
+        {...dialogProps({
+          hostingAvailable: true,
+          state: { enabled: false, users: [] },
+          startError:
+            "others.bib is larger than 32 MB, the most sharing accepts for one file.",
+        })}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "others.bib is larger than 32 MB",
+    );
+    expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
+  });
+
+  it("takes the owner from the shared copy back to their own folder", () => {
+    const props = dialogProps({
+      hostingAvailable: true,
+      state: { enabled: false, hosted: true, users: [] },
+      onReturnToFolder: vi.fn(),
+      onSaveToFolder: vi.fn(),
+    });
+    render(<CollaborationDialog {...props} />);
+    expect(screen.getByText(/This is the shared copy of your project/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my folder" }));
+    expect(props.onReturnToFolder).toHaveBeenCalledOnce();
+  });
+
   it("asks for a project before offering to share one", () => {
     render(
       <CollaborationDialog

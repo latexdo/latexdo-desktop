@@ -370,7 +370,7 @@ describe("LatexDoWebsocketProvider", () => {
     const socket = FakeWebSocket.instances[0];
     socket.open();
 
-    socket.receive(new ArrayBuffer(512 * 1024 + 1));
+    socket.receive(new ArrayBuffer(64 * 1024 * 1024 + 1));
 
     expect(socket.closeCode).toBe(1009);
 

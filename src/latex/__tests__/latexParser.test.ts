@@ -105,8 +105,30 @@ describe("BibTeX edge cases — parameterized", () => {
   });
 
   it("bounds oversized bibliography input before parsing", () => {
-    const oversized = `@article{k,title={${"x".repeat(2 * 1024 * 1024)}}}`;
+    const oversized = `@article{k,title={${"x".repeat(32 * 1024 * 1024)}}}`;
     expect(parseBibFile(oversized, "oversized.bib")).toEqual([]);
+  });
+
+  it("reads a large shared bibliography of several megabytes", () => {
+    const entry = (i: number) =>
+      `@inproceedings{Key${i},\nauthor={A. Author and B. Writer},\ntitle={A long enough title for entry number ${i} in a shared lab bibliography},\nbooktitle={International Conference on Program Comprehension},\nyear={2025}\n}\n\n`;
+    const content = Array.from({ length: 20_000 }, (_, i) => entry(i)).join("");
+    expect(content.length).toBeGreaterThan(4 * 1024 * 1024);
+    const entries = parseBibFile(content, "others.bib");
+    expect(entries).toHaveLength(20_000);
+    expect(entries[19_999]!.key).toBe("Key19999");
+  });
+
+  it("keeps the other entries when one entry is malformed", () => {
+    const content = [
+      "@article{good1, title={One}, year={2020}}",
+      "@article{broken, title={Unclosed, year={2021}",
+      "@article{good2, title={Two}, year={2022}}",
+    ].join("\n");
+    expect(parseBibFile(content, "refs.bib").map((entry) => entry.key)).toEqual([
+      "good1",
+      "good2",
+    ]);
   });
 });
 

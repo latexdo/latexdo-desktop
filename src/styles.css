@@ -28999,3 +28999,1601 @@ body.pane-resizing .preview-pane > * {
   cursor: default;
   opacity: 0.5;
 }
+
+/* Selectable option cards ---------------------------------------------------
+   Hovering a card that is not chosen only lifts it in neutral gray; the accent
+   border and a stronger fill mark the chosen card alone, so the two never look
+   alike. Comes last to win over the earlier per-card rules. */
+.theme-choice:hover:not(.active),
+.settings-workspace-card:hover:not(.active),
+.voice-settings-choice:hover:not(.active),
+.share-mode:hover:not(.selected),
+.ai-wizard-card:hover:not(.selected),
+.ai-wizard-model:hover:not(.selected) {
+  border-color: color-mix(in srgb, var(--text-primary) 28%, transparent);
+  background: var(--bg-surface-hover);
+}
+
+.theme-choice.active,
+.settings-workspace-card.active,
+.voice-settings-choice.active,
+.share-mode.selected,
+.ai-wizard-card.selected,
+.ai-wizard-model.selected {
+  border-color: var(--accent);
+  background: var(--accent-panel);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Status chips inside a card ("Installed", "Downloading…"): neutral by
+   default, green once ready. Never the red of notification badges. */
+.voice-settings-choice-text em {
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+  color: var(--text-secondary);
+}
+
+.voice-settings-choice-text em.ok {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
+/* Sending before an AI is set up: a calm note above the composer. */
+.ai-send-blocked {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-send-blocked-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-send-blocked-actions button {
+  padding: 4px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-send-blocked-actions button:first-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+
+/* Settings window: search on top, categories on the left, one page of
+   settings on the right (searching shows every page that matches). */
+.settings-shell {
+  width: min(1100px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+}
+
+.settings-search {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0 20px 12px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-input, var(--bg-surface));
+  color: var(--text-muted);
+}
+
+.settings-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.settings-search-count {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  border-top: 1px solid var(--border-dialog);
+}
+
+.settings-nav {
+  display: flex;
+  flex: 0 0 210px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-dialog);
+}
+
+.settings-nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav-group-title {
+  padding: 0 10px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-shell .settings-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings-shell .settings-nav-item:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.settings-shell .settings-nav-item.active {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-shell .settings-nav-item.dimmed {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-nav-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.settings-shell .settings-list {
+  display: block;
+  padding: 18px 28px 28px;
+}
+
+.settings-page[data-follows-page] {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-dialog);
+}
+
+.settings-page-title {
+  margin: 0 0 14px;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.settings-page-body {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-no-results {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .settings-body {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    flex: 0 0 auto;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-dialog);
+  }
+
+  .settings-nav-group-title {
+    display: none;
+  }
+}
+
+/* With categories on the left, Settings takes the workspace's width, like an
+   editor's settings page, still docked so it never blocks the window. */
+.settings-backdrop:has(.settings-shell) {
+  width: min(1080px, calc(100vw - 72px));
+}
+
+/* Narrow theme cards put the color dots under the name instead of over it. */
+.theme-choice-top {
+  flex-wrap: wrap;
+}
+
+.theme-choice-top > span:first-child {
+  flex: 1 1 150px;
+}
+
+/* Selected tabs, filters and segments: a soft accent tint with accent text.
+   (--accent-bg is the solid accent, which made accent-colored labels vanish.) */
+.notation-manager-tabs button.active,
+.notation-manager-filter.active,
+.table-segmented button.active,
+.table-add-row:hover:not(:disabled),
+.notation-manager-symbol-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.notation-manager-tabs button.active,
+.table-segmented button.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* "Define" is an action: a solid accent button with readable text. */
+.notation-manager-def-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.notation-manager-def-btn:hover {
+  background: color-mix(in srgb, var(--accent) 85%, var(--text-on-accent));
+  color: var(--text-on-accent);
+}
+
+/* The "All" count is neutral; red stays for undefined symbols only. */
+.notation-manager-filter.all .notation-manager-filter-count {
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  color: var(--text-secondary);
+}
+
+.notation-manager-filter.all.active .notation-manager-filter-count {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+/* Table Generator: cell tools, selection and merged cells. */
+.table-format-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 28px;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.table-tool:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.table-tool.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.table-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.table-tool-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border-subtle);
+}
+
+.table-selection-label {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.table-grid td {
+  user-select: none;
+}
+
+.table-grid td.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.table-grid td.merged {
+  vertical-align: middle;
+}
+
+.table-grid td.merged input {
+  height: 100%;
+  min-height: 34px;
+}
+
+.table-grid tr.table-striped-row td {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+.table-grid tr.table-striped-row td.selected {
+  background: var(--accent-soft);
+}
+
+.table-code-note code + code {
+  margin-left: 6px;
+}
+
+.table-grid td input {
+  user-select: text;
+}
+
+/* Citation Manager: one compact header, one toolbar row, dense rows. */
+.citation-manager-root .citation-manager-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.citation-manager-root .citation-manager-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.citation-manager-root .citation-manager-stats {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.citation-manager-root .citation-manager-stat {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.citation-manager-root .citation-manager-stat strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.citation-manager-root .citation-manager-stat:hover {
+  background: var(--bg-surface-hover);
+}
+
+.citation-manager-root .citation-manager-stat.danger strong {
+  color: var(--danger, #e5534b);
+}
+
+.citation-manager-root .citation-manager-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.citation-manager-root .citation-manager-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.citation-manager-root .citation-manager-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.citation-manager-root .citation-manager-action:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+}
+
+.citation-manager-root .citation-manager-action.danger {
+  border-color: color-mix(in srgb, var(--danger, #e5534b) 45%, transparent);
+  color: var(--danger, #e5534b);
+}
+
+.citation-manager-root .citation-manager-action.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger, #e5534b) 12%, transparent);
+}
+
+.citation-manager-root .citation-manager-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.citation-manager-root .citation-manager-action-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-size: 11px;
+}
+
+.citation-manager-root .citation-manager-close {
+  width: 30px;
+  height: 30px;
+}
+
+.citation-manager-root .citation-manager-toolbar {
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--bg-root);
+}
+
+.citation-manager-root .citation-manager-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  overflow: visible;
+}
+
+.citation-manager-root .citation-manager-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.citation-manager-root .citation-manager-tabs button.active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.citation-manager-root .citation-manager-tab-count {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.citation-manager-root .citation-manager-tab-count.danger {
+  color: var(--danger, #e5534b);
+}
+
+.citation-manager-root .citation-manager-search,
+.citation-manager-root .citation-manager-toolbar select {
+  height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: 7px;
+}
+
+.citation-manager-root .citation-manager-list {
+  padding: 0;
+}
+
+.citation-manager-root .citation-card,
+.citation-manager-root .citation-gap-card,
+.citation-manager-root .citation-usage-row {
+  align-items: center;
+  margin: 0;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.citation-manager-root .citation-card:hover,
+.citation-manager-root .citation-gap-card:hover,
+.citation-manager-root .citation-usage-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.citation-manager-root .citation-card h3 {
+  margin: 2px 0 1px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.citation-manager-root .citation-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.citation-manager-root .citation-card-heading strong {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.citation-manager-root .citation-card-heading span.weak {
+  color: var(--warning);
+}
+
+.citation-manager-root .citation-card-actions {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.citation-manager-root .citation-card-actions button {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.citation-manager-root .citation-card-actions button:first-child {
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.citation-manager-root .citation-card-actions button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.citation-manager-root .citation-manager-more {
+  display: block;
+  margin: 12px auto;
+  padding: 6px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.citation-manager-root .citation-manager-empty {
+  margin: 24px 16px;
+  border: 0;
+}
+
+.citation-manager-root .citation-manager-target,
+.citation-manager-root .citation-quality-section {
+  padding: 10px 16px;
+}
+
+/* TikZ editor: every control on one toolbar row. */
+.tikz-toolbar.tikz-toolbar-single {
+  position: relative;
+  z-index: 5;
+  gap: 4px;
+}
+
+.tikz-toolbar-single .tikz-tool-btn {
+  position: relative;
+}
+
+.tikz-toolbar-single .tikz-tool-btn:hover {
+  border-color: transparent;
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-toolbar-single .tikz-tool-btn.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.tikz-toolbar-single .tikz-tool-btn.open {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tikz-more-btn {
+  display: inline-flex !important;
+  width: auto !important;
+  gap: 1px;
+  padding: 0 4px 0 6px;
+}
+
+.tikz-more-caret {
+  opacity: 0.7;
+}
+
+.tikz-stroke-preview {
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid;
+  border-radius: 4px;
+}
+
+.tikz-fill-preview {
+  width: 16px;
+  height: 16px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  border-radius: 4px;
+}
+
+.tikz-fill-preview.none {
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--danger, #e5534b) calc(50% - 1px),
+    var(--danger, #e5534b) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+.tikz-width-btn {
+  display: inline-flex !important;
+  width: auto !important;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+}
+
+.tikz-width-preview {
+  width: 14px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.tikz-width-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pop-up menus under a toolbar button. */
+.tikz-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  padding: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-dialog, var(--bg-surface));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+}
+
+.tikz-palette {
+  display: grid;
+  grid-template-columns: repeat(7, 18px);
+  gap: 6px;
+}
+
+.tikz-palette .tikz-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.tikz-width-popover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.tikz-shape-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 2px;
+  min-width: 280px;
+}
+
+.tikz-shape-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tikz-shape-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-shape-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tikz-shape-item kbd {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Small tooltip with the button's name and shortcut. */
+.tikz-toolbar-single [data-tip]::after {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 70;
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-tooltip, var(--bg-dialog));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 30%);
+  color: var(--text-primary);
+  content: attr(data-tip);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  transition-delay: 0s;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.tikz-toolbar-single [data-tip]:hover::after,
+.tikz-toolbar-single [data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 0.35s;
+  visibility: visible;
+}
+
+/* No tooltip over an open menu. */
+.tikz-toolbar-single [data-tip][aria-expanded="true"]::after {
+  display: none;
+}
+
+.tikz-toolbar-single .tikz-action-btn {
+  position: relative;
+}
+
+/* Chat model picker: a menu of every model, in the header (narrow chat) or
+   the composer (expanded chat), like ChatGPT. */
+.model-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.model-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.model-picker-trigger:hover:not(:disabled),
+.model-picker-trigger[aria-expanded="true"] {
+  background: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+
+.model-picker-trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.model-picker-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-menu {
+  position: absolute;
+  left: 0;
+  z-index: 80;
+  width: 280px;
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-dialog, var(--bg-surface));
+  box-shadow: 0 14px 40px rgb(0 0 0 / 38%);
+}
+
+.model-picker.down .model-picker-menu {
+  top: calc(100% + 6px);
+}
+
+.model-picker.up .model-picker-menu {
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: auto;
+}
+
+.model-picker-group + .model-picker-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.model-picker-group-title {
+  padding: 6px 8px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.model-picker-item,
+.model-picker-manage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-picker-item:hover:not(:disabled),
+.model-picker-manage:hover {
+  background: var(--bg-row-hover);
+}
+
+.model-picker-item.active {
+  color: var(--accent);
+}
+
+.model-picker-item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.model-picker-item-text {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.model-picker-item-text small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker-manage {
+  justify-content: flex-start;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 7px 7px;
+  color: var(--text-secondary);
+}
+
+.model-picker-empty {
+  margin: 6px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ai-sidebar-header .ai-sidebar-model-picker {
+  flex: 0 1 auto;
+  max-width: 50%;
+}
+
+.ai-composer-model-picker {
+  display: none;
+  grid-area: model;
+}
+
+.ai-composer-model-picker .model-picker-trigger {
+  height: 32px;
+  max-width: 150px;
+  border-radius: 16px;
+}
+
+@container (min-width: 420px) {
+  .ai-composer-model-picker {
+    display: block;
+  }
+
+  .ai-sidebar-header .ai-sidebar-model-picker {
+    display: none;
+  }
+}
+
+/* The privacy shield explains itself on hover or focus. */
+.ai-privacy-badge {
+  position: relative;
+  cursor: help;
+}
+
+.ai-privacy-badge::after {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 90;
+  width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-tooltip, var(--bg-dialog));
+  box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+  color: var(--text-primary);
+  content: attr(data-tip);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.ai-privacy-badge:hover::after,
+.ai-privacy-badge:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 0.25s;
+  visibility: visible;
+}
+
+.model-picker .model-picker-menu,
+.model-picker.up .model-picker-menu,
+.model-picker.down .model-picker-menu {
+  position: fixed;
+  right: auto;
+}
+
+/* Other people's cursors: each person's color, labelled with their emoji and
+   name (the per-person rules are generated while they are connected). */
+.monaco-editor [class*="yRemoteSelectionHead"] {
+  position: relative;
+  border-left-width: 2px;
+  border-left-style: solid;
+}
+
+.monaco-editor [class*="yRemoteSelectionHead"]::before {
+  content: none;
+}
+
+.monaco-editor [class*="yRemoteSelectionHead"]::after {
+  position: absolute;
+  top: -1.45em;
+  left: -2px;
+  z-index: 10;
+  padding: 1px 6px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  content: none;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Status bar: sharing state and the people working with you. */
+.statusbar-sharing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusbar-sharing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.statusbar-sharing-dot.live {
+  background: #3fb950;
+  box-shadow: 0 0 0 2px rgb(63 185 80 / 30%);
+}
+
+.statusbar-people {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.statusbar-avatar {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  margin-left: -4px;
+  padding: 0;
+  border: 1.5px solid;
+  border-radius: 50%;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.statusbar-avatar:first-child {
+  margin-left: 0;
+}
+
+.statusbar-avatar:hover {
+  z-index: 1;
+  transform: translateY(-1px);
+}
+
+.statusbar-people-more {
+  margin-left: 4px;
+  font-size: 11px;
+}
+
+/* Extension icons: one colored tile per category. */
+.extension-row-icon,
+.extension-page-icon {
+  padding: 0;
+  background: transparent;
+}
+
+.extension-icon {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  place-items: center;
+  color: #fff;
+}
+
+.extension-icon-templates {
+  background: linear-gradient(135deg, #2f6fdb, #5b8def);
+}
+
+.extension-icon-graphics {
+  background: linear-gradient(135deg, #1d7a56, #34a77a);
+}
+
+.extension-icon-bibliography {
+  background: linear-gradient(135deg, #8b4aa6, #b06fcb);
+}
+
+.extension-icon-checking {
+  background: linear-gradient(135deg, #b45309, #e08a2e);
+}
+
+.extension-icon-writing {
+  background: linear-gradient(135deg, #0f766e, #2aa198);
+}
+
+.extension-icon-workflow {
+  background: linear-gradient(135deg, #6d5dfc, #9488ff);
+}
+
+/* Extension preview: an animated look at what the extension does. */
+.extension-preview {
+  margin: 0 0 22px;
+}
+
+.extension-preview-stage {
+  display: grid;
+  min-height: 260px;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background:
+    radial-gradient(
+      circle at 20% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 60%
+    ),
+    var(--bg-surface);
+  place-items: center;
+}
+
+.extension-preview figcaption {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.extension-screenshots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}
+
+.extension-screenshots figure {
+  margin: 0;
+}
+
+.extension-screenshots img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+
+.extension-screenshots figcaption {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@keyframes xp-appear {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes xp-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes xp-type {
+  from {
+    width: 0;
+  }
+}
+
+@keyframes xp-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+/* A template's first page. */
+.xp-page {
+  display: grid;
+  width: min(300px, 100%);
+  gap: 8px;
+  padding: 18px 16px;
+  border-radius: 4px;
+  background: #fbfbf8;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 35%);
+  color: #23262c;
+  font-family: "Latin Modern Roman", "Times New Roman", serif;
+}
+
+.xp-page-poster,
+.xp-page-slides {
+  width: min(380px, 100%);
+}
+
+.xp-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  animation: xp-appear 0.5s both;
+}
+
+.xp-authors {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.xp-authors span {
+  width: 54px;
+  height: 4px;
+  border-radius: 2px;
+  background: #b9bcc3;
+}
+
+.xp-abstract em,
+.xp-references em {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+.xp-body {
+  display: grid;
+  gap: 10px;
+}
+
+.xp-body.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.xp-column,
+.xp-section {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+
+.xp-section strong {
+  font-size: 8px;
+  animation: xp-appear 0.4s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-line {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: #c9ccd2;
+  transform-origin: left;
+  animation: xp-grow 0.5s ease-out both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-table {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 4px;
+  padding: 3px 0;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
+  animation: xp-appear 0.5s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-table span {
+  height: 3px;
+  background: #c9ccd2;
+}
+
+.xp-figure {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 34px;
+  margin-top: 4px;
+  border: 1px solid #d5d7db;
+  animation: xp-appear 0.5s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-figure span {
+  width: 9px;
+  background: #5b8def;
+}
+
+.xp-figure span:nth-child(1) {
+  height: 40%;
+}
+
+.xp-figure span:nth-child(2) {
+  height: 75%;
+  background: #34a77a;
+}
+
+.xp-figure span:nth-child(3) {
+  height: 55%;
+  background: #e08a2e;
+}
+
+/* A snippet being typed and expanded. */
+.xp-editor {
+  width: min(460px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--editor-bg, #15181e);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 30%);
+  font-family: var(--font-mono);
+}
+
+.xp-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.xp-editor-bar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e5534b;
+}
+
+.xp-editor-bar span:nth-child(2) {
+  background: #d4a72c;
+}
+
+.xp-editor-bar span:nth-child(3) {
+  background: #3fb950;
+}
+
+.xp-editor-bar em {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.xp-editor-body {
+  padding: 12px 14px;
+  font-size: 11.5px;
+}
+
+.xp-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xp-typed {
+  display: inline-block;
+  overflow: hidden;
+  width: calc(var(--xp-chars) * 1ch + 2px);
+  border-right: 2px solid var(--accent);
+  color: var(--accent);
+  white-space: nowrap;
+  animation:
+    xp-type 0.7s steps(var(--xp-chars)) both,
+    xp-blink 0.8s step-end 3;
+}
+
+.xp-trigger kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  animation: xp-appear 0.3s both;
+  animation-delay: 0.8s;
+}
+
+.xp-expanded {
+  display: grid;
+  margin: 10px 0 0;
+  color: var(--text-primary);
+  white-space: pre;
+}
+
+.xp-expanded span,
+.xp-code span {
+  animation: xp-appear 0.25s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 0 10px;
+}
+
+.xp-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-default);
+}
+
+.xp-dots span.on {
+  background: var(--accent);
+}
+
+/* A diagram turned into TikZ. */
+.xp-convert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.xp-diagram {
+  display: flex;
+  align-items: center;
+  padding: 18px;
+  border-radius: 8px;
+  background: #fbfbf8;
+}
+
+.xp-node {
+  padding: 6px 10px;
+  border: 1.5px solid #2f6fdb;
+  border-radius: 6px;
+  background: #e8f0fb;
+  color: #1b2a41;
+  font-size: 11px;
+  animation: xp-appear 0.4s both;
+}
+
+.xp-node:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.xp-node:nth-child(5) {
+  animation-delay: 0.3s;
+}
+
+.xp-edge {
+  width: 18px;
+  height: 1.5px;
+  background: #2f6fdb;
+}
+
+.xp-convert-arrow {
+  color: var(--accent);
+  animation: xp-appear 0.4s both;
+  animation-delay: 0.55s;
+}
+
+.xp-code {
+  display: grid;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--editor-bg, #15181e);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Checks an extension adds. */
+.xp-checks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  animation: xp-appear 0.35s both;
+  animation-delay: var(--xp-delay, 0s);
+}
+
+.xp-tick {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3fb950;
+  color: #fff;
+  font-size: 11px;
+  place-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .extension-preview *,
+  .extension-preview *::before,
+  .extension-preview *::after {
+    animation: none !important;
+  }
+}
+
+.xp-expanded span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

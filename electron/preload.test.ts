@@ -370,7 +370,7 @@ describe("cloud routing and recovery", () => {
   ] as const)("rejects unsupported %s on cloud projects", async (method) => {
     await expect(
       (api[method] as (...args: unknown[]) => unknown)("project_a", "file.tex", "hash"),
-    ).rejects.toThrow(/not available/);
+    ).rejects.toThrow(/not available|Back to my folder/);
     expect(bridge.invoke).not.toHaveBeenCalled();
   });
   it("returns explicit empty git state for cloud documents", async () => {

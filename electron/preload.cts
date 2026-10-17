@@ -79,6 +79,10 @@ const cloudCompileTimeoutMs = 75_000;
 const maxCloudFileBytes = 2 * 1024 * 1024;
 const maxCloudProjectBytes = 20 * 1024 * 1024;
 const maxCloudProjectFiles = 500;
+// Sharing from this computer: the hosted server is started with these limits.
+const maxHostedFileBytes = 32 * 1024 * 1024;
+const maxHostedProjectBytes = 512 * 1024 * 1024;
+const maxHostedProjectFiles = 2000;
 const cloudProjectIds = new Set<string>();
 
 class CloudApiError extends Error {
@@ -703,8 +707,13 @@ async function uploadLocalProjectToCloud(
   const fileEntries = flattenProjectEntries(tree).filter(
     (entry) => entry.type === "file",
   );
-  if (fileEntries.length > maxCloudProjectFiles) {
-    throw new Error(`Cloud projects are limited to ${maxCloudProjectFiles} files.`);
+  const hosted = origin === localHostOrigin;
+  const maxFiles = hosted ? maxHostedProjectFiles : maxCloudProjectFiles;
+  const maxFileBytes = hosted ? maxHostedFileBytes : maxCloudFileBytes;
+  const maxProjectBytes = hosted ? maxHostedProjectBytes : maxCloudProjectBytes;
+  const where = hosted ? "Shared projects" : "Cloud projects";
+  if (fileEntries.length > maxFiles) {
+    throw new Error(`${where} are limited to ${maxFiles} files.`);
   }
 
   let totalBytes = 0;
@@ -723,12 +732,14 @@ async function uploadLocalProjectToCloud(
       );
       continue;
     }
-    if (content.length > maxCloudFileBytes) {
-      throw new Error(`${entry.relativePath} exceeds the cloud file size limit.`);
+    if (content.length > maxFileBytes) {
+      throw new Error(
+        `${entry.relativePath} is larger than ${maxFileBytes / 1024 / 1024} MB, the most ${hosted ? "sharing" : "the cloud"} accepts for one file.`,
+      );
     }
     totalBytes += content.length;
-    if (totalBytes > maxCloudProjectBytes) {
-      throw new Error("Cloud projects are limited to 20 MiB.");
+    if (totalBytes > maxProjectBytes) {
+      throw new Error(`${where} are limited to ${maxProjectBytes / 1024 / 1024} MB.`);
     }
     await cloudRequestJson(
       `/api/projects/${encodeURIComponent(cloudProject.id)}/files/content?${filePathQuery(entry.relativePath)}`,
@@ -815,12 +826,17 @@ function cloudUnsupportedCompile(request: CompileRequest): CompileResult {
   };
 }
 
+// Shown wherever Git is used in a shared project: it says what to do, not
+// only what is missing.
+const gitInSharedCopyMessage =
+  "Git works in your own folder. You are in the shared copy of this project: open Share and choose Back to my folder (or Stop sharing) to use Git again.";
+
 function emptyCloudGitStatus(): GitStatusSummary {
   return {
     isRepo: false,
     branch: null,
     entries: [],
-    error: "Git actions are not available for cloud collaboration projects.",
+    error: gitInSharedCopyMessage,
   };
 }
 
@@ -1338,33 +1354,23 @@ const api = {
   },
   stageGitFile: (projectId: string, relativePath: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:stage", projectId, relativePath),
   unstageGitFile: (projectId: string, relativePath: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:unstage", projectId, relativePath),
   commitGit: (projectId: string, message: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:commit", projectId, message),
   getGitRepositoryInfo: (projectId: string): Promise<GitRepositoryInfo> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:repository-info", projectId),
   runGitAction: (projectId: string, action: GitAction): Promise<GitActionResult> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:action", projectId, action),
   getGitDiff: (projectId: string, relativePath: string): Promise<GitDiffPreview> =>
     isCloudProject(projectId)
@@ -1382,15 +1388,11 @@ const api = {
       : ipcRenderer.invoke("git:discard", projectId, relativePath),
   stageAllGit: (projectId: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:stage-all", projectId),
   unstageAllGit: (projectId: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:unstage-all", projectId),
   discardAllGit: (projectId: string): Promise<GitDiscardResult> =>
     isCloudProject(projectId)
@@ -1402,9 +1404,7 @@ const api = {
     area: "staged" | "changes" = "changes",
   ): Promise<GitDiffSession> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:editor-diff", projectId, relativePath, area),
   getGitHistory: (
     projectId: string,
@@ -1422,15 +1422,11 @@ const api = {
       : ipcRenderer.invoke("git:graph", projectId, options),
   getGitDiffForCommitMessage: (projectId: string): Promise<string> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:diff-for-message", projectId),
   getGitCommitDetails: (projectId: string, hash: string): Promise<GitCommitDetails> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:commit-details", projectId, hash),
   getGitCommitFileDiff: (
     projectId: string,
@@ -1439,9 +1435,7 @@ const api = {
     parentHash?: string,
   ): Promise<GitDiffSession> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Git actions are not available for cloud collaboration projects."),
-        )
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
       : parentHash === undefined
         ? ipcRenderer.invoke("git:commit-file-diff", projectId, relativePath, hash)
         : ipcRenderer.invoke(

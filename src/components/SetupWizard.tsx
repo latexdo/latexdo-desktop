@@ -96,6 +96,8 @@ interface SetupWizardProps {
   initialConfig: AiConfig;
   isDesktop: boolean;
   onApplyTheme: (theme: ColorTheme) => void;
+  /** Light or dark, so theme swatches match what the app shows. */
+  appearance?: "light" | "dark";
   onComplete: (config: AiConfig) => void;
   systemCapabilities?: AiSystemCapabilities | null;
   systemCapabilitiesState?: "idle" | "loading" | "ready" | "unavailable";
@@ -121,6 +123,7 @@ const emptyInstallBytes: InstallBytes = {
   tex: { received: 0, total: 0 },
 };
 const etaWindowMs = 15_000;
+const capabilityRecheckMs = 3_000;
 
 function formatTimeLeft(seconds: number): string {
   if (seconds < 60) return "Less than a minute left";
@@ -222,22 +225,22 @@ function labelForGgufFile(fileName: string): string {
 function availabilityLabel(availability: TierAvailability): string {
   if (availability.state === "available") return "Available on this machine";
   if (availability.state === "memory-pressure") {
-    return `Temporarily unavailable. Needs ${formatRam(
+    return `Not enough free memory (RAM) right now: needs ${formatRam(
       availability.requiredAvailableBytes,
-    )} available; ${formatRam(availability.availableBytes)} available now.`;
+    )} free, ${formatRam(availability.availableBytes)} free now. Close some apps and this updates on its own.`;
   }
   if (availability.state === "storage-pressure") {
-    return `Not enough storage. Needs ${formatRam(
+    return `Not enough disk space: needs ${formatRam(
       availability.requiredAvailableStorageBytes,
-    )} free; ${formatRam(availability.availableStorageBytes)} free now.`;
+    )} free on disk, ${formatRam(availability.availableStorageBytes)} free now.`;
   }
   if (
     typeof availability.requiredSystemRamBytes === "number" &&
     typeof availability.detectedSystemRamBytes === "number"
   ) {
-    return `Not supported. Requires ${formatRam(
+    return `Not supported: needs ${formatRam(
       availability.requiredSystemRamBytes,
-    )} RAM; detected ${formatRam(availability.detectedSystemRamBytes)}.`;
+    )} of memory (RAM) in total; this computer has ${formatRam(availability.detectedSystemRamBytes)}.`;
   }
   return availability.reason;
 }
@@ -246,6 +249,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   initialConfig,
   isDesktop,
   onApplyTheme,
+  appearance = "dark",
   onComplete,
   systemCapabilities = null,
   systemCapabilitiesState = isDesktop ? "loading" : "unavailable",
@@ -883,6 +887,21 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     if (swapToTier) selectTier(swapToTier);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [swapToTier?.id]);
+  // Free memory changes as other apps open and close. While the person picks a
+  // model, check again every few seconds and whenever they come back to this
+  // window, so a model unlocks as soon as it fits.
+  const refreshCapabilitiesRef = React.useRef(onRefreshSystemCapabilities);
+  refreshCapabilitiesRef.current = onRefreshSystemCapabilities;
+  React.useEffect(() => {
+    if (step !== "model" || !isDesktop) return;
+    const refresh = () => void refreshCapabilitiesRef.current?.();
+    const timer = window.setInterval(refresh, capabilityRecheckMs);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [step, isDesktop]);
   const localChoiceNote = !isDesktop
     ? "Needs the LatexDo desktop app."
     : !systemCapabilities && systemCapabilitiesState === "loading"
@@ -1113,7 +1132,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
                         title={theme.description}
                       >
                         <div className="ai-wizard-swatch-row">
-                          {theme.swatches.map((c) => (
+                          {theme.swatches[appearance].map((c) => (
                             <span key={c} style={{ background: c }} />
                           ))}
                         </div>
@@ -1341,12 +1360,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
                                 <span className="ai-choice-meta">
                                   {tierInstalled
                                     ? "Ready on this computer"
-                                    : `${formatBytes(tier.runtime.downloadBytes)} download`}
+                                    : `${formatBytes(tier.runtime.downloadBytes)} download (disk space)`}
                                   {" · "}
                                   needs {formatRam(
                                     tier.requirements.minSystemRamBytes,
                                   )}{" "}
-                                  RAM
+                                  of memory (RAM)
                                 </span>
                                 {selected && available && !tierInstalled ? (
                                   <span className="ai-choice-note">

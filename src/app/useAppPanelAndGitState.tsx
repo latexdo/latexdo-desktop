@@ -219,6 +219,9 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
   const [joinTokenDraft, setJoinTokenDraft] = useState("");
   const [joinCollaborationBusy, setJoinCollaborationBusy] = useState(false);
   const [joinCollaborationError, setJoinCollaborationError] = useState("");
+  // Why sharing could not start; shown in the Share dialog, which covers the
+  // status bar.
+  const [shareStartError, setShareStartError] = useState("");
   const [joinWaitingMessage, setJoinWaitingMessage] = useState("");
   // Bumped to abandon a join that is still waiting for the owner's approval.
   const joinAttemptRef = useRef(0);
@@ -822,6 +825,8 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     setJoinCollaborationBusy,
     joinCollaborationError,
     setJoinCollaborationError,
+    shareStartError,
+    setShareStartError,
     joinWaitingMessage,
     setJoinWaitingMessage,
     joinAttemptRef,

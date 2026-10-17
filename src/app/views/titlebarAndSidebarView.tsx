@@ -4,7 +4,6 @@ import {
   Box,
   Building2,
   CircleAlert,
-  ExternalLink,
   Files,
   GitBranch,
   ImageUp,
@@ -15,7 +14,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
-  Plus,
   Puzzle,
   RefreshCw,
   Settings,
@@ -30,8 +28,12 @@ import { productConfig, productIsPro } from "../../productConfig";
 import { AiSidebar } from "../../components/AiSidebar";
 import { pathForDisplay } from "../../pathDisplay";
 import { flattenEntries } from "../../features/project/projectUtils";
-import { extensionStoreSiteUrl } from "../../extensions";
-import { AppIcon, aiChatStateStorageKey } from "../appShared";
+import { AppIcon, aiChatStateStorageKey, tierAvailabilityLabel } from "../appShared";
+import {
+  applyChatModelOption,
+  buildChatModelOptions,
+} from "../../features/ai/chatModelOptions";
+import { latexDoAiTiers } from "../../features/ai/product/latexDoAiTiers";
 import { toolTabIds } from "../../features/workspace/toolTabs";
 import type { AppCtx } from "../appContext";
 
@@ -301,6 +303,30 @@ export function renderSidebar(ctx: AppCtx) {
     sidebarWidthStyle,
     workspaceTabs,
   } = ctx;
+  // The chat's model menu, with the same availability rules as Settings.
+  const modelOptions = buildChatModelOptions({
+    config: aiConfig,
+    isDesktop: aiIsDesktop,
+    ollamaModels: ctx.ollamaModels,
+    tiers: latexDoAiTiers.map((tier) => {
+      const downloaded =
+        ctx.downloadedLatexDoAiModelFiles.has(tier.runtime.fileName) ||
+        (aiConfig.modelId === tier.runtime.modelId && aiConfig.modelDownloaded);
+      if (!downloaded) {
+        return { tier, ready: false, reason: "Download it in AI settings" };
+      }
+      const availability = ctx.localTierRuntimeAvailability(tier);
+      return availability.state === "available"
+        ? { tier, ready: true }
+        : { tier, ready: false, reason: tierAvailabilityLabel(availability) };
+    }),
+  });
+  const selectModel = (id: string) => {
+    if (id.startsWith("tier:")) ctx.setLocalAiProviderMode("latexdo-ai");
+    ctx.setAiConfig(
+      (current) => applyChatModelOption(current, id, latexDoAiTiers) ?? current,
+    );
+  };
   return (
     <aside
       className={`sidebar ${aiSidebarExpanded ? "ai-sidebar-expanded" : ""}`}
@@ -386,6 +412,8 @@ export function renderSidebar(ctx: AppCtx) {
                 onOpenSettings={openAiSettings}
                 onOpenExternal={openExternalLink}
                 apiRef={active ? activeAiSidebarApiRef : undefined}
+                modelOptions={modelOptions}
+                onSelectModel={selectModel}
                 onInsertFigure={(code) => void ctx.insertFigure(code)}
               />
             </div>
@@ -406,7 +434,7 @@ export function renderSidebar(ctx: AppCtx) {
 }
 
 export function renderSmallIcon(ctx: AppCtx) {
-  const { extensionCatalogLoading, openExternalLink, refreshExtensionCatalog } = ctx;
+  const { extensionCatalogLoading, refreshExtensionCatalog } = ctx;
   return (
     <>
       <button
@@ -417,24 +445,6 @@ export function renderSmallIcon(ctx: AppCtx) {
         disabled={extensionCatalogLoading}
       >
         <RefreshCw size={14} className={extensionCatalogLoading ? "spin" : ""} />
-      </button>
-      <button
-        className="small-icon"
-        onClick={() => openExternalLink(extensionStoreSiteUrl)}
-        title="Open extension store"
-        aria-label="Open extension store"
-      >
-        <ExternalLink size={14} />
-      </button>
-      <button
-        className="small-icon"
-        onClick={() =>
-          openExternalLink(new URL("builder/", extensionStoreSiteUrl).toString())
-        }
-        title="Build extension"
-        aria-label="Build extension"
-      >
-        <Plus size={14} />
       </button>
     </>
   );

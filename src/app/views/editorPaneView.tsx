@@ -122,6 +122,15 @@ export function renderWelcomePage(ctx: AppCtx) {
               <small>{productConfig.newProjectDescription}</small>
             </span>
           </button>
+          <button className="welcome-action" onClick={openProject}>
+            <FolderOpen size={18} />
+            <span>
+              <strong>Open Folder or Research Space</strong>
+              <small>
+                Open any folder with your LaTeX files, or a .latexdo-space file
+              </small>
+            </span>
+          </button>
           <button className="welcome-action" onClick={() => void createResearchSpace()}>
             <FolderPlus size={18} />
             <span>
@@ -169,13 +178,6 @@ export function renderWelcomePage(ctx: AppCtx) {
             <span>
               <strong>Convert PDF to LaTeX</strong>
               <small>Rebuild editable LaTeX from a searchable PDF</small>
-            </span>
-          </button>
-          <button className="welcome-action" onClick={openProject}>
-            <FolderOpen size={18} />
-            <span>
-              <strong>Open Folder or Research Space</strong>
-              <small>Open an existing project or .latexdo-space file</small>
             </span>
           </button>
           <p className="welcome-support">

@@ -1768,17 +1768,17 @@ describe("App critical UI controls", () => {
     expect(api.readAsset).not.toHaveBeenCalled();
   });
 
-  it("reviews a paper from the explorer without importing it into the current project", async () => {
+  it("reviews a paper from the Tools menu without importing it into the current project", async () => {
     const api = installLatexDoMock();
 
     render(<App />);
     await openProjectFromWelcome();
+    // The explorer has no Reader Mode button; the menu and Welcome page do.
+    expect(
+      screen.queryByRole("button", { name: "Review Paper in Reader Mode" }),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Review Paper in Reader Mode",
-      }),
-    );
+    act(() => menuCommandListener?.("tools.reviewPdf"));
 
     choosePdfForReview(createReviewPdfFile("standalone-paper.pdf"));
 
@@ -2227,21 +2227,36 @@ describe("App critical UI controls", () => {
     });
   });
 
-  it("shows the built-in writing tools without installing anything", async () => {
+  it("shows the built-in writing tools, and the TikZ converter only once installed", async () => {
     installLatexDoMock();
 
     render(<App />);
 
     expect(screen.getByTitle("Citation Manager")).toBeVisible();
     expect(screen.getByTitle("Table Generator")).toBeVisible();
-    expect(screen.getByTitle("Figure → TikZ Converter")).toBeVisible();
     expect(screen.getByTitle("Notation Manager")).toBeVisible();
+    // Figure → TikZ is a store extension, not part of the app.
+    expect(screen.queryByTitle("Figure → TikZ Converter")).not.toBeInTheDocument();
 
-    // The store only offers content packs, none of the built-in tools.
     fireEvent.click(screen.getByTitle("Extensions"));
     expect(await screen.findByText("Plots and Figures")).toBeVisible();
     expect(screen.queryByText("Citation Workbench")).not.toBeInTheDocument();
     expect(screen.queryByText("Table Generator", { selector: "article *" })).toBeNull();
+
+    const converter = screen.getByText("Figure → TikZ Converter").closest("article")!;
+    fireEvent.click(
+      within(converter as HTMLElement).getByRole("button", { name: "Install" }),
+    );
+    expect(await screen.findByTitle("Figure → TikZ Converter")).toBeVisible();
+  });
+
+  it("opens the TikZ converter's store page from the menu until it is installed", async () => {
+    installLatexDoMock();
+    render(<App />);
+
+    act(() => menuCommandListener?.("view.tool.tikzConverter"));
+    const details = await screen.findByRole("region", { name: "Extension details" });
+    expect(within(details).getByText("latexdo.figure-to-tikz")).toBeVisible();
   });
 
   it("shows extension manifest details from the sidebar list", async () => {
@@ -2266,7 +2281,9 @@ describe("App critical UI controls", () => {
     expect(within(details).getByText("Identifier")).toBeVisible();
     expect(within(details).getByText("LatexDo")).toBeVisible();
     expect(within(details).getByText("latexdo.plots")).toBeVisible();
-    expect(within(details).getByText("lineplot")).toBeVisible();
+    expect(
+      within(details).getByText("lineplot", { selector: "li code" }),
+    ).toBeVisible();
   });
 
   it("keeps Citation Manager visible when citation checks are disabled", async () => {
@@ -2307,21 +2324,21 @@ describe("App critical UI controls", () => {
     });
 
     fireEvent.click(screen.getByTitle("Citation Manager"));
-    expect(
-      await screen.findByRole("heading", { name: "Project Bibliography" }),
-    ).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Bibliography" })).toBeVisible();
     // A tab, not an overlay: Escape leaves it open, its tab closes it.
     expect(screen.getByRole("tab", { name: "Citation Manager" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByText("Project Bibliography")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bibliography" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close Citation Manager" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Project Bibliography")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Bibliography" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -3714,6 +3731,34 @@ describe("App critical UI controls", () => {
     expect(screen.getByLabelText("Folder path")).toHaveValue("sections/chapters");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   });
+  it("shows who else is in a shared project and where, instead of Git", async () => {
+    const api = installLatexDoMock();
+    const shared = {
+      enabled: true,
+      hosted: true,
+      token: "t",
+      users: [
+        { clientId: "client-bob", name: "Bob", currentFile: "main.tex", lastSeen: 1 },
+      ],
+      host: {
+        active: true,
+        mode: "internet",
+        phase: "ready",
+        addresses: ["https://x"],
+      },
+    };
+    api.getCollaborationState.mockResolvedValue(shared);
+    api.updateCollaborationPresence.mockResolvedValue(shared);
+    render(<App />);
+    await openProjectFromWelcome();
+
+    expect(await screen.findByRole("button", { name: "Sharing is on" })).toBeVisible();
+    expect(
+      await screen.findByRole("button", { name: "Bob, in main.tex" }),
+    ).toBeVisible();
+    expect(screen.queryByText("No repository")).not.toBeInTheDocument();
+  });
+
   it("project workflow imports dropped files once and preserves their destination", async () => {
     const api = installLatexDoMock({
       // Background proofreading can overwrite the import status on slower runs.

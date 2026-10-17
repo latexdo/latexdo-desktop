@@ -1102,7 +1102,12 @@ export function runConferenceChecks(
   }
 
   // The paper's own \documentclass wins over the template picked in Settings.
-  const template = detectConferenceTemplate(content) ?? settings.template;
+  // A custom template is read from the class line the person entered.
+  const template =
+    detectConferenceTemplate(content) ??
+    (settings.template === "custom"
+      ? (detectConferenceTemplate(settings.customTemplate ?? "") ?? "custom")
+      : settings.template);
 
   if (settings.checkMargins) {
     diagnostics.push(...checkMarginsImpl(content, template));

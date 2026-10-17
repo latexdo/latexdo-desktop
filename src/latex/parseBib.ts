@@ -7,8 +7,32 @@ type ParsedBibEntry = {
   [field: string]: unknown;
 };
 
-const maxBibtexSourceLength = 2 * 1024 * 1024;
-const maxBibtexEntries = 10_000;
+// Large shared bibliographies are common (a lab's 4 MB, 9,000-entry .bib parses
+// in well under a second); the limits only guard against pathological files.
+const maxBibtexSourceLength = 32 * 1024 * 1024;
+const maxBibtexEntries = 100_000;
+
+/**
+ * Parses a whole file, or entry by entry when one malformed entry makes the
+ * whole file fail, so a single typo never hides the rest of the bibliography.
+ */
+function parseEntries(content: string): ParsedBibEntry[] {
+  try {
+    return bibtexParse.entries(content, { number: "string" }) as ParsedBibEntry[];
+  } catch {
+    const parsed: ParsedBibEntry[] = [];
+    for (const chunk of content.split(/^(?=@)/m)) {
+      try {
+        parsed.push(
+          ...(bibtexParse.entries(chunk, { number: "string" }) as ParsedBibEntry[]),
+        );
+      } catch {
+        // Skip only the broken entry.
+      }
+    }
+    return parsed;
+  }
+}
 
 function cleanBibValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -18,12 +42,7 @@ function cleanBibValue(value: unknown): string | undefined {
 export function parseBibFile(content: string, sourceFile: string): CitationEntry[] {
   if (content.length > maxBibtexSourceLength) return [];
 
-  let parsed: ParsedBibEntry[];
-  try {
-    parsed = bibtexParse.entries(content, { number: "string" });
-  } catch {
-    return [];
-  }
+  const parsed = parseEntries(content);
 
   return parsed
     .slice(0, maxBibtexEntries)

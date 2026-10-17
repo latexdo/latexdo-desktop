@@ -1,23 +1,12 @@
 import type { CollaborationIdentity } from "./collaborationTypes";
+import { collaboratorLook } from "./collaboratorLook";
 
 // Share tokens are kept per server; projects shared from this computer use this key.
 const defaultApiOrigin = "local";
 const cloudSessionKey = "latexdo.cloud.session";
 const cloudClientKey = "latexdo.cloud.client";
 const cloudClientNameKey = "latexdo.cloud.clientName";
-const cloudClientColorKey = "latexdo.cloud.clientColor";
 const legacyShareTokensKey = "latexdo.cloud.shareTokens";
-
-const collaboratorColors = [
-  "#2f6fdb",
-  "#1d7a56",
-  "#a65f1b",
-  "#8b4aa6",
-  "#b42318",
-  "#0f766e",
-  "#6d5dfc",
-  "#b45309",
-];
 
 function normalizedOrigin(value = defaultApiOrigin): string {
   try {
@@ -52,13 +41,10 @@ export function collaborationClientId(): string {
 }
 
 export function collaborationIdentity(): CollaborationIdentity {
-  const clientName = storedClientName();
-  const color = readOrCreate(cloudClientColorKey, () => {
-    const random = new Uint8Array(1);
-    crypto.getRandomValues(random);
-    return collaboratorColors[random[0] % collaboratorColors.length];
-  });
-  return { clientName, color };
+  // Color and emoji come from the client id, so other people see the same
+  // look on this person's cursor and avatar.
+  const { color, emoji } = collaboratorLook(collaborationClientId());
+  return { clientName: storedClientName(), color, emoji };
 }
 
 export function shareTokenForProject(

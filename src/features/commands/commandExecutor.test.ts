@@ -34,7 +34,7 @@ describe("LatexDo command service", () => {
     const result = await service.execute("latexdo theme midnight");
 
     expect(result.ok).toBe(true);
-    expect(result.message).toBe("✓ Theme changed to Midnight Blue.");
+    expect(result.message).toBe("✓ Theme changed to Midnight.");
     expect(settings.colorTheme).toBe("midnight");
   });
 

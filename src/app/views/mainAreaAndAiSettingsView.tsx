@@ -14,6 +14,9 @@ import {
 import { CitationSearchPopup } from "../../components/CitationSearchPopup";
 import { productConfig } from "../../productConfig";
 import { ShareProjectDialog } from "../../components/ShareProjectDialog";
+import { collaboratorLook } from "../../collaboration/collaboratorLook";
+import { pathForDisplay } from "../../pathDisplay";
+import { collaborationClientId } from "../../collaboration/collaborationStorage";
 import { cloudProviders } from "../../features/ai/cloudProviders";
 import { latexDoAiTiers } from "../../features/ai/product/latexDoAiTiers";
 import { WorkspaceTabs } from "../../components/WorkspaceTabs";
@@ -210,9 +213,67 @@ export function renderStatusbarGroup(ctx: AppCtx) {
     warnings,
   } = ctx;
   const gitStatus = ctx.gitStatus!;
+  const sharing = ctx.collaborationState;
+  // The shared copy of a project: Git and local builds live in the owner's
+  // folder, so the status bar says where you are instead of "No repository".
+  const inSharedProject =
+    hasVisibleProject && (sharing.enabled || Boolean(sharing.hosted));
+  const sharingLive =
+    sharing.enabled && (!sharing.hosted || sharing.host?.active !== false);
+  const ownClientId = collaborationClientId();
+  const others = sharing.enabled
+    ? sharing.users.filter((user) => user.clientId !== ownClientId)
+    : [];
   return (
     <div className="statusbar-group">
-      {hasVisibleProject ? (
+      {inSharedProject ? (
+        <button
+          type="button"
+          className="statusbar-sharing"
+          onClick={ctx.openShareDialog}
+          title={
+            sharingLive
+              ? "Sharing is on — manage it or stop sharing"
+              : "You are in the shared copy — go back to your folder"
+          }
+          aria-label={sharingLive ? "Sharing is on" : "Shared copy"}
+        >
+          <span
+            className={`statusbar-sharing-dot ${sharingLive ? "live" : ""}`}
+            aria-hidden="true"
+          />
+          {sharingLive ? "Sharing" : "Shared copy"}
+        </button>
+      ) : null}
+      {others.length ? (
+        <span className="statusbar-people" aria-label="People in this project">
+          {others.slice(0, 6).map((user) => {
+            const look = collaboratorLook(user.clientId);
+            const where = user.currentFile
+              ? `in ${pathForDisplay(user.currentFile)}`
+              : "not in a file";
+            return (
+              <button
+                key={user.clientId}
+                type="button"
+                className="statusbar-avatar"
+                style={{ borderColor: look.color, background: `${look.color}33` }}
+                onClick={() =>
+                  user.currentFile ? void ctx.openGitFile(user.currentFile) : undefined
+                }
+                title={`${user.name || "Guest"} — ${where}${user.currentFile ? " (click to go there)" : ""}`}
+                aria-label={`${user.name || "Guest"}, ${where}`}
+              >
+                {look.emoji}
+              </button>
+            );
+          })}
+          {others.length > 6 ? (
+            <span className="statusbar-people-more">+{others.length - 6}</span>
+          ) : null}
+        </span>
+      ) : null}
+      {hasVisibleProject && !inSharedProject ? (
         <button
           type="button"
           onClick={() =>
@@ -315,6 +376,7 @@ export function renderShareProjectDialog(ctx: AppCtx) {
     joinCollaborationBusy,
     joinCollaborationError,
     joinCollaborationFromDialog,
+    shareStartError,
     joinTokenDraft,
     joinWaitingMessage,
     loadCollaborationPermissions,
@@ -340,6 +402,7 @@ export function renderShareProjectDialog(ctx: AppCtx) {
       joinToken={joinTokenDraft}
       joining={joinCollaborationBusy}
       joinError={joinCollaborationError}
+      startError={shareStartError}
       displayName={collaborationDisplayName}
       permissions={collaborationPermissions}
       isAdmin={isProjectAdmin}
@@ -366,6 +429,9 @@ export function renderShareProjectDialog(ctx: AppCtx) {
       onStopSharing={() => void stopCollaboration()}
       onSaveToFolder={
         collaborationState.hosted ? () => void saveSharedProjectToFolder() : undefined
+      }
+      onReturnToFolder={
+        collaborationState.hosted ? () => void ctx.returnToOwnFolder() : undefined
       }
       onRequireApprovalChange={(value) => void changeCollaborationApproval(value)}
       onResolveRequest={(clientId, approve) =>
@@ -462,98 +528,6 @@ export function renderModalBackdrop(ctx: AppCtx) {
           </button>
         </div>
       </form>
-    </div>
-  );
-}
-
-export function renderSettingsTabs(ctx: AppCtx) {
-  const { extensionToolInstallation, setSettingsTab, settingsTab } = ctx;
-  return (
-    <div className="settings-tabs">
-      <button
-        className={`settings-tab ${settingsTab === "editor" ? "active" : ""}`}
-        onClick={() => setSettingsTab("editor")}
-      >
-        Editor
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "ai" ? "active" : ""}`}
-        onClick={() => setSettingsTab("ai")}
-      >
-        AI Assistant
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "language" ? "active" : ""}`}
-        onClick={() => setSettingsTab("language")}
-      >
-        Language
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "conference" ? "active" : ""}`}
-        onClick={() => setSettingsTab("conference")}
-      >
-        Conference Checker
-      </button>
-      {extensionToolInstallation.projectBibliography ? (
-        <button
-          className={`settings-tab ${settingsTab === "citation" ? "active" : ""}`}
-          onClick={() => setSettingsTab("citation")}
-        >
-          Citation Assistant
-        </button>
-      ) : null}
-      <button
-        className={`settings-tab ${settingsTab === "structure" ? "active" : ""}`}
-        onClick={() => setSettingsTab("structure")}
-      >
-        Structure Assistant
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "reproducibility" ? "active" : ""}`}
-        onClick={() => setSettingsTab("reproducibility")}
-      >
-        Reproducibility
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "acronym" ? "active" : ""}`}
-        onClick={() => setSettingsTab("acronym")}
-      >
-        Acronym Manager
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "doctor" ? "active" : ""}`}
-        onClick={() => setSettingsTab("doctor")}
-      >
-        Error Doctor
-      </button>
-      {extensionToolInstallation.tikzConverter ? (
-        <button
-          className={`settings-tab ${settingsTab === "tikz" ? "active" : ""}`}
-          onClick={() => setSettingsTab("tikz")}
-        >
-          TikZ Converter
-        </button>
-      ) : null}
-      {extensionToolInstallation.notationManager ? (
-        <button
-          className={`settings-tab ${settingsTab === "notation" ? "active" : ""}`}
-          onClick={() => setSettingsTab("notation")}
-        >
-          Notation
-        </button>
-      ) : null}
-      <button
-        className={`settings-tab ${settingsTab === "pdf" ? "active" : ""}`}
-        onClick={() => setSettingsTab("pdf")}
-      >
-        PDF Compliance
-      </button>
-      <button
-        className={`settings-tab ${settingsTab === "application" ? "active" : ""}`}
-        onClick={() => setSettingsTab("application")}
-      >
-        Updates
-      </button>
     </div>
   );
 }

@@ -18,14 +18,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-const colorThemes: ColorTheme[] = [
-  "graphite",
-  "midnight",
-  "forest",
-  "sepia",
-  "studio",
-  "paper",
-];
+const colorThemes: ColorTheme[] = ["graphite", "midnight", "forest", "sepia"];
 const engines: AppSettings["defaultEngine"][] = ["pdflatex", "xelatex", "lualatex"];
 const fontSizes = [11, 12, 13.5, 15, 18, 22];
 

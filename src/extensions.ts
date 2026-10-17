@@ -86,7 +86,14 @@ export interface LatexDoExtensionManifest {
   tags: string[];
   homepage?: string;
   repository?: string;
+  /** Images or GIFs of the extension at work, hosted on latexdo.org. */
+  screenshots?: ExtensionScreenshot[];
   contributes: LatexDoExtensionContributions;
+}
+
+export interface ExtensionScreenshot {
+  url: string;
+  caption?: string;
 }
 
 export interface LatexDoExtensionCatalog {
@@ -104,9 +111,6 @@ export interface ExtensionCatalogLoadResult {
 
 type ExtensionCatalogJsonLoader = (catalogUrl: string) => Promise<unknown>;
 
-export const extensionStoreSiteUrl =
-  import.meta.env?.VITE_LATEXDO_EXTENSION_STORE_URL?.trim() ||
-  "https://latexdo.org/store/";
 export const extensionStoreCatalogUrl =
   import.meta.env?.VITE_LATEXDO_EXTENSION_CATALOG_URL?.trim() ||
   "https://latexdo.org/store/extensions/catalog.json";
@@ -168,13 +172,42 @@ const extensionFeatureFlags = new Set<ExtensionFeatureFlag>([
 const extensionIdPattern = /^[a-z0-9][a-z0-9.-]{2,80}$/;
 const extensionVersionPattern = /^[0-9]+(?:\.[0-9]+){0,2}(?:[-+][a-z0-9.-]+)?$/i;
 
+/** The store extension that adds the Figure → TikZ Converter. */
+export const figureToTikzExtensionId = "latexdo.figure-to-tikz";
+
+/** True when an installed extension adds the Figure → TikZ Converter. */
+export function hasFigureToTikzExtension(
+  installed: readonly LatexDoExtensionManifest[],
+): boolean {
+  return installed.some(
+    (extension) => extension.contributes.featureFlags?.tikzConverterEnabled === true,
+  );
+}
+
 export const fallbackExtensionCatalog: LatexDoExtensionCatalog = {
   schemaVersion: 1,
   product: "LatexDo",
   updatedAt: "2026-10-15T00:00:00.000Z",
-  // Content packs only: templates and snippets LatexDo does not ship.
-  // Built-in tools (tables, TikZ, notation, citations, checks) need no install.
+  // Templates, snippets and optional tools LatexDo does not ship by default.
+  // Core tools (tables, TikZ drawing, notation, citations, checks) need no install.
   extensions: [
+    {
+      schemaVersion: 1,
+      id: figureToTikzExtensionId,
+      kind: "extension",
+      name: "Figure → TikZ Converter",
+      version: "1.0.0",
+      description:
+        "Turn a draw.io diagram or an image into editable TikZ code, so figures use the paper's fonts and stay sharp at any size.",
+      author: "LatexDo",
+      category: "graphics",
+      tags: ["tikz", "figures", "draw.io", "convert"],
+      homepage: `https://latexdo.org/store/extensions/${figureToTikzExtensionId}/`,
+      repository: "https://github.com/latexdo/latexdo.org",
+      contributes: {
+        featureFlags: { tikzConverterEnabled: true },
+      },
+    },
     {
       schemaVersion: 1,
       id: "latexdo.ieee-conference",
@@ -969,6 +1002,7 @@ function normalizeExtensionManifest(value: unknown): LatexDoExtensionManifest | 
     value.kind === "template" ? "template" : "extension";
   const homepage = optionalHttpsUrl(value.homepage);
   const repository = optionalHttpsUrl(value.repository);
+  const screenshots = normalizeScreenshots(value.screenshots);
   const featureFlags = normalizeFeatureFlags(value.contributes.featureFlags);
   const snippets = normalizeSnippets(value.contributes.snippets);
   const templates = normalizeTemplates(value.contributes.templates);
@@ -1000,8 +1034,27 @@ function normalizeExtensionManifest(value: unknown): LatexDoExtensionManifest | 
     tags,
     ...(homepage ? { homepage } : {}),
     ...(repository ? { repository } : {}),
+    ...(screenshots.length ? { screenshots } : {}),
     contributes,
   };
+}
+
+// The app's content security policy only loads images from latexdo.org.
+const screenshotHosts = new Set(["latexdo.org", "www.latexdo.org"]);
+
+function normalizeScreenshots(value: unknown): ExtensionScreenshot[] {
+  if (!Array.isArray(value)) return [];
+  const screenshots: ExtensionScreenshot[] = [];
+  for (const item of value.slice(0, 6)) {
+    if (!isRecord(item)) continue;
+    const url = optionalHttpsUrl(item.url);
+    if (!url || !screenshotHosts.has(new URL(url).hostname)) continue;
+    const caption = isBoundedString(item.caption, 1, 140)
+      ? item.caption.trim()
+      : undefined;
+    screenshots.push(caption ? { url, caption } : { url });
+  }
+  return screenshots;
 }
 
 function normalizeFeatureFlags(

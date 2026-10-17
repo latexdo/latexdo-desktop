@@ -4,9 +4,13 @@ import {
   CheckCircle2,
   Clipboard,
   Copy,
+  CornerDownLeft,
   FilePlus2,
+  Files,
   Link2,
+  LoaderCircle,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import type { CitationEntry } from "../latex/latexIndex";
@@ -37,10 +41,13 @@ interface CitationManagerProps {
 
 const citationTabs: Array<{ id: CitationManagerTab; label: string }> = [
   { id: "library", label: "Library" },
-  { id: "used", label: "Used" },
-  { id: "gaps", label: "Gaps" },
+  { id: "used", label: "Cited" },
+  { id: "gaps", label: "Missing" },
   { id: "quality", label: "Quality" },
 ];
+
+/** Rows drawn at once; large shared bibliographies have thousands. */
+const pageSize = 200;
 
 const citationCommands: Array<{
   command: CitationInsertCommand;
@@ -151,7 +158,6 @@ export function CitationManager({
   analysis,
   loading = false,
   error = "",
-  activeDocumentPath,
   onInsertCitation,
   onAppendBibEntry,
   onMergeBibFiles,
@@ -164,14 +170,22 @@ export function CitationManager({
   const [selectedCommand, setSelectedCommand] = useState<CitationInsertCommand>("cite");
   const [targetBibFile, setTargetBibFile] = useState(analysis.bibFiles[0] ?? "");
   const [copied, setCopied] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(pageSize);
   const [verificationByKey, setVerificationByKey] = useState<
     ReadonlyMap<string, CitationVerification>
   >(() => new Map());
   const verificationWorkerIndex = useRef(0);
   const verificationStale = useRef(false);
 
+  // Only the references the paper cites are checked online: a shared lab
+  // bibliography can hold thousands of entries nobody cites here.
+  const entriesToVerify = useMemo(() => {
+    const cited = new Set(analysis.citedKeys);
+    return analysis.entries.filter((entry) => cited.has(entry.key));
+  }, [analysis.entries, analysis.citedKeys]);
+
   useEffect(() => {
-    if (!verifyEntry || analysis.entries.length === 0) {
+    if (!verifyEntry || entriesToVerify.length === 0) {
       verificationWorkerIndex.current = 0;
       return;
     }
@@ -182,8 +196,8 @@ export function CitationManager({
       while (!verificationStale.current) {
         const index = verificationWorkerIndex.current;
         verificationWorkerIndex.current += 1;
-        if (index >= analysis.entries.length) return;
-        const entry = analysis.entries[index];
+        if (index >= entriesToVerify.length) return;
+        const entry = entriesToVerify[index];
         if (!entry.key) continue;
         try {
           const verification = await verifyEntry(entry);
@@ -196,7 +210,7 @@ export function CitationManager({
     };
 
     const workers = Array.from(
-      { length: Math.min(3, Math.max(analysis.entries.length, 1)) },
+      { length: Math.min(3, Math.max(entriesToVerify.length, 1)) },
       () => {
         void worker();
       },
@@ -206,7 +220,7 @@ export function CitationManager({
     return () => {
       verificationStale.current = true;
     };
-  }, [analysis.entries, verifyEntry]);
+  }, [entriesToVerify, verifyEntry]);
 
   useEffect(() => {
     if (!analysis.bibFiles.length) {
@@ -306,45 +320,104 @@ export function CitationManager({
     [analysis.bibFiles, onAppendBibEntry, targetBibFile],
   );
 
-  const summaryCards = [
-    { label: "Bib entries", value: analysis.entries.length },
-    { label: "Cited keys", value: analysis.citedKeys.length },
-    { label: "Missing", value: analysis.missingKeys.length },
-    { label: "Unused", value: analysis.unusedKeys.length },
+  useEffect(() => setVisibleCount(pageSize), [searchQuery, activeTab]);
+
+  const stats: Array<{
+    label: string;
+    value: number;
+    tab: CitationManagerTab;
+    tone?: string;
+  }> = [
+    { label: "entries", value: analysis.entries.length, tab: "library" },
+    { label: "cited", value: analysis.citedKeys.length, tab: "used" },
+    {
+      label: "missing",
+      value: analysis.missingKeys.length,
+      tab: "gaps",
+      tone: analysis.missingKeys.length ? "danger" : undefined,
+    },
+    {
+      label: "unused",
+      value: analysis.unusedKeys.length,
+      tab: "library",
+      tone: analysis.unusedKeys.length ? "muted" : undefined,
+    },
   ];
+  const tabCount: Partial<Record<CitationManagerTab, number>> = {
+    library: analysis.entries.length,
+    used: analysis.citedKeys.length,
+    gaps: analysis.missingKeys.length,
+    quality: analysis.qualityIssues.length + analysis.duplicateGroups.length,
+  };
 
   return (
     <div className="citation-manager-root">
-      <div className="citation-manager-hero">
-        <div>
-          <span className="citation-manager-kicker">Citation Intelligence</span>
-          <h2>Project Bibliography</h2>
-          <p>
-            Search BibTeX entries, insert citation commands, and catch broken
-            bibliography hygiene before compile time.
-          </p>
+      <header className="citation-manager-header">
+        <h2>Bibliography</h2>
+        <div className="citation-manager-stats" aria-label="Bibliography summary">
+          {stats.map((stat) => (
+            <button
+              key={stat.label}
+              type="button"
+              className={`citation-manager-stat ${stat.tone ?? ""}`}
+              onClick={() => setActiveTab(stat.tab)}
+            >
+              <strong>{stat.value.toLocaleString()}</strong> {stat.label}
+            </button>
+          ))}
+          {loading ? (
+            <span className="citation-manager-status">
+              <LoaderCircle size={12} className="spin" /> Scanning…
+            </span>
+          ) : copied ? (
+            <span className="citation-manager-status" role="status">
+              Copied {copied}
+            </span>
+          ) : null}
         </div>
-        <div className="citation-manager-hero-actions">
-          <div className="citation-manager-status">
-            {loading
-              ? "Scanning project..."
-              : copied
-                ? `Copied ${copied}`
-                : "Local BibTeX"}
-          </div>
+        <div className="citation-manager-header-actions">
+          {analysis.bibFiles.length > 1 && onMergeBibFiles ? (
+            <button
+              type="button"
+              className="citation-manager-action"
+              onClick={onMergeBibFiles}
+              title={`Merge ${analysis.bibFiles.join(", ")} into one file`}
+            >
+              <Files size={13} />
+              Merge into one .bib
+            </button>
+          ) : null}
+          {onRemoveUnused ? (
+            <button
+              type="button"
+              className="citation-manager-action danger"
+              onClick={onRemoveUnused}
+              disabled={loading || Boolean(error) || !analysis.unusedKeys.length}
+              aria-label="Remove unused entries"
+              title="Review and remove the entries no .tex file cites"
+            >
+              <Trash2 size={13} />
+              Remove unused
+              {analysis.unusedKeys.length ? (
+                <span className="citation-manager-action-count">
+                  {analysis.unusedKeys.length.toLocaleString()}
+                </span>
+              ) : null}
+            </button>
+          ) : null}
           {onClose ? (
             <button
               type="button"
               className="citation-manager-close"
               onClick={onClose}
               aria-label="Close citation manager"
-              title="Close citation manager (Esc)"
+              title="Close (Esc)"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           ) : null}
         </div>
-      </div>
+      </header>
 
       {error ? (
         <div className="citation-manager-alert">
@@ -353,26 +426,30 @@ export function CitationManager({
         </div>
       ) : null}
 
-      <div className="citation-manager-metrics">
-        {summaryCards.map((card) => (
-          <div key={card.label} className="citation-manager-metric">
-            <strong>{card.value}</strong>
-            <span>{card.label}</span>
-          </div>
-        ))}
-      </div>
-
       <div className="citation-manager-toolbar">
-        {onRemoveUnused ? (
-          <button
-            type="button"
-            onClick={onRemoveUnused}
-            disabled={loading || Boolean(error) || !analysis.unusedKeys.length}
-            title="Review and remove uncited bibliography entries"
-          >
-            Remove unused entries
-          </button>
-        ) : null}
+        <div className="citation-manager-tabs" role="tablist">
+          {citationTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? "active" : ""}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+              {tabCount[tab.id] ? (
+                <span
+                  className={`citation-manager-tab-count ${
+                    tab.id === "gaps" ? "danger" : ""
+                  }`}
+                >
+                  {tabCount[tab.id]!.toLocaleString()}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
         <label className="citation-manager-search">
           <Search size={14} />
           <input
@@ -387,6 +464,7 @@ export function CitationManager({
             setSelectedCommand(event.target.value as CitationInsertCommand)
           }
           aria-label="Citation command"
+          title="Command used by Insert and Copy cite"
         >
           {citationCommands.map((command) => (
             <option key={command.command} value={command.command}>
@@ -396,36 +474,11 @@ export function CitationManager({
         </select>
       </div>
 
-      <div className="citation-manager-tabs">
-        {citationTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={activeTab === tab.id ? "active" : ""}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       <div className="citation-manager-body">
-        {analysis.bibFiles.length > 1 && onMergeBibFiles ? (
-          <div className="citation-merge-banner" role="note">
-            <span>
-              📚 This project has {analysis.bibFiles.length} .bib files (
-              {analysis.bibFiles.join(", ")}).
-            </span>
-            <button type="button" onClick={onMergeBibFiles}>
-              Merge into one .bib
-            </button>
-          </div>
-        ) : null}
-
         {activeTab === "library" ? (
           <div className="citation-manager-list">
             {filteredEntries.length ? (
-              filteredEntries.map((entry) => {
+              filteredEntries.slice(0, visibleCount).map((entry) => {
                 const usageCount = usageCountByKey.get(entry.key) ?? 0;
                 const score = citationQualityScore(entry);
                 const issues = qualityIssuesByKey.get(entry.key) ?? [];
@@ -437,11 +490,17 @@ export function CitationManager({
                     <div className="citation-card-main">
                       <div className="citation-card-heading">
                         <strong>{entry.key}</strong>
-                        <span>{entry.type || "unknown"}</span>
                         <span className={usageCount ? "used" : "unused"}>
-                          {usageCount ? `${usageCount} cited` : "Unused"}
+                          {usageCount ? `Cited ${usageCount}×` : "Unused"}
                         </span>
-                        <span>{score}% quality</span>
+                        {score < 60 ? (
+                          <span
+                            className="weak"
+                            title={`${score}% of the usual fields`}
+                          >
+                            Incomplete
+                          </span>
+                        ) : null}
                         {verificationByKey.has(entry.key) ? (
                           <span
                             className={`citation-verification ${
@@ -464,7 +523,9 @@ export function CitationManager({
                       </p>
                       <div className="citation-card-foot">
                         <span>{entry.sourceFile}</span>
-                        <span>{firstUsageLabel(usagesByKey, entry.key)}</span>
+                        {usageCount ? (
+                          <span>{firstUsageLabel(usagesByKey, entry.key)}</span>
+                        ) : null}
                         {entry.doi || entry.url ? (
                           <span className="citation-link-pill">
                             <Link2 size={11} />
@@ -483,9 +544,13 @@ export function CitationManager({
                     <div className="citation-card-actions">
                       <button
                         type="button"
+                        className="primary"
                         onClick={() => handleInsert(entry.key)}
                         disabled={!onInsertCitation}
+                        aria-label="Insert"
+                        title={`Insert \\${selectedCommand}{${entry.key}} at the cursor`}
                       >
+                        <CornerDownLeft size={12} />
                         Insert
                       </button>
                       <button
@@ -493,18 +558,20 @@ export function CitationManager({
                         onClick={() =>
                           void copyText(entry.key, `\\${selectedCommand}{${entry.key}}`)
                         }
+                        aria-label="Copy cite"
+                        title={`Copy \\${selectedCommand}{${entry.key}}`}
                       >
                         <Copy size={12} />
-                        Copy cite
                       </button>
                       <button
                         type="button"
                         onClick={() =>
                           void copyText(`${entry.key}.bib`, entryBibtexPreview(entry))
                         }
+                        aria-label="Copy BibTeX"
+                        title="Copy the BibTeX entry"
                       >
                         <Clipboard size={12} />
-                        BibTeX
                       </button>
                     </div>
                   </article>
@@ -517,6 +584,16 @@ export function CitationManager({
                   : "No .bib entries found in this project."}
               </div>
             )}
+            {filteredEntries.length > visibleCount ? (
+              <button
+                type="button"
+                className="citation-manager-more"
+                onClick={() => setVisibleCount((count) => count + pageSize * 5)}
+              >
+                Show more ({(filteredEntries.length - visibleCount).toLocaleString()}{" "}
+                more)
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -565,7 +642,7 @@ export function CitationManager({
         {activeTab === "gaps" ? (
           <div className="citation-manager-list">
             <div className="citation-manager-target">
-              <span>Target BibTeX file</span>
+              <span>Add stubs to</span>
               <select
                 value={targetBibFile || analysis.bibFiles[0] || ""}
                 onChange={(event) => setTargetBibFile(event.target.value)}
@@ -591,7 +668,7 @@ export function CitationManager({
                   <article key={key} className="citation-gap-card">
                     <div>
                       <strong>{key}</strong>
-                      <span>Used but not defined in any BibTeX file.</span>
+                      <span>Not in any .bib file</span>
                       <small>
                         {locations
                           .slice(0, 4)
@@ -621,8 +698,7 @@ export function CitationManager({
               })
             ) : (
               <div className="citation-manager-empty">
-                No missing citation keys. Current active file:{" "}
-                {activeDocumentPath || "none"}.
+                Every cited key is defined in a .bib file.
               </div>
             )}
           </div>
@@ -631,7 +707,7 @@ export function CitationManager({
         {activeTab === "quality" ? (
           <div className="citation-manager-list">
             <section className="citation-quality-section">
-              <h3>Duplicate Signals</h3>
+              <h3>Duplicates</h3>
               {analysis.duplicateGroups.length ? (
                 analysis.duplicateGroups.map((group) => (
                   <div
@@ -656,7 +732,7 @@ export function CitationManager({
             </section>
 
             <section className="citation-quality-section">
-              <h3>Metadata Debt</h3>
+              <h3>Missing fields</h3>
               {analysis.qualityIssues.length ? (
                 analysis.qualityIssues.slice(0, 80).map((issue) => (
                   <div

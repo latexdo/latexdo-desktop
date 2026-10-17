@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAiConfig, type AiConfig } from "../features/ai/aiConfig";
 import type { AgentContext, EditProposal } from "../features/ai/aiTools";
@@ -143,7 +143,7 @@ describe("AiSidebar", () => {
       makeConfig({ provider: "cloud", cloud: { credentialConfigured: false } }),
     );
 
-    expect(screen.getByText("Cloud · claude-opus-5-5")).toBeVisible();
+    expect(screen.getAllByText("Cloud · claude-opus-5-5")[0]).toBeVisible();
     expect(screen.getByText("AI isn't ready yet.")).toBeVisible();
     expect(screen.getByText("Add your API key in AI settings.")).toBeVisible();
 
@@ -151,10 +151,36 @@ describe("AiSidebar", () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps dictation and typing available, and explains a send without an AI", () => {
+    const { onOpenSettings } = renderSidebar(
+      makeConfig({ provider: "cloud", cloud: { credentialConfigured: false } }),
+    );
+
+    expect(screen.getByRole("button", { name: "Start voice dictation" })).toBeEnabled();
+    expect(screen.getByText(/Voice dictation works without an AI/)).toBeVisible();
+    const input = screen.getByPlaceholderText("Ask the AI anything");
+    fireEvent.change(input, { target: { value: "Fix my abstract" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // Nothing is sent and nothing is lost: the text stays, with the reason.
+    expect(input).toHaveValue("Fix my abstract");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your message is kept here. To send it, please set up an AI first: add your API key in AI settings.",
+    );
+    fireEvent.click(
+      within(screen.getByRole("status")).getByRole("button", {
+        name: "Open AI settings",
+      }),
+    );
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/Your message is kept here/)).not.toBeInTheDocument();
+  });
+
   it("explains desktop-only local setup in the browser", () => {
     renderSidebar(makeConfig({ provider: "local", modelDownloaded: true }), false);
 
-    expect(screen.getByText("LatexDo AI Plus")).toBeVisible();
+    expect(screen.getAllByText("LatexDo AI Plus")[0]).toBeVisible();
     expect(
       screen.getByText(
         "Local models need the desktop app. Switch to a cloud provider for the browser.",
@@ -179,7 +205,11 @@ describe("AiSidebar", () => {
     expect(
       screen.getByRole("heading", { name: "What are we writing today?" }),
     ).toBeVisible();
-    expect(screen.getByRole("img", { name: "Approval required" })).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: /Private and secure.*never leave this computer.*asks before it changes any file/,
+      }),
+    ).toBeVisible();
     expect(screen.queryByText("Ask me to…")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle("AI settings"));
@@ -483,5 +513,75 @@ describe("AiSidebar", () => {
 
     expect(apiRef.current?.proposeEdit).toBeDefined();
     expect(typeof apiRef.current?.proposeEdit).toBe("function");
+  });
+
+  it("switches models from the chat's model menu, and says why some cannot be used", () => {
+    const onSelectModel = vi.fn();
+    const onOpenSettings = vi.fn();
+    render(
+      <AiSidebar
+        config={makeConfig({
+          provider: "cloud",
+          cloud: {
+            credentialConfigured: true,
+            providerId: "anthropic",
+            model: "claude-opus-5-5",
+          },
+        })}
+        ctx={ctx}
+        isDesktop
+        expanded={false}
+        onToggleExpanded={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        onSelectModel={onSelectModel}
+        modelOptions={[
+          {
+            id: "tier:latexdo-ai",
+            group: "LatexDo AI · on this computer",
+            label: "LatexDo AI",
+            available: false,
+            reason: "Download it in AI settings",
+            active: false,
+          },
+          {
+            id: "cloud:claude-opus-5-5",
+            group: "Anthropic",
+            label: "claude-opus-5-5",
+            available: true,
+            active: true,
+          },
+          {
+            id: "cloud:claude-sonnet-5-5",
+            group: "Anthropic",
+            label: "claude-sonnet-5-5",
+            available: true,
+            active: false,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: /sent only to/ })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Change model/ })[0]!);
+    const menu = screen.getByRole("menu", { name: "Choose a model" });
+    expect(
+      within(menu).getByRole("menuitemradio", { name: /claude-opus-5-5/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(menu).getByRole("menuitemradio", { name: /LatexDo AI/ }),
+    ).toBeDisabled();
+    expect(within(menu).getByText("Download it in AI settings")).toBeVisible();
+
+    fireEvent.click(
+      within(menu).getByRole("menuitemradio", { name: /claude-sonnet-5-5/ }),
+    );
+    expect(onSelectModel).toHaveBeenCalledWith("cloud:claude-sonnet-5-5");
+    expect(
+      screen.queryByRole("menu", { name: "Choose a model" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Change model/ })[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Manage models/ }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });

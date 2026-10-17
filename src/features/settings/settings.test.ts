@@ -23,3 +23,34 @@ describe("built-in tools migration", () => {
     expect(loadSettings().tableGeneratorEnabled).toBe(false);
   });
 });
+
+describe("color theme migration", () => {
+  it("keeps the look of the retired light-only themes", () => {
+    window.localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ colorTheme: "studio", appearanceMode: "dark" }),
+    );
+    expect(loadSettings()).toMatchObject({
+      colorTheme: "graphite",
+      appearanceMode: "light",
+    });
+
+    window.localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ colorTheme: "paper" }),
+    );
+    expect(loadSettings()).toMatchObject({
+      colorTheme: "forest",
+      appearanceMode: "light",
+    });
+
+    window.localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ colorTheme: "sepia", appearanceMode: "dark" }),
+    );
+    expect(loadSettings()).toMatchObject({
+      colorTheme: "sepia",
+      appearanceMode: "dark",
+    });
+  });
+});
