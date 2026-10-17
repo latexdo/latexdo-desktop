@@ -266,9 +266,18 @@ export class CloudE2ee {
       const key = newProjectKey();
       const parsed = body ? (JSON.parse(body) as Record<string, unknown>) : {};
       const name =
-        typeof parsed.folderName === "string" ? parsed.folderName : String(parsed.name ?? "");
-      const sealedBody = JSON.stringify({ folderName: await this.sealName(key, name || "Shared project") });
-      const response = await send(path, method, await this.withSealedName(headers, key), sealedBody);
+        typeof parsed.folderName === "string"
+          ? parsed.folderName
+          : String(parsed.name ?? "");
+      const sealedBody = JSON.stringify({
+        folderName: await this.sealName(key, name || "Shared project"),
+      });
+      const response = await send(
+        path,
+        method,
+        await this.withSealedName(headers, key),
+        sealedBody,
+      );
       if (response.status !== 200) return response;
       const project = JSON.parse(response.text) as Record<string, unknown>;
       if (typeof project.id !== "string" || !projectIdPattern.test(project.id)) {
@@ -294,8 +303,13 @@ export class CloudE2ee {
     if (pathname?.endsWith("/files/content")) {
       const live = this.liveSession(projectId, filePath);
       if (method === "GET") {
-        if (live) return reply(200, { content: live.doc.getText("content").toString() });
-        const log = await send(`${projectBase}/files/log?${params}`, "GET", sealedHeaders);
+        if (live)
+          return reply(200, { content: live.doc.getText("content").toString() });
+        const log = await send(
+          `${projectBase}/files/log?${params}`,
+          "GET",
+          sealedHeaders,
+        );
         if (log.status === 404) return log;
         if (log.status !== 200) return log;
         const doc = await this.docFromEntries(
@@ -322,7 +336,11 @@ export class CloudE2ee {
           live.applyLocal(replace);
           return reply(204);
         }
-        const log = await send(`${projectBase}/files/log?${params}`, "GET", sealedHeaders);
+        const log = await send(
+          `${projectBase}/files/log?${params}`,
+          "GET",
+          sealedHeaders,
+        );
         const doc =
           log.status === 200
             ? await this.docFromEntries(
@@ -338,7 +356,9 @@ export class CloudE2ee {
           `${projectBase}/files/log?${params}`,
           "POST",
           sealedHeaders,
-          JSON.stringify({ data: base64(await encryptBytes(key, projectId, "text", update)) }),
+          JSON.stringify({
+            data: base64(await encryptBytes(key, projectId, "text", update)),
+          }),
         );
         return response.status === 200 ? reply(204) : response;
       }
@@ -359,13 +379,20 @@ export class CloudE2ee {
             );
             if (text.status !== 200) return text;
             const content = (JSON.parse(text.text) as { content: string }).content;
-            return reply(200, { base64: Buffer.from(content, "utf8").toString("base64") });
+            return reply(200, {
+              base64: Buffer.from(content, "utf8").toString("base64"),
+            });
           }
           return response;
         }
         const sealed = (JSON.parse(response.text) as { base64: string }).base64;
         try {
-          const plain = await decryptBytes(key, projectId, "file", bytesFromBase64(sealed));
+          const plain = await decryptBytes(
+            key,
+            projectId,
+            "file",
+            bytesFromBase64(sealed),
+          );
           return reply(200, { base64: base64(plain) });
         } catch {
           return reply(422, { error: "This file could not be decrypted." });
@@ -373,9 +400,20 @@ export class CloudE2ee {
       }
       if (method === "PUT") {
         const plain = (JSON.parse(body ?? "{}") as { base64?: unknown }).base64;
-        if (typeof plain !== "string") return reply(400, { error: "Missing file data." });
-        const sealed = await encryptBytes(key, projectId, "file", bytesFromBase64(plain));
-        return send(path, method, sealedHeaders, JSON.stringify({ base64: base64(sealed) }));
+        if (typeof plain !== "string")
+          return reply(400, { error: "Missing file data." });
+        const sealed = await encryptBytes(
+          key,
+          projectId,
+          "file",
+          bytesFromBase64(plain),
+        );
+        return send(
+          path,
+          method,
+          sealedHeaders,
+          JSON.stringify({ base64: base64(sealed) }),
+        );
       }
     }
 
@@ -390,14 +428,20 @@ export class CloudE2ee {
       for (const file of bundle.files) {
         if (file.entries) {
           const live = this.liveSession(projectId, file.relativePath);
-          const doc = live?.doc ?? (await this.docFromEntries(key, projectId, file.entries));
+          const doc =
+            live?.doc ?? (await this.docFromEntries(key, projectId, file.entries));
           files.push({
             relativePath: file.relativePath,
             content: doc.getText("content").toString(),
           });
         } else if (typeof file.base64 === "string") {
           try {
-            const plain = await decryptBytes(key, projectId, "file", bytesFromBase64(file.base64));
+            const plain = await decryptBytes(
+              key,
+              projectId,
+              "file",
+              bytesFromBase64(file.base64),
+            );
             files.push({ relativePath: file.relativePath, base64: base64(plain) });
           } catch {
             // Skip a file that cannot be decrypted rather than compile garbage.
@@ -421,15 +465,20 @@ export class CloudE2ee {
 
   // --- Live editing ------------------------------------------------------------
 
-  async openSocket(pathAndQuery: string, handlers: E2eeSocketHandlers): Promise<E2eeSocket> {
+  async openSocket(
+    pathAndQuery: string,
+    handlers: E2eeSocketHandlers,
+  ): Promise<E2eeSocket> {
     const [pathname, query = ""] = pathAndQuery.split("?");
     const params = new URLSearchParams(query);
     const projectId = projectIdForPath(pathname ?? "");
     const filePath = params.get("path") ?? "";
-    if (!projectId || !filePath) throw new Error("Invalid collaboration socket request.");
+    if (!projectId || !filePath)
+      throw new Error("Invalid collaboration socket request.");
     const key = await this.key(projectId);
     const name = params.get("name");
-    if (name && !isEncryptedString(name)) params.set("name", await this.sealName(key, name));
+    if (name && !isEncryptedString(name))
+      params.set("name", await this.sealName(key, name));
 
     const doc = new Y.Doc();
     let server: E2eeSocket | null = null;
@@ -484,12 +533,19 @@ export class CloudE2ee {
     };
 
     const compact = async (seq: number) => {
-      const snapshot = await encryptBytes(key, projectId, "text", Y.encodeStateAsUpdate(doc));
+      const snapshot = await encryptBytes(
+        key,
+        projectId,
+        "text",
+        Y.encodeStateAsUpdate(doc),
+      );
       const headers: Record<string, string> = {
         "content-type": "application/json",
         "x-latexdo-session": params.get("session") ?? "",
         "x-latexdo-client": params.get("clientId") ?? "",
-        ...(params.get("share") ? { "x-latexdo-share-token": params.get("share")! } : {}),
+        ...(params.get("share")
+          ? { "x-latexdo-share-token": params.get("share")! }
+          : {}),
       };
       await this.transport
         .request(
@@ -518,11 +574,17 @@ export class CloudE2ee {
         for (let index = 0; index < count; index += 1) {
           sealedUpdates.push(decoding.readVarUint8Array(decoder));
         }
-        const role = decoding.hasContent(decoder) ? decoding.readVarString(decoder) : "editor";
+        const role = decoding.hasContent(decoder)
+          ? decoding.readVarString(decoder)
+          : "editor";
         canEdit = role === "editor" || role === "admin";
         for (const sealed of sealedUpdates) {
           try {
-            Y.applyUpdate(doc, await decryptBytes(key, projectId, "text", sealed), "server");
+            Y.applyUpdate(
+              doc,
+              await decryptBytes(key, projectId, "text", sealed),
+              "server",
+            );
           } catch {
             // Ignore anything this key did not seal.
           }
@@ -576,7 +638,10 @@ export class CloudE2ee {
           const raw = JSON.parse(decoding.readVarString(decoder)) as unknown;
           const encoder = encoding.createEncoder();
           encoding.writeVarUint(encoder, messageProjectPresence);
-          encoding.writeVarString(encoder, JSON.stringify(await this.openNames(raw, key)));
+          encoding.writeVarString(
+            encoder,
+            JSON.stringify(await this.openNames(raw, key)),
+          );
           sendToEditor(encoding.toUint8Array(encoder));
         } catch {
           // A malformed presence frame is dropped.
@@ -640,7 +705,8 @@ export class CloudE2ee {
           } catch {
             return;
           }
-          if (encoding.length(encoder) > 1) handlers.onMessage(encoding.toUint8Array(encoder));
+          if (encoding.length(encoder) > 1)
+            handlers.onMessage(encoding.toUint8Array(encoder));
           return;
         }
         if (type === messageAwareness && server) {

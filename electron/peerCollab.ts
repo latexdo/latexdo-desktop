@@ -169,7 +169,14 @@ export class PeerCollabService {
       ),
       {
         request: (requestPath, method, headers, body, timeoutMs) =>
-          this.rawRequest({ base: this.cloudOrigin! }, requestPath, method, headers, body, timeoutMs),
+          this.rawRequest(
+            { base: this.cloudOrigin! },
+            requestPath,
+            method,
+            headers,
+            body,
+            timeoutMs,
+          ),
         openSocket: async (pathAndQuery, handlers) =>
           this.rawSocket({ base: this.cloudOrigin! }, pathAndQuery, handlers),
       },

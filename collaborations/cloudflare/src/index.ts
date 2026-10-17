@@ -86,7 +86,8 @@ async function allow(env: Env, ip: string, create = false): Promise<boolean> {
   if (!localAllow(ip, create)) return false;
   try {
     if (env.REQUESTS && !(await env.REQUESTS.limit({ key: ip })).success) return false;
-    if (create && env.CREATES && !(await env.CREATES.limit({ key: ip })).success) return false;
+    if (create && env.CREATES && !(await env.CREATES.limit({ key: ip })).success)
+      return false;
   } catch {
     // The binding is best effort; the local window above still applies.
   }
@@ -127,7 +128,10 @@ export default {
           return json(200, { projects: await owners.list() });
         if (request.method === "POST") {
           if (!(await allow(env, ip, true))) {
-            throw new HttpError(429, "Too many new projects. Please try again shortly.");
+            throw new HttpError(
+              429,
+              "Too many new projects. Please try again shortly.",
+            );
           }
           if ((await owners.count()) >= limits.maxProjectsPerOwner) {
             throw new HttpError(

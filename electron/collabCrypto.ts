@@ -23,7 +23,9 @@ const stringPrefix = "enc1:";
 export type CipherKind = "text" | "file" | "name" | "cursor";
 
 export function newProjectKey(): string {
-  return Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+  return Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString(
+    "base64url",
+  );
 }
 
 export function isProjectKey(value: unknown): value is string {
@@ -40,10 +42,13 @@ function importKey(key: string): Promise<CryptoKey> {
   let imported = importedKeys.get(key);
   if (!imported) {
     if (!isProjectKey(key)) throw new Error("Invalid project key.");
-    imported = subtle.importKey("raw", Buffer.from(key, "base64url"), "AES-GCM", false, [
-      "encrypt",
-      "decrypt",
-    ]);
+    imported = subtle.importKey(
+      "raw",
+      Buffer.from(key, "base64url"),
+      "AES-GCM",
+      false,
+      ["encrypt", "decrypt"],
+    );
     importedKeys.set(key, imported);
   }
   return imported;
@@ -104,7 +109,12 @@ export async function encryptString(
   kind: CipherKind,
   value: string,
 ): Promise<string> {
-  const sealed = await encryptBytes(key, projectId, kind, new TextEncoder().encode(value));
+  const sealed = await encryptBytes(
+    key,
+    projectId,
+    kind,
+    new TextEncoder().encode(value),
+  );
   return `${stringPrefix}${Buffer.from(sealed).toString("base64url")}`;
 }
 

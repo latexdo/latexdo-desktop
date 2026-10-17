@@ -20,8 +20,9 @@ export class UsageMeter extends DurableObject<Record<string, unknown>> {
 
   private total(): number {
     return (
-      this.sql.exec<{ total: number | null }>("SELECT SUM(bytes) AS total FROM projects").one()
-        .total ?? 0
+      this.sql
+        .exec<{ total: number | null }>("SELECT SUM(bytes) AS total FROM projects")
+        .one().total ?? 0
     );
   }
 

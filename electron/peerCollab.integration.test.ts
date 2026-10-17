@@ -683,6 +683,16 @@ describe("hosting a project from this computer", () => {
         key: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       });
 
+      // Newcomers wait for the owner by default; this owner lets anyone in.
+      await call(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        "PUT",
+        `/api/shares/${token}/approval`,
+        { requireApproval: false },
+        token,
+      );
       const resolved = await visitorApp.service.resolveInvite(invite);
       const opened = await call(
         visitorApp.service,
@@ -715,6 +725,45 @@ describe("hosting a project from this computer", () => {
         () => ownerDoc.text.toString() === "Hello from Ada",
         "owner sees the guest's edit",
       );
+      // Through the app the text reads normally...
+      await until(async () => {
+        const read = await call(
+          visitorApp.service,
+          resolved.origin,
+          guest,
+          "GET",
+          `/api/projects/${projectId}/files/content?path=main.tex`,
+          undefined,
+          token,
+        );
+        return read.body.content === "Hello from Ada";
+      }, "decrypted read");
+      // ...while the server itself only holds ciphertext.
+      const raw = await fetch(
+        `${new URL(cloudOrigin).origin}/api/projects/${projectId}/files/log?path=main.tex`,
+        {
+          headers: {
+            "x-latexdo-session": owner.session,
+            "x-latexdo-client": owner.client,
+          },
+        },
+      ).then((response) => response.json() as Promise<{ entries: string[] }>);
+      expect(raw.entries.length).toBeGreaterThan(0);
+      const stored = raw.entries
+        .map((entry) => Buffer.from(entry, "base64").toString("latin1"))
+        .join("");
+      expect(stored).not.toContain("Hello");
+      expect(stored).not.toContain("Ada");
+      const project = await fetch(
+        `${new URL(cloudOrigin).origin}/api/projects/${projectId}/share`,
+        {
+          headers: {
+            "x-latexdo-session": owner.session,
+            "x-latexdo-client": owner.client,
+          },
+        },
+      ).then((response) => response.json() as Promise<{ projectName: string }>);
+      expect(project.projectName).toMatch(/^enc1:/);
       ownerDoc.socket.close();
       guestDoc.socket.close();
     },

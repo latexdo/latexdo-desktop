@@ -1,12 +1,12 @@
 // End-to-end checks against a running server (wrangler dev locally, or the
 // deployed one): COLLAB_URL=https://collab.latexdo.org npm test
+// The server only stores and relays ciphertext, so these tests send opaque
+// bytes; the app's encryption is tested in electron/cloudE2ee.test.ts.
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { test } from "node:test";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
-import * as syncProtocol from "y-protocols/sync";
-import * as Y from "yjs";
 
 const base = process.env.COLLAB_URL ?? "http://localhost:8790";
 
@@ -30,10 +30,8 @@ async function call(who, method, path, body, token) {
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
-/** A minimal live editor speaking the y-websocket protocol. */
-async function editor(who, projectId, path, token) {
-  const doc = new Y.Doc();
-  const text = doc.getText("content");
+/** A minimal live connection speaking the encrypted-relay protocol. */
+async function connect(who, projectId, path, token) {
   const url = new URL(`/api/projects/${projectId}/files/collaborate`, base);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.search = new URLSearchParams({
@@ -45,44 +43,50 @@ async function editor(who, projectId, path, token) {
   }).toString();
   const socket = new WebSocket(url);
   socket.binaryType = "arraybuffer";
+  const updates = [];
+  const cursors = [];
   const frames = [];
-  let synced;
-  const ready = new Promise((resolve) => (synced = resolve));
-  socket.addEventListener("message", (event) => {
-    const data = new Uint8Array(event.data);
-    const decoder = decoding.createDecoder(data);
-    const type = decoding.readVarUint(decoder);
-    if (type !== 0) {
-      frames.push({ type, data: type >= 4 ? decoding.readVarString(decoder) : null });
-      return;
-    }
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, 0);
-    const inner = syncProtocol.readSyncMessage(decoder, encoder, doc, "remote");
-    if (encoding.length(encoder) > 1) socket.send(encoding.toUint8Array(encoder));
-    if (
-      inner === syncProtocol.messageYjsSyncStep2 ||
-      inner === syncProtocol.messageYjsSyncStep1
-    )
-      synced();
-  });
-  await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
-  });
-  const encoder = encoding.createEncoder();
-  encoding.writeVarUint(encoder, 0);
-  syncProtocol.writeSyncStep1(encoder, doc);
-  socket.send(encoding.toUint8Array(encoder));
-  doc.on("update", (update, origin) => {
-    if (origin === "remote") return;
-    const out = encoding.createEncoder();
-    encoding.writeVarUint(out, 0);
-    syncProtocol.writeUpdate(out, update);
-    socket.send(encoding.toUint8Array(out));
+  let log;
+  const ready = new Promise((resolve) => {
+    socket.addEventListener("message", (event) => {
+      const decoder = decoding.createDecoder(new Uint8Array(event.data));
+      const type = decoding.readVarUint(decoder);
+      if (type === 11) {
+        const seq = decoding.readVarUint(decoder);
+        const count = decoding.readVarUint(decoder);
+        const entries = [];
+        for (let index = 0; index < count; index += 1) {
+          entries.push(Buffer.from(decoding.readVarUint8Array(decoder)));
+        }
+        log = { seq, entries, role: decoding.readVarString(decoder) };
+        resolve();
+      } else if (type === 10) {
+        decoding.readVarUint(decoder);
+        updates.push(Buffer.from(decoding.readVarUint8Array(decoder)));
+      } else if (type === 12) {
+        cursors.push(Buffer.from(decoding.readVarUint8Array(decoder)));
+      } else {
+        frames.push({ type, data: decoding.readVarString(decoder) });
+      }
+    });
   });
   await ready;
-  return { doc, text, socket, frames, close: () => socket.close(1000, "done") };
+  const sendTyped = (type, bytes) => {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, type);
+    encoding.writeVarUint8Array(encoder, bytes);
+    socket.send(encoding.toUint8Array(encoder));
+  };
+  return {
+    socket,
+    log,
+    updates,
+    cursors,
+    frames,
+    sendUpdate: (bytes) => sendTyped(10, bytes),
+    sendCursor: (bytes) => sendTyped(12, bytes),
+    close: () => socket.close(1000, "done"),
+  };
 }
 
 async function until(check, label, ms = 8000) {
@@ -94,281 +98,222 @@ async function until(check, label, ms = 8000) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-test("a shared project works end to end", async () => {
-  const owner = person("Omar");
-  const guest = person("Ada");
-  const stranger = person("Eve");
+const sealed = (size = 48) => randomBytes(size);
+const b64 = (bytes) => Buffer.from(bytes).toString("base64");
+
+test("an encrypted shared project works end to end", async () => {
+  const owner = person("enc1:owner");
+  const guest = person("enc1:guest");
+  const stranger = person("enc1:stranger");
 
   const health = await fetch(new URL("/api/health", base)).then((r) => r.json());
-  assert.equal(health.ok, true);
+  assert.equal(health.encryption, "end-to-end");
 
-  // The owner creates a project and uploads text and a figure.
-  const created = await call(owner, "POST", "/api/projects", { folderName: "Thesis" });
+  const created = await call(owner, "POST", "/api/projects", {
+    folderName: "enc1:name",
+  });
   assert.equal(created.status, 200);
   const id = created.body.id;
-  assert.match(id, /^project_[0-9a-f]{32}$/);
+  assert.equal(created.body.name, "enc1:name");
+
+  // Plaintext file access is refused: everything is end-to-end encrypted.
+  assert.equal(
+    (await call(owner, "GET", `/api/projects/${id}/files/content?path=main.tex`)).body
+      .code,
+    "encrypted",
+  );
+
+  // The owner stores an encrypted text log and an encrypted figure.
+  const first = sealed();
   assert.equal(
     (
-      await call(owner, "PUT", `/api/projects/${id}/files/content?path=main.tex`, {
-        content: "Hello",
+      await call(owner, "POST", `/api/projects/${id}/files/log?path=main.tex`, {
+        data: b64(first),
+      })
+    ).status,
+    200,
+  );
+  const figure = sealed(200);
+  assert.equal(
+    (
+      await call(owner, "PUT", `/api/projects/${id}/files/binary?path=fig/plot.png`, {
+        base64: b64(figure),
       })
     ).status,
     204,
   );
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3, 255]);
-  assert.equal(
-    (
-      await call(
-        owner,
-        "PUT",
-        `/api/projects/${id}/files/binary?path=figures/plot.png`,
-        { base64: png.toString("base64") },
-      )
-    ).status,
-    204,
-  );
-  const listed = (await call(owner, "GET", "/api/projects")).body.projects;
-  assert.ok(
-    listed.some((project) => project.id === id),
-    "owner index lists the project",
+  assert.deepEqual(
+    Buffer.from(
+      (await call(owner, "GET", `/api/projects/${id}/files/binary?path=fig/plot.png`))
+        .body.base64,
+      "base64",
+    ),
+    figure,
   );
 
-  // Nobody gets in without the invite.
-  assert.equal((await call(stranger, "GET", `/api/projects/${id}/files`)).status, 403);
-
-  // Sharing gives a token that carries the project id.
-  const share = await call(owner, "POST", `/api/projects/${id}/share`, {});
-  const token = share.body.token;
-  assert.equal(share.body.enabled, true);
+  // Sharing; newcomers wait for approval by default.
+  const token = (await call(owner, "POST", `/api/projects/${id}/share`, {})).body.token;
   assert.match(token, /^p[0-9a-f]{32}_[A-Za-z0-9_-]{43}$/);
-
-  // The guest joins and sees the same files, figure included.
+  assert.equal(
+    (await call(guest, "POST", `/api/shares/${token}/open`, {}, token)).body.code,
+    "approval-pending",
+  );
+  await call(
+    owner,
+    "POST",
+    `/api/shares/${token}/pending/${guest.client}`,
+    { action: "approve" },
+    token,
+  );
   const opened = await call(guest, "POST", `/api/shares/${token}/open`, {}, token);
   assert.equal(opened.status, 200);
-  assert.equal(opened.body.project.id, id);
-  const tree = (await call(guest, "GET", `/api/projects/${id}/files`, undefined, token))
-    .body;
-  assert.deepEqual(
-    tree.map((entry) => entry.name),
-    ["figures", "main.tex"],
-  );
-  assert.equal(tree[0].children[0].binary, true);
-  const figure = await call(
-    guest,
-    "GET",
-    `/api/projects/${id}/files/binary?path=figures/plot.png`,
-    undefined,
-    token,
-  );
-  assert.deepEqual(Buffer.from(figure.body.base64, "base64"), png);
+  assert.equal(opened.body.collaboration.encrypted, true);
+  assert.equal((await call(stranger, "GET", `/api/projects/${id}/files`)).status, 403);
 
-  // Two people type in the same file at once and both see the result.
-  const a = await editor(owner, id, "main.tex");
-  const b = await editor(guest, id, "main.tex", token);
+  // Live: both get the stored log, then each other's updates and cursors.
+  const a = await connect(owner, id, "main.tex");
+  const b = await connect(guest, id, "main.tex", token);
+  assert.deepEqual(a.log.entries, [first]);
+  assert.equal(b.log.role, "editor");
+  const fromA = sealed();
+  const fromB = sealed();
+  a.sendUpdate(fromA);
+  b.sendUpdate(fromB);
+  b.sendCursor(sealed(20));
   await until(
-    () => a.text.toString() === "Hello" && b.text.toString() === "Hello",
-    "initial sync",
+    () => a.updates.length === 1 && b.updates.length === 1,
+    "relayed updates",
   );
-  a.text.insert(5, ", world");
-  b.text.insert(0, ">> ");
+  assert.deepEqual(a.updates[0], fromB);
+  assert.deepEqual(b.updates[0], fromA);
+  await until(() => a.cursors.length === 1, "relayed cursor");
   await until(
     () =>
-      a.text.toString() === b.text.toString() &&
-      a.text.toString() === ">> Hello, world",
-    "merged edits",
-  );
-  // The server's copy is the merged text too.
-  await until(
-    async () =>
-      (
-        await call(
-          guest,
-          "GET",
-          `/api/projects/${id}/files/content?path=main.tex`,
-          undefined,
-          token,
-        )
-      ).body.content === ">> Hello, world",
-    "server copy",
+      a.frames.some((frame) => frame.type === 4 && frame.data.includes("enc1:guest")),
+    "presence",
   );
 
-  // Adding a file tells every open editor to refresh its tree.
-  await call(
-    guest,
-    "POST",
-    `/api/projects/${id}/files`,
-    { relativePath: "sections/intro.tex", type: "file" },
-    token,
-  );
-  await until(() => a.frames.some((frame) => frame.type === 5), "tree change frame");
-  // Presence shows both people.
-  await until(
-    () => a.frames.some((frame) => frame.type === 4 && frame.data.includes("Ada")),
-    "presence frame",
-  );
-
-  // Copy, move and delete.
-  assert.equal(
-    (
-      await call(
-        guest,
-        "POST",
-        `/api/projects/${id}/files/copy`,
-        { fromRelativePath: "main.tex", toRelativePath: "backup/main.tex" },
-        token,
-      )
-    ).status,
-    200,
-  );
-  assert.equal(
-    (
-      await call(
-        guest,
-        "POST",
-        `/api/projects/${id}/files/move`,
-        { fromRelativePath: "backup", toRelativePath: "old" },
-        token,
-      )
-    ).status,
-    200,
-  );
-  assert.equal(
-    (
-      await call(
-        guest,
-        "GET",
-        `/api/projects/${id}/files/content?path=old/main.tex`,
-        undefined,
-        token,
-      )
-    ).body.content,
-    ">> Hello, world",
-  );
-  assert.equal(
-    (
-      await call(
-        guest,
-        "DELETE",
-        `/api/projects/${id}/files?path=old`,
-        undefined,
-        token,
-      )
-    ).status,
-    204,
-  );
-  assert.equal(
-    (
-      await call(
-        guest,
-        "GET",
-        `/api/projects/${id}/files/exists?path=old/main.tex`,
-        undefined,
-        token,
-      )
-    ).body.exists,
-    false,
-  );
-
-  // One request returns the whole project, figure included, for compiling.
-  const bundle = (
-    await call(guest, "GET", `/api/projects/${id}/files/bundle`, undefined, token)
+  // The log now holds all three updates, in order of arrival.
+  const log = (
+    await call(
+      guest,
+      "GET",
+      `/api/projects/${id}/files/log?path=main.tex`,
+      undefined,
+      token,
+    )
   ).body;
-  assert.deepEqual(
-    bundle.files.map((file) => file.relativePath),
-    ["figures/plot.png", "main.tex", "sections/intro.tex"],
-  );
-  assert.equal(bundle.files[0].base64, png.toString("base64"));
+  assert.equal(log.entries.length, 3);
+  assert.equal(log.entries[0], b64(first));
 
-  // Approval: newcomers wait, the owner lets them in as viewers.
+  // Compaction replaces the log with one snapshot.
+  const snapshot = sealed(64);
+  assert.equal(
+    (
+      await call(
+        guest,
+        "POST",
+        `/api/projects/${id}/files/log?path=main.tex`,
+        { data: b64(snapshot), replaceUpTo: log.seq },
+        token,
+      )
+    ).status,
+    200,
+  );
+  assert.deepEqual(
+    (
+      await call(
+        guest,
+        "GET",
+        `/api/projects/${id}/files/log?path=main.tex`,
+        undefined,
+        token,
+      )
+    ).body.entries,
+    [b64(snapshot)],
+  );
+
+  // A viewer may read but never write.
   await call(
     owner,
     "PUT",
-    `/api/shares/${token}/approval`,
-    { requireApproval: true },
+    `/api/shares/${token}/permissions`,
+    { clientId: guest.client, role: "viewer" },
     token,
   );
-  const knocking = await call(stranger, "POST", `/api/shares/${token}/open`, {}, token);
-  assert.equal(knocking.body.code, "approval-pending");
-  const permissions = (
-    await call(owner, "GET", `/api/shares/${token}/permissions`, undefined, token)
-  ).body;
-  assert.equal(permissions.pending[0].name, "Eve");
-  await call(
-    owner,
-    "POST",
-    `/api/shares/${token}/pending/${stranger.client}`,
-    { action: "approve", role: "viewer" },
-    token,
+  await until(
+    () => b.socket.readyState === WebSocket.CLOSED,
+    "role change disconnects",
   );
-  assert.equal(
-    (await call(stranger, "POST", `/api/shares/${token}/open`, {}, token)).body
-      .collaboration.currentUserRole,
-    "viewer",
+  const viewer = await connect(guest, id, "main.tex", token);
+  assert.equal(viewer.log.role, "viewer");
+  viewer.sendUpdate(sealed());
+  await until(
+    () => viewer.socket.readyState === WebSocket.CLOSED,
+    "viewer write rejected",
   );
   assert.equal(
     (
       await call(
-        stranger,
-        "PUT",
-        `/api/projects/${id}/files/content?path=main.tex`,
-        { content: "x" },
+        guest,
+        "POST",
+        `/api/projects/${id}/files/log?path=main.tex`,
+        { data: b64(sealed()) },
         token,
       )
     ).status,
     403,
   );
 
-  // Removing someone cuts them off and retires the invite.
-  const removed = await call(
-    owner,
-    "DELETE",
-    `/api/shares/${token}/collaborators/${guest.client}`,
-    undefined,
-    token,
+  // Tree changes reach open editors; the bundle carries everything encrypted.
+  await call(owner, "POST", `/api/projects/${id}/files/copy`, {
+    fromRelativePath: "fig",
+    toRelativePath: "old",
+  });
+  await until(() => a.frames.some((frame) => frame.type === 5), "tree change");
+  await call(owner, "DELETE", `/api/projects/${id}/files?path=old`);
+  const bundle = (await call(owner, "GET", `/api/projects/${id}/files/bundle`)).body;
+  assert.deepEqual(
+    bundle.files.map((file) => file.relativePath),
+    ["fig/plot.png", "main.tex"],
   );
-  assert.equal(removed.status, 204);
-  await until(
-    () => b.socket.readyState === WebSocket.CLOSED,
-    "removed editor disconnected",
-  );
-  assert.equal(
-    (await call(guest, "GET", `/api/projects/${id}/files`, undefined, token)).body.code,
-    "access-removed",
-  );
-  const newToken = (await call(owner, "GET", `/api/projects/${id}/share`)).body.token;
-  assert.notEqual(newToken, token);
+  assert.deepEqual(bundle.files[1].entries, [b64(snapshot)]);
 
-  // Stopping sharing closes everyone else's access; the owner keeps the project.
+  // Stopping sharing locks everyone else out.
   await call(owner, "DELETE", `/api/projects/${id}/share`);
   assert.equal(
-    (await call(stranger, "GET", `/api/projects/${id}/files`, undefined, newToken)).body
-      .code,
+    (await call(guest, "GET", `/api/projects/${id}/files`, undefined, token)).body.code,
     "sharing-stopped",
-  );
-  assert.equal(
-    (await call(owner, "GET", `/api/projects/${id}/files/content?path=main.tex`)).body
-      .content,
-    ">> Hello, world",
   );
   a.close();
 });
 
-test("rejects unsafe paths and oversized files", async () => {
-  const owner = person("Omar");
-  const id = (await call(owner, "POST", "/api/projects", { folderName: "Limits" })).body
+test("refuses browsers, unsafe paths and floods", async () => {
+  const owner = person("enc1:omar");
+  const preflight = await fetch(new URL("/api/projects", base), { method: "OPTIONS" });
+  assert.equal(preflight.status, 405);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), null);
+  const id = (await call(owner, "POST", "/api/projects", { folderName: "enc1:x" })).body
     .id;
   for (const path of ["../x", "/etc/passwd", "a/../../b", ".git/config", "C:/x"]) {
     const response = await call(
       owner,
-      "PUT",
-      `/api/projects/${id}/files/content?path=${encodeURIComponent(path)}`,
-      { content: "x" },
+      "POST",
+      `/api/projects/${id}/files/log?path=${encodeURIComponent(path)}`,
+      { data: b64(sealed()) },
     );
     assert.equal(response.status, 400, path);
   }
   assert.equal((await call(owner, "GET", "/api/shares/not-a-token/open")).status, 404);
-  assert.equal(
-    (await call(owner, "GET", "/api/projects/project_nope/files")).status,
-    404,
-  );
+  // At most a handful of new projects per minute from one address.
+  let refused = false;
+  for (let index = 0; index < 8 && !refused; index += 1) {
+    refused =
+      (
+        await call(person("enc1:spam"), "POST", "/api/projects", {
+          folderName: "enc1:s",
+        })
+      ).status === 429;
+  }
+  assert.equal(refused, true);
 });

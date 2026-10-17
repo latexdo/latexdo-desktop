@@ -14,12 +14,20 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ProjectRoom", "OwnerIndex"] },
-    { "tag": "v2", "new_sqlite_classes": ["UsageMeter"] }
+    { "tag": "v2", "new_sqlite_classes": ["UsageMeter"] },
   ],
   // Per-address limits, counted across Cloudflare's network.
   "ratelimits": [
-    { "name": "REQUESTS", "namespace_id": "4101", "simple": { "limit": 600, "period": 60 } },
-    { "name": "CREATES", "namespace_id": "4102", "simple": { "limit": 5, "period": 60 } }
+    {
+      "name": "REQUESTS",
+      "namespace_id": "4101",
+      "simple": { "limit": 600, "period": 60 },
+    },
+    {
+      "name": "CREATES",
+      "namespace_id": "4102",
+      "simple": { "limit": 5, "period": 60 },
+    },
   ],
   "routes": [{ "pattern": "collab.latexdo.org", "custom_domain": true }],
   // No request logs: URLs carry share tokens and session ids.

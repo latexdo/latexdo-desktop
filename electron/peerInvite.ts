@@ -90,7 +90,9 @@ export function decodePeerInvite(input: unknown): PeerInvite | null {
       ),
     ];
     if (!addresses.length) return null;
-    return typeof k === "string" ? { token: t, addresses, key: k } : { token: t, addresses };
+    return typeof k === "string"
+      ? { token: t, addresses, key: k }
+      : { token: t, addresses };
   } catch {
     return null;
   }

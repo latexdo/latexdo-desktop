@@ -169,7 +169,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private meta: ProjectMeta | null = null;
   private readonly presence = new Map<string, Presence>();
   /** Updates relayed but not yet saved, per file. */
-  private readonly pending = new Map<string, Array<{ seq: number; data: Uint8Array }>>();
+  private readonly pending = new Map<
+    string,
+    Array<{ seq: number; data: Uint8Array }>
+  >();
   private readonly nextSeq = new Map<string, number>();
   private flushScheduled = false;
   private reportedBytes = -1;
@@ -225,13 +228,16 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   private async body(request: Request): Promise<Record<string, unknown>> {
     const length = Number(request.headers.get("content-length") ?? "0");
-    if (length > limits.maxJsonBytes) throw new HttpError(413, "Request body is too large.");
+    if (length > limits.maxJsonBytes)
+      throw new HttpError(413, "Request body is too large.");
     const text = await request.text();
-    if (text.length > limits.maxJsonBytes) throw new HttpError(413, "Request body is too large.");
+    if (text.length > limits.maxJsonBytes)
+      throw new HttpError(413, "Request body is too large.");
     if (!text) return {};
     try {
       const value = JSON.parse(text) as unknown;
-      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error();
       return value as Record<string, unknown>;
     } catch {
       throw new HttpError(400, "Request body must be JSON.");
@@ -251,7 +257,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         : typeof body.name === "string"
           ? body.name
           : "";
-    const name = rawName.trim().slice(0, limits.maxNameChars) || "LatexDo Shared Project";
+    const name =
+      rawName.trim().slice(0, limits.maxNameChars) || "LatexDo Shared Project";
     const meta: ProjectMeta = {
       schemaVersion: 2,
       id: projectId,
@@ -283,7 +290,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     return json(200, { id: projectId, rootPath: "", name });
   }
 
-  private async projectRoute(request: Request, url: URL, parts: string[]): Promise<Response> {
+  private async projectRoute(
+    request: Request,
+    url: URL,
+    parts: string[],
+  ): Promise<Response> {
     const route = parts.slice(3).join("/");
     const method = request.method;
 
@@ -323,7 +334,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         const body = await this.body(request);
         const data = this.decodeData(body.data);
         if (body.replaceUpTo !== undefined) {
-          if (typeof body.replaceUpTo !== "number" || !Number.isSafeInteger(body.replaceUpTo)) {
+          if (
+            typeof body.replaceUpTo !== "number" ||
+            !Number.isSafeInteger(body.replaceUpTo)
+          ) {
             throw new HttpError(400, "Invalid compaction point.");
           }
           this.compact(path, body.replaceUpTo, data);
@@ -374,7 +388,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       return json(200, { relativePath: to });
     }
     if (route === "share" && (method === "GET" || method === "POST")) {
-      const auth = await this.authorize(request, url, method === "POST" ? "admin" : "viewer");
+      const auth = await this.authorize(
+        request,
+        url,
+        method === "POST" ? "admin" : "viewer",
+      );
       if (method === "POST") this.ensureShare(auth.meta);
       return json(200, this.state(auth));
     }
@@ -391,7 +409,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     throw new HttpError(404, "Project route not found.");
   }
 
-  private async shareRoute(request: Request, url: URL, parts: string[]): Promise<Response> {
+  private async shareRoute(
+    request: Request,
+    url: URL,
+    parts: string[],
+  ): Promise<Response> {
     const token = parts[2] ?? "";
     const route = parts.slice(3).join("/");
     url.searchParams.set("share", token);
@@ -483,7 +505,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       existing.updatedAt = now();
       this.writeMeta(auth.meta);
       this.closeClient(body.clientId, 1008, "Permissions changed");
-      return json(200, { clientId: existing.clientId, name: existing.name, role: existing.role });
+      return json(200, {
+        clientId: existing.clientId,
+        name: existing.name,
+        role: existing.role,
+      });
     }
     if (route.startsWith("collaborators/") && method === "DELETE") {
       const auth = await this.authorize(request, url, "admin");
@@ -498,7 +524,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       const admins = Object.values(auth.meta.permissions).filter(
         (item) => item.clientId !== removeId && item.role === "admin",
       );
-      if (!admins.length) throw new HttpError(400, "A project must keep at least one admin.");
+      if (!admins.length)
+        throw new HttpError(400, "A project must keep at least one admin.");
       // Keep the session binding so an old invite cannot re-enroll them, and
       // retire the invite so they cannot come back under a new identity.
       permission.role = null;
@@ -545,7 +572,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     // Client ids are public labels, not credentials: a permission belongs to
     // the session that earned it.
     if (existing) return existing.sessionHash === sessionHash ? existing.role : null;
-    return token && meta.shareToken && sameSecret(token, meta.shareToken) ? "editor" : null;
+    return token && meta.shareToken && sameSecret(token, meta.shareToken)
+      ? "editor"
+      : null;
   }
 
   private async authorize(request: Request, url: URL, minimum: Role): Promise<Auth> {
@@ -556,7 +585,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     if (!meta) throw new HttpError(404, "Project not found.");
     const isOwner = meta.ownerSessionHash === sessionHash;
     if (meta.sharingStopped && !isOwner) {
-      throw new HttpError(403, "The owner has stopped sharing this project.", "sharing-stopped");
+      throw new HttpError(
+        403,
+        "The owner has stopped sharing this project.",
+        "sharing-stopped",
+      );
     }
     const role = this.projectRole(meta, identity, sessionHash, token);
     const existing = Object.hasOwn(meta.permissions, identity.clientId)
@@ -581,7 +614,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     }
     if (!existing && !isOwner && meta.requireApproval) {
       this.recordPending(meta, identity, sessionHash);
-      throw new HttpError(403, "Waiting for the project owner to let you in.", "approval-pending");
+      throw new HttpError(
+        403,
+        "Waiting for the project owner to let you in.",
+        "approval-pending",
+      );
     }
     if (roleRank(role) < roleRank(minimum)) {
       throw new HttpError(403, "You do not have access to this project.");
@@ -613,11 +650,19 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     return { meta, identity, sessionHash, role: nextRole };
   }
 
-  private recordPending(meta: ProjectMeta, identity: Identity, sessionHash: string): void {
+  private recordPending(
+    meta: ProjectMeta,
+    identity: Identity,
+    sessionHash: string,
+  ): void {
     const existing = Object.hasOwn(meta.pending, identity.clientId)
       ? meta.pending[identity.clientId]
       : undefined;
-    if (existing && existing.sessionHash === sessionHash && existing.name === identity.clientName) {
+    if (
+      existing &&
+      existing.sessionHash === sessionHash &&
+      existing.name === identity.clientName
+    ) {
       return;
     }
     if (!existing && Object.keys(meta.pending).length >= limits.maxPendingRequests) {
@@ -640,7 +685,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   }
 
   private rotateShare(meta: ProjectMeta): void {
-    const retired = [...(meta.shareToken ? [meta.shareToken] : []), ...meta.retiredShareTokens];
+    const retired = [
+      ...(meta.shareToken ? [meta.shareToken] : []),
+      ...meta.retiredShareTokens,
+    ];
     meta.retiredShareTokens = retired.slice(0, limits.maxRetiredShareTokens);
     meta.shareToken = newShareToken(meta.id);
     meta.sharingStopped = false;
@@ -659,7 +707,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     this.presence.clear();
     for (const socket of this.ctx.getWebSockets()) {
       const info = this.info(socket);
-      if (info && info.sessionHash !== meta.ownerSessionHash) socket.close(1008, "Sharing stopped");
+      if (info && info.sessionHash !== meta.ownerSessionHash)
+        socket.close(1008, "Sharing stopped");
     }
   }
 
@@ -686,7 +735,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       .filter((item) => isRole(item.role))
       .sort(
         (left, right) =>
-          roleRank(right.role) - roleRank(left.role) || left.name.localeCompare(right.name),
+          roleRank(right.role) - roleRank(left.role) ||
+          left.name.localeCompare(right.name),
       )
       .map((item) => ({
         clientId: item.clientId,
@@ -734,7 +784,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       });
     }
     for (const entry of this.presence.values()) {
-      if (entry.lastSeen >= cutoff && !live.has(entry.clientId)) live.set(entry.clientId, entry);
+      if (entry.lastSeen >= cutoff && !live.has(entry.clientId))
+        live.set(entry.clientId, entry);
     }
     const meta = this.readMeta();
     return [...live.values()].slice(0, 50).map((entry) => ({
@@ -746,7 +797,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private broadcastPresence(): void {
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, messageProjectPresence);
-    encoding.writeVarString(encoder, JSON.stringify({ version: 1, users: this.activePresence() }));
+    encoding.writeVarString(
+      encoder,
+      JSON.stringify({ version: 1, users: this.activePresence() }),
+    );
     this.broadcastAll(encoding.toUint8Array(encoder));
   }
 
@@ -775,10 +829,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private projectBytes(except?: string): number {
     return (
       this.sql
-        .exec<{ total: number | null }>(
-          "SELECT SUM(size) AS total FROM entries WHERE path != ?",
-          except ?? "",
-        )
+        .exec<{
+          total: number | null;
+        }>("SELECT SUM(size) AS total FROM entries WHERE path != ?", except ?? "")
         .one().total ?? 0
     );
   }
@@ -786,8 +839,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private assertRoom(path: string, bytes: number, replacing = true): void {
     const existing = this.entry(path);
     if (!existing) {
-      const count = this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM entries").one().n;
-      if (count >= limits.maxProjectEntries) throw new HttpError(413, "Project has too many files.");
+      const count = this.sql
+        .exec<{ n: number }>("SELECT COUNT(*) AS n FROM entries")
+        .one().n;
+      if (count >= limits.maxProjectEntries)
+        throw new HttpError(413, "Project has too many files.");
     }
     const base = replacing ? this.projectBytes(path) : this.projectBytes();
     if (base + bytes > limits.maxProjectBytes) {
@@ -814,7 +870,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     this.reportedBytes = bytes;
     const meta = this.readMeta();
     if (!meta) return;
-    this.ctx.waitUntil(this.usage().report(meta.id, bytes).catch(() => undefined));
+    this.ctx.waitUntil(
+      this.usage()
+        .report(meta.id, bytes)
+        .catch(() => undefined),
+    );
   }
 
   private async assertAccountSpace(incomingBytes: number): Promise<void> {
@@ -830,14 +890,18 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   private entry(path: string): EntryRow | null {
     return (
-      this.sql.exec<EntryRow>("SELECT * FROM entries WHERE path = ?", path).toArray()[0] ?? null
+      this.sql
+        .exec<EntryRow>("SELECT * FROM entries WHERE path = ?", path)
+        .toArray()[0] ?? null
     );
   }
 
   private hasChildren(path: string): boolean {
     return (
       this.sql
-        .exec<{ n: number }>(
+        .exec<{
+          n: number;
+        }>(
           "SELECT COUNT(*) AS n FROM entries WHERE path LIKE ? ESCAPE '\\'",
           `${likeEscape(path)}/%`,
         )
@@ -846,7 +910,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   }
 
   private tree(): TreeEntry[] {
-    const rows = this.sql.exec<EntryRow>("SELECT * FROM entries ORDER BY path").toArray();
+    const rows = this.sql
+      .exec<EntryRow>("SELECT * FROM entries ORDER BY path")
+      .toArray();
     const root: TreeEntry[] = [];
     const folders = new Map<string, TreeEntry>();
     const folder = (path: string): TreeEntry[] => {
@@ -907,7 +973,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   /** Makes a text file exist; true when it was just created. */
   private createTextEntry(path: string): boolean {
     const existing = this.entry(path);
-    if (existing?.type === "directory") throw new HttpError(409, `"${path}" is a folder.`);
+    if (existing?.type === "directory")
+      throw new HttpError(409, `"${path}" is a folder.`);
     if (existing && !existing.binary) return false;
     this.assertRoom(path, 0);
     this.ensureParents(path);
@@ -950,7 +1017,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     ) {
       const slice = bytes.slice(offset, offset + limits.chunkBytes).buffer;
       if (seq === null) {
-        this.sql.exec("INSERT INTO blobs (path, part, data) VALUES (?, ?, ?)", path, part, slice);
+        this.sql.exec(
+          "INSERT INTO blobs (path, part, data) VALUES (?, ?, ?)",
+          path,
+          part,
+          slice,
+        );
       } else {
         this.sql.exec(
           "INSERT INTO logs (path, seq, part, data) VALUES (?, ?, ?, ?)",
@@ -978,10 +1050,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private storedLogBytes(path: string): number {
     return (
       this.sql
-        .exec<{ total: number | null }>(
-          "SELECT SUM(LENGTH(data)) AS total FROM logs WHERE path = ?",
-          path,
-        )
+        .exec<{
+          total: number | null;
+        }>("SELECT SUM(LENGTH(data)) AS total FROM logs WHERE path = ?", path)
         .one().total ?? 0
     );
   }
@@ -989,7 +1060,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private latestStoredSeq(path: string): number {
     return (
       this.sql
-        .exec<{ seq: number | null }>("SELECT MAX(seq) AS seq FROM logs WHERE path = ?", path)
+        .exec<{
+          seq: number | null;
+        }>("SELECT MAX(seq) AS seq FROM logs WHERE path = ?", path)
         .one().seq ?? 0
     );
   }
@@ -997,7 +1070,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private takeSeq(path: string): number {
     const next =
       this.nextSeq.get(path) ??
-      Math.max(this.latestStoredSeq(path), this.pending.get(path)?.at(-1)?.seq ?? 0) + 1;
+      Math.max(this.latestStoredSeq(path), this.pending.get(path)?.at(-1)?.seq ?? 0) +
+        1;
     this.nextSeq.set(path, next + 1);
     return next;
   }
@@ -1008,17 +1082,18 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     if (!row || row.type !== "file") throw new HttpError(404, "File not found.");
     if (row.binary) throw new HttpError(400, "This is a binary file.");
     const rows = this.sql
-      .exec<{ seq: number; data: ArrayBuffer }>(
-        "SELECT seq, data FROM logs WHERE path = ? ORDER BY seq, part",
-        path,
-      )
+      .exec<{
+        seq: number;
+        data: ArrayBuffer;
+      }>("SELECT seq, data FROM logs WHERE path = ? ORDER BY seq, part", path)
       .toArray();
     const updates: Uint8Array[] = [];
     let seq = 0;
     for (let index = 0; index < rows.length; ) {
       const current = rows[index]!.seq;
       const group: Array<{ data: ArrayBuffer }> = [];
-      while (index < rows.length && rows[index]!.seq === current) group.push(rows[index++]!);
+      while (index < rows.length && rows[index]!.seq === current)
+        group.push(rows[index++]!);
       updates.push(...decodeRecord(this.joinParts(group)));
       seq = current;
     }
@@ -1074,7 +1149,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       throw new HttpError(413, "This file is too large.");
     }
     const row = this.entry(path);
-    if (!row || row.type !== "file" || row.binary) throw new HttpError(404, "File not found.");
+    if (!row || row.type !== "file" || row.binary)
+      throw new HttpError(404, "File not found.");
     this.flushPath(path);
     if (upTo < 1 || upTo > this.latestStoredSeq(path)) {
       throw new HttpError(409, "The file changed; compact again.");
@@ -1094,7 +1170,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     const queue = this.pending.get(path);
     this.pending.delete(path);
     if (!queue?.length || !this.entry(path)) return;
-    this.writeParts(path, queue.at(-1)!.seq, encodeRecord(queue.map((item) => item.data)));
+    this.writeParts(
+      path,
+      queue.at(-1)!.seq,
+      encodeRecord(queue.map((item) => item.data)),
+    );
   }
 
   private scheduleFlush(): void {
@@ -1109,7 +1189,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     if (!row.binary) throw new HttpError(400, "This is a text file.");
     return this.joinParts(
       this.sql
-        .exec<{ data: ArrayBuffer }>("SELECT data FROM blobs WHERE path = ? ORDER BY part", path)
+        .exec<{
+          data: ArrayBuffer;
+        }>("SELECT data FROM blobs WHERE path = ? ORDER BY part", path)
         .toArray(),
     );
   }
@@ -1125,7 +1207,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     this.assertRoom(path, bytes.byteLength);
     await this.assertAccountSpace(bytes.byteLength);
     const existing = this.entry(path);
-    if (existing?.type === "directory") throw new HttpError(409, `"${path}" is a folder.`);
+    if (existing?.type === "directory")
+      throw new HttpError(409, `"${path}" is a folder.`);
     this.ensureParents(path);
     if (existing && !existing.binary) this.dropText(path, "Replaced by a binary file");
     this.sql.exec("DELETE FROM blobs WHERE path = ?", path);
@@ -1155,7 +1238,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     this.pending.delete(path);
     this.nextSeq.delete(path);
     this.sql.exec("DELETE FROM logs WHERE path = ?", path);
-    for (const socket of this.ctx.getWebSockets(fileTag(path))) socket.close(1012, reason);
+    for (const socket of this.ctx.getWebSockets(fileTag(path)))
+      socket.close(1012, reason);
   }
 
   private deleteEntry(path: string): void {
@@ -1182,8 +1266,14 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     for (const item of paths) {
       const target = to + item.slice(from.length);
       this.nextSeq.delete(item);
-      for (const socket of this.ctx.getWebSockets(fileTag(item))) socket.close(1012, "File moved");
-      this.sql.exec("UPDATE entries SET path = ?, updated = ? WHERE path = ?", target, now(), item);
+      for (const socket of this.ctx.getWebSockets(fileTag(item)))
+        socket.close(1012, "File moved");
+      this.sql.exec(
+        "UPDATE entries SET path = ?, updated = ? WHERE path = ?",
+        target,
+        now(),
+        item,
+      );
       this.sql.exec("UPDATE logs SET path = ? WHERE path = ?", target, item);
       this.sql.exec("UPDATE blobs SET path = ? WHERE path = ?", target, item);
     }
@@ -1261,8 +1351,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     const meta = this.readMeta();
     if (!meta) return;
     if (now() - (meta.lastActiveAt ?? meta.createdAt) > limits.inactiveProjectMs) {
-      for (const socket of this.ctx.getWebSockets()) socket.close(1008, "Project expired");
-      await this.usage().report(meta.id, 0).catch(() => undefined);
+      for (const socket of this.ctx.getWebSockets())
+        socket.close(1008, "Project expired");
+      await this.usage()
+        .report(meta.id, 0)
+        .catch(() => undefined);
       await this.ctx.storage.deleteAll();
       this.meta = null;
       return;
@@ -1299,7 +1392,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     }
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
-    this.ctx.acceptWebSocket(server, [fileTag(path), clientTag(auth.identity.clientId)]);
+    this.ctx.acceptWebSocket(server, [
+      fileTag(path),
+      clientTag(auth.identity.clientId),
+    ]);
     const info: SocketInfo = {
       path,
       clientId: auth.identity.clientId,
@@ -1349,10 +1445,14 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   }
 
   private closeClient(clientId: string, code: number, reason: string): void {
-    for (const socket of this.ctx.getWebSockets(clientTag(clientId))) socket.close(code, reason);
+    for (const socket of this.ctx.getWebSockets(clientTag(clientId)))
+      socket.close(code, reason);
   }
 
-  async webSocketMessage(socket: WebSocket, message: ArrayBuffer | string): Promise<void> {
+  async webSocketMessage(
+    socket: WebSocket,
+    message: ArrayBuffer | string,
+  ): Promise<void> {
     if (typeof message === "string") return;
     const info = this.info(socket);
     if (!info) {
