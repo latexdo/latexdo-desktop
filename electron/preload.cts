@@ -1852,6 +1852,19 @@ const api = {
       ipcRenderer.removeListener("spellchecker:changed", listener);
     };
   },
+  openRequestedProject: (): Promise<OpenProject | null> =>
+    ipcRenderer.invoke("project:open-requested"),
+  onOpenRequested: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+
+    ipcRenderer.on("project:open-requested", listener);
+
+    return () => {
+      ipcRenderer.removeListener("project:open-requested", listener);
+    };
+  },
   onOpenProjectMenu: (callback: () => void) => {
     const listener = () => {
       callback();

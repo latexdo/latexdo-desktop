@@ -6362,8 +6362,64 @@ if (!startupAutomationTest && !app.requestSingleInstanceLock()) {
 // Set once startApp has registered IPC and opened the first window.
 let appWindowsAvailable = false;
 
-app.on("second-instance", () => {
+// Research Spaces and folders opened from Finder, the Dock or the command
+// line, waiting for the renderer to ask for them.
+const requestedOpenPaths: string[] = [];
+const openRequestedChannel = "project:open-requested";
+
+function requestOpenPath(candidate: string): void {
+  if (!candidate || !path.isAbsolute(candidate)) return;
+  requestedOpenPaths.splice(0, requestedOpenPaths.length, path.resolve(candidate));
   if (!appWindowsAvailable) return;
+  const [window] = BrowserWindow.getAllWindows();
+  if (!window) {
+    // The new window asks for the path once it has loaded.
+    createWindow();
+    return;
+  }
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  window.webContents.send(openRequestedChannel);
+}
+
+function openPathsFromArgv(argv: readonly string[]): string[] {
+  return argv
+    .slice(1)
+    .filter((arg) => !arg.startsWith("-") && isResearchSpaceFile(arg));
+}
+
+async function openRequestedPath(
+  targetWindow: BrowserWindow | null,
+): Promise<OpenProject | null> {
+  const requested = requestedOpenPaths.shift();
+  if (!requested) return null;
+  const stats = await stat(requested).catch(() => null);
+  if (stats?.isDirectory()) return registerProjectIfTrusted(targetWindow, requested);
+  if (stats?.isFile() && isResearchSpaceFile(requested)) {
+    return registerResearchSpaceFileIfTrusted(targetWindow, requested);
+  }
+  throw new Error(`LatexDo cannot open ${path.basename(requested)}.`);
+}
+
+// macOS delivers files double-clicked in Finder (also before the app is ready).
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  requestOpenPath(filePath);
+});
+
+// Windows and Linux pass the file on the command line.
+if (!startupAutomationTest) {
+  for (const candidate of openPathsFromArgv(process.argv)) requestOpenPath(candidate);
+}
+
+app.on("second-instance", (_event, argv) => {
+  if (!appWindowsAvailable) return;
+  const [requested] = openPathsFromArgv(argv);
+  if (requested) {
+    requestOpenPath(requested);
+    return;
+  }
   const [window] = BrowserWindow.getAllWindows();
   // Relaunching must always give the user a working window: open one when
   // none is left (macOS keeps the app alive), and replace a frozen one.
@@ -6459,6 +6515,11 @@ async function startApp(): Promise<void> {
     expectIpcArgs("project:reopen-last", rawArgs, 0);
     const window = BrowserWindow.fromWebContents(event.sender) ?? null;
     return scheduleProjectGarbageCollection(await reopenLastProject(window));
+  });
+  ipcMain.handle("project:open-requested", async (event, ...rawArgs: unknown[]) => {
+    expectIpcArgs("project:open-requested", rawArgs, 0);
+    const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+    return scheduleProjectGarbageCollection(await openRequestedPath(window));
   });
   ipcMain.handle("project:open", async (event, ...rawArgs: unknown[]) => {
     const channel = "project:open";

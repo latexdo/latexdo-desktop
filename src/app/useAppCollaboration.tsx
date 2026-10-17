@@ -608,6 +608,24 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
   };
 
+  // A Research Space or folder opened from Finder, the Dock or the command line.
+  useEffect(() => {
+    return window.latexdo.onOpenRequested?.(() => {
+      void (async () => {
+        try {
+          const project = await window.latexdo.openRequestedProject?.();
+          if (project) {
+            await loadProject(project, true, false);
+          }
+        } catch (error) {
+          setStatusMessage(
+            error instanceof Error ? error.message : "Could not open the file.",
+          );
+        }
+      })();
+    });
+  }, [loadProject, setStatusMessage]);
+
   const importOverleafProject = useCallback(
     async (gitUrl: string) => {
       if (requireLegalAcceptance()) {
