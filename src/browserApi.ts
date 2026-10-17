@@ -441,6 +441,14 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return projectToOpenProject(project);
     },
 
+    async saveResearchSpaceAs() {
+      throw browserUnavailable("Saving a Research Space");
+    },
+
+    async addFolderToResearchSpace() {
+      throw browserUnavailable("Adding folders to a Research Space");
+    },
+
     async listProject(projectId, _options) {
       const store = readStore();
       return listProjectEntries(findProject(store, projectId));
@@ -830,6 +838,11 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       } as const;
     },
 
+    async getMenuShortcuts() {
+      // The web editor has no application menu.
+      return [];
+    },
+
     async getWhatsNew() {
       return {
         fromVersion: null,
@@ -1003,6 +1016,7 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
     onImportMarkdownMenu: () => () => {},
     onImportPdfMenu: () => () => {},
     onCloseTabMenu: () => () => {},
+    onMenuCommand: () => () => {},
   };
 
   return api;

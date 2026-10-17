@@ -2,6 +2,8 @@
 // commands. Pure functions so the popup UI (AiSidebar) and the send pipeline
 // (useAiAgent) share one implementation and everything is unit-testable.
 
+import { buildPaperReviewPrompt } from "./paperReview";
+
 export interface MentionTrigger {
   kind: "file" | "command";
   /** Text typed after the trigger character, up to the caret. */
@@ -56,6 +58,22 @@ export const slashCommands: SlashCommand[] = [
     hint: "Suggest citations for the selection",
     prompt:
       "Recommend citations from the project bibliography for the currently selected passage and insert the best \\cite keys.",
+  },
+  {
+    name: "review",
+    hint: "Peer-review the whole paper",
+    // The Review button sends the same instruction with the author's settings.
+    prompt: buildPaperReviewPrompt({
+      projectName: "",
+      rootFile: "",
+      access: {
+        chatHistory: true,
+        currentEditor: true,
+        projectFiles: true,
+        bibliography: true,
+        researcherProfile: true,
+      },
+    }),
   },
   {
     name: "check",

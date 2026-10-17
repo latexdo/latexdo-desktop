@@ -777,6 +777,7 @@ export function useAppScm(ctx: AppCtx11, deps: ScmDeps) {
     scmError,
     setScmError,
     quickPick,
+    askQuickPick: ask,
     runScmAction,
     commitScm,
     pickBranch,

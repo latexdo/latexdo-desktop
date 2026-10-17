@@ -71,6 +71,11 @@ export interface AiSidebarApi {
   appendSelectionContext(selection: AiComposerSelectionContext): void;
   /** Type `@` in the composer and open the project-file picker. */
   startFileMention(): void;
+  /**
+   * Sends a prepared request: the model gets `prompt`, the chat shows
+   * `displayText`. False when no provider is set up or a reply is running.
+   */
+  sendPrompt(prompt: string, displayText: string): boolean;
 }
 
 interface AiSidebarProps {
@@ -453,15 +458,29 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     });
   }, [updateSuggestions]);
 
+  const sendPrompt = React.useCallback(
+    (prompt: string, displayText: string) => {
+      if (!configured || isRunning) return false;
+      void send(prompt, { displayText });
+      return true;
+    },
+    [configured, isRunning, send],
+  );
+
   // Expose the imperative handle to App via apiRef.
   React.useEffect(() => {
     if (!apiRef) return;
-    apiRef.current = { proposeEdit, appendSelectionContext, startFileMention };
+    apiRef.current = {
+      proposeEdit,
+      appendSelectionContext,
+      startFileMention,
+      sendPrompt,
+    };
     return () => {
       apiRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposeEdit, appendSelectionContext, startFileMention]);
+  }, [proposeEdit, appendSelectionContext, startFileMention, sendPrompt]);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });

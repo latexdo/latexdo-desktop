@@ -1,5 +1,6 @@
 import {
   Bookmark,
+  BookOpenCheck,
   BookOpenText,
   Bold,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   Table2,
   Underline,
   User,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { KnowledgeGraphView } from "../../components/KnowledgeGraphView";
@@ -315,6 +317,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
   const {
     activeDocumentIsAsymptote,
     activeDocumentIsLatex,
+    applyLatexPrettier,
     applyLatexToolbarCommand,
     cancelCompile,
     collaborationState,
@@ -328,6 +331,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
     openLinkAtCursor,
     openShareDialog,
     revealOutlineLine,
+    reviewPaperWithAi,
     rootFile,
     setLatexEditorView,
     setMode,
@@ -615,7 +619,33 @@ export function renderSourceToolbar(ctx: AppCtx) {
           >
             <Bookmark size={14} />
           </button>
+
+          <span className="tex-format-divider" aria-hidden="true" />
+
+          <button
+            type="button"
+            className="tex-format-button"
+            onClick={applyLatexPrettier}
+            title="Tidy the layout: one blank line around sections, indented lists and environments (Shift+Alt+F)"
+            aria-label="Tidy up the LaTeX layout"
+          >
+            <WandSparkles size={14} />
+            <span>Tidy</span>
+          </button>
         </div>
+      ) : null}
+
+      {rootFile ? (
+        <button
+          type="button"
+          className="ai-review-button"
+          onClick={() => void reviewPaperWithAi()}
+          title="Review this paper with AI: a full peer review that follows your language, AI and project settings (Cmd/Ctrl+Alt+R)"
+          aria-label="Review this paper with AI"
+        >
+          <BookOpenCheck size={14} />
+          <span>Review</span>
+        </button>
       ) : null}
 
       <button
