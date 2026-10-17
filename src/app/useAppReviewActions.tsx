@@ -136,6 +136,19 @@ export function useAppReviewActions(ctx: AppCtx13) {
         : null;
   }, [aiConfig, aiIsDesktop, nextEditConfig]);
 
+  // The AI selection actions are registered once per editor mount and call
+  // the handlers through this ref, so they always see the current AI settings.
+  const aiSelectionActionsRef = useRef({
+    reformulateSelectionWithAi,
+    askAiAboutSelection,
+    cancelReformulation,
+  });
+  aiSelectionActionsRef.current = {
+    reformulateSelectionWithAi,
+    askAiAboutSelection,
+    cancelReformulation,
+  };
+
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
     setEditorCursorLine(editor.getPosition()?.lineNumber ?? null);
@@ -225,7 +238,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
           monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyR,
         ],
         run: () => {
-          void reformulateSelectionWithAi();
+          void aiSelectionActionsRef.current.reformulateSelectionWithAi();
         },
       }),
       editor.addAction({
@@ -238,7 +251,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
           monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyA,
         ],
         run: () => {
-          askAiAboutSelection();
+          aiSelectionActionsRef.current.askAiAboutSelection();
         },
       }),
       editor.addAction({
@@ -249,7 +262,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
         precondition: `editorTextFocus && ${reformulatingContextKey}`,
         keybindings: [monaco.KeyCode.Escape],
         run: () => {
-          cancelReformulation();
+          aiSelectionActionsRef.current.cancelReformulation();
         },
       }),
       // Completion items run commands by their global id; editor.addAction

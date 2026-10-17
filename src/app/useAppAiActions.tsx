@@ -329,6 +329,17 @@ export function useAppAiActions(ctx: AppCtx10) {
     setStatusMessage("Reformulation cancelled.");
   }, [setStatusMessage]);
 
+  /** Opens the AI sidebar and waits for its chat to mount (it only exists while open). */
+  const openAiSidebarApi = useCallback(async () => {
+    openSidebar("ai");
+    for (let frame = 0; frame < 120; frame += 1) {
+      const api = activeAiSidebarApiRef.current;
+      if (api) return api;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    return null;
+  }, [activeAiSidebarApiRef, openSidebar]);
+
   /** Reformulate the selected text via the AI provider, then ask for approval. */
   const reformulateSelectionWithAi = useCallback(async () => {
     const editor = editorRef.current;
@@ -394,12 +405,12 @@ export function useAppAiActions(ctx: AppCtx10) {
       }
 
       // Surface the proposal in the active AI chat's approval UI.
-      const api = activeAiSidebarApiRef.current;
-      let approved = false;
-      if (api) {
-        openSidebar("ai");
-        approved = await api.proposeEdit(proposal);
+      const api = await openAiSidebarApi();
+      if (!api) {
+        setStatusMessage("Could not open the AI chat to review the reformulation.");
+        return;
       }
+      const approved = await api.proposeEdit(proposal);
       if (!approved) {
         setStatusMessage("Reformulation declined. No changes made.");
         return;
@@ -423,7 +434,7 @@ export function useAppAiActions(ctx: AppCtx10) {
     activeTextDocument,
     aiConfig,
     aiIsDesktop,
-    openSidebar,
+    openAiSidebarApi,
     setStatusMessage,
     applyAiSelectionProposal,
     cancelReformulation,
