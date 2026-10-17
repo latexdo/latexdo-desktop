@@ -2227,21 +2227,36 @@ describe("App critical UI controls", () => {
     });
   });
 
-  it("shows the built-in writing tools without installing anything", async () => {
+  it("shows the built-in writing tools, and the TikZ converter only once installed", async () => {
     installLatexDoMock();
 
     render(<App />);
 
     expect(screen.getByTitle("Citation Manager")).toBeVisible();
     expect(screen.getByTitle("Table Generator")).toBeVisible();
-    expect(screen.getByTitle("Figure → TikZ Converter")).toBeVisible();
     expect(screen.getByTitle("Notation Manager")).toBeVisible();
+    // Figure → TikZ is a store extension, not part of the app.
+    expect(screen.queryByTitle("Figure → TikZ Converter")).not.toBeInTheDocument();
 
-    // The store only offers content packs, none of the built-in tools.
     fireEvent.click(screen.getByTitle("Extensions"));
     expect(await screen.findByText("Plots and Figures")).toBeVisible();
     expect(screen.queryByText("Citation Workbench")).not.toBeInTheDocument();
     expect(screen.queryByText("Table Generator", { selector: "article *" })).toBeNull();
+
+    const converter = screen.getByText("Figure → TikZ Converter").closest("article")!;
+    fireEvent.click(
+      within(converter as HTMLElement).getByRole("button", { name: "Install" }),
+    );
+    expect(await screen.findByTitle("Figure → TikZ Converter")).toBeVisible();
+  });
+
+  it("opens the TikZ converter's store page from the menu until it is installed", async () => {
+    installLatexDoMock();
+    render(<App />);
+
+    act(() => menuCommandListener?.("view.tool.tikzConverter"));
+    const details = await screen.findByRole("region", { name: "Extension details" });
+    expect(within(details).getByText("latexdo.figure-to-tikz")).toBeVisible();
   });
 
   it("shows extension manifest details from the sidebar list", async () => {

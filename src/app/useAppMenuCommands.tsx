@@ -1,3 +1,4 @@
+import { figureToTikzExtensionId } from "../extensions";
 import { useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { requestFind } from "../components/FindPanel";
@@ -163,6 +164,16 @@ export function useAppMenuCommands(ctx: AppCtx19) {
       }
       if (command.startsWith("view.tool.")) {
         const key = command.slice("view.tool.".length) as ToolTabKey;
+        if (key === "tikzConverter" && !c.extensionToolAvailability.tikzConverter) {
+          // An extension: show its store page so it can be installed (or enabled).
+          c.openExtensionDetails(figureToTikzExtensionId);
+          c.setStatusMessage(
+            c.extensionToolInstallation.tikzConverter
+              ? "Turn on the Figure → TikZ Converter in Settings to use it."
+              : "The Figure → TikZ Converter is an extension. Install it to use it.",
+          );
+          return;
+        }
         if (key in toolTabIds) c.openToolTab(toolTabIds[key]);
         return;
       }

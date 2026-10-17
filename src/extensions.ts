@@ -168,13 +168,42 @@ const extensionFeatureFlags = new Set<ExtensionFeatureFlag>([
 const extensionIdPattern = /^[a-z0-9][a-z0-9.-]{2,80}$/;
 const extensionVersionPattern = /^[0-9]+(?:\.[0-9]+){0,2}(?:[-+][a-z0-9.-]+)?$/i;
 
+/** The store extension that adds the Figure → TikZ Converter. */
+export const figureToTikzExtensionId = "latexdo.figure-to-tikz";
+
+/** True when an installed extension adds the Figure → TikZ Converter. */
+export function hasFigureToTikzExtension(
+  installed: readonly LatexDoExtensionManifest[],
+): boolean {
+  return installed.some(
+    (extension) => extension.contributes.featureFlags?.tikzConverterEnabled === true,
+  );
+}
+
 export const fallbackExtensionCatalog: LatexDoExtensionCatalog = {
   schemaVersion: 1,
   product: "LatexDo",
   updatedAt: "2026-10-15T00:00:00.000Z",
-  // Content packs only: templates and snippets LatexDo does not ship.
-  // Built-in tools (tables, TikZ, notation, citations, checks) need no install.
+  // Templates, snippets and optional tools LatexDo does not ship by default.
+  // Core tools (tables, TikZ drawing, notation, citations, checks) need no install.
   extensions: [
+    {
+      schemaVersion: 1,
+      id: figureToTikzExtensionId,
+      kind: "extension",
+      name: "Figure → TikZ Converter",
+      version: "1.0.0",
+      description:
+        "Turn a draw.io diagram or an image into editable TikZ code, so figures use the paper's fonts and stay sharp at any size.",
+      author: "LatexDo",
+      category: "graphics",
+      tags: ["tikz", "figures", "draw.io", "convert"],
+      homepage: `https://latexdo.org/store/extensions/${figureToTikzExtensionId}/`,
+      repository: "https://github.com/latexdo/latexdo.org",
+      contributes: {
+        featureFlags: { tikzConverterEnabled: true },
+      },
+    },
     {
       schemaVersion: 1,
       id: "latexdo.ieee-conference",
