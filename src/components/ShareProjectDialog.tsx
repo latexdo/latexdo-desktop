@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
   Copy,
@@ -95,6 +95,19 @@ export function ShareProjectDialog({
 }: ShareProjectDialogProps) {
   const [mode, setMode] = useState<HostSharingMode>("internet");
 
+  useEffect(() => {
+    if (!open) return;
+    // Capture phase, so the editor underneath cannot swallow the key first.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open, onClose]);
+
   if (!open) {
     return null;
   }
@@ -112,7 +125,13 @@ export function ShareProjectDialog({
     (state.enabled && (!state.hosted || hostLive || hostStarting));
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <section
         className="modal-panel share-project-dialog"
         role="dialog"
@@ -121,19 +140,27 @@ export function ShareProjectDialog({
       >
         <header className="modal-header">
           <h2 id="share-project-title">Share Project</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            title="Close (Esc)"
+          >
             <X size={16} />
           </button>
         </header>
-        <div className="share-name-row">
-          <UserRound size={15} />
-          <input
-            value={displayName}
-            placeholder="Your name, as collaborators will see it"
-            aria-label="Collaboration display name"
-            onChange={(event) => onDisplayNameChange(event.target.value)}
-            maxLength={80}
-          />
+        <div className="share-section">
+          <h4 className="share-heading share-flush">Your name</h4>
+          <div className="share-name-row">
+            <UserRound size={15} aria-hidden="true" />
+            <input
+              value={displayName}
+              placeholder="How collaborators will see you"
+              aria-label="Collaboration display name"
+              onChange={(event) => onDisplayNameChange(event.target.value)}
+              maxLength={80}
+            />
+          </div>
         </div>
 
         {hostFlow && (hostLive || hostStarting) ? (
@@ -224,6 +251,7 @@ export function ShareProjectDialog({
               </p>
             ) : (
               <>
+                <h4>Share this project</h4>
                 <p className="share-hint">
                   {state.hosted
                     ? "This is the shared copy of your project. Sharing is off."
@@ -245,11 +273,14 @@ export function ShareProjectDialog({
                     <input
                       type="radio"
                       name="share-mode"
+                      className="share-mode-radio"
                       checked={mode === "internet"}
                       onChange={() => setMode("internet")}
                     />
-                    <Globe size={15} />
-                    <span>
+                    <span className="share-mode-icon" aria-hidden="true">
+                      <Globe size={16} />
+                    </span>
+                    <span className="share-mode-text">
                       <strong>Over the internet</strong>
                       <small>Works from anywhere, through a free encrypted link.</small>
                     </span>
@@ -258,11 +289,14 @@ export function ShareProjectDialog({
                     <input
                       type="radio"
                       name="share-mode"
+                      className="share-mode-radio"
                       checked={mode === "local"}
                       onChange={() => setMode("local")}
                     />
-                    <Wifi size={15} />
-                    <span>
+                    <span className="share-mode-icon" aria-hidden="true">
+                      <Wifi size={16} />
+                    </span>
+                    <span className="share-mode-text">
                       <strong>Same network only</strong>
                       <small>
                         No internet needed. Not encrypted, so use a network you trust.
@@ -270,7 +304,7 @@ export function ShareProjectDialog({
                     </span>
                   </label>
                 </div>
-                <div className="share-actions">
+                <div className="share-actions share-actions-stacked">
                   <button
                     type="button"
                     className="share-primary"
@@ -384,7 +418,7 @@ export function ShareProjectDialog({
 
         {!hostLive && !hostStarting ? (
           <form
-            className="share-token-form"
+            className={`share-token-form ${hostFlow || joinedAsGuest ? "share-divided" : ""}`}
             onSubmit={(event) => {
               event.preventDefault();
               onJoin();

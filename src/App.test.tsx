@@ -236,6 +236,8 @@ const researchSpaceProject: OpenProject = {
   },
 };
 
+let menuCommandListener: ((command: string) => void) | null = null;
+
 const entries: ProjectEntry[] = [
   {
     name: "main.tex",
@@ -355,6 +357,13 @@ function installLatexDoMock(options?: {
     openProject: vi.fn().mockResolvedValue(project),
     createProject: vi.fn().mockResolvedValue(project),
     createResearchSpace: vi.fn().mockResolvedValue(researchSpaceProject),
+    saveResearchSpaceAs: vi.fn().mockResolvedValue(researchSpaceProject),
+    addFolderToResearchSpace: vi.fn().mockResolvedValue(researchSpaceProject),
+    getMenuShortcuts: vi.fn().mockResolvedValue([
+      { menu: "File", label: "Save", keys: "⌘S", editorOnly: false },
+      { menu: "Go", label: "Go to File", keys: "⌘P", editorOnly: false },
+      { menu: "Go", label: "Go to Line", keys: "⌃G", editorOnly: true },
+    ]),
     listProject: vi.fn(async (projectId: string) =>
       projectId === researchSpaceProject.id ? researchSpaceEntries : entries,
     ),
@@ -550,6 +559,10 @@ function installLatexDoMock(options?: {
     onImportMarkdownMenu: vi.fn(() => vi.fn()),
     onImportPdfMenu: vi.fn(() => vi.fn()),
     onCloseTabMenu: vi.fn(() => vi.fn()),
+    onMenuCommand: vi.fn((callback: (command: string) => void) => {
+      menuCommandListener = callback;
+      return vi.fn();
+    }),
   };
 
   Object.defineProperty(window, "latexdo", {
@@ -725,6 +738,123 @@ describe("App critical UI controls", () => {
     ).toBeVisible();
   });
 
+  it("reviews the open paper with the AI agent and the author's settings", async () => {
+    installLatexDoMock({
+      proofreadingSettings: {
+        ...defaultProofreadingSettings,
+        language: "en-GB",
+        motherTongue: "fr",
+        picky: true,
+      },
+    });
+    storeCompleteAiConfig({
+      provider: "cloud",
+      cloud: { ...defaultAiConfig.cloud, credentialConfigured: true },
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const generate = vi.spyOn(aiClient, "generateStep").mockResolvedValueOnce({
+      type: "text",
+      content: "## Review: Units\n\n### Summary\nA short paper.",
+    });
+    render(<App />);
+    await openProjectFromWelcome({ showOutput: false });
+
+    // The title bar keeps only layout controls.
+    expect(document.querySelector(".title-actions")).not.toHaveTextContent("Review");
+    fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
+
+    expect(await screen.findByText("Review this paper")).toBeVisible();
+    await screen.findByText(/A short paper\./);
+    const messages = generate.mock.calls[0][0].messages;
+    const request = String(
+      messages.find((message: { role: string }) => message.role === "user")?.content,
+    );
+    expect(request).toContain("Review this paper as an expert peer reviewer");
+    expect(request).toContain("root file `main.tex`");
+    expect(request).toContain("British English (en-GB)");
+    expect(request).toContain("native language is French (fr)");
+    expect(request).toContain("picky checking");
+    generate.mockRestore();
+  });
+
+  it("asks for an AI provider before reviewing the paper", async () => {
+    installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
+
+    expect(
+      await screen.findByText("Choose an AI provider to review the paper.", {
+        selector: ".status-message",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("saves the open folder as a Research Space from the File menu", async () => {
+    const api = installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome({ showOutput: false });
+
+    act(() => menuCommandListener?.("file.saveResearchSpaceAs"));
+
+    await waitFor(() => {
+      expect(api.saveResearchSpaceAs).toHaveBeenCalledWith(project.id);
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText("Research Space", { selector: ".title-project" }),
+      ).toBeVisible();
+    });
+  });
+
+  it("lists the menu shortcuts and closes the list with Escape", async () => {
+    installLatexDoMock();
+    render(<App />);
+
+    act(() => menuCommandListener?.("help.shortcuts"));
+
+    const dialog = await screen.findByRole("dialog", { name: "Keyboard Shortcuts" });
+    expect(await within(dialog).findByText("Go to File")).toBeVisible();
+    expect(within(dialog).getByText("⌘P")).toBeVisible();
+    expect(within(dialog).getByText("in editor")).toBeVisible();
+
+    fireEvent.change(within(dialog).getByLabelText("Search shortcuts"), {
+      target: { value: "save" },
+    });
+    expect(within(dialog).queryByText("Go to File")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Save")).toBeVisible();
+
+    fireEvent.keyDown(within(dialog).getByLabelText("Search shortcuts"), {
+      key: "Escape",
+    });
+    expect(
+      screen.queryByRole("dialog", { name: "Keyboard Shortcuts" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("goes to a project file from a quick pick", async () => {
+    const api = installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome({ showOutput: false });
+    api.readFile.mockClear();
+
+    act(() => menuCommandListener?.("go.file"));
+
+    const option = await screen.findByText("main.tex", {
+      selector: ".quick-pick-label",
+    });
+    fireEvent.click(option);
+    await waitFor(() => {
+      expect(
+        screen.queryByPlaceholderText("Search files by name"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("formats the open TeX document when the Prettier titlebar action is clicked", async () => {
     const api = installLatexDoMock();
     api.readFile.mockResolvedValue(
@@ -739,9 +869,10 @@ describe("App critical UI controls", () => {
 
     render(<App />);
 
+    // Tidy sits with the LaTeX formatting tools, so it appears with a TeX file.
     expect(
-      screen.getByRole("button", { name: /tidy up the latex layout/i }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: /tidy up the latex layout/i }),
+    ).not.toBeInTheDocument();
 
     await openProjectFromWelcome();
     const editor = await screen.findByLabelText("mock editor");
@@ -1637,7 +1768,7 @@ describe("App critical UI controls", () => {
     expect(api.readAsset).not.toHaveBeenCalled();
   });
 
-  it("reviews a paper from the toolbar without importing it into the current project", async () => {
+  it("reviews a paper from the explorer without importing it into the current project", async () => {
     const api = installLatexDoMock();
 
     render(<App />);
@@ -1645,7 +1776,7 @@ describe("App critical UI controls", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Read and review a PDF paper",
+        name: "Review Paper in Reader Mode",
       }),
     );
 

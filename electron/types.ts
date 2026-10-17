@@ -596,3 +596,12 @@ export interface ProofreadingRequestOptions {
   originalTextLength?: number;
   truncated?: boolean;
 }
+
+/** One keyboard shortcut from the application menu, formatted for this platform. */
+export interface MenuShortcut {
+  menu: string;
+  label: string;
+  keys: string;
+  /** Only works while the cursor is in the editor. */
+  editorOnly: boolean;
+}

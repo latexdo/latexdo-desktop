@@ -57,6 +57,9 @@ describe("isolated desktop bridge", () => {
     ["createProject", "project:create", []],
     ["createProject", "project:create", [{ folderName: "paper" }]],
     ["createResearchSpace", "research-space:create", []],
+    ["saveResearchSpaceAs", "research-space:save-as", ["local"]],
+    ["addFolderToResearchSpace", "research-space:add-folder", ["local"]],
+    ["getMenuShortcuts", "app:menu-shortcuts", []],
     [
       "importOverleafProject",
       "provider:import-overleaf-project",
@@ -199,6 +202,19 @@ describe("isolated desktop bridge", () => {
     ["onImportPdfMenu", "file:import-pdf", false],
     ["onCloseTabMenu", "file:close-tab", false],
   ] as const;
+  it("passes only a command id from the application menu", () => {
+    const callback = vi.fn();
+    const stop = api.onMenuCommand(callback);
+    const listener = bridge.on.mock.calls[0][1];
+    listener({ sender: "privileged" }, "go.file");
+    listener({ sender: "privileged" }, { command: "go.file" });
+    expect(callback.mock.calls).toEqual([["go.file"]]);
+    stop();
+    expect(bridge.removeListener).toHaveBeenCalledExactlyOnceWith(
+      "menu:command",
+      listener,
+    );
+  });
   it.each(events)(
     "%s strips privileged events and removes its listener",
     (method, channel, hasPayload) => {

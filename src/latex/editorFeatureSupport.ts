@@ -1,3 +1,5 @@
+import { tidyLatex } from "./tidyLatex";
+
 export interface LatexCommandSnippet {
   label: string;
   insertText: string;
@@ -37,8 +39,6 @@ export interface LatexTableFormatResult {
 }
 
 const latexListEnvironments = new Set(["itemize", "enumerate", "description"]);
-const latexStructuralHeadingPattern =
-  /^\\(?:part|chapter|section|subsection|subsubsection)\*?\s*(?:\[[^\]]*\])?\s*\{/;
 
 export const latexCommandSnippets: LatexCommandSnippet[] = [
   {
@@ -886,48 +886,7 @@ export function formatLatexListIndentation(
   return formattedLines.join(newline);
 }
 
+/** Tidy: indentation and blank-line layout for a whole LaTeX source. */
 export function formatLatexDocumentLayout(text: string): string | null {
-  const listFormatted = formatLatexListIndentation(text) ?? text;
-  const headingFormatted = formatLatexStructuralSpacing(listFormatted);
-  return headingFormatted === text ? null : headingFormatted;
-}
-
-function formatLatexStructuralSpacing(text: string): string {
-  const newline = text.includes("\r\n") ? "\r\n" : "\n";
-  const lines = text.split(/\r?\n/);
-  const formattedLines: string[] = [];
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const trimmedStart = line.trimStart();
-    const isHeading = latexStructuralHeadingPattern.test(trimmedStart);
-
-    if (!isHeading) {
-      formattedLines.push(line);
-      continue;
-    }
-
-    const previous = formattedLines.at(-1);
-    const previousTrimmed = previous?.trim() ?? "";
-    if (
-      previous !== undefined &&
-      previousTrimmed.length > 0 &&
-      previousTrimmed !== "\\begin{document}"
-    ) {
-      formattedLines.push("");
-    }
-
-    formattedLines.push(trimmedStart.trimEnd());
-
-    while (index + 1 < lines.length && lines[index + 1].trim().length === 0) {
-      index += 1;
-    }
-
-    const next = lines[index + 1];
-    if (next !== undefined && next.trim().length > 0) {
-      formattedLines.push("");
-    }
-  }
-
-  return formattedLines.join(newline);
+  return tidyLatex(text);
 }

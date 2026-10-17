@@ -51,6 +51,9 @@ import { useAppRebuttalAndHistory } from "./app/useAppRebuttalAndHistory";
 import { useAppDerivedState } from "./app/useAppDerivedState";
 import { useAppCitationAssistant } from "./app/useAppCitationAssistant";
 import { useAppSessionRestore } from "./app/useAppSessionRestore";
+import { useAppPaperReview } from "./app/useAppPaperReview";
+import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
 import {
   renderActivityBar,
   renderFileTree,
@@ -113,7 +116,9 @@ export default function App() {
   const s16 = { ...s15, ...useAppDerivedState(s15) };
   const s17 = { ...s16, ...useAppCitationAssistant(s16) };
   const s18 = { ...s17, ...useAppSessionRestore(s17) };
-  const ctx = s18;
+  const s19 = { ...s18, ...useAppPaperReview(s18) };
+  const s20 = { ...s19, ...useAppMenuCommands(s19) };
+  const ctx = s20;
   const {
     openInstalledExtension,
     openExtensionDetails,
@@ -803,6 +808,10 @@ export default function App() {
           onClosed={() => editorRef.current?.focus()}
         />
       ) : null}
+      <KeyboardShortcutsDialog
+        open={ctx.shortcutsOpen}
+        onClose={() => ctx.setShortcutsOpen(false)}
+      />
       {whatsNewOpen && whatsNew ? (
         <WhatsNewModal
           fromVersion={whatsNew.fromVersion}

@@ -764,6 +764,132 @@ describe("multi-folder research spaces", () => {
     });
     await expect(call("research-space:create")).rejects.toThrow("Choose at least one");
   });
+  it("saves an open folder as a space and adds folders to it", async () => {
+    native.save.mockResolvedValueOnce({
+      canceled: false,
+      filePath: path.join(root, "Saved Paper"),
+    });
+    const saved = await call("research-space:save-as", project.id);
+    expect(saved.rootPath).toBe(path.join(root, "Saved Paper.latexdo-space"));
+    expect(saved.researchSpace.folders.map((f: { path: string }) => f.path)).toEqual([
+      project.rootPath,
+    ]);
+
+    const extra = path.join(root, "space-folders", "extra");
+    await mkdir(extra, { recursive: true });
+    native.open.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [extra, project.rootPath],
+    });
+    const grown = await call("research-space:add-folder", saved.id);
+    expect(grown.id).toBe(saved.id);
+    expect(grown.researchSpace.folders.map((f: { path: string }) => f.path)).toEqual([
+      project.rootPath,
+      extra,
+    ]);
+    const manifest = JSON.parse(await readFile(saved.rootPath, "utf8"));
+    expect(manifest.folders).toHaveLength(2);
+
+    native.open.mockResolvedValueOnce({ canceled: false, filePaths: [extra] });
+    await expect(call("research-space:add-folder", saved.id)).rejects.toThrow(
+      "already in this Research Space",
+    );
+    native.open.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    expect(await call("research-space:add-folder", saved.id)).toBeNull();
+  });
+  it("turns a plain folder into a space when a folder is added to it", async () => {
+    const extra = path.join(root, "space-folders", "notes");
+    await mkdir(extra, { recursive: true });
+    native.open.mockResolvedValueOnce({ canceled: false, filePaths: [extra] });
+    native.save.mockResolvedValueOnce({
+      canceled: false,
+      filePath: path.join(root, "Paper and notes.latexdo-space"),
+    });
+    const space = await call("research-space:add-folder", project.id);
+    expect(space.researchSpace.folders.map((f: { path: string }) => f.path)).toEqual([
+      project.rootPath,
+      extra,
+    ]);
+    await expect(call("research-space:save-as", "missing")).rejects.toThrow("not open");
+  });
+});
+
+describe("application menu", () => {
+  const appMenu = () =>
+    native.menu.mock.calls
+      .map(([template]) => template as Electron.MenuItemConstructorOptions[])
+      .find((template) => template.some((item) => item.label === "File"))!;
+  const findItem = (label: string) =>
+    appMenu()
+      .flatMap((menu) => (menu.submenu as Electron.MenuItemConstructorOptions[]) ?? [])
+      .flatMap((item) =>
+        Array.isArray(item.submenu) ? [item, ...item.submenu] : [item],
+      )
+      .find((item) => item.label === label)!;
+  const click = (label: string, triggeredByAccelerator: boolean) =>
+    (findItem(label).click as (...args: unknown[]) => void)({}, window, {
+      triggeredByAccelerator,
+    });
+
+  it("sends menu commands to the focused window", () => {
+    window.webContents.send.mockClear();
+    click("Go to File...", true);
+    expect(window.webContents.send).toHaveBeenCalledWith("menu:command", "go.file");
+  });
+  it("runs editor-only items from a click but leaves their keys to the editor", () => {
+    window.webContents.send.mockClear();
+    click("Go to Line...", true);
+    expect(window.webContents.send).not.toHaveBeenCalled();
+    click("Go to Line...", false);
+    expect(window.webContents.send).toHaveBeenCalledWith(
+      "menu:command",
+      "editor:editor.action.gotoLine",
+    );
+  });
+  it("lists every shortcut in the menu for this platform", async () => {
+    const shortcuts = await call("app:menu-shortcuts");
+    const mac = process.platform === "darwin";
+    expect(shortcuts).toContainEqual({
+      menu: "File",
+      label: "Save",
+      keys: mac ? "⌘S" : "Ctrl+S",
+      editorOnly: false,
+    });
+    expect(shortcuts).toContainEqual({
+      menu: "Edit",
+      label: "Undo",
+      keys: mac ? "⌘Z" : "Ctrl+Z",
+      editorOnly: false,
+    });
+    expect(shortcuts).toContainEqual({
+      menu: "Go",
+      label: "Go to Line",
+      keys: mac ? "⌃G" : "Ctrl+G",
+      editorOnly: true,
+    });
+    const keys = shortcuts.map((s: { keys: string }) => s.keys);
+    // One accelerator, one command within each scope: a repeated key would
+    // make one of them dead. An editor-only key may reuse a workbench key on
+    // purpose (Bold and Toggle Sidebar): the editor takes it while focused.
+    const labelsByKey = new Map<string, Set<string>>();
+    for (const s of shortcuts as {
+      keys: string;
+      label: string;
+      editorOnly: boolean;
+    }[]) {
+      const key = `${s.editorOnly ? "editor" : "app"} ${s.keys}`;
+      labelsByKey.set(key, (labelsByKey.get(key) ?? new Set()).add(s.label));
+    }
+    const clashes = [...labelsByKey].filter(([, labels]) => labels.size > 1);
+    expect(clashes).toEqual([]);
+    expect(shortcuts).toContainEqual({
+      menu: "Insert",
+      label: "Bold",
+      keys: mac ? "⌘B" : "Ctrl+B",
+      editorOnly: true,
+    });
+    expect(keys.length).toBeGreaterThan(50);
+  });
 });
 
 describe("desktop Git data preservation", () => {

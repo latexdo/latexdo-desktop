@@ -284,6 +284,21 @@ describe("CollaborationDialog", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("closes on Escape, even from inside a field, and on a backdrop click", () => {
+    const props = dialogProps();
+    render(<CollaborationDialog {...props} />);
+
+    fireEvent.keyDown(screen.getByLabelText("Collaboration display name"), {
+      key: "Escape",
+    });
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.mouseDown(screen.getByRole("dialog"));
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    fireEvent.mouseDown(screen.getByRole("presentation"));
+    expect(props.onClose).toHaveBeenCalledTimes(2);
+  });
+
   it("does not render when closed", () => {
     const { container } = render(
       <CollaborationDialog {...dialogProps({ open: false })} />,

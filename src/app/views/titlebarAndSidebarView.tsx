@@ -8,9 +8,7 @@ import {
   Files,
   GitBranch,
   ImageUp,
-  LoaderCircle,
   Link,
-  WandSparkles,
   PanelBottom,
   PanelLeftClose,
   PanelLeftOpen,
@@ -39,18 +37,14 @@ import type { AppCtx } from "../appContext";
 
 export function renderTitlebar(ctx: AppCtx) {
   const {
-    activeDocumentIsLatex,
     activePanel,
-    applyLatexPrettier,
     diagnostics,
     openPanel,
     openShareDialog,
     panelVisible,
-    paperReviewImporting,
     previewShown,
     projectId,
     projectName,
-    reviewPaper,
     shareButtonDisabled,
     sidebarVisible,
     togglePanel,
@@ -68,36 +62,6 @@ export function renderTitlebar(ctx: AppCtx) {
         </span>
       </div>
       <div className="title-actions">
-        <button
-          type="button"
-          className="title-history-button title-prettier-button"
-          onClick={applyLatexPrettier}
-          disabled={!activeDocumentIsLatex}
-          title={
-            activeDocumentIsLatex
-              ? "Tidy up the LaTeX layout"
-              : "Open a TeX file to tidy it up"
-          }
-          aria-label="Tidy up the LaTeX layout"
-        >
-          <WandSparkles size={15} aria-hidden="true" />
-          <span>Tidy</span>
-        </button>
-        <button
-          type="button"
-          className="title-history-button title-review-paper-button"
-          onClick={() => void reviewPaper()}
-          disabled={paperReviewImporting}
-          title="Read and review a PDF paper"
-          aria-label="Read and review a PDF paper"
-        >
-          {paperReviewImporting ? (
-            <LoaderCircle size={15} className="spin" />
-          ) : (
-            <BookOpenText size={15} aria-hidden="true" />
-          )}
-          <span>{paperReviewImporting ? "Opening" : "Review"}</span>
-        </button>
         {projectId ? null : (
           // With a project open, Share lives in the editor toolbar; here it
           // only joins someone else's project from the welcome screen.
