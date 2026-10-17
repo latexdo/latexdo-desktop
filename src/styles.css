@@ -29249,3 +29249,42 @@ body.pane-resizing .preview-pane > * {
 .theme-choice-top > span:first-child {
   flex: 1 1 150px;
 }
+
+/* Selected tabs, filters and segments: a soft accent tint with accent text.
+   (--accent-bg is the solid accent, which made accent-colored labels vanish.) */
+.notation-manager-tabs button.active,
+.notation-manager-filter.active,
+.table-segmented button.active,
+.table-add-row:hover:not(:disabled),
+.notation-manager-symbol-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.notation-manager-tabs button.active,
+.table-segmented button.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* "Define" is an action: a solid accent button with readable text. */
+.notation-manager-def-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.notation-manager-def-btn:hover {
+  background: color-mix(in srgb, var(--accent) 85%, var(--text-on-accent));
+  color: var(--text-on-accent);
+}
+
+/* The "All" count is neutral; red stays for undefined symbols only. */
+.notation-manager-filter.all .notation-manager-filter-count {
+  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  color: var(--text-secondary);
+}
+
+.notation-manager-filter.all.active .notation-manager-filter-count {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
