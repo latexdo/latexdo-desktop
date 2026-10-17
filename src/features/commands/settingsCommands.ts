@@ -62,7 +62,8 @@ const themeAliases: Record<string, ColorTheme> = {
   dark: "graphite",
   blue: "midnight",
   green: "forest",
-  white: "studio",
+  studio: "graphite",
+  paper: "forest",
 };
 
 const themeNames = Object.fromEntries(

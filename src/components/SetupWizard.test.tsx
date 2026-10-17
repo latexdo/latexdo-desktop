@@ -244,7 +244,7 @@ describe("SetupWizard", () => {
     expect(screen.getByLabelText("First name")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Balanced/i })).toBeNull();
     expect(screen.queryByText("Workspace")).toBeNull();
-    expect(screen.getByRole("button", { name: /Studio White/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Forest/i })).toBeVisible();
 
     continueSetup();
     expect(screen.getByText("Do you want an AI assistant?")).toBeVisible();
@@ -274,10 +274,10 @@ describe("SetupWizard", () => {
       target: { value: "Ada" },
     });
 
-    const studioTheme = screen.getByRole("button", { name: /Studio White/i });
-    fireEvent.click(studioTheme);
-    expect(onApplyTheme).toHaveBeenCalledWith("studio");
-    expect(studioTheme).toHaveAttribute("aria-pressed", "true");
+    const forestTheme = screen.getByRole("button", { name: /Forest/i });
+    fireEvent.click(forestTheme);
+    expect(onApplyTheme).toHaveBeenCalledWith("forest");
+    expect(forestTheme).toHaveAttribute("aria-pressed", "true");
     continueSetup();
 
     expect(screen.getByText(/Needs the LatexDo desktop app/i)).toBeVisible();

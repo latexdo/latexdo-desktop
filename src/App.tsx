@@ -266,6 +266,7 @@ export default function App() {
           onApplyTheme={(theme) =>
             setSettings((current) => ({ ...current, colorTheme: theme }))
           }
+          appearance={resolvedAppearance}
           onComplete={completeAiSetup}
           systemCapabilities={aiSystemCapabilities}
           systemCapabilitiesState={aiSystemCapabilitiesState}

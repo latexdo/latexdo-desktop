@@ -476,7 +476,7 @@ export function renderSettingsTabs(ctx: AppCtx) {
         className={`settings-tab ${settingsTab === "editor" ? "active" : ""}`}
         onClick={() => setSettingsTab("editor")}
       >
-        Editor
+        General
       </button>
       <button
         className={`settings-tab ${settingsTab === "ai" ? "active" : ""}`}

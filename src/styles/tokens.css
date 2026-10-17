@@ -254,16 +254,6 @@
   --theme-tint: light-dark(#fbf5ec, #191309);
 }
 
-.app-shell[data-theme="studio"] {
-  --accent: light-dark(#2f6fdb, #6d96e8);
-  --theme-tint: light-dark(#f7f9fc, #111318);
-}
-
-.app-shell[data-theme="paper"] {
-  --accent: light-dark(#2f8f6b, #6fc795);
-  --theme-tint: light-dark(#fffefa, #161a10);
-}
-
 .app-shell[data-theme="graphite"][data-resolved-appearance="light"] {
   --editor-bg: #f6f8fd;
 }
@@ -294,14 +284,6 @@
 
 .app-shell[data-theme="sepia"][data-resolved-appearance="dark"] {
   --editor-bg: #1b1510;
-}
-
-.app-shell[data-theme="studio"] {
-  --editor-bg: #ffffff;
-}
-
-.app-shell[data-theme="paper"] {
-  --editor-bg: #fffefa;
 }
 
 /* Accessibility environment overrides ------------------------------------- */

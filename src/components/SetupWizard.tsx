@@ -96,6 +96,8 @@ interface SetupWizardProps {
   initialConfig: AiConfig;
   isDesktop: boolean;
   onApplyTheme: (theme: ColorTheme) => void;
+  /** Light or dark, so theme swatches match what the app shows. */
+  appearance?: "light" | "dark";
   onComplete: (config: AiConfig) => void;
   systemCapabilities?: AiSystemCapabilities | null;
   systemCapabilitiesState?: "idle" | "loading" | "ready" | "unavailable";
@@ -246,6 +248,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   initialConfig,
   isDesktop,
   onApplyTheme,
+  appearance = "dark",
   onComplete,
   systemCapabilities = null,
   systemCapabilitiesState = isDesktop ? "loading" : "unavailable",
@@ -1113,7 +1116,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
                         title={theme.description}
                       >
                         <div className="ai-wizard-swatch-row">
-                          {theme.swatches.map((c) => (
+                          {theme.swatches[appearance].map((c) => (
                             <span key={c} style={{ background: c }} />
                           ))}
                         </div>

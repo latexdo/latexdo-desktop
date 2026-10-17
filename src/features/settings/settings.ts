@@ -16,13 +16,7 @@ import {
   type KnowledgeGraphParams,
 } from "../graph/knowledgeGraph";
 
-export type ColorTheme =
-  | "graphite"
-  | "midnight"
-  | "forest"
-  | "sepia"
-  | "studio"
-  | "paper";
+export type ColorTheme = "graphite" | "midnight" | "forest" | "sepia";
 export type BookmarkStore = Record<string, number[]>;
 
 export interface WelcomeTemplate {
@@ -34,49 +28,64 @@ export interface WelcomeTemplate {
   bibTex?: string;
 }
 
+/**
+ * A theme is a color family: its accent and the tint of the editor and
+ * canvas. Whether the app is light or dark is the separate Appearance setting,
+ * and every theme has both.
+ */
 export const colorThemeOptions: {
   id: ColorTheme;
   name: string;
   description: string;
-  swatches: [string, string, string];
+  /** Background, accent and text, for the light and the dark appearance. */
+  swatches: { light: [string, string, string]; dark: [string, string, string] };
 }[] = [
   {
     id: "graphite",
-    name: "Graphite Pro",
-    description: "Neutral dark theme with crisp blue accents.",
-    swatches: ["#111318", "#729bf0", "#e0e4eb"],
+    name: "Graphite",
+    description: "Neutral grays with crisp blue accents.",
+    swatches: {
+      light: ["#f6f8fd", "#2f6fdb", "#1f2937"],
+      dark: ["#15181e", "#729bf0", "#e0e4eb"],
+    },
   },
   {
     id: "midnight",
-    name: "Midnight Blue",
-    description: "Deep navy workspace tuned for long writing sessions.",
-    swatches: ["#08111f", "#5fa8ff", "#dce8f8"],
+    name: "Midnight",
+    description: "Cool navy tones for long writing sessions.",
+    swatches: {
+      light: ["#f3f8ff", "#2458c8", "#1b2a41"],
+      dark: ["#0b1424", "#5fa8ff", "#dce8f8"],
+    },
   },
   {
     id: "forest",
-    name: "Scholarly Forest",
-    description: "Calm green palette with strong text contrast.",
-    swatches: ["#0d1512", "#65c28f", "#e1ebe5"],
+    name: "Forest",
+    description: "Calm greens with strong text contrast.",
+    swatches: {
+      light: ["#f4f8f5", "#2f8f6b", "#1f2a24"],
+      dark: ["#111a16", "#65c28f", "#e1ebe5"],
+    },
   },
   {
     id: "sepia",
-    name: "Warm Sepia Dark",
-    description: "Warm low-glare theme for reading dense drafts.",
-    swatches: ["#17120d", "#d69a5b", "#eee4d4"],
-  },
-  {
-    id: "studio",
-    name: "Studio White",
-    description: "Clean white workspace with quiet graphite contrast.",
-    swatches: ["#f7f9fc", "#2f6fdb", "#1f2937"],
-  },
-  {
-    id: "paper",
-    name: "Paper White",
-    description: "Soft white theme with ink-like text and green accents.",
-    swatches: ["#fbfbf8", "#2f8f6b", "#252a31"],
+    name: "Sepia",
+    description: "Warm, low-glare tones for reading dense drafts.",
+    swatches: {
+      light: ["#faf5ec", "#a06a26", "#2e261c"],
+      dark: ["#1b1510", "#d69a5b", "#eee4d4"],
+    },
   },
 ];
+
+/**
+ * "Studio White" and "Paper White" were light-only copies of Graphite and
+ * Forest. Saved settings that use them keep their look.
+ */
+const retiredLightThemes: Record<string, ColorTheme> = {
+  studio: "graphite",
+  paper: "forest",
+};
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
@@ -1179,10 +1188,15 @@ function readSavedSettings(): AppSettings {
           : defaultSettings.legalPolicyVersion,
       colorTheme: isColorTheme(saved.colorTheme)
         ? saved.colorTheme
-        : defaultSettings.colorTheme,
-      appearanceMode: isAppearanceMode(saved.appearanceMode)
-        ? saved.appearanceMode
-        : defaultSettings.appearanceMode,
+        : typeof saved.colorTheme === "string" && saved.colorTheme in retiredLightThemes
+          ? retiredLightThemes[saved.colorTheme]
+          : defaultSettings.colorTheme,
+      appearanceMode:
+        typeof saved.colorTheme === "string" && saved.colorTheme in retiredLightThemes
+          ? "light"
+          : isAppearanceMode(saved.appearanceMode)
+            ? saved.appearanceMode
+            : defaultSettings.appearanceMode,
       defaultEngine,
       livePreview:
         typeof saved.livePreview === "boolean"

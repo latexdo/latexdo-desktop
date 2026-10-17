@@ -193,18 +193,57 @@ export function renderCloudForm2(ctx: AppCtx) {
 }
 
 export function renderSettingsSectionHeading(ctx: AppCtx) {
-  const { aiConfig, chooseWorkspacePreset, setEngine, setSettings, settings } = ctx;
+  const {
+    aiConfig,
+    chooseWorkspacePreset,
+    resolvedAppearance,
+    setEngine,
+    setSettings,
+    settings,
+  } = ctx;
   return (
     <>
       <div className="settings-section-heading">
-        <strong>Editor and compiler</strong>
-        <span>Configure how LaTeX source is edited and built.</span>
+        <strong>Appearance</strong>
+        <span>How the whole app looks: windows, panels, the editor and dialogs.</span>
       </div>
 
       <div className="settings-row settings-row-stack">
         <span>
-          <strong>Theme</strong>
-          <small>Readable high-contrast palettes for the whole app and editor.</small>
+          <strong>Mode</strong>
+          <small>Light or dark, or follow your operating system.</small>
+        </span>
+        <div className="ui-segmented" role="radiogroup" aria-label="Appearance">
+          {appearanceModeOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`ui-segmented__item ${
+                settings.appearanceMode === option.id ? "active" : ""
+              }`}
+              onClick={() =>
+                setSettings((current) => ({
+                  ...current,
+                  appearanceMode: option.id,
+                }))
+              }
+              role="radio"
+              aria-checked={settings.appearanceMode === option.id}
+              title={option.description}
+            >
+              {option.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-row settings-row-stack">
+        <span>
+          <strong>Color theme</strong>
+          <small>
+            The accent and tint used everywhere. Each theme works in light and dark
+            mode.
+          </small>
         </span>
         <div className="theme-grid" role="radiogroup" aria-label="Application theme">
           {colorThemeOptions.map((theme) => (
@@ -227,40 +266,11 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
                   <small>{theme.description}</small>
                 </span>
                 <span className="theme-swatches" aria-hidden="true">
-                  {theme.swatches.map((color) => (
+                  {theme.swatches[resolvedAppearance].map((color) => (
                     <span key={color} style={{ background: color }} />
                   ))}
                 </span>
               </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="settings-row settings-row-stack">
-        <span>
-          <strong>Appearance</strong>
-          <small>Light or dark surfaces, or follow the operating system.</small>
-        </span>
-        <div className="ui-segmented" role="radiogroup" aria-label="Appearance">
-          {appearanceModeOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={`ui-segmented__item ${
-                settings.appearanceMode === option.id ? "active" : ""
-              }`}
-              onClick={() =>
-                setSettings((current) => ({
-                  ...current,
-                  appearanceMode: option.id,
-                }))
-              }
-              role="radio"
-              aria-checked={settings.appearanceMode === option.id}
-              title={option.description}
-            >
-              {option.name}
             </button>
           ))}
         </div>
@@ -301,6 +311,11 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
             );
           })}
         </div>
+      </div>
+
+      <div className="settings-section-heading">
+        <strong>Editor and compiler</strong>
+        <span>Configure how LaTeX source is edited and built.</span>
       </div>
 
       <label className="settings-row">
