@@ -2307,21 +2307,21 @@ describe("App critical UI controls", () => {
     });
 
     fireEvent.click(screen.getByTitle("Citation Manager"));
-    expect(
-      await screen.findByRole("heading", { name: "Project Bibliography" }),
-    ).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Bibliography" })).toBeVisible();
     // A tab, not an overlay: Escape leaves it open, its tab closes it.
     expect(screen.getByRole("tab", { name: "Citation Manager" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.getByText("Project Bibliography")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bibliography" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Close Citation Manager" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Project Bibliography")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Bibliography" }),
+      ).not.toBeInTheDocument();
     });
   });
 

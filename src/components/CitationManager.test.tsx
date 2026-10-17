@@ -113,7 +113,7 @@ describe("CitationManager", () => {
     const onAppendBibEntry = vi.fn();
     render(<CitationManager analysis={analysis} onAppendBibEntry={onAppendBibEntry} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Gaps" }));
+    fireEvent.click(screen.getByRole("tab", { name: /Missing/ }));
 
     const card = screen.getByText("missingKey").closest("article");
     expect(card).not.toBeNull();
@@ -130,7 +130,7 @@ describe("CitationManager", () => {
   it("surfaces duplicate and metadata quality issues", () => {
     render(<CitationManager analysis={analysis} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Quality" }));
+    fireEvent.click(screen.getByRole("tab", { name: /Quality/ }));
 
     expect(screen.getByText(/DOI: 10.1000\/dup/i)).toBeVisible();
     expect(screen.getAllByText("metadataDebt").length).toBeGreaterThan(1);
@@ -161,5 +161,38 @@ describe("CitationManager", () => {
 
     rerender(<CitationManager analysis={analysis} onMergeBibFiles={onMergeBibFiles} />);
     expect(screen.queryByRole("button", { name: "Merge into one .bib" })).toBeNull();
+  });
+
+  it("pages a large library, shows the unused count and checks only cited entries online", async () => {
+    const big = analyzeCitationLibrary(
+      [
+        { path: "main.tex", content: "\\cite{k0}" },
+        {
+          path: "lab.bib",
+          content: Array.from(
+            { length: 450 },
+            (_, i) => `@article{k${i}, title={Paper ${i}}, author={A. B}, year={2020}}`,
+          ).join("\n"),
+        },
+      ],
+      2026,
+    );
+    const verifyEntry = vi.fn().mockResolvedValue({ status: "verified", matches: [] });
+    render(
+      <CitationManager
+        analysis={big}
+        onRemoveUnused={vi.fn()}
+        verifyEntry={verifyEntry}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Remove unused entries" }),
+    ).toHaveTextContent("Remove unused449");
+    expect(screen.getAllByRole("article")).toHaveLength(200);
+    fireEvent.click(screen.getByRole("button", { name: /Show more \(250 more\)/ }));
+    expect(screen.getAllByRole("article")).toHaveLength(450);
+    await waitFor(() => expect(verifyEntry).toHaveBeenCalledTimes(1));
+    expect(verifyEntry.mock.calls[0]![0].key).toBe("k0");
   });
 });
