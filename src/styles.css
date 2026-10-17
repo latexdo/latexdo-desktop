@@ -30675,3 +30675,27 @@ body.pane-resizing .preview-pane > * {
 .tikz-code-actions [data-tip]:nth-last-child(-n + 2):focus-visible::after {
   transform: none;
 }
+
+/* The status bar's color says how the project is doing:
+   green = shared and live, amber = offline, red = the last compile failed. */
+.statusbar {
+  transition: background-color 0.25s ease;
+}
+
+.statusbar[data-state="online"] {
+  background: var(--bg-statusbar-online);
+}
+
+.statusbar[data-state="offline"] {
+  background: var(--bg-statusbar-offline);
+}
+
+.statusbar[data-state="compile-error"] {
+  background: var(--bg-statusbar-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusbar {
+    transition: none;
+  }
+}

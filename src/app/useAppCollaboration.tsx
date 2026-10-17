@@ -1,6 +1,7 @@
 import type * as Monaco from "monaco-editor";
-import { useCallback, useEffect, useLayoutEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { HostSharingMode, GitChangedEvent } from "../types";
+import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
 import {
   bookmarkKey,
@@ -88,6 +89,9 @@ export function useAppCollaboration(ctx: AppCtx08) {
     sourceSyncClearTimerRef,
     sourceSyncDecorationsRef,
   } = ctx;
+  // The live editing connection, shown as the status bar's color.
+  const [liveConnection, setLiveConnection] =
+    useState<CollaborationConnectionStatus>("idle");
 
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
@@ -162,6 +166,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
             color: collaboration.color,
             emoji: collaboration.emoji,
             onStatusChange: (status) => {
+              setLiveConnection(status);
               if (status === "connected") {
                 setStatusMessage(
                   `Live collaboration syncing: ${pathForDisplay(document.relativePath)}`,
@@ -1011,6 +1016,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
   );
 
   return {
+    liveConnection,
     connectCollaborationBinding,
     applyEditorBlameDecorations,
     handleEditorChange,

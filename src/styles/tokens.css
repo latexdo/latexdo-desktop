@@ -150,6 +150,10 @@
   --bg-activity-bar: var(--surface-chrome);
   --bg-titlebar: var(--surface-chrome);
   --bg-statusbar: var(--accent-bg);
+  /* Status bar colors for live states; white text stays readable on all. */
+  --bg-statusbar-online: #13795b;
+  --bg-statusbar-offline: #9a5b13;
+  --bg-statusbar-error: #b42318;
   --bg-modal-backdrop: light-dark(rgb(15 23 42 / 36%), rgb(5 7 11 / 62%));
   --bg-row-hover: var(--surface-raised-hover);
   --bg-row-active: var(--selection-bg);
