@@ -510,7 +510,9 @@ describe("SetupWizard", () => {
     advanceToModelStep();
 
     openMoreOptions();
-    expect(screen.getAllByText(/Not enough storage/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Not enough disk space: needs/i).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByRole("button", { name: /Download model/i })).toBeNull();
     expect(screen.getByRole("button", { name: /^Continue$/i })).toBeDisabled();
   });
@@ -801,13 +803,56 @@ describe("SetupWizard", () => {
     advanceToModelStep();
 
     openMoreOptions();
-    expect(screen.getAllByText(/Memory is currently low/i)[0]).toBeVisible();
-    expect(screen.getAllByText(/Close other applications/i)[0]).toBeVisible();
+    expect(
+      screen.getAllByText(/Not enough free memory \(RAM\) right now/i)[0],
+    ).toBeVisible();
+    expect(screen.getAllByText(/Close other apps to free memory/i)[0]).toBeVisible();
 
     fireEvent.click(modelChoiceButton("LatexDo AI"));
     expect(
-      screen.getAllByText(/Memory is currently low|pick a lighter tier/i).length,
+      screen.getAllByText(/Not enough free memory|pick a lighter tier/i).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("checks memory again while a model is being chosen, and unlocks it once it fits", () => {
+    vi.useFakeTimers();
+    try {
+      const lowMemory = {
+        ...highRamCapabilities,
+        totalRamBytes: 8 * GB,
+        freeRamBytes: 3.5 * GB,
+      };
+      const onRefresh = vi.fn().mockResolvedValue(null);
+      const props = {
+        initialConfig: makeConfig({ provider: "local", modelDownloaded: false }),
+        isDesktop: true,
+        systemCapabilitiesState: "ready" as const,
+        onRefreshSystemCapabilities: onRefresh,
+        onApplyTheme: vi.fn(),
+        onComplete: vi.fn(),
+      };
+      const { rerender } = render(
+        <SetupWizard {...props} systemCapabilities={lowMemory} />,
+      );
+      expect(onRefresh).not.toHaveBeenCalled();
+      advanceToModelStep();
+      openMoreOptions();
+      const warnings = () => screen.queryAllByText(/Not enough free memory \(RAM\)/i);
+      expect(warnings().length).toBeGreaterThan(0);
+
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(onRefresh).toHaveBeenCalledTimes(1);
+      fireEvent.focus(window);
+      expect(onRefresh).toHaveBeenCalledTimes(2);
+
+      // The person closed other apps: the next check finds enough memory.
+      rerender(<SetupWizard {...props} systemCapabilities={highRamCapabilities} />);
+      expect(warnings()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows provider settings only for the chosen kind of assistant", () => {

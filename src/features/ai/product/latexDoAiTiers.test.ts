@@ -73,7 +73,7 @@ describe("tierUnlockGuidance", () => {
       requiredAvailableBytes: 4 * GB,
       availableBytes: 2 * GB,
     });
-    expect(guidance?.heading).toContain("Memory is currently low");
+    expect(guidance?.heading).toContain("Not enough free memory (RAM) right now");
     expect(guidance?.steps.join(" ")).toContain("2.0 GB");
     expect(guidance?.steps.join(" ")).toContain("lighter tier");
   });
@@ -95,7 +95,7 @@ describe("tierUnlockGuidance", () => {
       requiredSystemRamBytes: 12 * GB,
       detectedSystemRamBytes: 8 * GB,
     });
-    expect(guidance?.heading).toContain("memory floor");
+    expect(guidance?.heading).toContain("too little memory (RAM)");
     expect(guidance?.steps.join(" ")).toContain("Customize");
   });
 

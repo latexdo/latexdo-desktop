@@ -29036,3 +29036,38 @@ body.pane-resizing .preview-pane > * {
   background: color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--success);
 }
+
+/* Sending before an AI is set up: a calm note above the composer. */
+.ai-send-blocked {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-send-blocked-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-send-blocked-actions button {
+  padding: 4px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-send-blocked-actions button:first-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+}

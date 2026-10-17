@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultAiConfig, type AiConfig } from "../features/ai/aiConfig";
 import type { AgentContext, EditProposal } from "../features/ai/aiTools";
@@ -143,7 +143,7 @@ describe("AiSidebar", () => {
       makeConfig({ provider: "cloud", cloud: { credentialConfigured: false } }),
     );
 
-    expect(screen.getByText("Cloud · claude-opus-5-5")).toBeVisible();
+    expect(screen.getAllByText("Cloud · claude-opus-5-5")[0]).toBeVisible();
     expect(screen.getByText("AI isn't ready yet.")).toBeVisible();
     expect(screen.getByText("Add your API key in AI settings.")).toBeVisible();
 
@@ -151,10 +151,36 @@ describe("AiSidebar", () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps dictation and typing available, and explains a send without an AI", () => {
+    const { onOpenSettings } = renderSidebar(
+      makeConfig({ provider: "cloud", cloud: { credentialConfigured: false } }),
+    );
+
+    expect(screen.getByRole("button", { name: "Start voice dictation" })).toBeEnabled();
+    expect(screen.getByText(/Voice dictation works without an AI/)).toBeVisible();
+    const input = screen.getByPlaceholderText("Ask the AI anything");
+    fireEvent.change(input, { target: { value: "Fix my abstract" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // Nothing is sent and nothing is lost: the text stays, with the reason.
+    expect(input).toHaveValue("Fix my abstract");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your message is kept here. To send it, please set up an AI first: add your API key in AI settings.",
+    );
+    fireEvent.click(
+      within(screen.getByRole("status")).getByRole("button", {
+        name: "Open AI settings",
+      }),
+    );
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/Your message is kept here/)).not.toBeInTheDocument();
+  });
+
   it("explains desktop-only local setup in the browser", () => {
     renderSidebar(makeConfig({ provider: "local", modelDownloaded: true }), false);
 
-    expect(screen.getByText("LatexDo AI Plus")).toBeVisible();
+    expect(screen.getAllByText("LatexDo AI Plus")[0]).toBeVisible();
     expect(
       screen.getByText(
         "Local models need the desktop app. Switch to a cloud provider for the browser.",

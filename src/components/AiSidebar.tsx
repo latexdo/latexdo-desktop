@@ -218,6 +218,9 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     voicePendingRef.current = intent;
     setVoicePending(intent);
   };
+  // Set when the person tries to send before an AI is set up; the message
+  // stays in the composer and a gentle note explains what is missing.
+  const [sendBlocked, setSendBlocked] = React.useState(false);
   const [suggest, setSuggest] = React.useState<SuggestState | null>(null);
   const [highlight, setHighlight] = React.useState(0);
 
@@ -253,9 +256,11 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     transcriptMode: voiceSettings.transcriptMode,
     maxDurationMs: voiceSettings.maxDurationMs,
     transcriptionProvider,
-    cleanup: voiceSettings.transcriptMode === "clean" ? cleanupProvider : null,
+    cleanup:
+      configured && voiceSettings.transcriptMode === "clean" ? cleanupProvider : null,
     onTranscript: (text) => {
-      const sendNow = voicePendingRef.current === "send" && !isRunning;
+      const sendNow = voicePendingRef.current === "send" && !isRunning && configured;
+      if (voicePendingRef.current === "send" && !configured) setSendBlocked(true);
       setVoiceIntent(null);
       if (sendNow) {
         const typed = (inputRef.current?.value ?? input).trim();
@@ -490,6 +495,12 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
 
   function submitText(text: string) {
     if (isRunning) return;
+    if (!configured) {
+      // Keep what they wrote (or dictated); only explain what is missing.
+      if (text && text !== input.trim()) setInput(text);
+      setSendBlocked(true);
+      return;
+    }
     // Compose message: selection context (if attached) + user's own text.
     const block = composerSelection ? buildSelectionMessageText(composerSelection) : "";
     const fullMessage = block ? (text ? `${block}\n\n${text}` : block) : text;
@@ -523,6 +534,25 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
       submit();
     }
   };
+
+  const notReadyReason =
+    config.provider === "off"
+      ? "the assistant is turned off. Choose a provider in AI settings."
+      : config.provider === "cloud"
+        ? "add your API key in AI settings."
+        : !isDesktop
+          ? "local models need the desktop app. Switch to a cloud provider for the browser."
+          : "download a model in AI settings.";
+  const getApiKeyButton =
+    config.provider === "cloud" && cloudProvider?.apiKeyUrl ? (
+      <button
+        type="button"
+        className="cloud-form-link"
+        onClick={() => onOpenExternal?.(cloudProvider.apiKeyUrl)}
+      >
+        Get API key
+      </button>
+    ) : null;
 
   return (
     <div
@@ -600,296 +630,303 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
         </div>
       </div>
 
-      {!configured ? (
-        <div className="ai-sidebar-empty">
-          <CircleSlash size={30} />
-          <p>AI isn't ready yet.</p>
-          <p className="sub-text">
-            {config.provider === "cloud"
-              ? "Add your API key in AI settings."
-              : !isDesktop
-                ? "Local models need the desktop app. Switch to a cloud provider for the browser."
-                : "Download a model to get started."}
-          </p>
-          <button className="ai-wizard-primary" onClick={onOpenSettings}>
-            Open AI settings
-          </button>
-          {config.provider === "cloud" && cloudProvider?.apiKeyUrl ? (
-            <button
-              type="button"
-              className="cloud-form-link"
-              onClick={() => onOpenExternal?.(cloudProvider.apiKeyUrl)}
-            >
-              Get API key
-            </button>
+      <>
+        <div className="ai-sidebar-messages" ref={scrollRef}>
+          {!configured && messages.length === 0 ? (
+            <div className="ai-sidebar-empty">
+              <CircleSlash size={30} />
+              <p>AI isn't ready yet.</p>
+              <p className="sub-text">
+                {notReadyReason.charAt(0).toUpperCase() + notReadyReason.slice(1)}
+              </p>
+              <button className="ai-wizard-primary" onClick={onOpenSettings}>
+                Open AI settings
+              </button>
+              {getApiKeyButton}
+              <p className="sub-text">
+                Voice dictation works without an AI: press the microphone to turn speech
+                into text.
+              </p>
+            </div>
           ) : null}
-        </div>
-      ) : (
-        <>
-          <div className="ai-sidebar-messages" ref={scrollRef}>
-            {messages.length === 0 && (
-              <div className="ai-empty-greeting">
-                <h2>{greeting(config.userName)}</h2>
-                <p className="ai-sidebar-hints-tip">
-                  Type <code>@</code> to attach a project file, or <code>\</code> for
-                  quick commands.
-                </p>
-              </div>
-            )}
-            {messages.map((m) => (
-              <div key={m.id} className={`ai-msg ai-msg-${m.role}`}>
-                {m.role === "assistant" && m.activity.length > 0 && (
-                  <div className="ai-msg-activity">
-                    {m.activity.map((a, i) => (
-                      <div
-                        key={i}
-                        className={`ai-tool-chip ${a.ok ? "" : "error"}`}
-                        title={a.summary}
-                      >
-                        {a.ok ? <Wrench size={11} /> : <AlertTriangle size={11} />}
-                        <span>{a.name}</span>
-                        {a.ok && <Check size={11} />}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="ai-msg-text">
-                  {m.role === "assistant" ? (
-                    <AiMessageMarkdown
-                      text={m.text || (m.pending ? "…" : "")}
-                      onOpenExternal={onOpenExternal}
-                    />
-                  ) : (
-                    m.text
-                  )}
-                </div>
-                {m.role === "assistant" && !m.pending && onInsertFigure
-                  ? tikzBlocksIn(m.text).map((code, index, blocks) => (
-                      <button
-                        key={index}
-                        type="button"
-                        className="ai-insert-figure"
-                        onClick={() => onInsertFigure(code)}
-                        title="Insert this figure at the cursor and show it in the PDF preview"
-                      >
-                        <Shapes size={12} />
-                        {blocks.length > 1
-                          ? `Insert figure ${index + 1}`
-                          : "Insert figure"}
-                      </button>
-                    ))
-                  : null}
-              </div>
-            ))}
-            {isRunning && status && <div className="ai-sidebar-status">{status}</div>}
-          </div>
-
-          {pendingApproval && (
-            <div className="ai-approval">
-              <div className="ai-approval-head">
-                <ShieldCheck size={14} />
-                <span>
-                  {pendingApproval.source === "reformulate"
-                    ? "Reformulate selection"
-                    : (editKindLabel[pendingApproval.kind] ?? "Apply change")}{" "}
-                  · {pendingApproval.path}
-                </span>
-              </div>
-              {pendingApproval.oldText != null &&
-                pendingApproval.kind !== "insert-at-cursor" && (
-                  <pre className="ai-approval-diff old">
-                    {pendingApproval.oldText.slice(0, 600)}
-                  </pre>
-                )}
-              <pre className="ai-approval-diff new">
-                {pendingApproval.newText.slice(0, 600)}
-              </pre>
-              {pendingApproval.preambleLines?.length ? (
-                <div className="ai-approval-preamble">
-                  <span>Also adds to the preamble</span>
-                  <pre>{pendingApproval.preambleLines.join("\n")}</pre>
-                </div>
-              ) : null}
-              <div className="ai-approval-actions">
-                <button
-                  className="ai-approval-decline"
-                  onClick={() => resolveApproval(false)}
-                >
-                  <X size={13} /> Decline
-                </button>
-                <button
-                  className="ai-approval-approve"
-                  onClick={() => resolveApproval(true)}
-                >
-                  <Check size={13} /> Approve
-                </button>
-              </div>
+          {configured && messages.length === 0 && (
+            <div className="ai-empty-greeting">
+              <h2>{greeting(config.userName)}</h2>
+              <p className="ai-sidebar-hints-tip">
+                Type <code>@</code> to attach a project file, or <code>\</code> for
+                quick commands.
+              </p>
             </div>
           )}
-
-          <div className="ai-sidebar-input" data-tour-id="ai-composer">
-            {composerSelection && (
-              <div className="ai-selection-context">
-                <div className="ai-selection-chip">
-                  <span className="ai-selection-chip-label">
-                    Selection: {composerSelection.filePath} · lines{" "}
-                    {composerSelection.startLine}–{composerSelection.endLine}
-                  </span>
-                  <button
-                    type="button"
-                    className="ai-selection-chip-remove"
-                    onClick={() => setComposerSelection(null)}
-                    title="Remove selection context"
-                    aria-label="Remove selection context"
-                  >
-                    ×
-                  </button>
-                </div>
-                <pre className="ai-selection-chip-preview">
-                  {composerSelection.text.slice(0, 200)}
-                  {composerSelection.text.length > 200 ? "…" : ""}
-                </pre>
-              </div>
-            )}
-            {suggest && (
-              <div
-                className="ai-mention-popup"
-                role="listbox"
-                data-tour-id="ai-context-suggestions"
-              >
-                <div className="ai-mention-popup-title">
-                  {suggest.trigger.kind === "file"
-                    ? "Attach a project file"
-                    : "Quick commands"}
-                </div>
-                {suggest.items.map((item, i) => (
-                  <button
-                    key={item.value}
-                    role="option"
-                    aria-selected={i === highlight}
-                    className={`ai-mention-item ${i === highlight ? "active" : ""}`}
-                    onMouseEnter={() => setHighlight(i)}
-                    // onMouseDown so the textarea keeps focus.
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      acceptSuggestion(item, suggest.trigger);
-                    }}
-                  >
-                    <span className="ai-mention-value">
-                      {suggest.trigger.kind === "file" ? "@" : "\\"}
-                      {item.value}
-                    </span>
-                    {item.hint && <span className="ai-mention-hint">{item.hint}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-            {speechPromptOpen ? (
-              <LocalSpeechInstallCard
-                state={localSpeech.state}
-                onInstall={installLocalSpeech}
-                onUseOpenAi={() => {
-                  saveVoiceSettingsState({ ...voiceSettings, sttMode: "openai" });
-                  setSpeechPromptOpen(false);
-                }}
-                onDismiss={() => setSpeechPromptOpen(false)}
-              />
-            ) : null}
-            <div className={`ai-composer-box${voiceBarVisible ? " is-voice" : ""}`}>
-              <textarea
-                ref={inputRef}
-                value={input}
-                placeholder={
-                  composerSelection ? "Ask about the selection…" : "Ask the AI anything"
-                }
-                rows={1}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  updateSuggestions(e.target.value, e.target.selectionStart ?? 0);
-                }}
-                onSelect={(e) => {
-                  const ta = e.currentTarget;
-                  updateSuggestions(ta.value, ta.selectionStart ?? 0);
-                }}
-                onBlur={() => setSuggest(null)}
-                onKeyDown={onInputKeyDown}
-              />
-              {voiceBarVisible ? (
-                <VoiceRecordingBar
-                  status={voice.status}
-                  levels={voice.levels}
-                  durationMs={voice.durationMs}
-                  canSend={!isRunning}
-                  pending={voicePending}
-                  onCancel={() => {
-                    setVoiceIntent(null);
-                    voice.cancel();
-                  }}
-                  onStop={() => {
-                    setVoiceIntent("stop");
-                    void voice.stop();
-                  }}
-                  onSend={() => {
-                    setVoiceIntent("send");
-                    void voice.stop();
-                  }}
-                />
-              ) : (
-                <div className="ai-composer-toolbar">
-                  <button
-                    type="button"
-                    className="ai-composer-plus"
-                    onClick={attachFile}
-                    title="Attach a project file (@)"
-                    aria-label="Attach a project file"
-                  >
-                    <Plus size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    className="ai-composer-model"
-                    onClick={onOpenSettings}
-                    title={`${providerLabel(config)} — change model`}
-                    aria-label={`Model: ${providerLabel(config)}. Change model`}
-                  >
-                    <span>{providerLabel(config)}</span>
-                    <ChevronDown size={13} aria-hidden="true" />
-                  </button>
-                  <div className="ai-composer-voice-controls">
-                    <VoiceDictationButton
-                      status={voice.status}
-                      error={speechPromptOpen ? null : voice.error}
-                      durationMs={voice.durationMs}
-                      onStart={handleVoiceStart}
-                      onStop={() => void voice.stop()}
-                      onCancel={voice.cancel}
-                      onOpenSettings={onOpenSettings}
-                    />
-                  </div>
-                  {isRunning ? (
-                    <button
-                      className="ai-send-button stop"
-                      onClick={abort}
-                      title="Stop"
+          {messages.map((m) => (
+            <div key={m.id} className={`ai-msg ai-msg-${m.role}`}>
+              {m.role === "assistant" && m.activity.length > 0 && (
+                <div className="ai-msg-activity">
+                  {m.activity.map((a, i) => (
+                    <div
+                      key={i}
+                      className={`ai-tool-chip ${a.ok ? "" : "error"}`}
+                      title={a.summary}
                     >
-                      <Square size={15} />
-                    </button>
-                  ) : (
-                    <button
-                      className="ai-send-button"
-                      onClick={submit}
-                      disabled={!input.trim() && !composerSelection}
-                      title="Send"
-                    >
-                      <ArrowUp size={16} />
-                    </button>
-                  )}
+                      {a.ok ? <Wrench size={11} /> : <AlertTriangle size={11} />}
+                      <span>{a.name}</span>
+                      {a.ok && <Check size={11} />}
+                    </div>
+                  ))}
                 </div>
               )}
+              <div className="ai-msg-text">
+                {m.role === "assistant" ? (
+                  <AiMessageMarkdown
+                    text={m.text || (m.pending ? "…" : "")}
+                    onOpenExternal={onOpenExternal}
+                  />
+                ) : (
+                  m.text
+                )}
+              </div>
+              {m.role === "assistant" && !m.pending && onInsertFigure
+                ? tikzBlocksIn(m.text).map((code, index, blocks) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className="ai-insert-figure"
+                      onClick={() => onInsertFigure(code)}
+                      title="Insert this figure at the cursor and show it in the PDF preview"
+                    >
+                      <Shapes size={12} />
+                      {blocks.length > 1
+                        ? `Insert figure ${index + 1}`
+                        : "Insert figure"}
+                    </button>
+                  ))
+                : null}
+            </div>
+          ))}
+          {isRunning && status && <div className="ai-sidebar-status">{status}</div>}
+        </div>
+
+        {pendingApproval && (
+          <div className="ai-approval">
+            <div className="ai-approval-head">
+              <ShieldCheck size={14} />
+              <span>
+                {pendingApproval.source === "reformulate"
+                  ? "Reformulate selection"
+                  : (editKindLabel[pendingApproval.kind] ?? "Apply change")}{" "}
+                · {pendingApproval.path}
+              </span>
+            </div>
+            {pendingApproval.oldText != null &&
+              pendingApproval.kind !== "insert-at-cursor" && (
+                <pre className="ai-approval-diff old">
+                  {pendingApproval.oldText.slice(0, 600)}
+                </pre>
+              )}
+            <pre className="ai-approval-diff new">
+              {pendingApproval.newText.slice(0, 600)}
+            </pre>
+            {pendingApproval.preambleLines?.length ? (
+              <div className="ai-approval-preamble">
+                <span>Also adds to the preamble</span>
+                <pre>{pendingApproval.preambleLines.join("\n")}</pre>
+              </div>
+            ) : null}
+            <div className="ai-approval-actions">
+              <button
+                className="ai-approval-decline"
+                onClick={() => resolveApproval(false)}
+              >
+                <X size={13} /> Decline
+              </button>
+              <button
+                className="ai-approval-approve"
+                onClick={() => resolveApproval(true)}
+              >
+                <Check size={13} /> Approve
+              </button>
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        <div className="ai-sidebar-input" data-tour-id="ai-composer">
+          {composerSelection && (
+            <div className="ai-selection-context">
+              <div className="ai-selection-chip">
+                <span className="ai-selection-chip-label">
+                  Selection: {composerSelection.filePath} · lines{" "}
+                  {composerSelection.startLine}–{composerSelection.endLine}
+                </span>
+                <button
+                  type="button"
+                  className="ai-selection-chip-remove"
+                  onClick={() => setComposerSelection(null)}
+                  title="Remove selection context"
+                  aria-label="Remove selection context"
+                >
+                  ×
+                </button>
+              </div>
+              <pre className="ai-selection-chip-preview">
+                {composerSelection.text.slice(0, 200)}
+                {composerSelection.text.length > 200 ? "…" : ""}
+              </pre>
+            </div>
+          )}
+          {suggest && (
+            <div
+              className="ai-mention-popup"
+              role="listbox"
+              data-tour-id="ai-context-suggestions"
+            >
+              <div className="ai-mention-popup-title">
+                {suggest.trigger.kind === "file"
+                  ? "Attach a project file"
+                  : "Quick commands"}
+              </div>
+              {suggest.items.map((item, i) => (
+                <button
+                  key={item.value}
+                  role="option"
+                  aria-selected={i === highlight}
+                  className={`ai-mention-item ${i === highlight ? "active" : ""}`}
+                  onMouseEnter={() => setHighlight(i)}
+                  // onMouseDown so the textarea keeps focus.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    acceptSuggestion(item, suggest.trigger);
+                  }}
+                >
+                  <span className="ai-mention-value">
+                    {suggest.trigger.kind === "file" ? "@" : "\\"}
+                    {item.value}
+                  </span>
+                  {item.hint && <span className="ai-mention-hint">{item.hint}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {speechPromptOpen ? (
+            <LocalSpeechInstallCard
+              state={localSpeech.state}
+              onInstall={installLocalSpeech}
+              onUseOpenAi={() => {
+                saveVoiceSettingsState({ ...voiceSettings, sttMode: "openai" });
+                setSpeechPromptOpen(false);
+              }}
+              onDismiss={() => setSpeechPromptOpen(false)}
+            />
+          ) : null}
+          {sendBlocked && !configured ? (
+            <div className="ai-send-blocked" role="status">
+              <span>
+                Your message is kept here. To send it, please set up an AI first:{" "}
+                {notReadyReason}
+              </span>
+              <span className="ai-send-blocked-actions">
+                <button type="button" onClick={onOpenSettings}>
+                  Open AI settings
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={() => setSendBlocked(false)}
+                >
+                  Dismiss
+                </button>
+              </span>
+            </div>
+          ) : null}
+          <div className={`ai-composer-box${voiceBarVisible ? " is-voice" : ""}`}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              placeholder={
+                composerSelection ? "Ask about the selection…" : "Ask the AI anything"
+              }
+              rows={1}
+              onChange={(e) => {
+                setInput(e.target.value);
+                updateSuggestions(e.target.value, e.target.selectionStart ?? 0);
+              }}
+              onSelect={(e) => {
+                const ta = e.currentTarget;
+                updateSuggestions(ta.value, ta.selectionStart ?? 0);
+              }}
+              onBlur={() => setSuggest(null)}
+              onKeyDown={onInputKeyDown}
+            />
+            {voiceBarVisible ? (
+              <VoiceRecordingBar
+                status={voice.status}
+                levels={voice.levels}
+                durationMs={voice.durationMs}
+                canSend={!isRunning}
+                pending={voicePending}
+                onCancel={() => {
+                  setVoiceIntent(null);
+                  voice.cancel();
+                }}
+                onStop={() => {
+                  setVoiceIntent("stop");
+                  void voice.stop();
+                }}
+                onSend={() => {
+                  setVoiceIntent("send");
+                  void voice.stop();
+                }}
+              />
+            ) : (
+              <div className="ai-composer-toolbar">
+                <button
+                  type="button"
+                  className="ai-composer-plus"
+                  onClick={attachFile}
+                  title="Attach a project file (@)"
+                  aria-label="Attach a project file"
+                >
+                  <Plus size={17} />
+                </button>
+                <button
+                  type="button"
+                  className="ai-composer-model"
+                  onClick={onOpenSettings}
+                  title={`${providerLabel(config)} — change model`}
+                  aria-label={`Model: ${providerLabel(config)}. Change model`}
+                >
+                  <span>{providerLabel(config)}</span>
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+                <div className="ai-composer-voice-controls">
+                  <VoiceDictationButton
+                    status={voice.status}
+                    error={speechPromptOpen ? null : voice.error}
+                    durationMs={voice.durationMs}
+                    onStart={handleVoiceStart}
+                    onStop={() => void voice.stop()}
+                    onCancel={voice.cancel}
+                    onOpenSettings={onOpenSettings}
+                  />
+                </div>
+                {isRunning ? (
+                  <button className="ai-send-button stop" onClick={abort} title="Stop">
+                    <Square size={15} />
+                  </button>
+                ) : (
+                  <button
+                    className="ai-send-button"
+                    onClick={submit}
+                    disabled={!input.trim() && !composerSelection}
+                    title="Send"
+                  >
+                    <ArrowUp size={16} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </>
     </div>
   );
 };
