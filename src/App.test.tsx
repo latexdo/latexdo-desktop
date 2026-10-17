@@ -1768,17 +1768,17 @@ describe("App critical UI controls", () => {
     expect(api.readAsset).not.toHaveBeenCalled();
   });
 
-  it("reviews a paper from the explorer without importing it into the current project", async () => {
+  it("reviews a paper from the Tools menu without importing it into the current project", async () => {
     const api = installLatexDoMock();
 
     render(<App />);
     await openProjectFromWelcome();
+    // The explorer has no Reader Mode button; the menu and Welcome page do.
+    expect(
+      screen.queryByRole("button", { name: "Review Paper in Reader Mode" }),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Review Paper in Reader Mode",
-      }),
-    );
+    act(() => menuCommandListener?.("tools.reviewPdf"));
 
     choosePdfForReview(createReviewPdfFile("standalone-paper.pdf"));
 

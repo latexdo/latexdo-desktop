@@ -1,13 +1,6 @@
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
-import {
-  BookOpenText,
-  Check,
-  ChevronDown,
-  Download,
-  LoaderCircle,
-  RefreshCw,
-} from "lucide-react";
+import { Check, ChevronDown, Download, LoaderCircle, RefreshCw } from "lucide-react";
 import { productConfig } from "./productConfig";
 import { appVersion } from "./appVersion";
 import { ReviewSidebar } from "./components/ReviewSidebar";
@@ -176,7 +169,6 @@ export default function App() {
     openExternalLink,
     openPdfFileForReview,
     openProject,
-    paperReviewImporting,
     pdfReviewInputRef,
     prepareActivationTutorial,
     profileOpen,
@@ -194,7 +186,6 @@ export default function App() {
     restoreActivationWorkspace,
     revealActivationStep,
     reviewChats,
-    reviewPaper,
     selectedImportedCompatibility,
     selectedLatexDoAiDownloadLabel,
     selectedLatexDoAiModelDownloading,
@@ -345,29 +336,14 @@ export default function App() {
                         <Download size={14} />
                       </button>
                     ) : activeSidebar === "explorer" ? (
-                      <>
-                        <button
-                          className="small-icon"
-                          onClick={() => void reviewPaper()}
-                          title="Review Paper in Reader Mode"
-                          aria-label="Review Paper in Reader Mode"
-                          disabled={paperReviewImporting}
-                        >
-                          {paperReviewImporting ? (
-                            <LoaderCircle size={14} className="spin" />
-                          ) : (
-                            <BookOpenText size={14} />
-                          )}
-                        </button>
-                        <button
-                          className="small-icon"
-                          onClick={() => void refreshProject()}
-                          title="Refresh"
-                          disabled={!hasVisibleProject}
-                        >
-                          <RefreshCw size={14} />
-                        </button>
-                      </>
+                      <button
+                        className="small-icon"
+                        onClick={() => void refreshProject()}
+                        title="Refresh"
+                        disabled={!hasVisibleProject}
+                      >
+                        <RefreshCw size={14} />
+                      </button>
                     ) : activeSidebar === "extensions" ? (
                       renderSmallIcon(ctx)
                     ) : null}
