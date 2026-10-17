@@ -97,15 +97,17 @@ describe("TikzCanvas interactions", () => {
           "\\begin{tikzpicture}\n\\draw (1,1) rectangle (2,2);\n\\end{tikzpicture}",
       },
     });
-    fireEvent.click(screen.getByTitle("Apply edited code to canvas"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply edited code to canvas" }),
+    );
     expect(screen.getByText("1 shape")).toBeVisible();
     expect(generatedCode(container)).toContain("rectangle");
-    fireEvent.click(screen.getByText("Full document"));
-    fireEvent.click(screen.getByTitle("Insert into editor"));
+    fireEvent.click(screen.getByRole("button", { name: "Full document" }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert into editor" }));
     expect(insert).toHaveBeenCalledWith(
       expect.stringContaining("\\documentclass[border=10pt]{standalone}"),
     );
-    fireEvent.click(screen.getByText("TikZ only"));
+    fireEvent.click(screen.getByRole("button", { name: "TikZ only" }));
     expect(generatedCode(container)).not.toContain("\\documentclass");
   });
   it("changes drawing styles, canvas dimensions, grid and zoom", () => {
