@@ -242,6 +242,19 @@ interface ExtensionDetailPanelProps {
   onOpenExternal: (url: string) => void;
 }
 
+function isStoreWebsite(url: string): boolean {
+  try {
+    const { hostname, pathname } = new URL(url);
+    const host = hostname.replace(/^www\./, "");
+    return (
+      host === "store.latexdo.org" ||
+      (host === "latexdo.org" && /^\/store(\/|$)/.test(pathname))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function ExtensionDetailPanel({
   extension,
   installed,
@@ -252,6 +265,12 @@ export function ExtensionDetailPanel({
   const featureFlags = Object.keys(extension.contributes.featureFlags ?? {});
   const snippets = extension.contributes.snippets ?? [];
   const templates = extension.contributes.templates ?? [];
+  // A homepage on the store website only repeats this page; extensions are
+  // browsed and installed inside the app.
+  const homepage =
+    extension.homepage && !isStoreWebsite(extension.homepage)
+      ? extension.homepage
+      : undefined;
 
   return (
     <section className="extension-page" role="region" aria-label="Extension details">
@@ -339,15 +358,12 @@ export function ExtensionDetailPanel({
             <dt>Type</dt>
             <dd>{extension.kind === "template" ? "Template pack" : "Extension"}</dd>
           </dl>
-          {extension.homepage || extension.repository ? (
+          {homepage || extension.repository ? (
             <>
               <h2>Links</h2>
               <div className="extension-page-links">
-                {extension.homepage ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenExternal(extension.homepage!)}
-                  >
+                {homepage ? (
+                  <button type="button" onClick={() => onOpenExternal(homepage)}>
                     Homepage <ExternalLink size={12} />
                   </button>
                 ) : null}

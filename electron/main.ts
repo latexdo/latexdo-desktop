@@ -216,8 +216,6 @@ const updatesFeedUrl = startupE2eTest
   ? "http://127.0.0.1:9/updates/latest.json"
   : (envString("LATEXDO_UPDATES_FEED_URL") ??
     "https://latexdo.org/updates/latest.json");
-const extensionStoreUrl =
-  envString("LATEXDO_EXTENSION_STORE_URL") ?? "https://latexdo.org/store/";
 const extensionStoreCatalogUrl =
   envString("LATEXDO_EXTENSION_CATALOG_URL") ??
   "https://latexdo.org/store/extensions/catalog.json";
@@ -247,11 +245,7 @@ const externalUrlHosts = new Set([
   "www.doi.org",
   "www.orcid.org",
 ]);
-for (const configuredExternalUrl of [
-  downloadsPageUrl,
-  extensionStoreUrl,
-  privacyInfoUrl,
-]) {
+for (const configuredExternalUrl of [downloadsPageUrl, privacyInfoUrl]) {
   const host = safeUrlHost(configuredExternalUrl);
   if (host) externalUrlHosts.add(host);
 }
@@ -3476,12 +3470,8 @@ function buildApplicationMenu(): void {
             void shell.openExternal(downloadsPageUrl);
           },
         },
-        {
-          label: `${productName} Store`,
-          click: () => {
-            void shell.openExternal(extensionStoreUrl);
-          },
-        },
+        // Extensions are installed inside the app, not on a website.
+        menuCommand("Browse Extensions", "view.extensions"),
         { type: "separator" },
         {
           label: "Developer",

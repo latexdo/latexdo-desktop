@@ -4,7 +4,6 @@ import {
   Box,
   Building2,
   CircleAlert,
-  ExternalLink,
   Files,
   GitBranch,
   ImageUp,
@@ -15,7 +14,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
-  Plus,
   Puzzle,
   RefreshCw,
   Settings,
@@ -30,7 +28,6 @@ import { productConfig, productIsPro } from "../../productConfig";
 import { AiSidebar } from "../../components/AiSidebar";
 import { pathForDisplay } from "../../pathDisplay";
 import { flattenEntries } from "../../features/project/projectUtils";
-import { extensionStoreSiteUrl } from "../../extensions";
 import { AppIcon, aiChatStateStorageKey, tierAvailabilityLabel } from "../appShared";
 import {
   applyChatModelOption,
@@ -437,7 +434,7 @@ export function renderSidebar(ctx: AppCtx) {
 }
 
 export function renderSmallIcon(ctx: AppCtx) {
-  const { extensionCatalogLoading, openExternalLink, refreshExtensionCatalog } = ctx;
+  const { extensionCatalogLoading, refreshExtensionCatalog } = ctx;
   return (
     <>
       <button
@@ -448,24 +445,6 @@ export function renderSmallIcon(ctx: AppCtx) {
         disabled={extensionCatalogLoading}
       >
         <RefreshCw size={14} className={extensionCatalogLoading ? "spin" : ""} />
-      </button>
-      <button
-        className="small-icon"
-        onClick={() => openExternalLink(extensionStoreSiteUrl)}
-        title="Open extension store"
-        aria-label="Open extension store"
-      >
-        <ExternalLink size={14} />
-      </button>
-      <button
-        className="small-icon"
-        onClick={() =>
-          openExternalLink(new URL("builder/", extensionStoreSiteUrl).toString())
-        }
-        title="Build extension"
-        aria-label="Build extension"
-      >
-        <Plus size={14} />
       </button>
     </>
   );
