@@ -52,6 +52,9 @@ export default defineConfig({
     include: [
       "{src,electron,collaborations,scripts,latexdo}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
     ],
+    // The Cloudflare server has its own end-to-end suite (node --test) that
+    // runs against a live server.
+    exclude: ["**/node_modules/**", "collaborations/cloudflare/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],

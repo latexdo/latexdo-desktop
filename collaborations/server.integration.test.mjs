@@ -239,6 +239,53 @@ describe("real collaboration HTTP service", () => {
       ).status,
     ).toBe(400);
   });
+  it("stores figures, bundles the project, copies and deletes files", async () => {
+    const { id } = await create();
+    const base = `/api/projects/${id}`;
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 255]);
+    expect(
+      (
+        await request(base + "/files/binary?path=fig%2Fplot.png", owner, "PUT", {
+          base64: png.toString("base64"),
+        })
+      ).status,
+    ).toBe(204);
+    await request(base + "/files/content?path=main.tex", owner, "PUT", {
+      content: "\\includegraphics{fig/plot}",
+    });
+    const figure = await (
+      await request(base + "/files/binary?path=fig%2Fplot.png")
+    ).json();
+    expect(Buffer.from(figure.base64, "base64")).toEqual(png);
+
+    const bundle = await (await request(base + "/files/bundle")).json();
+    expect(bundle.files).toEqual([
+      { relativePath: "fig/plot.png", base64: png.toString("base64") },
+      { relativePath: "main.tex", content: "\\includegraphics{fig/plot}" },
+    ]);
+    expect(bundle.revision).toBeGreaterThan(0);
+
+    expect(
+      (
+        await request(base + "/files/copy", owner, "POST", {
+          fromRelativePath: "fig",
+          toRelativePath: "fig-old",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await (await request(base + "/files/exists?path=fig-old%2Fplot.png")).json(),
+    ).toEqual({ exists: true });
+    expect((await request(base + "/files?path=fig-old", owner, "DELETE")).status).toBe(
+      204,
+    );
+    expect(
+      await (await request(base + "/files/exists?path=fig-old%2Fplot.png")).json(),
+    ).toEqual({ exists: false });
+    const state = await (await request(base + "/share")).json();
+    expect(state.revision).toBeGreaterThan(bundle.revision);
+  });
+
   it("enforces upload quotas and private project authorization", async () => {
     const { id } = await create();
     expect((await request(`/api/projects/${id}/files`, guest)).status).toBe(403);

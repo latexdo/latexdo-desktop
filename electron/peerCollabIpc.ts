@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, net, utilityProcess } from "electron";
+import { app, BrowserWindow, dialog, net, safeStorage, utilityProcess } from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { PeerCollabService, type PeerSocket } from "./peerCollab.js";
@@ -66,6 +66,13 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
   const peer = new PeerCollabService({
     dataDirectory: path.join(app.getPath("userData"), "collaboration-host"),
     serverEntryPath: path.join(app.getAppPath(), "collaborations", "server.mjs"),
+    cloudOrigin: process.env.LATEXDO_COLLAB_URL?.trim() || "https://collab.latexdo.org",
+    // Project encryption keys are kept in the OS keychain.
+    keyProtection: {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (value) => safeStorage.encryptString(value),
+      decrypt: (value) => safeStorage.decryptString(value),
+    },
     spawnServer: (entryPath, env) => {
       const child = utilityProcess.fork(entryPath, [], {
         env: hostServerEnvironment(env),
@@ -205,6 +212,67 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
       typeof name === "string" ? name.slice(0, 120) : "",
     );
   });
+
+  ipcMain.handle("peer:cloud-invite", (_event, ...args: unknown[]) => {
+    const channel = "peer:cloud-invite";
+    if (args.length !== 1) invalid(channel);
+    return peer.cloudInvite(parseText(channel, args[0], 256));
+  });
+
+  // True for the owner's own shared copy of a folder on this computer.
+  ipcMain.handle("peer:has-folder", async (_event, ...args: unknown[]) => {
+    const channel = "peer:has-folder";
+    if (args.length !== 1) invalid(channel);
+    return (await peer.hostedProject(parseText(channel, args[0], 80))) !== null;
+  });
+
+  ipcMain.handle(
+    "peer:cloud-save-project",
+    async (event, ...args: unknown[]): Promise<SaveSharedProjectResult> => {
+      const channel = "peer:cloud-save-project";
+      if (args.length !== 2) invalid(channel);
+      const projectId = parseText(channel, args[0], 80);
+      const rawFiles = args[1];
+      if (!Array.isArray(rawFiles) || rawFiles.length > 5000) invalid(channel);
+      const files = rawFiles.map((file: unknown) => {
+        if (!isRecord(file) || typeof file.relativePath !== "string") invalid(channel);
+        const record = file as Record<string, unknown>;
+        const bytes =
+          typeof record.base64 === "string"
+            ? Buffer.from(record.base64, "base64")
+            : typeof record.content === "string"
+              ? Buffer.from(record.content, "utf8")
+              : invalid(channel);
+        return { relativePath: parseText(channel, record.relativePath, 512), bytes };
+      });
+      const hosted = await peer.hostedProject(projectId);
+      if (!hosted) {
+        throw new Error("This project was not shared from a folder on this computer.");
+      }
+      // Overwriting the user's own files is confirmed natively so page content
+      // can never trigger it on its own.
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const options = {
+        type: "question" as const,
+        buttons: ["Save to Folder", "Cancel"],
+        defaultId: 0,
+        cancelId: 1,
+        message: "Save the shared changes to your folder?",
+        detail: `Files in ${hosted.localRoot} are replaced by the shared versions. Nothing is deleted.`,
+      };
+      const { response } = window
+        ? await dialog.showMessageBox(window, options)
+        : await dialog.showMessageBox(options);
+      if (response !== 0) return { saved: false };
+      const result = await peer.saveFilesToHostedFolder(projectId, files);
+      return {
+        saved: true,
+        folder: result.folder,
+        written: result.written,
+        project: projects.registerProject(result.folder),
+      };
+    },
+  );
 
   // Reopens the folder a hosted project was shared from, without copying.
   ipcMain.handle("peer:host-open-folder", async (_event, ...args: unknown[]) => {

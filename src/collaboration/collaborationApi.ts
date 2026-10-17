@@ -32,6 +32,15 @@ function normalizedCollaborationApiBaseUrl(value: unknown): string {
   }
 }
 
+/** LatexDo's always-on collaboration server (projects shared over the internet). */
+export const alwaysOnCollaborationOrigin = normalizedCollaborationApiBaseUrl(
+  import.meta.env.VITE_LATEXDO_COLLAB_URL || "https://collab.latexdo.org",
+);
+
+export function isAlwaysOnCollaborationServer(origin: string | undefined): boolean {
+  return Boolean(origin) && origin === alwaysOnCollaborationOrigin;
+}
+
 export function collaborationApiBaseUrl(): string {
   return normalizedCollaborationApiBaseUrl(import.meta.env.VITE_LATEXDO_API_BASE_URL);
 }

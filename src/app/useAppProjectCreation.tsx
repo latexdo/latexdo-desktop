@@ -10,7 +10,8 @@ import {
   Waypoints,
   Table2,
 } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { isAlwaysOnCollaborationServer } from "../collaboration/collaborationApi";
 import { productConfig } from "../productConfig";
 import type {
   ImportedProjectEntry,
@@ -207,6 +208,21 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     void refreshCollaborationState(projectId);
   }, [hideProjectEntries, projectId, refreshCollaborationState]);
 
+  // Someone added, moved or deleted a shared file: show the new tree. The
+  // server's revision arrives live (open documents) and with presence pings.
+  const seenRevision = useRef<{ projectId: string | null; revision: number | null }>({
+    projectId: null,
+    revision: null,
+  });
+  useEffect(() => {
+    const revision = collaborationState.revision;
+    if (!projectId || typeof revision !== "number") return;
+    const seen = seenRevision.current;
+    const changed = seen.projectId === projectId && seen.revision !== revision;
+    seenRevision.current = { projectId, revision };
+    if (changed) void refreshProject(projectId).catch(() => undefined);
+  }, [collaborationState.revision, projectId, refreshProject]);
+
   useEffect(() => {
     if (!hostingAvailable) return;
     // The internet link comes up (or drops) in the background.
@@ -255,7 +271,12 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     };
 
     void sendPresence();
-    const interval = window.setInterval(() => void sendPresence(), 8000);
+    // Open documents carry presence live; the always-on server is pinged less
+    // often so a free account's daily allowance goes further.
+    const interval = window.setInterval(
+      () => void sendPresence(),
+      isAlwaysOnCollaborationServer(collaborationState.apiBaseUrl) ? 30_000 : 8000,
+    );
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -263,6 +284,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
   }, [
     activePath,
     collaborationAvailable,
+    collaborationState.apiBaseUrl,
     collaborationState.enabled,
     hideProjectEntries,
     projectId,

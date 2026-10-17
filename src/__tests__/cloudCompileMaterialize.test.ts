@@ -74,7 +74,7 @@ describe("materializeCloudCompileFiles", () => {
   it("rejects oversized individual files", async () => {
     await expect(
       materializeCloudCompileFiles(scratchRoot, [
-        { relativePath: "big.tex", content: "x".repeat(9 * 1024 * 1024) },
+        { relativePath: "big.tex", content: "x".repeat(26 * 1024 * 1024) },
       ]),
     ).rejects.toThrow(/too large/);
   });

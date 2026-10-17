@@ -651,12 +651,15 @@ export function parseDiagnostics(
 
 export interface CloudCompileFile {
   relativePath: string;
-  content: string;
+  /** Text files. */
+  content?: string;
+  /** Figures, PDFs and other binary files. */
+  bytes?: Uint8Array;
 }
 
 export const maxCloudCompileFiles = 2000;
-export const maxCloudCompileFileBytes = 8 * 1024 * 1024;
-export const maxCloudCompileTotalBytes = 64 * 1024 * 1024;
+export const maxCloudCompileFileBytes = 25 * 1024 * 1024;
+export const maxCloudCompileTotalBytes = 200 * 1024 * 1024;
 
 const preservedScratchEntries = new Set([".latexdo"]);
 
@@ -704,8 +707,12 @@ export async function materializeCloudCompileFiles(
   let totalBytes = 0;
   const validated = files.map((file) => {
     const relativePath = safeCloudRelativePath(file.relativePath);
-    const content = String(file.content ?? "");
-    const bytes = Buffer.byteLength(content, "utf8");
+    const content: string | Uint8Array =
+      file.bytes instanceof Uint8Array ? file.bytes : String(file.content ?? "");
+    const bytes =
+      typeof content === "string"
+        ? Buffer.byteLength(content, "utf8")
+        : content.byteLength;
     if (bytes > maxCloudCompileFileBytes) {
       throw new Error(`${relativePath} is too large to compile locally.`);
     }
@@ -734,7 +741,9 @@ export async function materializeCloudCompileFiles(
     }
     await assertProjectPath(projectRoot, targetPath);
     await mkdir(path.dirname(targetPath), { recursive: true });
-    await writeFile(targetPath, file.content, "utf8");
+    if (typeof file.content === "string")
+      await writeFile(targetPath, file.content, "utf8");
+    else await writeFile(targetPath, file.content);
   }
 }
 

@@ -246,14 +246,23 @@ describe("cloud routing and recovery", () => {
       "x-latexdo-session": expect.stringMatching(/^session-/),
     });
     fetchMock.mockImplementation(async () =>
-      json({ content: "hello", exists: true, relativePath: "new.tex" }),
+      json({
+        content: "hello",
+        base64: btoa("hello"),
+        exists: true,
+        relativePath: "new.tex",
+      }),
     );
     expect(await api.fileExists("project_a", "main.tex")).toBe(true);
     expect(await api.createFile("project_a", "new.tex")).toBe("new.tex");
     expect(await api.createFolder("project_a", "new")).toBe("new.tex");
     expect(await api.moveEntry("project_a", "old.tex", "new.tex")).toBe("new.tex");
-    expect(await api.readAsset("project_a", "image.svg")).toEqual(
-      new TextEncoder().encode("hello"),
+    // Figures are read as files, not text.
+    expect([...(await api.readAsset("project_a", "image.svg"))]).toEqual([
+      ...new TextEncoder().encode("hello"),
+    ]);
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain(
+      "/api/projects/project_a/files/binary?path=image.svg",
     );
     await api.writeFile("project_a", "main.tex", "updated");
     expect(fetchMock.mock.calls.at(-1)?.[1]).toMatchObject({
@@ -362,8 +371,6 @@ describe("cloud routing and recovery", () => {
     "getGitCommitDetails",
     "getGitCommitFileDiff",
     "revealGitFile",
-    "importExternalFiles",
-    "chooseImportExternalFiles",
     "importDocx",
     "importMarkdown",
     "importPdf",
@@ -372,6 +379,32 @@ describe("cloud routing and recovery", () => {
       (api[method] as (...args: unknown[]) => unknown)("project_a", "file.tex", "hash"),
     ).rejects.toThrow(/not available|Back to my folder/);
     expect(bridge.invoke).not.toHaveBeenCalled();
+  });
+  it("adds dropped files and folders to a shared project, text as text", async () => {
+    bridge.invoke.mockResolvedValueOnce([
+      { sourcePath: "/x/intro.tex", relativePath: "intro.tex", content: "Hi" },
+      { sourcePath: "/x/figs/a.png", relativePath: "figs/a.png", base64: "iVBO" },
+    ]);
+    fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+    const imported = await api.importExternalFiles("project_a", "chapters", [
+      "/x/intro.tex",
+      "/x/figs",
+    ]);
+    expect(bridge.invoke).toHaveBeenCalledWith("file:read-external-for-share", [
+      "/x/intro.tex",
+      "/x/figs",
+    ]);
+    expect(imported.map((entry) => entry.relativePath)).toEqual([
+      "chapters/intro.tex",
+      "chapters/figs/a.png",
+    ]);
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(
+      urls.some((url) => url.includes("files/content?path=chapters%2Fintro.tex")),
+    ).toBe(true);
+    expect(
+      urls.some((url) => url.includes("files/binary?path=chapters%2Ffigs%2Fa.png")),
+    ).toBe(true);
   });
   it("returns explicit empty git state for cloud documents", async () => {
     expect((await api.getGitStatus("project_a")).isRepo).toBe(false);
@@ -396,7 +429,36 @@ describe("cloud routing and recovery", () => {
     ).toBe(false);
   });
   it("materializes shared files before invoking the local compiler", async () => {
+    // One request brings the whole project, figures included.
+    fetchMock.mockResolvedValueOnce(
+      json({
+        files: [
+          { relativePath: "chapters/main.tex", content: "document" },
+          { relativePath: "figures/plot.png", base64: "iVBORw==" },
+        ],
+      }),
+    );
+    const request = {
+      projectId: "project_a",
+      rootFile: "chapters/main.tex",
+      engine: "pdflatex" as const,
+    };
+    expect(await api.compile(request)).toEqual({ ok: true });
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain(
+      "/api/projects/project_a/files/bundle",
+    );
+    expect(bridge.invoke).toHaveBeenCalledWith("latex:compile-cloud", {
+      ...request,
+      files: [
+        { relativePath: "chapters/main.tex", content: "document" },
+        { relativePath: "figures/plot.png", base64: "iVBORw==" },
+      ],
+    });
+    // A server without bundles is read file by file.
     fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "nope" }), { status: 404 }),
+      )
       .mockResolvedValueOnce(
         json([
           {
@@ -407,13 +469,8 @@ describe("cloud routing and recovery", () => {
         ]),
       )
       .mockResolvedValueOnce(json({ content: "document" }));
-    const request = {
-      projectId: "project_a",
-      rootFile: "chapters/main.tex",
-      engine: "pdflatex" as const,
-    };
     expect(await api.compile(request)).toEqual({ ok: true });
-    expect(bridge.invoke).toHaveBeenCalledWith("latex:compile-cloud", {
+    expect(bridge.invoke).toHaveBeenLastCalledWith("latex:compile-cloud", {
       ...request,
       files: [{ relativePath: "chapters/main.tex", content: "document" }],
     });
@@ -548,15 +605,60 @@ describe("sharing from this computer", () => {
     api = bridge.exposed.get("latexdo") as LatexDoApi;
   });
 
-  it("hosts a local project, uploads it and returns an invite instead of a web link", async () => {
-    const requests = hostBridge();
-    expect(api.hostsProjectsLocally).toBe(true);
+  it("shares over the internet through the always-on server, figures included", async () => {
+    const requests = hostBridge({
+      "peer:cloud-invite": (value) => `latexdo-invite:cloud-${String(value)}`,
+      "peer:has-folder": () => true,
+      "project:list": () => [
+        { type: "file", relativePath: "main.tex", name: "main.tex", path: "" },
+        { type: "file", relativePath: "plot.png", name: "plot.png", path: "" },
+      ],
+      "file:read": (_project, relativePath) => {
+        if (relativePath === "plot.png") throw new Error("not text");
+        return "\\documentclass{article}";
+      },
+      "file:read-cloud-upload": () => ({ contentBase64: "iVBORw==", size: 6 }),
+    });
     const state = await api.createCollaborationLink("local-id", {
       mode: "internet",
       projectName: "Thesis",
     });
+    // This computer does not host anything: no tunnel is started.
+    expect(bridge.invoke).not.toHaveBeenCalledWith("peer:host-start", "internet");
+    expect(
+      requests.every((request) => request.origin === "https://collab.latexdo.org"),
+    ).toBe(true);
+    expect(requests.map((request) => `${request.method} ${request.path}`)).toEqual([
+      "POST /api/projects",
+      "PUT /api/projects/project_hosted/files/content?path=main.tex",
+      "PUT /api/projects/project_hosted/files/binary?path=plot.png",
+      "POST /api/projects/project_hosted/share",
+    ]);
+    // The owner's folder is remembered so the changes can come home.
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "peer:host-register-project",
+      "project_hosted",
+      "local-id",
+      "Thesis",
+    );
+    expect(state).toMatchObject({
+      enabled: true,
+      hosted: true,
+      apiBaseUrl: "https://collab.latexdo.org",
+      inviteCode: `latexdo-invite:cloud-${token}`,
+      host: { active: true, mode: "internet", phase: "ready" },
+    });
+  });
+
+  it("hosts a local project on this network, uploads it and returns an invite instead of a web link", async () => {
+    const requests = hostBridge();
+    expect(api.hostsProjectsLocally).toBe(true);
+    const state = await api.createCollaborationLink("local-id", {
+      mode: "local",
+      projectName: "Thesis",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(bridge.invoke).toHaveBeenCalledWith("peer:host-start", "internet");
+    expect(bridge.invoke).toHaveBeenCalledWith("peer:host-start", "local");
     expect(bridge.invoke).toHaveBeenCalledWith(
       "peer:host-register-project",
       "project_hosted",

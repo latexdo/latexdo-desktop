@@ -232,6 +232,11 @@ export function useAppCollaboration(ctx: AppCtx08) {
             onPresenceChange: (users) => {
               setCollaborationState((current) => ({ ...current, users }));
             },
+            onProjectChanged: (revision) => {
+              setCollaborationState((current) =>
+                current.revision === revision ? current : { ...current, revision },
+              );
+            },
           });
         },
       );

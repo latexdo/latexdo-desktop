@@ -69,6 +69,8 @@ export interface CollaborationJoinRequest {
 
 export interface CollaborationState {
   enabled: boolean;
+  /** Bumped by the server whenever the shared project's files change. */
+  revision?: number;
   token?: string;
   shareUrl?: string;
   projectId?: string;

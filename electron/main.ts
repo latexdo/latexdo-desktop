@@ -29,6 +29,7 @@ import {
   copyFile,
   cp,
   link,
+  lstat,
   mkdir,
   mkdtemp,
   open,
@@ -1577,7 +1578,8 @@ async function reopenLastProject(
 const maxProjectIdLength = 128;
 const maxRelativePathLength = 4096;
 const maxTextContentLength = 20 * 1024 * 1024;
-const maxCloudUploadFileBytes = 2 * 1024 * 1024;
+// Figures and data shared to the always-on server (its limit is the same).
+const maxCloudUploadFileBytes = 25 * 1024 * 1024;
 const maxProofreadingContentLength = 5 * 1024 * 1024;
 const MAX_PROOFREAD_CHARS = 20_000;
 const maxGitCommitMessageLength = 20_000;
@@ -5138,6 +5140,72 @@ async function availableImportRelativePath(
   throw new Error(`Could not choose an available path for "${sourceName}".`);
 }
 
+/** A file dropped or chosen to add to a shared project, ready to upload. */
+interface ExternalShareFile {
+  sourcePath: string;
+  relativePath: string;
+  content?: string;
+  base64?: string;
+}
+
+const maxExternalShareFiles = 2000;
+const maxExternalShareTotalBytes = 200 * 1024 * 1024;
+
+/**
+ * Reads dropped or chosen files and folders for a shared project (which has
+ * no folder on this computer). Folders keep their structure; links are
+ * skipped. Text comes back as text so it can be edited live.
+ */
+async function readExternalFilesForShare(
+  sourcePaths: string[],
+): Promise<ExternalShareFile[]> {
+  const files: ExternalShareFile[] = [];
+  let totalBytes = 0;
+  const visit = async (absolutePath: string, relativePath: string): Promise<void> => {
+    const entry = await lstat(absolutePath).catch(() => null);
+    if (!entry || entry.isSymbolicLink()) return;
+    if (entry.isDirectory()) {
+      for (const name of (await readdir(absolutePath)).sort()) {
+        if (name === ".git" || name === "node_modules" || name === ".DS_Store")
+          continue;
+        await visit(path.join(absolutePath, name), `${relativePath}/${name}`);
+      }
+      return;
+    }
+    if (!entry.isFile()) return;
+    if (files.length >= maxExternalShareFiles) {
+      throw new Error(`Shared projects are limited to ${maxExternalShareFiles} files.`);
+    }
+    if (entry.size > maxCloudUploadFileBytes) {
+      throw new Error(
+        `${path.basename(absolutePath)} is larger than 25 MB, the most sharing accepts for one file.`,
+      );
+    }
+    totalBytes += entry.size;
+    if (totalBytes > maxExternalShareTotalBytes) {
+      throw new Error("Shared projects are limited to 200 MB.");
+    }
+    const bytes = await readFile(absolutePath);
+    let text: string | null = null;
+    if (!bytes.includes(0)) {
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch {
+        text = null;
+      }
+    }
+    files.push(
+      text !== null
+        ? { sourcePath: absolutePath, relativePath, content: text }
+        : { sourcePath: absolutePath, relativePath, base64: bytes.toString("base64") },
+    );
+  };
+  for (const sourcePath of sourcePaths) {
+    await visit(sourcePath, path.basename(sourcePath));
+  }
+  return files;
+}
+
 async function importExternalFilesIntoProject(
   channel: string,
   projectPath: string,
@@ -6695,7 +6763,9 @@ async function startApp(): Promise<void> {
       throw new Error(`${filePath} is not a file.`);
     }
     if (file.size > maxCloudUploadFileBytes) {
-      throw new Error(`${filePath} exceeds the 2 MiB cloud file limit.`);
+      throw new Error(
+        `${filePath} is larger than 25 MB, the most sharing accepts for one file.`,
+      );
     }
     const content = await readFile(location.resolvedPath);
     if (content.byteLength !== file.size) {
@@ -6973,6 +7043,37 @@ async function startApp(): Promise<void> {
     }
     return relativeOpenProjectPath(location, location.resolvedPath);
   });
+  ipcMain.handle(
+    "file:read-external-for-share",
+    async (_event, ...rawArgs: unknown[]) => {
+      const channel = "file:read-external-for-share";
+      const [rawSourcePaths] = expectIpcArgs(channel, rawArgs, 1);
+      return readExternalFilesForShare(
+        parseExternalSourcePaths(channel, rawSourcePaths),
+      );
+    },
+  );
+  ipcMain.handle(
+    "file:choose-external-for-share",
+    async (event, ...rawArgs: unknown[]) => {
+      const channel = "file:choose-external-for-share";
+      expectIpcArgs(channel, rawArgs, 0);
+      const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+      const dialogOptions = {
+        properties: ["openFile", "openDirectory", "multiSelections"],
+        title: "Add files or folders to the shared project",
+        buttonLabel: "Add",
+        defaultPath: app.getPath("documents"),
+      } satisfies Electron.OpenDialogOptions;
+      const result = window
+        ? await dialog.showOpenDialog(window, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+      if (result.canceled || result.filePaths.length === 0) return [];
+      return readExternalFilesForShare(
+        parseExternalSourcePaths(channel, result.filePaths),
+      );
+    },
+  );
   ipcMain.handle("file:import-external", async (_event, ...rawArgs: unknown[]) => {
     const channel = "file:import-external";
     const [rawProjectId, rawDestinationDirectory, rawSourcePaths] = expectIpcArgs(
@@ -7605,10 +7706,13 @@ async function startApp(): Promise<void> {
       if (!isRecord(file)) {
         invalidIpcInput(channel);
       }
-      return {
-        relativePath: parseRelativePath(channel, file.relativePath),
-        content: typeof file.content === "string" ? file.content : "",
-      };
+      const relativePath = parseRelativePath(channel, file.relativePath);
+      return typeof file.base64 === "string"
+        ? { relativePath, bytes: Buffer.from(file.base64, "base64") }
+        : {
+            relativePath,
+            content: typeof file.content === "string" ? file.content : "",
+          };
     });
 
     const projectPath = path.join(
