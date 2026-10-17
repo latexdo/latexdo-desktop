@@ -415,6 +415,9 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
     async reopenLastProject() {
       return null;
     },
+    async openRequestedProject() {
+      return null;
+    },
     async restoreCloudProject() {
       return null;
     },
@@ -1010,6 +1013,7 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
     onOpenSpellCheckerSettings: () => () => {},
     onSpellCheckerSettingsChanged: () => () => {},
     onOpenProjectMenu: () => () => {},
+    onOpenRequested: () => () => {},
     onCreateFileMenu: () => () => {},
     onCreateFolderMenu: () => () => {},
     onImportDocxMenu: () => () => {},

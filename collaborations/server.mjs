@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
+  cp,
   mkdir,
   readdir,
   readFile,
@@ -83,6 +84,8 @@ const wsGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const messageSync = 0;
 const messageAwareness = 1;
 const messageProjectPresence = 4;
+// The project's files changed (added, moved, deleted or replaced).
+const messageProjectChanged = 5;
 
 const rooms = new Map();
 
@@ -689,8 +692,153 @@ function collaborationState(meta, identity, role) {
     currentUserRole: role,
     isAdmin: role === "admin",
     requireApproval: Boolean(meta.requireApproval),
+    revision: Number(meta.revision) || 0,
     ...(role === "admin" ? { pending: pendingList(meta) } : {}),
   };
+}
+
+// Tells everyone with the project open that its files changed.
+async function bumpRevision(projectId) {
+  const meta = await readProjectMeta(projectId);
+  meta.revision = (Number(meta.revision) || 0) + 1;
+  await writeProjectMeta(meta);
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, messageProjectChanged);
+  encoding.writeVarString(encoder, JSON.stringify({ revision: meta.revision }));
+  const frame = encoding.toUint8Array(encoder);
+  for (const room of rooms.values()) {
+    if (room.projectId === projectId) broadcastRoom(room, frame, null);
+  }
+}
+
+function closeRoomsUnder(projectId, relativePath, reason) {
+  for (const [key, room] of rooms) {
+    if (
+      room.projectId === projectId &&
+      (room.relativePath === relativePath ||
+        room.relativePath.startsWith(`${relativePath}/`))
+    ) {
+      rooms.delete(key);
+      room.closeAll(1012, reason);
+    }
+  }
+}
+
+async function flushRoomsUnder(projectId, relativePath) {
+  for (const room of rooms.values()) {
+    if (
+      room.projectId === projectId &&
+      (room.relativePath === relativePath ||
+        room.relativePath.startsWith(`${relativePath}/`))
+    ) {
+      await atomicWriteText(
+        filePathFor(projectId, room.relativePath),
+        room.text.toString(),
+      );
+    }
+  }
+}
+
+function decodeText(buffer) {
+  if (buffer.includes(0)) return null;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
+    return null;
+  }
+}
+
+async function readProjectBinary(projectId, relativePath) {
+  const fullPath = filePathFor(projectId, relativePath);
+  const fileStat = await stat(fullPath).catch(() => null);
+  if (!fileStat) throw new HttpError(404, "File not found.");
+  if (!fileStat.isFile()) throw new HttpError(400, "Path is not a file.");
+  if (fileStat.size > maxFileBytes) throw new HttpError(413, "File is too large.");
+  const room = rooms.get(roomKey(projectId, relativePath));
+  return room ? Buffer.from(room.text.toString(), "utf8") : readFile(fullPath);
+}
+
+async function writeProjectBinary(projectId, relativePath, bytes) {
+  if (bytes.byteLength > maxFileBytes) throw new HttpError(413, "File is too large.");
+  await assertProjectQuota(projectId, relativePath, bytes.byteLength);
+  const fullPath = filePathFor(projectId, relativePath);
+  const created = !(await exists(fullPath));
+  await mkdir(path.dirname(fullPath), { recursive: true });
+  closeRoomsUnder(projectId, relativePath, "Replaced by a binary file");
+  const temporaryPath = `${fullPath}.${randomToken()}.tmp`;
+  try {
+    await writeFile(temporaryPath, bytes, { mode: 0o600, flag: "wx" });
+    await rename(temporaryPath, fullPath);
+  } finally {
+    await rm(temporaryPath, { force: true }).catch(() => {});
+  }
+  void created;
+  await bumpRevision(projectId);
+}
+
+// Every file at once: for compiling and for saving to the owner's folder.
+async function projectBundle(projectId) {
+  const root = projectFilesDir(projectId);
+  const files = [];
+  async function walk(relativeDirectory) {
+    const directory = relativeDirectory ? path.join(root, relativeDirectory) : root;
+    const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries.sort((left, right) =>
+      left.name.localeCompare(right.name),
+    )) {
+      const relativePath = relativeDirectory
+        ? `${relativeDirectory}/${entry.name}`
+        : entry.name;
+      if (entry.isDirectory()) {
+        await walk(relativePath);
+      } else if (entry.isFile()) {
+        const room = rooms.get(roomKey(projectId, relativePath));
+        if (room) {
+          files.push({ relativePath, content: room.text.toString() });
+          continue;
+        }
+        const buffer = await readFile(path.join(root, relativePath));
+        const text = decodeText(buffer);
+        files.push(
+          text === null
+            ? { relativePath, base64: buffer.toString("base64") }
+            : { relativePath, content: text },
+        );
+      }
+    }
+  }
+  await walk("");
+  return { revision: Number((await readProjectMeta(projectId)).revision) || 0, files };
+}
+
+async function deleteEntry(projectId, relativePath) {
+  const fullPath = filePathFor(projectId, relativePath);
+  if (!(await exists(fullPath))) throw new HttpError(404, "File not found.");
+  closeRoomsUnder(projectId, relativePath, "File deleted");
+  await rm(fullPath, { recursive: true, force: true });
+  await bumpRevision(projectId);
+}
+
+async function copyEntry(projectId, fromRelativePath, toRelativePath) {
+  const fromPath = filePathFor(projectId, fromRelativePath);
+  const toPath = filePathFor(projectId, toRelativePath);
+  if (!(await exists(fromPath))) throw new HttpError(404, "Source path not found.");
+  if (await exists(toPath)) throw new HttpError(409, "Destination already exists.");
+  if (
+    toRelativePath === fromRelativePath ||
+    toRelativePath.startsWith(`${fromRelativePath}/`)
+  ) {
+    throw new HttpError(400, "Cannot copy a folder into itself.");
+  }
+  await flushRoomsUnder(projectId, fromRelativePath);
+  const source = await stat(fromPath);
+  if (source.isFile()) {
+    await assertProjectQuota(projectId, toRelativePath, source.size);
+  }
+  await mkdir(path.dirname(toPath), { recursive: true });
+  await cp(fromPath, toPath, { recursive: true, errorOnExist: true, force: false });
+  await bumpRevision(projectId);
+  return toRelativePath;
 }
 
 function isRole(value) {
@@ -1065,6 +1213,7 @@ async function handleProjectRoute(request, response, url, parts) {
     const body = await readJsonBody(request);
     const relativePath = normalizeRelativePath(body.relativePath);
     const created = await createEntry(projectId, relativePath, body.type);
+    await bumpRevision(projectId);
     sendJson(response, request, 200, { relativePath: created });
     return;
   }
@@ -1081,10 +1230,60 @@ async function handleProjectRoute(request, response, url, parts) {
     if (request.method === "PUT") {
       await authorizeProject(request, url, projectId, "editor");
       const body = await readJsonBody(request);
+      const created = !(await exists(filePathFor(projectId, relativePath)));
       await writeProjectFile(projectId, relativePath, body.content);
+      if (created) await bumpRevision(projectId);
       sendEmpty(response, request);
       return;
     }
+  }
+
+  if (route === "files" && request.method === "DELETE") {
+    await authorizeProject(request, url, projectId, "editor");
+    await deleteEntry(projectId, normalizeRelativePath(url.searchParams.get("path")));
+    sendEmpty(response, request);
+    return;
+  }
+
+  if (route === "files/binary") {
+    const relativePath = normalizeRelativePath(url.searchParams.get("path"));
+    if (request.method === "GET") {
+      await authorizeProject(request, url, projectId, "viewer");
+      const bytes = await readProjectBinary(projectId, relativePath);
+      sendJson(response, request, 200, { base64: bytes.toString("base64") });
+      return;
+    }
+    if (request.method === "PUT") {
+      await authorizeProject(request, url, projectId, "editor");
+      const body = await readJsonBody(request);
+      if (typeof body.base64 !== "string")
+        throw new HttpError(400, "Missing file data.");
+      await writeProjectBinary(
+        projectId,
+        relativePath,
+        Buffer.from(body.base64, "base64"),
+      );
+      sendEmpty(response, request);
+      return;
+    }
+  }
+
+  if (route === "files/bundle" && request.method === "GET") {
+    await authorizeProject(request, url, projectId, "viewer");
+    sendJson(response, request, 200, await projectBundle(projectId));
+    return;
+  }
+
+  if (route === "files/copy" && request.method === "POST") {
+    await authorizeProject(request, url, projectId, "editor");
+    const body = await readJsonBody(request);
+    const copied = await copyEntry(
+      projectId,
+      normalizeRelativePath(body.fromRelativePath),
+      normalizeRelativePath(body.toRelativePath),
+    );
+    sendJson(response, request, 200, { relativePath: copied });
+    return;
   }
 
   if (route === "files/exists" && request.method === "GET") {
@@ -1104,6 +1303,7 @@ async function handleProjectRoute(request, response, url, parts) {
       normalizeRelativePath(body.fromRelativePath),
       normalizeRelativePath(body.toRelativePath),
     );
+    await bumpRevision(projectId);
     sendJson(response, request, 200, { relativePath: moved });
     return;
   }

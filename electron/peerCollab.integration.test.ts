@@ -18,6 +18,10 @@ import type { HostSharingStatus } from "./types.js";
 
 const serverEntryPath = path.resolve("collaborations/server.mjs");
 const realTunnel = process.env.LATEXDO_E2E_TUNNEL === "1";
+// Talks to LatexDo's always-on server (or LATEXDO_COLLAB_URL): opt in with
+// LATEXDO_E2E_CLOUD=1, since it needs the internet.
+const realCloud = process.env.LATEXDO_E2E_CLOUD === "1";
+const cloudOrigin = process.env.LATEXDO_COLLAB_URL || "https://collab.latexdo.org";
 
 type Identity = { session: string; client: string; name: string };
 const owner: Identity = { session: "owner-session", client: "owner", name: "Omar" };
@@ -632,5 +636,136 @@ describe("hosting a project from this computer", () => {
       guestDocument.socket.close();
     },
     120_000,
+  );
+
+  it.runIf(realCloud)(
+    "shares through the always-on server with a permanent invite and live edits",
+    { timeout: 60_000 },
+    async () => {
+      const ownerApp = createService("cloud-owner", { cloudOrigin });
+      const visitorApp = createService("cloud-visitor", { cloudOrigin });
+
+      const created = await call(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        "POST",
+        "/api/projects",
+        {
+          folderName: "Cloud thesis",
+        },
+      );
+      expect(created.status).toBe(200);
+      const projectId = created.body.id as string;
+      await call(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        "PUT",
+        `/api/projects/${projectId}/files/content?path=main.tex`,
+        { content: "Hello" },
+      );
+      const share = await call(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        "POST",
+        `/api/projects/${projectId}/share`,
+        {},
+      );
+      const token = share.body.token as string;
+      const invite = (await ownerApp.service.cloudInvite(token))!;
+      // The invite holds the server's fixed address, not this computer's.
+      // ...and the project's encryption key, which the server never sees.
+      expect(decodePeerInvite(invite)).toEqual({
+        token,
+        addresses: [new URL(cloudOrigin).origin],
+        key: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      });
+
+      // Newcomers wait for the owner by default; this owner lets anyone in.
+      await call(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        "PUT",
+        `/api/shares/${token}/approval`,
+        { requireApproval: false },
+        token,
+      );
+      const resolved = await visitorApp.service.resolveInvite(invite);
+      const opened = await call(
+        visitorApp.service,
+        resolved.origin,
+        guest,
+        "POST",
+        `/api/shares/${token}/open`,
+        {},
+        token,
+      );
+      expect(opened.status).toBe(200);
+
+      const ownerDoc = await joinDocument(
+        ownerApp.service,
+        cloudOrigin,
+        owner,
+        projectId,
+        token,
+      );
+      const guestDoc = await joinDocument(
+        visitorApp.service,
+        resolved.origin,
+        guest,
+        projectId,
+        token,
+      );
+      await until(() => guestDoc.text.toString() === "Hello", "guest sees the text");
+      guestDoc.text.insert(5, " from Ada");
+      await until(
+        () => ownerDoc.text.toString() === "Hello from Ada",
+        "owner sees the guest's edit",
+      );
+      // Through the app the text reads normally...
+      await until(async () => {
+        const read = await call(
+          visitorApp.service,
+          resolved.origin,
+          guest,
+          "GET",
+          `/api/projects/${projectId}/files/content?path=main.tex`,
+          undefined,
+          token,
+        );
+        return read.body.content === "Hello from Ada";
+      }, "decrypted read");
+      // ...while the server itself only holds ciphertext.
+      const raw = await fetch(
+        `${new URL(cloudOrigin).origin}/api/projects/${projectId}/files/log?path=main.tex`,
+        {
+          headers: {
+            "x-latexdo-session": owner.session,
+            "x-latexdo-client": owner.client,
+          },
+        },
+      ).then((response) => response.json() as Promise<{ entries: string[] }>);
+      expect(raw.entries.length).toBeGreaterThan(0);
+      const stored = raw.entries
+        .map((entry) => Buffer.from(entry, "base64").toString("latin1"))
+        .join("");
+      expect(stored).not.toContain("Hello");
+      expect(stored).not.toContain("Ada");
+      const project = await fetch(
+        `${new URL(cloudOrigin).origin}/api/projects/${projectId}/share`,
+        {
+          headers: {
+            "x-latexdo-session": owner.session,
+            "x-latexdo-client": owner.client,
+          },
+        },
+      ).then((response) => response.json() as Promise<{ projectName: string }>);
+      expect(project.projectName).toMatch(/^enc1:/);
+      ownerDoc.socket.close();
+      guestDoc.socket.close();
+    },
   );
 });

@@ -261,7 +261,7 @@ export function ShareProjectDialog({
                 <p className="share-hint">
                   {state.hosted
                     ? "This is the shared copy of your project. Sharing is off."
-                    : "Share this project straight from your computer. No account and no server needed."}
+                    : "No account needed. Choose how people reach the project."}
                 </p>
                 {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
@@ -288,7 +288,10 @@ export function ShareProjectDialog({
                     </span>
                     <span className="share-mode-text">
                       <strong>Over the internet</strong>
-                      <small>Works from anywhere, through a free encrypted link.</small>
+                      <small>
+                        Works from anywhere and stays online when your computer is off.
+                        The invite never expires.
+                      </small>
                     </span>
                   </label>
                   <label className={`share-mode ${mode === "local" ? "selected" : ""}`}>
@@ -305,7 +308,8 @@ export function ShareProjectDialog({
                     <span className="share-mode-text">
                       <strong>Same network only</strong>
                       <small>
-                        No internet needed. Not encrypted, so use a network you trust.
+                        Shared from this computer, no internet needed. Not encrypted, so
+                        use a network you trust.
                       </small>
                     </span>
                   </label>

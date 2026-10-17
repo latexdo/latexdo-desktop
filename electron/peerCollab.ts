@@ -6,6 +6,8 @@
 // host. All peer traffic goes through the main process so the renderer's
 // Content-Security-Policy does not have to allow arbitrary origins.
 
+import { CloudE2ee } from "./cloudE2ee.js";
+import { ProjectKeyStore, type KeyProtection } from "./collabKeys.js";
 import { randomBytes } from "node:crypto";
 import { lstat, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -70,6 +72,19 @@ export interface PeerCollabDeps {
   ensureTunnelBinary?: typeof ensureCloudflared;
   startTunnel?: typeof startQuickTunnel;
   waitForTunnel?: typeof waitForTunnelDns;
+  /**
+   * LatexDo's always-on collaboration server. Projects shared "over the
+   * internet" live there, so they stay online when their owner goes offline.
+   */
+  cloudOrigin?: string;
+  /** Protects project keys at rest (Electron safeStorage / OS keychain). */
+  keyProtection?: KeyProtection;
+}
+
+/** A file to write into the folder a project was shared from. */
+export interface FolderFile {
+  relativePath: string;
+  bytes: Buffer;
 }
 
 type ServerBind = "loopback" | "lan";
@@ -143,6 +158,32 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<st
 }
 
 export class PeerCollabService {
+  private e2eeLayer: CloudE2ee | null = null;
+
+  /** End-to-end encryption for the always-on server (created on first use). */
+  private get e2ee(): CloudE2ee {
+    this.e2eeLayer ??= new CloudE2ee(
+      new ProjectKeyStore(
+        path.join(this.deps.dataDirectory, "project-keys.json"),
+        this.deps.keyProtection,
+      ),
+      {
+        request: (requestPath, method, headers, body, timeoutMs) =>
+          this.rawRequest(
+            { base: this.cloudOrigin! },
+            requestPath,
+            method,
+            headers,
+            body,
+            timeoutMs,
+          ),
+        openSocket: async (pathAndQuery, handlers) =>
+          this.rawSocket({ base: this.cloudOrigin! }, pathAndQuery, handlers),
+      },
+    );
+    return this.e2eeLayer;
+  }
+
   private server: RunningServer | null = null;
   private serverLock: Promise<unknown> = Promise.resolve();
   private tunnel: QuickTunnel | null = null;
@@ -434,6 +475,27 @@ export class PeerCollabService {
   }
 
   /** Builds the invite for one of the hosted projects, or null when not shared. */
+  /** The always-on server's origin, normalized, or null when none is set. */
+  get cloudOrigin(): string | null {
+    return this.deps.cloudOrigin ? normalizePeerOrigin(this.deps.cloudOrigin) : null;
+  }
+
+  /**
+   * An invite to a project on the always-on server: it never changes address,
+   * and it carries the project's encryption key (the server never sees it).
+   */
+  async cloudInvite(token: string): Promise<string | null> {
+    const origin = this.cloudOrigin;
+    if (!origin) return null;
+    const key = await this.e2ee.inviteKey(token);
+    if (!key) return null;
+    try {
+      return encodePeerInvite({ token, addresses: [origin], key });
+    } catch {
+      return null;
+    }
+  }
+
   invite(token: string): string | null {
     const { active, addresses } = this.currentStatus;
     if (!active || !addresses.length) return null;
@@ -514,7 +576,14 @@ export class PeerCollabService {
       const index = reachable.indexOf(true);
       if (index >= 0) {
         const origin = invite.addresses[index];
-        await this.rememberPeer(origin);
+        if (origin === this.cloudOrigin) {
+          if (!invite.key) {
+            throw new Error("This invite is incomplete. Ask the owner for a new one.");
+          }
+          await this.e2ee.rememberInviteKey(invite.token, invite.key);
+        } else {
+          await this.rememberPeer(origin);
+        }
         return { origin, token: invite.token };
       }
       if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 2_000));
@@ -537,6 +606,7 @@ export class PeerCollabService {
       return { base: `http://127.0.0.1:${server.port}`, hostKey: server.hostKey };
     }
     const normalized = normalizePeerOrigin(origin);
+    if (normalized && normalized === this.cloudOrigin) return { base: normalized };
     if (!normalized || !(await this.peers()).has(normalized)) {
       throw new Error("This collaboration host has not been joined on this computer.");
     }
@@ -575,13 +645,28 @@ export class PeerCollabService {
     }
 
     const target = await this.resolveTarget(request.origin);
-    if (target.hostKey) headers["x-latexdo-host-key"] = target.hostKey;
     const timeoutMs = Math.min(Math.max(request.timeoutMs, 1_000), 120_000);
+    if (target.base === this.cloudOrigin) {
+      return this.e2ee.request(request.path, method, headers, body, timeoutMs);
+    }
+    return this.rawRequest(target, request.path, method, headers, body, timeoutMs);
+  }
+
+  private async rawRequest(
+    target: { base: string; hostKey?: string },
+    requestPath: string,
+    method: string,
+    requestHeaders: Record<string, string>,
+    body: string | undefined,
+    timeoutMs: number,
+  ): Promise<PeerResponse> {
+    const headers = { ...requestHeaders };
+    if (target.hostKey) headers["x-latexdo-host-key"] = target.hostKey;
     // The hosted server is on loopback; never route it through a system proxy.
     const fetchImpl = target.hostKey ? fetch : this.deps.fetchRemote;
     let response: Response;
     try {
-      response = await fetchImpl(`${target.base}${request.path}`, {
+      response = await fetchImpl(`${target.base}${requestPath}`, {
         method,
         headers,
         body: method === "GET" ? undefined : body,
@@ -621,6 +706,17 @@ export class PeerCollabService {
       throw new Error("Invalid collaboration socket request.");
     }
     const target = await this.resolveTarget(origin);
+    if (target.base === this.cloudOrigin) {
+      return this.e2ee.openSocket(pathAndQuery, handlers);
+    }
+    return this.rawSocket(target, pathAndQuery, handlers);
+  }
+
+  private rawSocket(
+    target: { base: string },
+    pathAndQuery: string,
+    handlers: PeerSocketHandlers,
+  ): PeerSocket {
     const url = new URL(pathAndQuery, target.base);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(url);
@@ -733,13 +829,8 @@ export class PeerCollabService {
       projectId,
       "files",
     );
-    const targetRoot = project.localRoot;
-    if (!(await lstat(targetRoot).catch(() => null))?.isDirectory()) {
-      throw new Error(`The original folder no longer exists: ${targetRoot}`);
-    }
-
-    let written = 0;
-    const copyDirectory = async (relativeDirectory: string): Promise<void> => {
+    const files: FolderFile[] = [];
+    const collect = async (relativeDirectory: string): Promise<void> => {
       const entries = await readdir(path.join(sourceRoot, relativeDirectory), {
         withFileTypes: true,
       });
@@ -747,29 +838,69 @@ export class PeerCollabService {
         const relativePath = relativeDirectory
           ? `${relativeDirectory}/${entry.name}`
           : entry.name;
-        if (!safeRelativeSegments(relativePath)) continue;
-        const targetPath = path.join(targetRoot, ...relativePath.split("/"));
-        // Never write through a link that points outside the project folder.
-        const targetStat = await lstat(targetPath).catch(() => null);
-        if (targetStat?.isSymbolicLink()) continue;
-        if (entry.isDirectory()) {
-          if (targetStat && !targetStat.isDirectory()) continue;
-          await mkdir(targetPath, { recursive: true });
-          await copyDirectory(relativePath);
-        } else if (entry.isFile()) {
-          if (targetStat && !targetStat.isFile()) continue;
-          const content = await readFile(
-            path.join(sourceRoot, ...relativePath.split("/")),
-          );
-          if (targetStat && content.equals(await readFile(targetPath))) continue;
-          const temporaryPath = `${targetPath}.${process.pid}.latexdo-tmp`;
-          await writeFile(temporaryPath, content);
-          await rename(temporaryPath, targetPath);
-          written += 1;
+        if (entry.isDirectory()) await collect(relativePath);
+        else if (entry.isFile()) {
+          files.push({
+            relativePath,
+            bytes: await readFile(path.join(sourceRoot, ...relativePath.split("/"))),
+          });
         }
       }
     };
-    await copyDirectory("");
+    await collect("");
+    return this.writeIntoFolder(project.localRoot, files);
+  }
+
+  /**
+   * Writes a cloud project's files (downloaded by the app) into the folder it
+   * was shared from.
+   */
+  async saveFilesToHostedFolder(
+    projectId: string,
+    files: FolderFile[],
+  ): Promise<{ folder: string; written: number }> {
+    const project = await this.hostedProject(projectId);
+    if (!project) {
+      throw new Error("This project was not shared from a folder on this computer.");
+    }
+    return this.writeIntoFolder(project.localRoot, files);
+  }
+
+  /** Only regular files are written, never through links, and nothing is deleted. */
+  private async writeIntoFolder(
+    targetRoot: string,
+    files: FolderFile[],
+  ): Promise<{ folder: string; written: number }> {
+    if (!(await lstat(targetRoot).catch(() => null))?.isDirectory()) {
+      throw new Error(`The original folder no longer exists: ${targetRoot}`);
+    }
+    let written = 0;
+    for (const file of files) {
+      if (!safeRelativeSegments(file.relativePath)) continue;
+      const segments = file.relativePath.split("/");
+      let blocked = false;
+      for (let index = 1; index < segments.length; index += 1) {
+        const directory = path.join(targetRoot, ...segments.slice(0, index));
+        const directoryStat = await lstat(directory).catch(() => null);
+        if (
+          directoryStat &&
+          (directoryStat.isSymbolicLink() || !directoryStat.isDirectory())
+        ) {
+          blocked = true;
+          break;
+        }
+        if (!directoryStat) await mkdir(directory);
+      }
+      if (blocked) continue;
+      const targetPath = path.join(targetRoot, ...segments);
+      const targetStat = await lstat(targetPath).catch(() => null);
+      if (targetStat && (targetStat.isSymbolicLink() || !targetStat.isFile())) continue;
+      if (targetStat && file.bytes.equals(await readFile(targetPath))) continue;
+      const temporaryPath = `${targetPath}.${process.pid}.latexdo-tmp`;
+      await writeFile(temporaryPath, file.bytes);
+      await rename(temporaryPath, targetPath);
+      written += 1;
+    }
     return { folder: targetRoot, written };
   }
 

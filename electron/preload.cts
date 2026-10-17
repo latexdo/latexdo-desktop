@@ -78,6 +78,16 @@ const cloudUploadTimeoutMs = 60_000;
 const cloudCompileTimeoutMs = 75_000;
 const maxCloudFileBytes = 2 * 1024 * 1024;
 const maxCloudProjectBytes = 20 * 1024 * 1024;
+// LatexDo's always-on collaboration server: projects shared "over the internet"
+// live there, so they stay online when their owner closes LatexDo, changes
+// network or goes offline. "Same network only" still shares from this computer.
+const internetCollaborationOrigin = (
+  process.env.LATEXDO_COLLAB_URL?.trim() || "https://collab.latexdo.org"
+).replace(/\/+$/, "");
+const maxInternetTextBytes = 16 * 1024 * 1024;
+const maxInternetBinaryBytes = 25 * 1024 * 1024;
+const maxInternetProjectBytes = 200 * 1024 * 1024;
+const maxInternetProjectFiles = 2000;
 const maxCloudProjectFiles = 500;
 // Sharing from this computer: the hosted server is started with these limits.
 const maxHostedFileBytes = 32 * 1024 * 1024;
@@ -468,6 +478,33 @@ async function normalizeCloudState(
 
   // A project served by someone's computer has no web link: an invite carries
   // the host's current addresses instead.
+  if (origin === internetCollaborationOrigin) {
+    // On the always-on server the invite never changes address. The owner's
+    // copy of their own folder behaves like a hosted project (Back to my folder).
+    const ownCopy = (await ipcRenderer.invoke("peer:has-folder", projectId)) as boolean;
+    const inviteCode =
+      token && state.enabled
+        ? (((await ipcRenderer.invoke("peer:cloud-invite", token)) as string | null) ??
+          undefined)
+        : undefined;
+    return {
+      ...normalized,
+      shareUrl: undefined,
+      apiBaseUrl: origin,
+      hosted: ownCopy,
+      ...(ownCopy
+        ? {
+            host: {
+              active: Boolean(state.enabled),
+              mode: "internet" as const,
+              phase: state.enabled ? ("ready" as const) : ("off" as const),
+              addresses: [origin],
+            },
+          }
+        : {}),
+      ...(inviteCode ? { inviteCode } : {}),
+    };
+  }
   const hosted = origin === localHostOrigin;
   const host = hosted
     ? ((await ipcRenderer.invoke("peer:host-status")) as HostSharingStatus)
@@ -636,7 +673,11 @@ async function restoreCloudProject(): Promise<OpenProject | null> {
   if (!activeProjectId) return null;
 
   const origin = cloudOriginForProject(activeProjectId);
-  if (usesCollaborationBridge(origin) && origin !== localHostOrigin) {
+  if (
+    usesCollaborationBridge(origin) &&
+    origin !== localHostOrigin &&
+    origin !== internetCollaborationOrigin
+  ) {
     // A project on someone else's computer is only there while they share it.
     // Do not hold the app's startup hostage to a host that has gone offline.
     const hostToken = cloudShareTokenForProject(activeProjectId);
@@ -708,51 +749,152 @@ async function uploadLocalProjectToCloud(
     (entry) => entry.type === "file",
   );
   const hosted = origin === localHostOrigin;
-  const maxFiles = hosted ? maxHostedProjectFiles : maxCloudProjectFiles;
-  const maxFileBytes = hosted ? maxHostedFileBytes : maxCloudFileBytes;
-  const maxProjectBytes = hosted ? maxHostedProjectBytes : maxCloudProjectBytes;
-  const where = hosted ? "Shared projects" : "Cloud projects";
+  const internet = origin === internetCollaborationOrigin;
+  const maxFiles = internet
+    ? maxInternetProjectFiles
+    : hosted
+      ? maxHostedProjectFiles
+      : maxCloudProjectFiles;
+  const maxFileBytes = internet
+    ? maxInternetTextBytes
+    : hosted
+      ? maxHostedFileBytes
+      : maxCloudFileBytes;
+  const maxProjectBytes = internet
+    ? maxInternetProjectBytes
+    : hosted
+      ? maxHostedProjectBytes
+      : maxCloudProjectBytes;
+  const where = hosted || internet ? "Shared projects" : "Cloud projects";
   if (fileEntries.length > maxFiles) {
     throw new Error(`${where} are limited to ${maxFiles} files.`);
   }
 
+  const projectPath = `/api/projects/${encodeURIComponent(cloudProject.id)}`;
   let totalBytes = 0;
+  const countBytes = (relativePath: string, bytes: number, limit: number) => {
+    if (bytes > limit) {
+      throw new Error(
+        `${relativePath} is larger than ${limit / 1024 / 1024} MB, the most ${hosted || internet ? "sharing" : "the cloud"} accepts for one file.`,
+      );
+    }
+    totalBytes += bytes;
+    if (totalBytes > maxProjectBytes) {
+      throw new Error(`${where} are limited to ${maxProjectBytes / 1024 / 1024} MB.`);
+    }
+  };
   for (const entry of fileEntries) {
-    let content: string;
+    let content: string | null;
     try {
       content = (await ipcRenderer.invoke(
         "file:read",
         localProjectId,
         entry.relativePath,
       )) as string;
-    } catch (error) {
-      console.warn(
-        `Skipping non-text file while sharing: ${entry.relativePath}`,
-        error,
+    } catch {
+      content = null;
+    }
+    if (content !== null) {
+      countBytes(entry.relativePath, content.length, maxFileBytes);
+      await cloudRequestJson(
+        `${projectPath}/files/content?${filePathQuery(entry.relativePath)}`,
+        { method: "PUT", body: JSON.stringify({ content }) },
+        undefined,
+        cloudUploadTimeoutMs,
       );
       continue;
     }
-    if (content.length > maxFileBytes) {
-      throw new Error(
-        `${entry.relativePath} is larger than ${maxFileBytes / 1024 / 1024} MB, the most ${hosted ? "sharing" : "the cloud"} accepts for one file.`,
-      );
+    // Figures, PDFs and data travel as files (a legacy cloud server has no
+    // file storage and only receives text).
+    if (!internet && !hosted) {
+      console.warn(`Skipping non-text file while sharing: ${entry.relativePath}`);
+      continue;
     }
-    totalBytes += content.length;
-    if (totalBytes > maxProjectBytes) {
-      throw new Error(`${where} are limited to ${maxProjectBytes / 1024 / 1024} MB.`);
-    }
+    const file = (await ipcRenderer.invoke(
+      "file:read-cloud-upload",
+      localProjectId,
+      entry.relativePath,
+    )) as { contentBase64: string; size: number };
+    countBytes(
+      entry.relativePath,
+      file.size,
+      internet ? maxInternetBinaryBytes : maxHostedFileBytes,
+    );
     await cloudRequestJson(
-      `/api/projects/${encodeURIComponent(cloudProject.id)}/files/content?${filePathQuery(entry.relativePath)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ content }),
-      },
+      `${projectPath}/files/binary?${filePathQuery(entry.relativePath)}`,
+      { method: "PUT", body: JSON.stringify({ base64: file.contentBase64 }) },
       undefined,
       cloudUploadTimeoutMs,
     );
   }
 
   return cloudProject;
+}
+
+interface ExternalShareFile {
+  sourcePath: string;
+  relativePath: string;
+  content?: string;
+  base64?: string;
+}
+
+/** Adds dropped or chosen files to a shared project, keeping folders. */
+async function uploadExternalFiles(
+  projectId: string,
+  destinationDirectory: string,
+  files: ExternalShareFile[],
+): Promise<ImportedProjectEntry[]> {
+  const projectPath = `/api/projects/${encodeURIComponent(projectId)}`;
+  const token = cloudShareTokenForProject(projectId);
+  const prefix = destinationDirectory.replace(/^\/+|\/+$/g, "");
+  const imported: ImportedProjectEntry[] = [];
+  for (const file of files) {
+    const relativePath = prefix ? `${prefix}/${file.relativePath}` : file.relativePath;
+    await cloudRequestJson(
+      typeof file.content === "string"
+        ? `${projectPath}/files/content?${filePathQuery(relativePath)}`
+        : `${projectPath}/files/binary?${filePathQuery(relativePath)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(
+          typeof file.content === "string"
+            ? { content: file.content }
+            : { base64: file.base64 ?? "" },
+        ),
+      },
+      token,
+      cloudUploadTimeoutMs,
+    );
+    imported.push({ sourcePath: file.sourcePath, relativePath, type: "file" });
+  }
+  return imported;
+}
+
+/** A figure or PDF of a shared project, as bytes. */
+async function readCloudAsset(
+  projectId: string,
+  relativePath: string,
+): Promise<Uint8Array> {
+  const projectPath = `/api/projects/${encodeURIComponent(projectId)}`;
+  const token = cloudShareTokenForProject(projectId);
+  try {
+    const body = await cloudRequestJson<{ base64: string }>(
+      `${projectPath}/files/binary?${filePathQuery(relativePath)}`,
+      {},
+      token,
+      cloudUploadTimeoutMs,
+    );
+    return Uint8Array.from(atob(body.base64), (character) => character.charCodeAt(0));
+  } catch (error) {
+    if (!(error instanceof CloudApiError) || error.status !== 404) throw error;
+    // A self-hosted server without binary files: text assets only (SVG).
+    const body = await cloudRequestJson<{ content: string }>(
+      `${projectPath}/files/content?${filePathQuery(relativePath)}`,
+      {},
+      token,
+    );
+    return new TextEncoder().encode(body.content);
+  }
 }
 
 async function importCloudDocument(
@@ -771,24 +913,41 @@ async function compileCloudProject(request: CompileRequest): Promise<CompileResu
   cloudCompileControllers.set(request.projectId, controller);
   try {
     const token = cloudShareTokenForProject(request.projectId);
-    const entries = flattenProjectEntries(
-      await cloudRequestJson<ProjectEntry[]>(
-        `/api/projects/${encodeURIComponent(request.projectId)}/files`,
-        { signal: controller.signal },
-        token,
-      ),
-    );
-
-    const files: { relativePath: string; content: string }[] = [];
-    for (const entry of entries) {
-      if (entry.type !== "file") continue;
-      const body = await cloudRequestJson<{ content: string }>(
-        `/api/projects/${encodeURIComponent(request.projectId)}/files/content?${filePathQuery(entry.relativePath)}`,
-        { signal: controller.signal },
-        token,
-        cloudCompileTimeoutMs,
+    const projectPath = `/api/projects/${encodeURIComponent(request.projectId)}`;
+    let files: { relativePath: string; content?: string; base64?: string }[];
+    try {
+      // One request for the whole project, figures included.
+      files = (
+        await cloudRequestJson<{
+          files: { relativePath: string; content?: string; base64?: string }[];
+        }>(
+          `${projectPath}/files/bundle`,
+          { signal: controller.signal },
+          token,
+          cloudCompileTimeoutMs,
+        )
+      ).files;
+    } catch (error) {
+      if (!(error instanceof CloudApiError) || error.status !== 404) throw error;
+      // A server without bundles (self-hosted): fetch the text files one by one.
+      const entries = flattenProjectEntries(
+        await cloudRequestJson<ProjectEntry[]>(
+          `${projectPath}/files`,
+          { signal: controller.signal },
+          token,
+        ),
       );
-      files.push({ relativePath: entry.relativePath, content: body.content });
+      files = [];
+      for (const entry of entries) {
+        if (entry.type !== "file") continue;
+        const body = await cloudRequestJson<{ content: string }>(
+          `${projectPath}/files/content?${filePathQuery(entry.relativePath)}`,
+          { signal: controller.signal },
+          token,
+          cloudCompileTimeoutMs,
+        );
+        files.push({ relativePath: entry.relativePath, content: body.content });
+      }
     }
 
     return (await ipcRenderer.invoke("latex:compile-cloud", {
@@ -908,11 +1067,7 @@ const api = {
         : invalidDesktopApiInput("readFile"),
   readAsset: (projectId: string, relativePath: string): Promise<Uint8Array> =>
     isCloudProject(projectId)
-      ? cloudRequestJson<{ content: string }>(
-          `/api/projects/${encodeURIComponent(projectId)}/files/content?${filePathQuery(relativePath)}`,
-          {},
-          cloudShareTokenForProject(projectId),
-        ).then((body) => new TextEncoder().encode(body.content))
+      ? readCloudAsset(projectId, relativePath)
       : isSafeDesktopProjectId(projectId) &&
           isSafeDesktopRelativePath(relativePath, desktopAssetFileExtensions)
         ? ipcRenderer.invoke("asset:read", projectId, relativePath)
@@ -972,11 +1127,15 @@ const api = {
     filePaths: string[],
   ): Promise<ImportedProjectEntry[]> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error(
-            "File and folder drop import is not available for cloud projects. Use DOCX or Markdown import.",
-          ),
-        )
+      ? ipcRenderer
+          .invoke("file:read-external-for-share", filePaths)
+          .then((files) =>
+            uploadExternalFiles(
+              projectId,
+              destinationDirectory,
+              files as ExternalShareFile[],
+            ),
+          )
       : ipcRenderer.invoke(
           "file:import-external",
           projectId,
@@ -988,11 +1147,15 @@ const api = {
     destinationDirectory: string,
   ): Promise<ImportedProjectEntry[]> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error(
-            "Tree file import is not available for cloud projects. Use DOCX or Markdown import.",
-          ),
-        )
+      ? ipcRenderer
+          .invoke("file:choose-external-for-share")
+          .then((files) =>
+            uploadExternalFiles(
+              projectId,
+              destinationDirectory,
+              files as ExternalShareFile[],
+            ),
+          )
       : ipcRenderer.invoke(
           "file:choose-import-external",
           projectId,
@@ -1034,14 +1197,21 @@ const api = {
     toRelativePath: string,
   ): Promise<string> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Copying files is not available in cloud projects yet."),
-        )
+      ? cloudRequestJson<{ relativePath: string }>(
+          `/api/projects/${encodeURIComponent(projectId)}/files/copy`,
+          {
+            method: "POST",
+            body: JSON.stringify({ fromRelativePath, toRelativePath }),
+          },
+          cloudShareTokenForProject(projectId),
+        ).then((body) => body.relativePath)
       : ipcRenderer.invoke("entry:copy", projectId, fromRelativePath, toRelativePath),
   trashEntry: (projectId: string, relativePath: string): Promise<void> =>
     isCloudProject(projectId)
-      ? Promise.reject(
-          new Error("Deleting files is not available in cloud projects yet."),
+      ? cloudRequestJson<void>(
+          `/api/projects/${encodeURIComponent(projectId)}/files?${filePathQuery(relativePath)}`,
+          { method: "DELETE" },
+          cloudShareTokenForProject(projectId),
         )
       : ipcRenderer.invoke("entry:trash", projectId, relativePath),
   getGitStatus: (projectId: string): Promise<GitStatusSummary> =>
@@ -1080,6 +1250,37 @@ const api = {
       isCloudProject(projectId) && cloudOriginForProject(projectId) === localHostOrigin;
     if (isCloudProject(projectId) && !hostedAlready) {
       return cloudCreateShare(projectId);
+    }
+    // Over the internet, a project lives on LatexDo's always-on server: it
+    // stays online and its invite keeps working when this computer is off.
+    if (
+      hostsProjectsLocally &&
+      options?.mode !== "local" &&
+      internetCollaborationOrigin
+    ) {
+      let sourceProjectId = projectId;
+      if (hostedAlready) {
+        const folder = (await ipcRenderer.invoke(
+          "peer:host-open-folder",
+          projectId,
+        )) as OpenProject | null;
+        if (!folder) {
+          throw new Error("Open your folder (Back to my folder) and share it again.");
+        }
+        sourceProjectId = folder.id;
+      }
+      const cloudProject = await uploadLocalProjectToCloud(
+        sourceProjectId,
+        options?.projectName,
+        internetCollaborationOrigin,
+      );
+      await ipcRenderer.invoke(
+        "peer:host-register-project",
+        cloudProject.id,
+        sourceProjectId,
+        options?.projectName ?? "",
+      );
+      return cloudCreateShare(cloudProject.id);
     }
     if (!hostedAlready && !hostsProjectsLocally) {
       const cloudProject = await uploadLocalProjectToCloud(
@@ -1171,8 +1372,23 @@ const api = {
       token,
     ).then((state) => normalizeCloudState(projectId, state));
   },
-  saveSharedProjectToFolder: (projectId: string): Promise<SaveSharedProjectResult> =>
-    ipcRenderer.invoke("peer:host-save-project", projectId),
+  saveSharedProjectToFolder: async (
+    projectId: string,
+  ): Promise<SaveSharedProjectResult> => {
+    if (cloudOriginForProject(projectId) !== internetCollaborationOrigin) {
+      return ipcRenderer.invoke("peer:host-save-project", projectId);
+    }
+    // Download the shared copy, then write it into the folder it came from.
+    const bundle = await cloudRequestJson<{
+      files: { relativePath: string; content?: string; base64?: string }[];
+    }>(
+      `/api/projects/${encodeURIComponent(projectId)}/files/bundle`,
+      {},
+      cloudShareTokenForProject(projectId),
+      cloudCompileTimeoutMs,
+    );
+    return ipcRenderer.invoke("peer:cloud-save-project", projectId, bundle.files);
+  },
   openSharedProjectFolder: (projectId: string): Promise<OpenProject | null> =>
     ipcRenderer.invoke("peer:host-open-folder", projectId),
   onHostSharingChanged: (callback: (status: HostSharingStatus) => void) => {
@@ -1634,6 +1850,19 @@ const api = {
 
     return () => {
       ipcRenderer.removeListener("spellchecker:changed", listener);
+    };
+  },
+  openRequestedProject: (): Promise<OpenProject | null> =>
+    ipcRenderer.invoke("project:open-requested"),
+  onOpenRequested: (callback: () => void) => {
+    const listener = () => {
+      callback();
+    };
+
+    ipcRenderer.on("project:open-requested", listener);
+
+    return () => {
+      ipcRenderer.removeListener("project:open-requested", listener);
     };
   },
   onOpenProjectMenu: (callback: () => void) => {

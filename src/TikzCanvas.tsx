@@ -3,15 +3,18 @@ import {
   ArrowRight,
   ArrowUp,
   BringToFront,
+  Check,
   ChevronDown,
   Circle,
   Cloud,
+  Code,
   Copy,
   CornerUpRight,
   Database,
   Diamond,
   Download,
   Eraser,
+  FileText,
   Grid,
   Hand,
   Hexagon,
@@ -22,6 +25,7 @@ import {
   MoveHorizontal,
   Pen,
   Pentagon,
+  Play,
   Plus,
   Redo2,
   SendToBack,
@@ -1978,61 +1982,65 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
 
       {/* ===== RIGHT: Code Panel ===== */}
       <div className="tikz-code-panel">
-        <div className="tikz-code-header">
-          <div className="tikz-code-title">
-            <span className="tikz-code-icon">
-              T<sub>i</sub>
-              <em>k</em>Z
-            </span>
-            <span>Generated Code</span>
-          </div>
-          <div className="tikz-code-tabs">
+        <div className="tikz-code-header" role="toolbar" aria-label="Generated code">
+          <span className="tikz-code-icon" data-tip="Generated TikZ code">
+            T<sub>i</sub>
+            <em>k</em>Z
+          </span>
+          <div className="tikz-code-tabs" role="group" aria-label="Code view">
             <button
               className={`tikz-code-tab ${codeMode === "tikz" ? "active" : ""}`}
               onClick={() => setCodeMode("tikz")}
+              aria-label="TikZ only"
+              aria-pressed={codeMode === "tikz"}
+              data-tip="TikZ only"
             >
-              TikZ only
+              <Code size={14} />
             </button>
             <button
               className={`tikz-code-tab ${codeMode === "full" ? "active" : ""}`}
               onClick={() => setCodeMode("full")}
+              aria-label="Full document"
+              aria-pressed={codeMode === "full"}
+              data-tip="Full document"
             >
-              Full document
+              <FileText size={14} />
             </button>
           </div>
           <div className="tikz-code-actions">
             <button
               className="tikz-code-action-btn"
               onClick={() => void handleCopy()}
-              title="Copy to clipboard"
+              aria-label={copied ? "Copied" : "Copy to clipboard"}
+              data-tip={copied ? "Copied!" : "Copy to clipboard"}
             >
-              <Copy size={13} />
-              {copied ? "Copied!" : "Copy"}
+              {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
             <button
               className="tikz-code-action-btn"
               onClick={handleDownload}
-              title="Download .tex file"
+              aria-label="Download .tex file"
+              data-tip="Download .tex file"
             >
-              <Download size={13} />
-              Download
+              <Download size={14} />
             </button>
             {onInsertCode && (
               <button
                 className="tikz-code-action-btn tikz-insert-btn"
                 onClick={() => onInsertCode(tikzCode)}
-                title="Insert into editor"
+                aria-label="Insert into editor"
+                data-tip="Insert into editor"
               >
-                <Plus size={13} />
-                Insert
+                <Plus size={14} />
               </button>
             )}
             <button
               className="tikz-code-action-btn tikz-apply-btn"
               onClick={handleApplyCode}
-              title="Apply edited code to canvas"
+              aria-label="Apply edited code to canvas"
+              data-tip="Apply edited code to canvas"
             >
-              &#9654; Apply
+              <Play size={14} />
             </button>
           </div>
         </div>

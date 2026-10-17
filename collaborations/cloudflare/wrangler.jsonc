@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "latexdo-collab",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-11",
+  // An always-on room per shared project: files, live editing, members and
+  // invites. SQLite-backed Durable Objects are available on the free plan.
+  "durable_objects": {
+    "bindings": [
+      { "name": "PROJECTS", "class_name": "ProjectRoom" },
+      { "name": "OWNERS", "class_name": "OwnerIndex" },
+      { "name": "USAGE", "class_name": "UsageMeter" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ProjectRoom", "OwnerIndex"] },
+    { "tag": "v2", "new_sqlite_classes": ["UsageMeter"] },
+  ],
+  // Per-address limits, counted across Cloudflare's network.
+  "ratelimits": [
+    {
+      "name": "REQUESTS",
+      "namespace_id": "4101",
+      "simple": { "limit": 600, "period": 60 },
+    },
+    {
+      "name": "CREATES",
+      "namespace_id": "4102",
+      "simple": { "limit": 5, "period": 60 },
+    },
+  ],
+  "routes": [{ "pattern": "collab.latexdo.org", "custom_domain": true }],
+  // No request logs: URLs carry share tokens and session ids.
+  "observability": { "enabled": false },
+}

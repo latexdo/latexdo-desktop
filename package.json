@@ -113,6 +113,18 @@
     "productName": "LatexDo",
     "icon": "build/icon.png",
     "npmRebuild": true,
+    "fileAssociations": [
+      {
+        "ext": [
+          "latexdo-space",
+          "latexdo-workspace"
+        ],
+        "name": "LatexDo Research Space",
+        "description": "LatexDo Research Space",
+        "role": "Editor",
+        "mimeType": "application/x-latexdo-space"
+      }
+    ],
     "afterPack": "scripts/after-pack-linux.cjs",
     "asarUnpack": [
       "**/node_modules/node-pty/**",
@@ -157,7 +169,27 @@
       "notarize": true,
       "extendInfo": {
         "NSDocumentsFolderUsageDescription": "LatexDo needs access to open and save LaTeX projects in your Documents folder.",
-        "NSDownloadsFolderUsageDescription": "LatexDo needs access to export generated PDFs and project files to Downloads."
+        "NSDownloadsFolderUsageDescription": "LatexDo needs access to export generated PDFs and project files to Downloads.",
+        "UTExportedTypeDeclarations": [
+          {
+            "UTTypeIdentifier": "com.latexdo.research-space",
+            "UTTypeDescription": "LatexDo Research Space",
+            "UTTypeConformsTo": [
+              "public.json",
+              "public.data"
+            ],
+            "UTTypeIconFile": "icon.icns",
+            "UTTypeTagSpecification": {
+              "public.filename-extension": [
+                "latexdo-space",
+                "latexdo-workspace"
+              ],
+              "public.mime-type": [
+                "application/x-latexdo-space"
+              ]
+            }
+          }
+        ]
       }
     },
     "win": {

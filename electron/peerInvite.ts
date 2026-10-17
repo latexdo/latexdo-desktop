@@ -14,7 +14,14 @@ const tokenPattern = /^[A-Za-z0-9_-]{16,256}$/;
 export interface PeerInvite {
   token: string;
   addresses: string[];
+  /**
+   * The project's end-to-end encryption key (always-on server). It lives only
+   * in the invite: the server never receives it.
+   */
+  key?: string;
 }
+
+const keyPattern = /^[A-Za-z0-9_-]{43}$/;
 
 /** Returns the bare http(s) origin for a guest-reachable address, or null. */
 export function normalizePeerOrigin(value: unknown): string | null {
@@ -37,7 +44,15 @@ export function encodePeerInvite(invite: PeerInvite): string {
   if (!tokenPattern.test(invite.token) || !addresses.length) {
     throw new Error("An invite needs a share token and at least one address.");
   }
-  const payload = JSON.stringify({ v: inviteVersion, t: invite.token, a: addresses });
+  if (invite.key !== undefined && !keyPattern.test(invite.key)) {
+    throw new Error("Invalid project key.");
+  }
+  const payload = JSON.stringify({
+    v: inviteVersion,
+    t: invite.token,
+    a: addresses,
+    ...(invite.key ? { k: invite.key } : {}),
+  });
   return `${peerInvitePrefix}${Buffer.from(payload, "utf8").toString("base64url")}`;
 }
 
@@ -56,11 +71,17 @@ export function decodePeerInvite(input: unknown): PeerInvite | null {
       Buffer.from(encoded, "base64url").toString("utf8"),
     ) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const { v, t, a } = parsed as { v?: unknown; t?: unknown; a?: unknown };
+    const { v, t, a, k } = parsed as {
+      v?: unknown;
+      t?: unknown;
+      a?: unknown;
+      k?: unknown;
+    };
     if (v !== inviteVersion || typeof t !== "string" || !tokenPattern.test(t)) {
       return null;
     }
     if (!Array.isArray(a) || a.length > maxInviteAddresses) return null;
+    if (k !== undefined && (typeof k !== "string" || !keyPattern.test(k))) return null;
     const addresses = [
       ...new Set(
         a
@@ -68,7 +89,10 @@ export function decodePeerInvite(input: unknown): PeerInvite | null {
           .filter((address): address is string => address !== null),
       ),
     ];
-    return addresses.length ? { token: t, addresses } : null;
+    if (!addresses.length) return null;
+    return typeof k === "string"
+      ? { token: t, addresses, key: k }
+      : { token: t, addresses };
   } catch {
     return null;
   }
