@@ -61,7 +61,11 @@ export function renderSettingsSectionHeading3(ctx: AppCtx) {
         <div className="settings-row settings-row-stack">
           <span>
             <strong>Custom template</strong>
-            <small>Describe your template or paste document class.</small>
+            <small>
+              Paste the venue&apos;s \documentclass line; its class decides which rules
+              apply. Your paper&apos;s own \documentclass wins when it names a known
+              venue.
+            </small>
           </span>
           <input
             type="text"
@@ -131,11 +135,6 @@ export function renderSettingsSectionHeading3(ctx: AppCtx) {
           "checkFigureResolution",
           "Figure resolution",
           "Check included image formats and warn about low-resolution formats.",
-        ],
-        [
-          "checkEmbeddedFonts",
-          "Embedded fonts",
-          "Basic check for font usage that may cause PDF issues.",
         ],
         [
           "checkCompiler",
@@ -214,11 +213,6 @@ export function renderSettingsSectionHeading4(ctx: AppCtx) {
           "suggestCitationKeys",
           "Suggest citation keys",
           "Auto-suggest citations for sentences with factual claims.",
-        ],
-        [
-          "importMetadataSources",
-          "Import from metadata sources",
-          "Enable DOI/arXiv metadata import.",
         ],
         [
           "warnOldCitations",
@@ -563,25 +557,6 @@ export function renderSettingsSectionHeading9(ctx: AppCtx) {
           }
         />
       </label>
-
-      <label className="settings-row settings-toggle">
-        <span>
-          <strong>Auto-open on image copy</strong>
-          <small>
-            Automatically open converter when an image is detected in clipboard.
-          </small>
-        </span>
-        <input
-          type="checkbox"
-          checked={settings.tikzConverterAutoOpen}
-          onChange={(event) =>
-            setSettings((c) => ({
-              ...c,
-              tikzConverterAutoOpen: event.target.checked,
-            }))
-          }
-        />
-      </label>
     </>
   );
 }
@@ -609,23 +584,6 @@ export function renderSettingsSectionHeading10(ctx: AppCtx) {
             setSettings((c) => ({
               ...c,
               notationManagerEnabled: event.target.checked,
-            }))
-          }
-        />
-      </label>
-
-      <label className="settings-row settings-toggle">
-        <span>
-          <strong>Detect notation</strong>
-          <small>Scan documents for mathematical symbols and notation.</small>
-        </span>
-        <input
-          type="checkbox"
-          checked={settings.detectNotation}
-          onChange={(event) =>
-            setSettings((c) => ({
-              ...c,
-              detectNotation: event.target.checked,
             }))
           }
         />

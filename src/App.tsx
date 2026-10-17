@@ -7,8 +7,6 @@ import {
   Download,
   LoaderCircle,
   RefreshCw,
-  Settings,
-  X,
 } from "lucide-react";
 import { productConfig } from "./productConfig";
 import { appVersion } from "./appVersion";
@@ -53,6 +51,7 @@ import { useAppCitationAssistant } from "./app/useAppCitationAssistant";
 import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { SettingsShell } from "./components/SettingsShell";
 import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
 import {
   renderActivityBar,
@@ -68,7 +67,6 @@ import {
   renderAiSelectionCard,
   renderMainArea,
   renderModalBackdrop,
-  renderSettingsTabs,
   renderShareProjectDialog,
   renderStatusbarGroup,
   renderUpdateBanner,
@@ -214,10 +212,12 @@ export default function App() {
     setProjectSearchRefreshNonce,
     setSettings,
     setSettingsOpen,
+    setSettingsTab,
     setStatusMessage,
     settings,
     settingsOpen,
     settingsTab,
+    extensionToolInstallation,
     showActivationStep,
     showLegalAcceptanceGate,
     showWelcome,
@@ -530,261 +530,301 @@ export default function App() {
 
       {settingsOpen ? (
         <div className="settings-backdrop">
-          <section
-            className="settings-dialog"
-            role="dialog"
-            aria-modal="false"
-            aria-labelledby="settings-title"
-          >
-            <div className="settings-header">
-              <div className="dialog-icon">
-                <Settings size={20} />
-              </div>
-              <div className="dialog-copy">
-                <h2 id="settings-title">Settings</h2>
-              </div>
-              <button
-                type="button"
-                className="settings-close"
-                onClick={() => setSettingsOpen(false)}
-                aria-label="Close settings"
-              >
-                <X size={17} />
-              </button>
-            </div>
-
-            {renderSettingsTabs(ctx)}
-
-            <div className="settings-list">
-              {settingsTab === "ai" ? (
-                <div className="ai-settings-panel">
-                  <div className="settings-section-heading">
-                    <strong>AI Assistant</strong>
-                  </div>
-                  {renderAiSelectionCard(ctx)}
-
-                  {activeAiSelectionValue !== "customize" && selectedLatexDoAiTier ? (
-                    <div className="ai-tier-settings-card">
-                      <div className="ai-tier-settings-head">
-                        <div>
-                          <strong>{selectedLatexDoAiTier.name}</strong>
-                          <span>{selectedLatexDoAiTier.description}</span>
-                        </div>
-                        {selectedLatexDoAiTierDownloaded &&
-                        selectedLatexDoAiTierCanRun ? (
-                          <span className="ai-model-status ready">
-                            <Check size={13} /> Installed
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="settings-hint compact">
-                        {tierAvailabilityLabel(selectedLatexDoAiTierAvailability)}
-                      </p>
-                      <div className="ai-tier-actions">
-                        {selectedLatexDoAiTierAvailability.state ===
-                          "memory-pressure" ||
-                        selectedLatexDoAiTierAvailability.state ===
-                          "storage-pressure" ? (
-                          <button
-                            type="button"
-                            className="ai-wizard-ghost"
-                            onClick={() => void refreshAiSystemCapabilities()}
-                          >
-                            <RefreshCw size={13} /> Check again
-                          </button>
-                        ) : null}
-                        {selectedLatexDoAiTierCanRun &&
-                        !selectedLatexDoAiTierDownloaded ? (
-                          <button
-                            type="button"
-                            className="ai-model-action"
-                            onClick={() =>
-                              void downloadLatexDoAiModel(selectedLatexDoAiTier)
-                            }
-                            disabled={selectedLatexDoAiModelDownloading}
-                          >
-                            {selectedLatexDoAiModelDownloading ? (
-                              <>
-                                <LoaderCircle size={13} className="spin" />{" "}
-                                {selectedLatexDoAiDownloadLabel || "Download"}
-                              </>
-                            ) : (
-                              <>
-                                <Download size={13} /> Download
-                              </>
-                            )}
-                          </button>
-                        ) : null}
-                      </div>
+          <SettingsShell
+            activePage={settingsTab}
+            onSelectPage={setSettingsTab}
+            onClose={() => setSettingsOpen(false)}
+            footer={renderSettingsFooter(ctx)}
+            pages={[
+              {
+                id: "editor",
+                title: "General",
+                group: "LatexDo",
+                content: renderSettingsSectionHeading(ctx),
+              },
+              {
+                id: "ai",
+                title: "AI Assistant",
+                group: "LatexDo",
+                content: (
+                  <div className="ai-settings-panel">
+                    <div className="settings-section-heading">
+                      <strong>Model</strong>
                     </div>
-                  ) : null}
+                    {renderAiSelectionCard(ctx)}
 
-                  {activeAiSelectionValue === "customize"
-                    ? renderAiCustomizePanel(ctx)
-                    : null}
+                    {activeAiSelectionValue !== "customize" && selectedLatexDoAiTier ? (
+                      <div className="ai-tier-settings-card">
+                        <div className="ai-tier-settings-head">
+                          <div>
+                            <strong>{selectedLatexDoAiTier.name}</strong>
+                            <span>{selectedLatexDoAiTier.description}</span>
+                          </div>
+                          {selectedLatexDoAiTierDownloaded &&
+                          selectedLatexDoAiTierCanRun ? (
+                            <span className="ai-model-status ready">
+                              <Check size={13} /> Installed
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="settings-hint compact">
+                          {tierAvailabilityLabel(selectedLatexDoAiTierAvailability)}
+                        </p>
+                        <div className="ai-tier-actions">
+                          {selectedLatexDoAiTierAvailability.state ===
+                            "memory-pressure" ||
+                          selectedLatexDoAiTierAvailability.state ===
+                            "storage-pressure" ? (
+                            <button
+                              type="button"
+                              className="ai-wizard-ghost"
+                              onClick={() => void refreshAiSystemCapabilities()}
+                            >
+                              <RefreshCw size={13} /> Check again
+                            </button>
+                          ) : null}
+                          {selectedLatexDoAiTierCanRun &&
+                          !selectedLatexDoAiTierDownloaded ? (
+                            <button
+                              type="button"
+                              className="ai-model-action"
+                              onClick={() =>
+                                void downloadLatexDoAiModel(selectedLatexDoAiTier)
+                              }
+                              disabled={selectedLatexDoAiModelDownloading}
+                            >
+                              {selectedLatexDoAiModelDownloading ? (
+                                <>
+                                  <LoaderCircle size={13} className="spin" />{" "}
+                                  {selectedLatexDoAiDownloadLabel || "Download"}
+                                </>
+                              ) : (
+                                <>
+                                  <Download size={13} /> Download
+                                </>
+                              )}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
 
-                  {activeAiSelectionValue === "customize" &&
-                  aiConfig.provider === "cloud"
-                    ? renderCloudForm(ctx)
-                    : null}
-                  {activeAiSelectionValue === "customize" &&
-                  aiConfig.provider === "ollama"
-                    ? renderCloudForm2(ctx)
-                    : null}
-                  {activeAiSelectionValue === "customize" &&
-                  aiConfig.provider === "local" &&
-                  localAiProviderMode === "local-model" &&
-                  selectedImportedCompatibility ? (
-                    <p className="settings-hint compact">
-                      {selectedImportedCompatibility.state === "compatible"
-                        ? `Estimated memory: ${formatRam(
-                            selectedImportedCompatibility.estimatedRamBytes ?? 0,
-                          )}. Tool support: unknown.`
-                        : selectedImportedCompatibility.state === "memory-pressure"
-                          ? `Temporarily unavailable: estimated memory ${formatRam(
+                    {activeAiSelectionValue === "customize"
+                      ? renderAiCustomizePanel(ctx)
+                      : null}
+
+                    {activeAiSelectionValue === "customize" &&
+                    aiConfig.provider === "cloud"
+                      ? renderCloudForm(ctx)
+                      : null}
+                    {activeAiSelectionValue === "customize" &&
+                    aiConfig.provider === "ollama"
+                      ? renderCloudForm2(ctx)
+                      : null}
+                    {activeAiSelectionValue === "customize" &&
+                    aiConfig.provider === "local" &&
+                    localAiProviderMode === "local-model" &&
+                    selectedImportedCompatibility ? (
+                      <p className="settings-hint compact">
+                        {selectedImportedCompatibility.state === "compatible"
+                          ? `Estimated memory: ${formatRam(
                               selectedImportedCompatibility.estimatedRamBytes ?? 0,
-                            )}, currently available ${formatRam(
-                              selectedImportedCompatibility.availableRamBytes ?? 0,
-                            )}.`
-                          : selectedImportedCompatibility.state === "unsupported"
-                            ? `Not supported: ${selectedImportedCompatibility.reason ?? "estimated memory exceeds this machine."}`
-                            : "Compatibility unknown. Advanced users may still try this model."}
-                    </p>
-                  ) : null}
-                  {latexDoAiModelMessage && aiConfig.provider === "local" ? (
-                    <p className="settings-hint compact">{latexDoAiModelMessage}</p>
-                  ) : null}
+                            )}. Tool support: unknown.`
+                          : selectedImportedCompatibility.state === "memory-pressure"
+                            ? `Temporarily unavailable: estimated memory ${formatRam(
+                                selectedImportedCompatibility.estimatedRamBytes ?? 0,
+                              )}, currently available ${formatRam(
+                                selectedImportedCompatibility.availableRamBytes ?? 0,
+                              )}.`
+                            : selectedImportedCompatibility.state === "unsupported"
+                              ? `Not supported: ${selectedImportedCompatibility.reason ?? "estimated memory exceeds this machine."}`
+                              : "Compatibility unknown. Advanced users may still try this model."}
+                      </p>
+                    ) : null}
+                    {latexDoAiModelMessage && aiConfig.provider === "local" ? (
+                      <p className="settings-hint compact">{latexDoAiModelMessage}</p>
+                    ) : null}
 
-                  <div className="settings-section-heading">
-                    <strong>Context access</strong>
+                    <div className="settings-section-heading">
+                      <strong>Context access</strong>
+                    </div>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Chat history</strong>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.access.chatHistory}
+                        onChange={(event) =>
+                          setAiAccess("chatHistory", event.target.checked)
+                        }
+                      />
+                    </label>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Current editor</strong>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.access.currentEditor}
+                        onChange={(event) =>
+                          setAiAccess("currentEditor", event.target.checked)
+                        }
+                      />
+                    </label>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Project files</strong>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.access.projectFiles}
+                        onChange={(event) =>
+                          setAiAccess("projectFiles", event.target.checked)
+                        }
+                      />
+                    </label>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Bibliography and citations</strong>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.access.bibliography}
+                        onChange={(event) =>
+                          setAiAccess("bibliography", event.target.checked)
+                        }
+                      />
+                    </label>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Researcher profile</strong>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.access.researcherProfile}
+                        onChange={(event) =>
+                          setAiAccess("researcherProfile", event.target.checked)
+                        }
+                      />
+                    </label>
+
+                    <div className="settings-section-heading">Writing assistance</div>
+                    <label className="settings-row settings-toggle">
+                      <span>
+                        <strong>Complete sentences as I type</strong>
+                        <small>
+                          Grey text finishes the sentence you are writing. Press Tab to
+                          accept it or keep typing to ignore it.
+                        </small>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={aiConfig.sentenceCompletionEnabled}
+                        onChange={(event) =>
+                          setAiConfig((current) => ({
+                            ...current,
+                            sentenceCompletionEnabled: event.target.checked,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <VoiceSettingsSection aiConfig={aiConfig} />
+
+                    <div className="settings-section-heading">AI edit safety</div>
+                    <div className="ai-autonomy-option ai-autonomy-option-locked">
+                      <span>
+                        <strong>Approval required before edits</strong>
+                        <small>
+                          The assistant can inspect enabled project context, but file
+                          changes are shown for approval before they are applied.
+                        </small>
+                      </span>
+                    </div>
                   </div>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Chat history</strong>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.access.chatHistory}
-                      onChange={(event) =>
-                        setAiAccess("chatHistory", event.target.checked)
-                      }
-                    />
-                  </label>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Current editor</strong>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.access.currentEditor}
-                      onChange={(event) =>
-                        setAiAccess("currentEditor", event.target.checked)
-                      }
-                    />
-                  </label>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Project files</strong>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.access.projectFiles}
-                      onChange={(event) =>
-                        setAiAccess("projectFiles", event.target.checked)
-                      }
-                    />
-                  </label>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Bibliography and citations</strong>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.access.bibliography}
-                      onChange={(event) =>
-                        setAiAccess("bibliography", event.target.checked)
-                      }
-                    />
-                  </label>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Researcher profile</strong>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.access.researcherProfile}
-                      onChange={(event) =>
-                        setAiAccess("researcherProfile", event.target.checked)
-                      }
-                    />
-                  </label>
-
-                  <div className="settings-section-heading">Writing assistance</div>
-                  <label className="settings-row settings-toggle">
-                    <span>
-                      <strong>Complete sentences as I type</strong>
-                      <small>
-                        Grey text finishes the sentence you are writing. Press Tab to
-                        accept it or keep typing to ignore it.
-                      </small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={aiConfig.sentenceCompletionEnabled}
-                      onChange={(event) =>
-                        setAiConfig((current) => ({
-                          ...current,
-                          sentenceCompletionEnabled: event.target.checked,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <VoiceSettingsSection aiConfig={aiConfig} />
-
-                  <div className="settings-section-heading">AI edit safety</div>
-                  <div className="ai-autonomy-option ai-autonomy-option-locked">
-                    <span>
-                      <strong>Approval required before edits</strong>
-                      <small>
-                        The assistant can inspect enabled project context, but file
-                        changes are shown for approval before they are applied.
-                      </small>
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-              {settingsTab === "editor" ? renderSettingsSectionHeading(ctx) : null}
-
-              {settingsTab === "language" ? renderSettingsSectionHeading2(ctx) : null}
-
-              {settingsTab === "conference" ? renderSettingsSectionHeading3(ctx) : null}
-
-              {settingsTab === "citation" ? renderSettingsSectionHeading4(ctx) : null}
-
-              {settingsTab === "structure" ? renderSettingsSectionHeading5(ctx) : null}
-
-              {settingsTab === "reproducibility"
-                ? renderSettingsSectionHeading6(ctx)
-                : null}
-
-              {settingsTab === "acronym" ? renderSettingsSectionHeading7(ctx) : null}
-
-              {settingsTab === "doctor" ? renderSettingsSectionHeading8(ctx) : null}
-
-              {settingsTab === "tikz" ? renderSettingsSectionHeading9(ctx) : null}
-
-              {settingsTab === "notation" ? renderSettingsSectionHeading10(ctx) : null}
-
-              {settingsTab === "pdf" ? renderSettingsSectionHeading11(ctx) : null}
-
-              {settingsTab === "application"
-                ? renderSettingsSectionHeading12(ctx)
-                : null}
-            </div>
-
-            {renderSettingsFooter(ctx)}
-          </section>
+                ),
+              },
+              {
+                id: "language",
+                title: "Language",
+                group: "Writing",
+                content: renderSettingsSectionHeading2(ctx),
+              },
+              {
+                id: "conference",
+                title: "Conference Checker",
+                group: "Checks",
+                content: renderSettingsSectionHeading3(ctx),
+              },
+              ...(extensionToolInstallation.projectBibliography
+                ? [
+                    {
+                      id: "citation",
+                      title: "Citation Assistant",
+                      group: "Checks",
+                      content: renderSettingsSectionHeading4(ctx),
+                    },
+                  ]
+                : []),
+              {
+                id: "structure",
+                title: "Structure Assistant",
+                group: "Checks",
+                content: renderSettingsSectionHeading5(ctx),
+              },
+              {
+                id: "reproducibility",
+                title: "Reproducibility",
+                group: "Checks",
+                content: renderSettingsSectionHeading6(ctx),
+              },
+              {
+                id: "acronym",
+                title: "Acronym Manager",
+                group: "Checks",
+                content: renderSettingsSectionHeading7(ctx),
+              },
+              ...(extensionToolInstallation.notationManager
+                ? [
+                    {
+                      id: "notation",
+                      title: "Notation",
+                      group: "Checks",
+                      content: renderSettingsSectionHeading10(ctx),
+                    },
+                  ]
+                : []),
+              {
+                id: "pdf",
+                title: "PDF Compliance",
+                group: "Checks",
+                content: renderSettingsSectionHeading11(ctx),
+              },
+              {
+                id: "doctor",
+                title: "Error Doctor",
+                group: "Build",
+                content: renderSettingsSectionHeading8(ctx),
+              },
+              ...(extensionToolInstallation.tikzConverter
+                ? [
+                    {
+                      id: "tikz",
+                      title: "TikZ Converter",
+                      group: "Tools",
+                      content: renderSettingsSectionHeading9(ctx),
+                    },
+                  ]
+                : []),
+              {
+                id: "application",
+                title: "Updates",
+                group: "Application",
+                content: renderSettingsSectionHeading12(ctx),
+              },
+            ]}
+          />
         </div>
       ) : null}
 

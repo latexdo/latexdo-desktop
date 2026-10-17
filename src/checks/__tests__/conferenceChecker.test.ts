@@ -140,6 +140,18 @@ describe("runConferenceChecks", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
+  it("applies the rules of the class named in a custom template", () => {
+    const doc = makeDoc("\\begin{abstract}" + "word ".repeat(260) + "\\end{abstract}");
+    const asIeee = runConferenceChecks(doc, { ...defaultSettings, template: "ieee" });
+    const asCustomIeee = runConferenceChecks(doc, {
+      ...defaultSettings,
+      template: "custom",
+      customTemplate: "\\documentclass[conference]{IEEEtran}",
+    });
+    expect(asCustomIeee).toEqual(asIeee);
+    expect(asIeee).not.toEqual(runConferenceChecks(doc, defaultSettings));
+  });
+
   it("skips individual checks when disabled", () => {
     const allDisabled = {
       ...defaultSettings,

@@ -29071,3 +29071,181 @@ body.pane-resizing .preview-pane > * {
   background: var(--accent);
   color: var(--text-on-accent, #fff);
 }
+
+/* Settings window: search on top, categories on the left, one page of
+   settings on the right (searching shows every page that matches). */
+.settings-shell {
+  width: min(1100px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+}
+
+.settings-search {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0 20px 12px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-input, var(--bg-surface));
+  color: var(--text-muted);
+}
+
+.settings-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.settings-search-count {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  border-top: 1px solid var(--border-dialog);
+}
+
+.settings-nav {
+  display: flex;
+  flex: 0 0 210px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-dialog);
+}
+
+.settings-nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-nav-group-title {
+  padding: 0 10px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-shell .settings-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings-shell .settings-nav-item:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.settings-shell .settings-nav-item.active {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-shell .settings-nav-item.dimmed {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-nav-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.settings-shell .settings-list {
+  display: block;
+  padding: 18px 28px 28px;
+}
+
+.settings-page[data-follows-page] {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-dialog);
+}
+
+.settings-page-title {
+  margin: 0 0 14px;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.settings-page-body {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-no-results {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .settings-body {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    flex: 0 0 auto;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-dialog);
+  }
+
+  .settings-nav-group-title {
+    display: none;
+  }
+}
+
+/* With categories on the left, Settings takes the workspace's width, like an
+   editor's settings page, still docked so it never blocks the window. */
+.settings-backdrop:has(.settings-shell) {
+  width: min(1080px, calc(100vw - 72px));
+}
+
+/* Narrow theme cards put the color dots under the name instead of over it. */
+.theme-choice-top {
+  flex-wrap: wrap;
+}
+
+.theme-choice-top > span:first-child {
+  flex: 1 1 150px;
+}
