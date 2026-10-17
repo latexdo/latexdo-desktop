@@ -3137,7 +3137,7 @@ function buildApplicationMenu(): void {
           submenu: [
             {
               label: "Word Document (DOCX)...",
-              accelerator: "CmdOrCtrl+Shift+I",
+              accelerator: "CmdOrCtrl+Alt+W",
               click: () => sendToFocusedWindow(importDocxChannel),
             },
             {
