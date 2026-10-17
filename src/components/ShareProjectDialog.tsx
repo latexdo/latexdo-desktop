@@ -51,6 +51,8 @@ export interface ShareProjectDialogProps {
   onStartSharing?: (mode: HostSharingMode) => void;
   onStopSharing?: () => void;
   onSaveToFolder?: () => void;
+  /** Leaves the shared copy and reopens the owner's own folder. */
+  onReturnToFolder?: () => void;
   onRequireApprovalChange?: (requireApproval: boolean) => void;
   onResolveRequest?: (clientId: string, approve: boolean) => void;
   onClose: () => void;
@@ -89,6 +91,7 @@ export function ShareProjectDialog({
   onStartSharing,
   onStopSharing,
   onSaveToFolder,
+  onReturnToFolder,
   onRequireApprovalChange,
   onResolveRequest,
   onClose,
@@ -317,6 +320,12 @@ export function ShareProjectDialog({
                     {busy ? <Loader2 size={14} className="spin" /> : <Link size={14} />}
                     {busy ? "Starting…" : "Start sharing"}
                   </button>
+                  {state.hosted && onReturnToFolder ? (
+                    <button type="button" onClick={onReturnToFolder} disabled={busy}>
+                      <FolderDown size={14} />
+                      Back to my folder
+                    </button>
+                  ) : null}
                   {state.hosted && onSaveToFolder ? (
                     <button type="button" onClick={onSaveToFolder} disabled={busy}>
                       <FolderDown size={14} />

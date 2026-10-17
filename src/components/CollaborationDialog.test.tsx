@@ -285,6 +285,19 @@ describe("CollaborationDialog", () => {
     expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
   });
 
+  it("takes the owner from the shared copy back to their own folder", () => {
+    const props = dialogProps({
+      hostingAvailable: true,
+      state: { enabled: false, hosted: true, users: [] },
+      onReturnToFolder: vi.fn(),
+      onSaveToFolder: vi.fn(),
+    });
+    render(<CollaborationDialog {...props} />);
+    expect(screen.getByText(/This is the shared copy of your project/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my folder" }));
+    expect(props.onReturnToFolder).toHaveBeenCalledOnce();
+  });
+
   it("asks for a project before offering to share one", () => {
     render(
       <CollaborationDialog

@@ -160,6 +160,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
             apiBaseUrl: bindingApiBaseUrl,
             clientName: collaborationDisplayName,
             color: collaboration.color,
+            emoji: collaboration.emoji,
             onStatusChange: (status) => {
               if (status === "connected") {
                 setStatusMessage(
@@ -896,6 +897,40 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
   };
 
+  /**
+   * Leaves the shared copy: stops sharing if it is on, saves the shared edits
+   * into the owner's folder and opens that folder again (with Git and local
+   * builds).
+   */
+  const returnToOwnFolder = async () => {
+    const currentProject = collaborationState.projectId ?? projectIdRef.current;
+    if (!currentProject) return;
+    if (collaborationState.enabled) {
+      await stopCollaboration();
+      return;
+    }
+    setCollaborationBusy(true);
+    try {
+      const result = await window.latexdo.saveSharedProjectToFolder(currentProject);
+      if (result.saved && result.project) {
+        await loadProject(result.project, true, false);
+        setShareDialogOpen(false);
+        setStatusMessage(
+          `Back in your folder. ${result.written ?? 0} changed file(s) saved from the shared copy.`,
+        );
+      } else {
+        setShareStartError("Could not find your folder. Use Save to my folder first.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not go back to your folder";
+      setStatusMessage(message);
+      setShareStartError(message);
+    } finally {
+      setCollaborationBusy(false);
+    }
+  };
+
   const changeCollaborationApproval = async (requireApproval: boolean) => {
     const currentProject = collaborationState.projectId ?? projectIdRef.current;
     if (!currentProject) return;
@@ -964,6 +999,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     refreshCollaborationState,
     hostingAvailable,
     openShareDialog,
+    returnToOwnFolder,
     createCollaborationLink,
     regenerateCollaborationLink,
     cancelJoinCollaboration,

@@ -30055,3 +30055,85 @@ body.pane-resizing .preview-pane > * {
   position: fixed;
   right: auto;
 }
+
+/* Other people's cursors: each person's color, labelled with their emoji and
+   name (the per-person rules are generated while they are connected). */
+.monaco-editor [class*="yRemoteSelectionHead"] {
+  position: relative;
+  border-left-width: 2px;
+  border-left-style: solid;
+}
+
+.monaco-editor [class*="yRemoteSelectionHead"]::before {
+  content: none;
+}
+
+.monaco-editor [class*="yRemoteSelectionHead"]::after {
+  position: absolute;
+  top: -1.45em;
+  left: -2px;
+  z-index: 10;
+  padding: 1px 6px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  content: none;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Status bar: sharing state and the people working with you. */
+.statusbar-sharing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusbar-sharing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.statusbar-sharing-dot.live {
+  background: #3fb950;
+  box-shadow: 0 0 0 2px rgb(63 185 80 / 30%);
+}
+
+.statusbar-people {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.statusbar-avatar {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  margin-left: -4px;
+  padding: 0;
+  border: 1.5px solid;
+  border-radius: 50%;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.statusbar-avatar:first-child {
+  margin-left: 0;
+}
+
+.statusbar-avatar:hover {
+  z-index: 1;
+  transform: translateY(-1px);
+}
+
+.statusbar-people-more {
+  margin-left: 4px;
+  font-size: 11px;
+}

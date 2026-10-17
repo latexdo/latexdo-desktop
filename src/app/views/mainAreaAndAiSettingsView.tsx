@@ -14,6 +14,9 @@ import {
 import { CitationSearchPopup } from "../../components/CitationSearchPopup";
 import { productConfig } from "../../productConfig";
 import { ShareProjectDialog } from "../../components/ShareProjectDialog";
+import { collaboratorLook } from "../../collaboration/collaboratorLook";
+import { pathForDisplay } from "../../pathDisplay";
+import { collaborationClientId } from "../../collaboration/collaborationStorage";
 import { cloudProviders } from "../../features/ai/cloudProviders";
 import { latexDoAiTiers } from "../../features/ai/product/latexDoAiTiers";
 import { WorkspaceTabs } from "../../components/WorkspaceTabs";
@@ -210,9 +213,67 @@ export function renderStatusbarGroup(ctx: AppCtx) {
     warnings,
   } = ctx;
   const gitStatus = ctx.gitStatus!;
+  const sharing = ctx.collaborationState;
+  // The shared copy of a project: Git and local builds live in the owner's
+  // folder, so the status bar says where you are instead of "No repository".
+  const inSharedProject =
+    hasVisibleProject && (sharing.enabled || Boolean(sharing.hosted));
+  const sharingLive =
+    sharing.enabled && (!sharing.hosted || sharing.host?.active !== false);
+  const ownClientId = collaborationClientId();
+  const others = sharing.enabled
+    ? sharing.users.filter((user) => user.clientId !== ownClientId)
+    : [];
   return (
     <div className="statusbar-group">
-      {hasVisibleProject ? (
+      {inSharedProject ? (
+        <button
+          type="button"
+          className="statusbar-sharing"
+          onClick={ctx.openShareDialog}
+          title={
+            sharingLive
+              ? "Sharing is on — manage it or stop sharing"
+              : "You are in the shared copy — go back to your folder"
+          }
+          aria-label={sharingLive ? "Sharing is on" : "Shared copy"}
+        >
+          <span
+            className={`statusbar-sharing-dot ${sharingLive ? "live" : ""}`}
+            aria-hidden="true"
+          />
+          {sharingLive ? "Sharing" : "Shared copy"}
+        </button>
+      ) : null}
+      {others.length ? (
+        <span className="statusbar-people" aria-label="People in this project">
+          {others.slice(0, 6).map((user) => {
+            const look = collaboratorLook(user.clientId);
+            const where = user.currentFile
+              ? `in ${pathForDisplay(user.currentFile)}`
+              : "not in a file";
+            return (
+              <button
+                key={user.clientId}
+                type="button"
+                className="statusbar-avatar"
+                style={{ borderColor: look.color, background: `${look.color}33` }}
+                onClick={() =>
+                  user.currentFile ? void ctx.openGitFile(user.currentFile) : undefined
+                }
+                title={`${user.name || "Guest"} — ${where}${user.currentFile ? " (click to go there)" : ""}`}
+                aria-label={`${user.name || "Guest"}, ${where}`}
+              >
+                {look.emoji}
+              </button>
+            );
+          })}
+          {others.length > 6 ? (
+            <span className="statusbar-people-more">+{others.length - 6}</span>
+          ) : null}
+        </span>
+      ) : null}
+      {hasVisibleProject && !inSharedProject ? (
         <button
           type="button"
           onClick={() =>
@@ -368,6 +429,9 @@ export function renderShareProjectDialog(ctx: AppCtx) {
       onStopSharing={() => void stopCollaboration()}
       onSaveToFolder={
         collaborationState.hosted ? () => void saveSharedProjectToFolder() : undefined
+      }
+      onReturnToFolder={
+        collaborationState.hosted ? () => void ctx.returnToOwnFolder() : undefined
       }
       onRequireApprovalChange={(value) => void changeCollaborationApproval(value)}
       onResolveRequest={(clientId, approve) =>

@@ -14,6 +14,8 @@ export type CollaboratorRole = "admin" | "editor" | "viewer";
 export interface CollaborationIdentity {
   clientName: string;
   color: string;
+  /** Shown beside the name on this person's cursor for everyone else. */
+  emoji?: string;
 }
 
 export interface CollaborationRoomOptions extends CollaborationIdentity {

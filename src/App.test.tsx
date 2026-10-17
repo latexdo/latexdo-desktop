@@ -3714,6 +3714,34 @@ describe("App critical UI controls", () => {
     expect(screen.getByLabelText("Folder path")).toHaveValue("sections/chapters");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   });
+  it("shows who else is in a shared project and where, instead of Git", async () => {
+    const api = installLatexDoMock();
+    const shared = {
+      enabled: true,
+      hosted: true,
+      token: "t",
+      users: [
+        { clientId: "client-bob", name: "Bob", currentFile: "main.tex", lastSeen: 1 },
+      ],
+      host: {
+        active: true,
+        mode: "internet",
+        phase: "ready",
+        addresses: ["https://x"],
+      },
+    };
+    api.getCollaborationState.mockResolvedValue(shared);
+    api.updateCollaborationPresence.mockResolvedValue(shared);
+    render(<App />);
+    await openProjectFromWelcome();
+
+    expect(await screen.findByRole("button", { name: "Sharing is on" })).toBeVisible();
+    expect(
+      await screen.findByRole("button", { name: "Bob, in main.tex" }),
+    ).toBeVisible();
+    expect(screen.queryByText("No repository")).not.toBeInTheDocument();
+  });
+
   it("project workflow imports dropped files once and preserves their destination", async () => {
     const api = installLatexDoMock({
       // Background proofreading can overwrite the import status on slower runs.
