@@ -94,9 +94,13 @@ const peerPathPattern = /^\/api\/(?:health|projects|shares)(?:[/?]|$)/;
 const peerSocketPathPattern = /^\/api\/projects\/[^/?#]+\/files\/collaborate\?/;
 const allowedMethods = new Set(["GET", "POST", "PUT", "DELETE"]);
 const allowedHeaderPattern = /^(?:content-type|x-latexdo-[a-z-]+)$/;
-const maxPeerRequestBodyBytes = 4 * 1024 * 1024;
-const maxPeerResponseBytes = 8 * 1024 * 1024;
-const maxPeerSocketFrameBytes = 1024 * 1024;
+// A project shared from someone's computer may hold large files (a 4 MB .bib
+// is common), so the bridge carries a whole file, JSON-escaped, in one request
+// and a whole document in one collaboration frame.
+const maxHostedFileBytes = 32 * 1024 * 1024;
+const maxPeerRequestBodyBytes = 3 * maxHostedFileBytes;
+const maxPeerResponseBytes = 3 * maxHostedFileBytes;
+const maxPeerSocketFrameBytes = 2 * maxHostedFileBytes;
 const maxKnownPeers = 200;
 const serverStartTimeoutMs = 20_000;
 const offStatus: HostSharingStatus = {
@@ -183,6 +187,13 @@ export class PeerCollabService {
       LATEXDO_COLLAB_RATE_MAX: "6000",
       LATEXDO_COLLAB_MAX_PROJECTS: "500",
       LATEXDO_COLLAB_MAX_CONNECTIONS: "300",
+      // The cloud defaults (2 MB per file, 20 MB per project) are for a
+      // shared server; this one runs on the owner's computer.
+      LATEXDO_COLLAB_MAX_FILE_BYTES: String(maxHostedFileBytes),
+      LATEXDO_COLLAB_MAX_PROJECT_BYTES: String(16 * maxHostedFileBytes),
+      LATEXDO_COLLAB_MAX_PROJECT_FILES: "2000",
+      LATEXDO_COLLAB_MAX_JSON_BYTES: String(maxPeerRequestBodyBytes),
+      LATEXDO_COLLAB_MAX_WS_FRAME_BYTES: String(maxPeerSocketFrameBytes),
     });
 
     return new Promise<RunningServer>((resolve, reject) => {

@@ -31,6 +31,8 @@ export interface ShareProjectDialogProps {
   joinToken: string;
   joining: boolean;
   joinError: string;
+  /** Why sharing could not start, e.g. a file that is too large. */
+  startError?: string;
   displayName: string;
   permissions: CollaboratorPermission[];
   isAdmin: boolean;
@@ -70,6 +72,7 @@ export function ShareProjectDialog({
   joinToken,
   joining,
   joinError,
+  startError,
   displayName,
   permissions,
   isAdmin,
@@ -257,9 +260,9 @@ export function ShareProjectDialog({
                     ? "This is the shared copy of your project. Sharing is off."
                     : "Share this project straight from your computer. No account and no server needed."}
                 </p>
-                {host?.phase === "failed" && host.message ? (
+                {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
-                    {host.message}
+                    {startError || host?.message}
                   </div>
                 ) : null}
                 <div

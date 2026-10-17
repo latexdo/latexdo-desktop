@@ -79,6 +79,10 @@ const cloudCompileTimeoutMs = 75_000;
 const maxCloudFileBytes = 2 * 1024 * 1024;
 const maxCloudProjectBytes = 20 * 1024 * 1024;
 const maxCloudProjectFiles = 500;
+// Sharing from this computer: the hosted server is started with these limits.
+const maxHostedFileBytes = 32 * 1024 * 1024;
+const maxHostedProjectBytes = 512 * 1024 * 1024;
+const maxHostedProjectFiles = 2000;
 const cloudProjectIds = new Set<string>();
 
 class CloudApiError extends Error {
@@ -703,8 +707,13 @@ async function uploadLocalProjectToCloud(
   const fileEntries = flattenProjectEntries(tree).filter(
     (entry) => entry.type === "file",
   );
-  if (fileEntries.length > maxCloudProjectFiles) {
-    throw new Error(`Cloud projects are limited to ${maxCloudProjectFiles} files.`);
+  const hosted = origin === localHostOrigin;
+  const maxFiles = hosted ? maxHostedProjectFiles : maxCloudProjectFiles;
+  const maxFileBytes = hosted ? maxHostedFileBytes : maxCloudFileBytes;
+  const maxProjectBytes = hosted ? maxHostedProjectBytes : maxCloudProjectBytes;
+  const where = hosted ? "Shared projects" : "Cloud projects";
+  if (fileEntries.length > maxFiles) {
+    throw new Error(`${where} are limited to ${maxFiles} files.`);
   }
 
   let totalBytes = 0;
@@ -723,12 +732,14 @@ async function uploadLocalProjectToCloud(
       );
       continue;
     }
-    if (content.length > maxCloudFileBytes) {
-      throw new Error(`${entry.relativePath} exceeds the cloud file size limit.`);
+    if (content.length > maxFileBytes) {
+      throw new Error(
+        `${entry.relativePath} is larger than ${maxFileBytes / 1024 / 1024} MB, the most ${hosted ? "sharing" : "the cloud"} accepts for one file.`,
+      );
     }
     totalBytes += content.length;
-    if (totalBytes > maxCloudProjectBytes) {
-      throw new Error("Cloud projects are limited to 20 MiB.");
+    if (totalBytes > maxProjectBytes) {
+      throw new Error(`${where} are limited to ${maxProjectBytes / 1024 / 1024} MB.`);
     }
     await cloudRequestJson(
       `/api/projects/${encodeURIComponent(cloudProject.id)}/files/content?${filePathQuery(entry.relativePath)}`,

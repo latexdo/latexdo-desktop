@@ -446,6 +446,64 @@ describe("hosting a project from this computer", () => {
     hostDocument.socket.close();
   }, 40_000);
 
+  it("shares and live-edits a file larger than the cloud limits", async () => {
+    const host = createService("host-large");
+    const visitor = createService("visitor-large");
+    const started = await host.service.startSharing("local");
+
+    const created = await call(
+      host.service,
+      localHostOrigin,
+      owner,
+      "POST",
+      "/api/projects",
+      { folderName: "Large" },
+    );
+    const projectId = created.body.id as string;
+    // A 4 MB bibliography, full of characters that JSON escapes.
+    const entry = '@article{key,\n  title = {A "quoted" \\emph{title}},\n}\n';
+    const content = entry.repeat(Math.ceil((4 * 1024 * 1024) / entry.length));
+    const stored = await call(
+      host.service,
+      localHostOrigin,
+      owner,
+      "PUT",
+      `/api/projects/${projectId}/files/content?path=main.tex`,
+      { content },
+    );
+    expect(stored.status).toBe(204);
+    const share = await call(
+      host.service,
+      localHostOrigin,
+      owner,
+      "POST",
+      `/api/projects/${projectId}/share`,
+      {},
+    );
+    const token = share.body.token as string;
+    const resolved = await visitor.service.resolveInvite(host.service.invite(token)!);
+    await call(
+      visitor.service,
+      resolved.origin,
+      guest,
+      "POST",
+      `/api/shares/${token}/open`,
+      {},
+      token,
+    );
+
+    const guestDocument = await joinDocument(
+      visitor.service,
+      resolved.origin,
+      guest,
+      projectId,
+      token,
+    );
+    expect(guestDocument.text.length).toBe(content.length);
+    expect(started.active).toBe(true);
+    guestDocument.socket.close(1000, "done");
+  });
+
   it("rejects invites that do not lead to a LatexDo host and unsafe bridge requests", async () => {
     const { service } = createService("careful");
     await expect(service.resolveInvite("not an invite")).rejects.toThrow(

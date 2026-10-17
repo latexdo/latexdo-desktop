@@ -77,6 +77,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     setIsProjectAdmin,
     setJoinCollaborationBusy,
     setJoinCollaborationError,
+    setShareStartError,
     setJoinTokenDraft,
     setJoinWaitingMessage,
     setRealtimeBlockedDocuments,
@@ -666,12 +667,14 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
     setShareDialogOpen(true);
     setJoinCollaborationError("");
+    setShareStartError("");
     void refreshCollaborationState();
   };
 
   const createCollaborationLink = async (mode?: HostSharingMode) => {
     setShareDialogOpen(true);
     setJoinCollaborationError("");
+    setShareStartError("");
     const currentProject = projectIdRef.current;
     if (!currentProject) {
       setStatusMessage("Paste a collaboration token or open a project to share.");
@@ -741,9 +744,10 @@ export function useAppCollaboration(ctx: AppCtx08) {
         setStatusMessage("Collaboration token ready");
       }
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error ? error.message : "Could not create collaboration link",
-      );
+      const message =
+        error instanceof Error ? error.message : "Could not create collaboration link";
+      setStatusMessage(message);
+      setShareStartError(message);
     } finally {
       setCollaborationBusy(false);
     }

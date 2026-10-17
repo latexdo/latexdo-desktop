@@ -268,6 +268,23 @@ describe("CollaborationDialog", () => {
     expect(props.onCancelJoin).toHaveBeenCalledOnce();
   });
 
+  it("shows why sharing could not start inside the dialog", () => {
+    render(
+      <CollaborationDialog
+        {...dialogProps({
+          hostingAvailable: true,
+          state: { enabled: false, users: [] },
+          startError:
+            "others.bib is larger than 32 MB, the most sharing accepts for one file.",
+        })}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "others.bib is larger than 32 MB",
+    );
+    expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
+  });
+
   it("asks for a project before offering to share one", () => {
     render(
       <CollaborationDialog

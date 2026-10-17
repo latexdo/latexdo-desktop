@@ -315,6 +315,7 @@ export function renderShareProjectDialog(ctx: AppCtx) {
     joinCollaborationBusy,
     joinCollaborationError,
     joinCollaborationFromDialog,
+    shareStartError,
     joinTokenDraft,
     joinWaitingMessage,
     loadCollaborationPermissions,
@@ -340,6 +341,7 @@ export function renderShareProjectDialog(ctx: AppCtx) {
       joinToken={joinTokenDraft}
       joining={joinCollaborationBusy}
       joinError={joinCollaborationError}
+      startError={shareStartError}
       displayName={collaborationDisplayName}
       permissions={collaborationPermissions}
       isAdmin={isProjectAdmin}
