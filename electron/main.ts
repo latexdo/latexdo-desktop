@@ -6439,7 +6439,7 @@ async function startApp(): Promise<void> {
     }
     throw new Error("Open a folder or a LatexDo Research Space file.");
   });
-  ipcMain.handle("project:create", async (_event, ...rawArgs: unknown[]) => {
+  ipcMain.handle("project:create", async (event, ...rawArgs: unknown[]) => {
     const channel = "project:create";
     const [rawOptions] = expectIpcArgRange(channel, rawArgs, 0, 1);
     const options = parseCreateProjectOptions(channel, rawOptions);
@@ -6464,12 +6464,24 @@ async function startApp(): Promise<void> {
         exclusive: true,
       });
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        throw new Error(
-          "Choose a folder without an existing main.tex, or open that folder instead.",
-        );
-      }
-      throw error;
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      // The folder is already a LaTeX project: open it, never overwrite it.
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const messageOptions = {
+        type: "question",
+        message: "This folder already has a main.tex",
+        detail: "Open it as your project instead? Nothing in it will be changed.",
+        buttons: ["Open Folder", "Cancel"],
+        defaultId: 0,
+        cancelId: 1,
+      } satisfies Electron.MessageBoxOptions;
+      const { response } = window
+        ? await dialog.showMessageBox(window, messageOptions)
+        : await dialog.showMessageBox(messageOptions);
+      if (response !== 0) return null;
+      return scheduleProjectGarbageCollection(
+        await registerProjectIfTrusted(window, projectPath),
+      );
     }
     await trustWorkspace(projectPath);
     return scheduleProjectGarbageCollection(registerProject(projectPath));

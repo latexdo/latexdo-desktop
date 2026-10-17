@@ -422,17 +422,34 @@ describe("project files and data preservation", () => {
       expect((await call("project:reopen-last"))?.rootPath).toBe(opened.rootPath),
     );
   });
-  it("opens a trusted folder and refuses to replace its existing main.tex", async () => {
+  it("opens a trusted folder and opens, never replaces, an existing main.tex", async () => {
     native.open.mockResolvedValueOnce({
       canceled: false,
       filePaths: [project.rootPath],
     });
     expect((await call("project:open")).rootPath).toBe(project.rootPath);
+    const before = await readFile(path.join(project.rootPath, "main.tex"), "utf8");
+
+    // "New Project" on a folder that is already a project offers to open it.
     native.open.mockResolvedValueOnce({
       canceled: false,
       filePaths: [project.rootPath],
     });
-    await expect(call("project:create")).rejects.toThrow("existing main.tex");
+    native.message.mockResolvedValueOnce({ response: 0 });
+    expect((await call("project:create")).rootPath).toBe(project.rootPath);
+    expect(native.message.mock.lastCall?.at(-1)).toMatchObject({
+      message: "This folder already has a main.tex",
+    });
+
+    native.open.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [project.rootPath],
+    });
+    native.message.mockResolvedValueOnce({ response: 1 });
+    expect(await call("project:create")).toBeNull();
+    expect(await readFile(path.join(project.rootPath, "main.tex"), "utf8")).toBe(
+      before,
+    );
   });
 });
 
