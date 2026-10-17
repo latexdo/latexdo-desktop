@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUp,
   BringToFront,
+  ChevronDown,
   Circle,
   Cloud,
   Copy,
@@ -14,6 +15,8 @@ import {
   Grid,
   Hand,
   Hexagon,
+  Grid3x3,
+  Magnet,
   Minus,
   MousePointer2,
   MoveHorizontal,
@@ -22,7 +25,9 @@ import {
   Plus,
   Redo2,
   SendToBack,
+  Shapes,
   Square,
+  SquareDashed,
   Star,
   Trash2,
   Triangle,
@@ -205,6 +210,27 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
   // -- state --
   const [shapes, setShapesState] = useState<DrawShape[]>([]);
   const [tool, setTool] = useState<ToolType>("select");
+  // The toolbar's pop-up menus: more shapes, stroke, fill and line width.
+  const [openMenu, setOpenMenu] = useState<
+    "shapes" | "stroke" | "fill" | "width" | null
+  >(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!openMenu) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setOpenMenu(null);
+        return;
+      }
+      if (!toolbarRef.current?.contains(event.target as Node)) setOpenMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [openMenu]);
   const [stroke, setStroke] = useState(DEFAULT_STROKE);
   const [fill, setFill] = useState(DEFAULT_FILL);
   const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
@@ -1452,6 +1478,21 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
     { id: "axes", icon: <CornerUpRight size={16} />, label: "Axes", key: "X" },
   ];
 
+  // The tools used most stay on the bar; the rest live in "More shapes".
+  const primaryToolIds: ToolType[] = [
+    "select",
+    "pan",
+    "rect",
+    "circle",
+    "line",
+    "arrow",
+    "text",
+    "freehand",
+  ];
+  const primaryTools = tools.filter((t) => primaryToolIds.includes(t.id));
+  const moreTools = tools.filter((t) => !primaryToolIds.includes(t.id));
+  const activeMoreTool = moreTools.find((t) => t.id === tool);
+
   // -- selected shape for property editing --
   const selectedShape = shapes.find((s) => s.id === selected);
   const contextShapeIndex = contextMenu
@@ -1545,100 +1586,205 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
       {/* ===== LEFT: Drawing Area ===== */}
       <div className="tikz-draw-area">
         {/* Toolbar */}
-        <div className="tikz-toolbar">
+        <div className="tikz-toolbar tikz-toolbar-single" ref={toolbarRef}>
           <div className="tikz-toolbar-tools">
-            {tools.map((t) => (
+            {primaryTools.map((t) => (
               <button
                 key={t.id}
                 className={`tikz-tool-btn ${tool === t.id ? "active" : ""}`}
                 onClick={() => setTool(t.id)}
-                title={`${t.label}${t.key ? ` (${t.key})` : ""}`}
+                aria-label={t.label}
+                aria-pressed={tool === t.id}
+                data-tip={t.key ? `${t.label} · ${t.key}` : t.label}
               >
                 {t.icon}
               </button>
             ))}
-          </div>
-
-          <div className="tikz-toolbar-divider" />
-
-          {/* Colors */}
-          <div className="tikz-toolbar-colors">
-            <span className="tikz-prop-label">Stroke</span>
-            <div className="tikz-color-row">
-              {COLORS.map((c) => (
-                <button
-                  key={`s-${c}`}
-                  className={`tikz-color-swatch ${activeStroke === c ? "active" : ""}`}
-                  style={{ background: c }}
-                  onClick={() => applyStroke(c)}
-                  title={c}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="tikz-toolbar-colors">
-            <span className="tikz-prop-label">Fill</span>
-            <div className="tikz-color-row">
+            <div className="tikz-menu-anchor">
               <button
-                className={`tikz-color-swatch tikz-no-fill ${activeFill === "none" ? "active" : ""}`}
-                onClick={() => applyFill("none")}
-                title="No fill"
+                className={`tikz-tool-btn tikz-more-btn ${
+                  activeMoreTool ? "active" : ""
+                } ${openMenu === "shapes" ? "open" : ""}`}
+                onClick={() => setOpenMenu(openMenu === "shapes" ? null : "shapes")}
+                aria-label="More shapes"
+                aria-haspopup="menu"
+                aria-expanded={openMenu === "shapes"}
+                data-tip={
+                  activeMoreTool
+                    ? `More shapes · ${activeMoreTool.label}`
+                    : "More shapes"
+                }
               >
-                <Eraser size={10} />
+                {activeMoreTool?.icon ?? <Shapes size={16} />}
+                <ChevronDown size={11} className="tikz-more-caret" />
               </button>
-              {COLORS.map((c) => (
-                <button
-                  key={`f-${c}`}
-                  className={`tikz-color-swatch ${activeFill === c ? "active" : ""}`}
-                  style={{ background: c }}
-                  onClick={() => applyFill(c)}
-                  title={c}
-                />
-              ))}
+              {openMenu === "shapes" ? (
+                <div
+                  className="tikz-popover tikz-shape-menu"
+                  role="menu"
+                  aria-label="More shapes"
+                >
+                  {moreTools.map((t) => (
+                    <button
+                      key={t.id}
+                      role="menuitem"
+                      className={`tikz-shape-item ${tool === t.id ? "active" : ""}`}
+                      onClick={() => {
+                        setTool(t.id);
+                        setOpenMenu(null);
+                      }}
+                      aria-label={t.label}
+                    >
+                      {t.icon}
+                      <span>{t.label}</span>
+                      {t.key ? <kbd>{t.key}</kbd> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div className="tikz-toolbar-divider" />
 
-          <div className="tikz-toolbar-props">
-            <label className="tikz-prop-group">
-              <span className="tikz-prop-label">Width</span>
-              <input
-                type="range"
-                min="0.5"
-                max="5"
-                step="0.5"
-                value={activeStrokeWidth}
-                onChange={(e) => applyStrokeWidth(Number(e.target.value))}
+          <div className="tikz-menu-anchor">
+            <button
+              className={`tikz-tool-btn tikz-color-btn ${openMenu === "stroke" ? "open" : ""}`}
+              onClick={() => setOpenMenu(openMenu === "stroke" ? null : "stroke")}
+              aria-label="Stroke color"
+              aria-haspopup="true"
+              aria-expanded={openMenu === "stroke"}
+              data-tip="Stroke color"
+            >
+              <span
+                className="tikz-stroke-preview"
+                style={{ borderColor: activeStroke }}
               />
-              <span className="tikz-prop-value">{activeStrokeWidth}px</span>
-            </label>
-            <label className="tikz-prop-group tikz-checkbox-group">
-              <input
-                type="checkbox"
-                checked={activeDashed}
-                onChange={(e) => applyDashed(e.target.checked)}
-              />
-              <span className="tikz-prop-label">Dashed</span>
-            </label>
-            <label className="tikz-prop-group tikz-checkbox-group">
-              <input
-                type="checkbox"
-                checked={snapEnabled}
-                onChange={(e) => setSnapEnabled(e.target.checked)}
-              />
-              <span className="tikz-prop-label">Snap</span>
-            </label>
-            <label className="tikz-prop-group tikz-checkbox-group">
-              <input
-                type="checkbox"
-                checked={showGrid}
-                onChange={(e) => setShowGrid(e.target.checked)}
-              />
-              <span className="tikz-prop-label">Grid</span>
-            </label>
+            </button>
+            {openMenu === "stroke" ? (
+              <div className="tikz-popover tikz-palette" aria-label="Stroke colors">
+                {COLORS.map((c) => (
+                  <button
+                    key={`s-${c}`}
+                    className={`tikz-color-swatch ${activeStroke === c ? "active" : ""}`}
+                    style={{ background: c }}
+                    onClick={() => {
+                      applyStroke(c);
+                      setOpenMenu(null);
+                    }}
+                    aria-label={`Stroke ${c}`}
+                    title={c}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
+
+          <div className="tikz-menu-anchor">
+            <button
+              className={`tikz-tool-btn tikz-color-btn ${openMenu === "fill" ? "open" : ""}`}
+              onClick={() => setOpenMenu(openMenu === "fill" ? null : "fill")}
+              aria-label="Fill color"
+              aria-haspopup="true"
+              aria-expanded={openMenu === "fill"}
+              data-tip={activeFill === "none" ? "Fill color · none" : "Fill color"}
+            >
+              <span
+                className={`tikz-fill-preview ${activeFill === "none" ? "none" : ""}`}
+                style={activeFill === "none" ? undefined : { background: activeFill }}
+              />
+            </button>
+            {openMenu === "fill" ? (
+              <div className="tikz-popover tikz-palette" aria-label="Fill colors">
+                <button
+                  className={`tikz-color-swatch tikz-no-fill ${activeFill === "none" ? "active" : ""}`}
+                  onClick={() => {
+                    applyFill("none");
+                    setOpenMenu(null);
+                  }}
+                  aria-label="No fill"
+                  title="No fill"
+                >
+                  <Eraser size={10} />
+                </button>
+                {COLORS.map((c) => (
+                  <button
+                    key={`f-${c}`}
+                    className={`tikz-color-swatch ${activeFill === c ? "active" : ""}`}
+                    style={{ background: c }}
+                    onClick={() => {
+                      applyFill(c);
+                      setOpenMenu(null);
+                    }}
+                    aria-label={`Fill ${c}`}
+                    title={c}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="tikz-menu-anchor">
+            <button
+              className={`tikz-tool-btn tikz-width-btn ${openMenu === "width" ? "open" : ""}`}
+              onClick={() => setOpenMenu(openMenu === "width" ? null : "width")}
+              aria-label="Line width"
+              aria-haspopup="true"
+              aria-expanded={openMenu === "width"}
+              data-tip="Line width"
+            >
+              <span
+                className="tikz-width-preview"
+                style={{ height: Math.max(1, activeStrokeWidth) }}
+              />
+              <span className="tikz-width-value">{activeStrokeWidth}</span>
+            </button>
+            {openMenu === "width" ? (
+              <div className="tikz-popover tikz-width-popover">
+                <input
+                  type="range"
+                  min="0.5"
+                  max="5"
+                  step="0.5"
+                  value={activeStrokeWidth}
+                  aria-label="Line width"
+                  onChange={(e) => applyStrokeWidth(Number(e.target.value))}
+                />
+                <span className="tikz-prop-value">{activeStrokeWidth}px</span>
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            className={`tikz-tool-btn ${activeDashed ? "active" : ""}`}
+            onClick={() => applyDashed(!activeDashed)}
+            aria-label="Dashed"
+            aria-pressed={activeDashed}
+            data-tip="Dashed line"
+          >
+            <SquareDashed size={16} />
+          </button>
+
+          <div className="tikz-toolbar-divider" />
+
+          <button
+            className={`tikz-tool-btn ${snapEnabled ? "active" : ""}`}
+            onClick={() => setSnapEnabled(!snapEnabled)}
+            aria-label="Snap"
+            aria-pressed={snapEnabled}
+            data-tip="Snap to grid"
+          >
+            <Magnet size={16} />
+          </button>
+          <button
+            className={`tikz-tool-btn ${showGrid ? "active" : ""}`}
+            onClick={() => setShowGrid(!showGrid)}
+            aria-label="Show grid"
+            aria-pressed={showGrid}
+            data-tip="Show grid"
+          >
+            <Grid3x3 size={16} />
+          </button>
 
           <div className="tikz-toolbar-divider" />
 
@@ -1647,32 +1793,36 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
               className="tikz-action-btn"
               onClick={undo}
               disabled={historyIndex <= 0}
-              title="Undo (Ctrl/⌘+Z)"
+              aria-label="Undo"
+              data-tip="Undo · ⌘Z"
             >
-              <Undo2 size={14} />
+              <Undo2 size={15} />
             </button>
             <button
               className="tikz-action-btn"
               onClick={redo}
               disabled={historyIndex >= history.length - 1}
-              title="Redo (Ctrl/⌘+Shift+Z)"
+              aria-label="Redo"
+              data-tip="Redo · ⇧⌘Z"
             >
-              <Redo2 size={14} />
+              <Redo2 size={15} />
             </button>
             <button
               className="tikz-action-btn tikz-delete-btn"
               onClick={handleDeleteSelected}
               disabled={!selected}
-              title="Delete selected (Del)"
+              aria-label="Delete selected"
+              data-tip="Delete selected · Del"
             >
-              <Trash2 size={14} />
+              <Trash2 size={15} />
             </button>
             <button
               className="tikz-action-btn tikz-clear-btn"
               onClick={handleClear}
-              title="Clear canvas"
+              aria-label="Clear canvas"
+              data-tip="Clear canvas"
             >
-              <Eraser size={14} />
+              <Eraser size={15} />
             </button>
           </div>
         </div>

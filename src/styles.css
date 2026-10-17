@@ -29640,3 +29640,206 @@ body.pane-resizing .preview-pane > * {
 .citation-manager-root .citation-quality-section {
   padding: 10px 16px;
 }
+
+/* TikZ editor: every control on one toolbar row. */
+.tikz-toolbar.tikz-toolbar-single {
+  position: relative;
+  z-index: 5;
+  gap: 4px;
+}
+
+.tikz-toolbar-single .tikz-tool-btn {
+  position: relative;
+}
+
+.tikz-toolbar-single .tikz-tool-btn:hover {
+  border-color: transparent;
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-toolbar-single .tikz-tool-btn.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.tikz-toolbar-single .tikz-tool-btn.open {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tikz-more-btn {
+  display: inline-flex !important;
+  width: auto !important;
+  gap: 1px;
+  padding: 0 4px 0 6px;
+}
+
+.tikz-more-caret {
+  opacity: 0.7;
+}
+
+.tikz-stroke-preview {
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid;
+  border-radius: 4px;
+}
+
+.tikz-fill-preview {
+  width: 16px;
+  height: 16px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  border-radius: 4px;
+}
+
+.tikz-fill-preview.none {
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--danger, #e5534b) calc(50% - 1px),
+    var(--danger, #e5534b) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+.tikz-width-btn {
+  display: inline-flex !important;
+  width: auto !important;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+}
+
+.tikz-width-preview {
+  width: 14px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.tikz-width-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pop-up menus under a toolbar button. */
+.tikz-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  padding: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-dialog, var(--bg-surface));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+}
+
+.tikz-palette {
+  display: grid;
+  grid-template-columns: repeat(7, 18px);
+  gap: 6px;
+}
+
+.tikz-palette .tikz-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.tikz-width-popover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.tikz-shape-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 2px;
+  min-width: 280px;
+}
+
+.tikz-shape-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tikz-shape-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.tikz-shape-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tikz-shape-item kbd {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Small tooltip with the button's name and shortcut. */
+.tikz-toolbar-single [data-tip]::after {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 70;
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-tooltip, var(--bg-dialog));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 30%);
+  color: var(--text-primary);
+  content: attr(data-tip);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  transition-delay: 0s;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.tikz-toolbar-single [data-tip]:hover::after,
+.tikz-toolbar-single [data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 0.35s;
+  visibility: visible;
+}
+
+/* No tooltip over an open menu. */
+.tikz-toolbar-single [data-tip][aria-expanded="true"]::after {
+  display: none;
+}
+
+.tikz-toolbar-single .tikz-action-btn {
+  position: relative;
+}

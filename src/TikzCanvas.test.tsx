@@ -15,6 +15,25 @@ function generatedCode(container: HTMLElement): string {
   return textarea?.value ?? "";
 }
 
+/** Picks a drawing tool from the bar, or from the More shapes menu. */
+function pickTool(name: string): void {
+  const direct = screen.queryByRole("button", { name });
+  if (direct) {
+    fireEvent.click(direct);
+    return;
+  }
+  fireEvent.click(screen.getByRole("button", { name: /More shapes/ }));
+  fireEvent.click(screen.getByRole("menuitem", { name }));
+}
+
+const toolButton = (name: string) => screen.getByRole("button", { name });
+
+/** Picks a color from the Stroke or Fill pop-up palette. */
+function pickColor(kind: "Stroke" | "Fill", color: string): void {
+  fireEvent.click(screen.getByRole("button", { name: `${kind} color` }));
+  fireEvent.click(screen.getByRole("button", { name: `${kind} ${color}` }));
+}
+
 function expectCodeOrder(code: string, first: string, second: string): void {
   expect(code.indexOf(first)).toBeGreaterThanOrEqual(0);
   expect(code.indexOf(second)).toBeGreaterThanOrEqual(0);
@@ -29,43 +48,43 @@ describe("TikzCanvas interactions", () => {
     vi.restoreAllMocks();
   });
   it.each([
-    "Circle (C)",
-    "Ellipse (E)",
+    "Circle",
+    "Ellipse",
     "Parallelogram",
     "Cylinder",
-    "Line (L)",
-    "Arrow (A)",
-    "Diamond (D)",
+    "Line",
+    "Arrow",
+    "Diamond",
     "Triangle",
     "Pentagon",
     "Hexagon",
     "Star",
     "Cloud",
     "Trapezium",
-    "Grid (G)",
-    "Axes (X)",
+    "Grid",
+    "Axes",
   ])("draws %s and supports undo, redo and deletion", (title) => {
     const { container } = render(<TikzCanvas />);
     const svg = getSvg(container);
-    fireEvent.click(screen.getByTitle(title));
+    pickTool(title);
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.mouseMove(svg, { clientX: 200, clientY: 200 });
     fireEvent.mouseUp(svg);
     expect(screen.getByText("1 shape")).toBeVisible();
     const code = generatedCode(container);
     expect(code).toContain("\\draw");
-    fireEvent.click(screen.getByTitle("Undo (Ctrl/⌘+Z)"));
+    fireEvent.click(toolButton("Undo"));
     expect(screen.getByText("0 shapes")).toBeVisible();
-    fireEvent.click(screen.getByTitle("Redo (Ctrl/⌘+Shift+Z)"));
+    fireEvent.click(toolButton("Redo"));
     expect(generatedCode(container)).toBe(code);
-    fireEvent.click(screen.getByTitle("Clear canvas"));
+    fireEvent.click(toolButton("Clear canvas"));
     expect(screen.getByText("0 shapes")).toBeVisible();
   });
   it("adds text, applies edited code and inserts the full standalone document", () => {
     const insert = vi.fn();
     const { container } = render(<TikzCanvas onInsertCode={insert} />);
     const svg = getSvg(container);
-    fireEvent.click(screen.getByTitle("Text (T)"));
+    pickTool("Text");
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     const input = screen.getByPlaceholderText("Text…");
     fireEvent.change(input, { target: { value: "Hello" } });
@@ -92,13 +111,14 @@ describe("TikzCanvas interactions", () => {
   it("changes drawing styles, canvas dimensions, grid and zoom", () => {
     const { container } = render(<TikzCanvas />);
     const svg = getSvg(container);
-    fireEvent.click(screen.getByLabelText("Dashed"));
-    fireEvent.click(screen.getByLabelText("Snap"));
-    fireEvent.click(screen.getByLabelText("Grid"));
+    fireEvent.click(toolButton("Dashed"));
+    fireEvent.click(toolButton("Snap"));
+    fireEvent.click(toolButton("Show grid"));
     expect(container.querySelector(".tikz-grid")).toBeNull();
+    fireEvent.click(toolButton("Line width"));
     fireEvent.change(screen.getByRole("slider"), { target: { value: "3" } });
-    fireEvent.click(screen.getAllByTitle("#ef4444")[1]);
-    fireEvent.click(screen.getByTitle("Rectangle (R)"));
+    pickColor("Fill", "#ef4444");
+    pickTool("Rectangle");
     fireEvent.mouseDown(svg, { button: 0, clientX: 101, clientY: 101 });
     fireEvent.mouseMove(svg, { clientX: 201, clientY: 201 });
     fireEvent.mouseUp(svg);
@@ -115,7 +135,7 @@ describe("TikzCanvas interactions", () => {
     expect(screen.getByText("110%")).toBeVisible();
     fireEvent.click(screen.getByTitle("Zoom out"));
     expect(screen.getByText("100%")).toBeVisible();
-    fireEvent.click(screen.getByTitle("Pan (H)"));
+    pickTool("Pan");
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.mouseMove(svg, { clientX: 200, clientY: 200 });
     fireEvent.mouseUp(svg);
@@ -144,7 +164,7 @@ describe("TikzCanvas interactions", () => {
     const { container } = render(<TikzCanvas />);
     const svg = getSvg(container);
 
-    fireEvent.click(screen.getByTitle("Rectangle (R)"));
+    pickTool("Rectangle");
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.mouseMove(svg, { clientX: 200, clientY: 200 });
     fireEvent.mouseUp(svg);
@@ -153,15 +173,15 @@ describe("TikzCanvas interactions", () => {
     expect(container.querySelector(".tikz-toolbar-selected")).toBeNull();
     expect(container.querySelector(".tikz-toolbar-selected-props")).toBeNull();
     expect(container.querySelector(".tikz-selected-props")).toBeNull();
-    expect(screen.getByTitle("Rectangle (R)")).toHaveClass("active");
+    expect(toolButton("Rectangle")).toHaveClass("active");
     expect(generatedCode(container)).toContain("(2,14) rectangle (4,12)");
 
-    fireEvent.click(screen.getAllByTitle("#ef4444")[0]);
+    pickColor("Stroke", "#ef4444");
     expect(generatedCode(container)).toContain(
       "draw={rgb,255:red,239;green,68;blue,68}",
     );
 
-    fireEvent.click(screen.getByTitle("Select (V)"));
+    pickTool("Select");
     fireEvent.mouseDown(svg, { button: 0, clientX: 150, clientY: 150 });
     fireEvent.mouseMove(svg, { clientX: 200, clientY: 225 });
     fireEvent.mouseUp(svg);
@@ -179,18 +199,18 @@ describe("TikzCanvas interactions", () => {
     const { container } = render(<TikzCanvas />);
     const svg = getSvg(container);
 
-    fireEvent.click(screen.getByTitle("Freehand (P)"));
+    pickTool("Freehand");
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.mouseMove(svg, { clientX: 110, clientY: 110 });
     fireEvent.mouseUp(svg);
 
-    expect(screen.getByTitle("Freehand (P)")).toHaveClass("active");
+    expect(toolButton("Freehand")).toHaveClass("active");
 
     fireEvent.mouseDown(svg, { button: 0, clientX: 130, clientY: 130 });
     fireEvent.mouseMove(svg, { clientX: 140, clientY: 140 });
     fireEvent.mouseUp(svg);
 
-    expect(screen.getByTitle("Freehand (P)")).toHaveClass("active");
+    expect(toolButton("Freehand")).toHaveClass("active");
     expect(generatedCode(container).match(/\\draw/g)).toHaveLength(2);
   });
 
@@ -200,7 +220,7 @@ describe("TikzCanvas interactions", () => {
     const lowerRect = "(2,14) rectangle (4,12)";
     const upperRect = "(3,13) rectangle (5,11)";
 
-    fireEvent.click(screen.getByTitle("Rectangle (R)"));
+    pickTool("Rectangle");
     fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.mouseMove(svg, { clientX: 200, clientY: 200 });
     fireEvent.mouseUp(svg);
