@@ -69,6 +69,8 @@ export default defineConfig({
         "src/test-setup.ts",
         "scripts/test-*",
         "scripts/run-packaged-app-tests.mjs",
+        // A separate Workers project with its own typecheck and test suite.
+        "collaborations/cloudflare/**",
       ],
       thresholds: {
         // Baseline for all source, including previously unmeasured files.
