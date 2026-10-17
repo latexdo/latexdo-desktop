@@ -3715,7 +3715,10 @@ describe("App critical UI controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   });
   it("project workflow imports dropped files once and preserves their destination", async () => {
-    const api = installLatexDoMock();
+    const api = installLatexDoMock({
+      // Background proofreading can overwrite the import status on slower runs.
+      proofreadingSettings: { ...defaultProofreadingSettings, enabled: false },
+    });
     api.getDroppedFilePaths.mockReturnValue(["/tmp/a.tex", "/tmp/a.tex", ""]);
     api.importExternalFiles.mockResolvedValue([
       { relativePath: "a.tex", path: "/Users/omar/project/a.tex", type: "file" },
