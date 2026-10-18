@@ -8,6 +8,10 @@ export type StatusbarState = "compile-error" | "offline" | "online" | "idle";
 export function statusbarStateFor(input: {
   compileResult: CompileResult | null | undefined;
   sharing: boolean;
+  /** The open project is a copy kept online (shared or joined). */
+  onlineCopy?: boolean;
+  /** Sharing is starting, stopping or syncing with the server. */
+  onlineBusy?: boolean;
   liveConnection: CollaborationConnectionStatus;
   online: boolean;
 }): StatusbarState {
@@ -20,11 +24,14 @@ export function statusbarStateFor(input: {
     return "compile-error";
   }
   if (!input.online) return "offline";
-  if (input.sharing) {
-    if (input.liveConnection === "connected") return "online";
+  // Anything touching the online copy colors the bar, so it is always clear
+  // when work leaves this computer.
+  if (input.onlineBusy) return "online";
+  if (input.sharing || input.onlineCopy) {
     if (input.liveConnection === "disconnected" || input.liveConnection === "error") {
       return "offline";
     }
+    return "online";
   }
   return "idle";
 }

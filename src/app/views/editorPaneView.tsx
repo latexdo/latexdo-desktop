@@ -372,6 +372,8 @@ export function renderEditorDropZone(ctx: AppCtx) {
                 strings: true,
               },
               snippetSuggestions: "top",
+              // Copilot-style ghost text, with its hover toolbar.
+              inlineSuggest: { enabled: true, showToolbar: "onHover" },
               suggest: {
                 showSnippets: true,
                 showStatusBar: true,
@@ -413,23 +415,16 @@ export function renderSourcePane(ctx: AppCtx) {
       {activeDocument &&
       !showWelcome &&
       !gitDiffSession &&
-      activeDocumentIsAssetPreview ? (
+      activeDocumentIsAssetPreview &&
+      // PDFs open in Reader Mode, whose own strip shows the title and tools.
+      activeDocument.assetMimeType !== "application/pdf" ? (
         <div className="source-toolbar asset-source-toolbar">
           <div className="asset-toolbar-file">
             <span className="pane-label">
-              {activeDocument.assetMimeType === "application/pdf"
-                ? "READER MODE"
-                : assetPreviewTypeLabel(activeDocument.assetMimeType)}
+              {assetPreviewTypeLabel(activeDocument.assetMimeType)}
             </span>
-            {activeDocument.assetMimeType === "application/pdf" ? (
-              <BookOpenText size={14} />
-            ) : (
-              <FileImage size={14} />
-            )}
+            <FileImage size={14} />
             <span>{pathForDisplay(activeDocument.relativePath)}</span>
-            {activeDocument.assetMimeType === "application/pdf" ? (
-              <small>Review paper</small>
-            ) : null}
             {formatAssetSize(activeDocument.assetSizeBytes) ? (
               <small>{formatAssetSize(activeDocument.assetSizeBytes)}</small>
             ) : null}

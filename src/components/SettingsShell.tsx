@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Settings, X } from "lucide-react";
+import { ChevronRight, Search, Settings, X } from "lucide-react";
 
 /*
  * The Settings window, laid out like an editor's settings page: a search box
@@ -26,6 +26,12 @@ interface SettingsShellProps {
 
 /** Elements that start a group of settings inside a page. */
 const headingSelector = ".settings-section-heading";
+
+/** A section heading's name: its bold title, or all of its text. */
+function headingTitle(heading: Element): string {
+  const title = heading.querySelector("strong, h2, h3") ?? heading;
+  return (title.textContent ?? "").replace(/\s+/g, " ").trim();
+}
 
 function normalize(text: string): string {
   return text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
@@ -121,6 +127,56 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({
   const searchRef = React.useRef<HTMLInputElement>(null);
   const searching = query.trim().length > 0;
   const current = pages.find((page) => page.id === activePage) ?? pages[0];
+  // The sub-sections of each page seen so far, read from its headings, and
+  // whether the open page's list is folded away.
+  const [sections, setSections] = React.useState<Record<string, string[]>>({});
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [activeSection, setActiveSection] = React.useState(0);
+
+  const pageHeadings = React.useCallback((): HTMLElement[] => {
+    const page = listRef.current?.querySelector(
+      `[data-settings-page="${current?.id ?? ""}"]`,
+    );
+    return page
+      ? [...page.querySelectorAll<HTMLElement>(headingSelector)].filter(
+          (heading) => !heading.hidden && headingTitle(heading),
+        )
+      : [];
+  }, [current?.id]);
+
+  React.useLayoutEffect(() => {
+    if (searching || !current) return;
+    const titles = pageHeadings().map(headingTitle);
+    setSections((previous) => {
+      const known = previous[current.id];
+      if (
+        known &&
+        known.length === titles.length &&
+        known.every((title, index) => title === titles[index])
+      ) {
+        return previous;
+      }
+      return { ...previous, [current.id]: titles };
+    });
+  });
+
+  // Highlights the sub-section being read while the page scrolls.
+  React.useEffect(() => {
+    const list = listRef.current;
+    if (!list || searching) return;
+    setActiveSection(0);
+    const onScroll = () => {
+      const top = list.getBoundingClientRect().top + 48;
+      const headings = pageHeadings();
+      let index = 0;
+      headings.forEach((heading, position) => {
+        if (heading.getBoundingClientRect().top <= top) index = position;
+      });
+      setActiveSection(index);
+    };
+    list.addEventListener("scroll", onScroll, { passive: true });
+    return () => list.removeEventListener("scroll", onScroll);
+  }, [pageHeadings, searching]);
 
   // Re-applied after every render: settings appear and disappear as options
   // change, and React re-creates their elements without the hidden flag.
@@ -172,8 +228,18 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({
         ?.scrollIntoView?.({ block: "start", behavior: "smooth" });
       return;
     }
+    if (id === current?.id) {
+      setCollapsed((value) => !value);
+      return;
+    }
+    setCollapsed(false);
     onSelectPage(id);
     listRef.current?.scrollTo?.({ top: 0 });
+  };
+
+  const chooseSection = (index: number) => {
+    setActiveSection(index);
+    pageHeadings()[index]?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   };
 
   return (
@@ -231,24 +297,53 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({
               {group.pages.map((page) => {
                 const count = matches.get(page.id) ?? 0;
                 const dimmed = searching && count === 0;
+                const isCurrent = !searching && page.id === current?.id;
+                const subsections = searching ? [] : (sections[page.id] ?? []);
+                const open = isCurrent && !collapsed && subsections.length > 0;
                 return (
-                  <button
-                    key={page.id}
-                    type="button"
-                    className={`settings-tab settings-nav-item ${
-                      !searching && page.id === current?.id ? "active" : ""
-                    } ${dimmed ? "dimmed" : ""}`}
-                    aria-current={
-                      !searching && page.id === current?.id ? "page" : undefined
-                    }
-                    disabled={dimmed}
-                    onClick={() => choosePage(page.id)}
-                  >
-                    <span>{page.title}</span>
-                    {searching && count > 0 ? (
-                      <span className="settings-nav-count">{count}</span>
+                  <React.Fragment key={page.id}>
+                    <button
+                      type="button"
+                      className={`settings-tab settings-nav-item ${
+                        isCurrent ? "active" : ""
+                      } ${dimmed ? "dimmed" : ""}`}
+                      aria-current={isCurrent ? "page" : undefined}
+                      aria-expanded={subsections.length ? open : undefined}
+                      disabled={dimmed}
+                      onClick={() => choosePage(page.id)}
+                    >
+                      <span>{page.title}</span>
+                      {searching && count > 0 ? (
+                        <span className="settings-nav-count">{count}</span>
+                      ) : subsections.length ? (
+                        <ChevronRight
+                          size={13}
+                          className={`settings-nav-chevron ${open ? "open" : ""}`}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </button>
+                    {open ? (
+                      <div
+                        className="settings-nav-sections"
+                        role="group"
+                        aria-label={`${page.title} sections`}
+                      >
+                        {subsections.map((title, index) => (
+                          <button
+                            key={`${index}-${title}`}
+                            type="button"
+                            className={`settings-nav-section ${
+                              index === activeSection ? "active" : ""
+                            }`}
+                            onClick={() => chooseSection(index)}
+                          >
+                            {title}
+                          </button>
+                        ))}
+                      </div>
                     ) : null}
-                  </button>
+                  </React.Fragment>
                 );
               })}
             </div>

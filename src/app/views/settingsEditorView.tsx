@@ -11,7 +11,6 @@ import type { Engine } from "../../types";
 import {
   boundedInteger,
   colorThemeOptions,
-  appearanceModeOptions,
   defaultSettings,
   maxProjectTreeDepth,
   maxProjectTreeEntries,
@@ -210,69 +209,44 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <div className="settings-row settings-row-stack">
         <span>
-          <strong>Mode</strong>
-          <small>Light or dark, or follow your operating system.</small>
-        </span>
-        <div className="ui-segmented" role="radiogroup" aria-label="Appearance">
-          {appearanceModeOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={`ui-segmented__item ${
-                settings.appearanceMode === option.id ? "active" : ""
-              }`}
-              onClick={() =>
-                setSettings((current) => ({
-                  ...current,
-                  appearanceMode: option.id,
-                }))
-              }
-              role="radio"
-              aria-checked={settings.appearanceMode === option.id}
-              title={option.description}
-            >
-              {option.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="settings-row settings-row-stack">
-        <span>
-          <strong>Color theme</strong>
-          <small>
-            The accent and tint used everywhere. Each theme works in light and dark
-            mode.
-          </small>
+          <strong>Theme</strong>
+          <small>Each theme is a complete look for the app and the editor.</small>
         </span>
         <div className="theme-grid" role="radiogroup" aria-label="Application theme">
-          {colorThemeOptions.map((theme) => (
-            <button
-              key={theme.id}
-              type="button"
-              className={`theme-choice ${settings.colorTheme === theme.id ? "active" : ""}`}
-              onClick={() =>
-                setSettings((current) => ({
-                  ...current,
-                  colorTheme: theme.id,
-                }))
-              }
-              role="radio"
-              aria-checked={settings.colorTheme === theme.id}
-            >
-              <span className="theme-choice-top">
-                <span>
+          {(["dark", "light"] as const).flatMap((appearance) =>
+            colorThemeOptions.map((theme) => {
+              const [background, accent, text] = theme.swatches[appearance];
+              const selected =
+                settings.colorTheme === theme.id && resolvedAppearance === appearance;
+              const label = `${theme.name} ${appearance === "dark" ? "Dark" : "Light"}`;
+              return (
+                <button
+                  key={`${theme.id}-${appearance}`}
+                  type="button"
+                  className={`theme-choice ${selected ? "active" : ""}`}
+                  style={{ background, color: text }}
+                  onClick={() =>
+                    setSettings((current) => ({
+                      ...current,
+                      colorTheme: theme.id,
+                      appearanceMode: appearance,
+                    }))
+                  }
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={label}
+                  title={theme.description}
+                >
+                  <span
+                    className="theme-choice-accent"
+                    style={{ background: accent }}
+                  />
                   <strong>{theme.name}</strong>
-                  <small>{theme.description}</small>
-                </span>
-                <span className="theme-swatches" aria-hidden="true">
-                  {theme.swatches[resolvedAppearance].map((color) => (
-                    <span key={color} style={{ background: color }} />
-                  ))}
-                </span>
-              </span>
-            </button>
-          ))}
+                  <small>{appearance === "dark" ? "Dark" : "Light"}</small>
+                </button>
+              );
+            }),
+          )}
         </div>
       </div>
 

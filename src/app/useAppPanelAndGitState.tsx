@@ -269,6 +269,11 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
   const hideProjectEntriesRef = useRef(true);
   const activePathRef = useRef("");
   const editorPathBeforeWelcomeRef = useRef("");
+  // Paths of recently closed tabs, newest last, for Cmd/Ctrl+Z reopening.
+  const closedTabPathsRef = useRef<string[]>([]);
+  // True right after a tab closes, until the user does anything else, so
+  // Cmd/Ctrl+Z reopens the tab instead of undoing an edit.
+  const reopenClosedTabArmedRef = useRef(false);
   const settingsRef = useRef(settings);
   const rootFileRef = useRef(rootFile);
   const engineRef = useRef(engine);
@@ -879,6 +884,8 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     hideProjectEntriesRef,
     activePathRef,
     editorPathBeforeWelcomeRef,
+    closedTabPathsRef,
+    reopenClosedTabArmedRef,
     settingsRef,
     rootFileRef,
     engineRef,

@@ -42,6 +42,7 @@ export class MonacoCollaborationBinding {
   private disposed = false;
   /** Colors and labels the other people's cursors in this editor. */
   private cursorStyle: HTMLStyleElement | null = null;
+  private remoteCursorRenderQueued = false;
 
   constructor(options: MonacoCollaborationBindingOptions) {
     this.key = `${options.projectId}:${options.relativePath}:${options.shareToken ?? ""}:${options.clientName}`;
@@ -66,6 +67,7 @@ export class MonacoCollaborationBinding {
   destroy(): void {
     this.disposed = true;
     this.client.awareness.off("change", this.updateCursorStyle);
+    this.client.awareness.off("change", this.queueRemoteCursorRender);
     this.cursorStyle?.remove();
     this.cursorStyle = null;
     this.releaseTransactionOrigin();
@@ -96,6 +98,12 @@ export class MonacoCollaborationBinding {
       new Set([this.editor]),
       this.client.awareness,
     );
+    // y-monaco redraws remote cursors the moment awareness changes. A cursor
+    // move fired by Monaco while it is applying other decorations (ghost text,
+    // diagnostics) would then call deltaDecorations inside deltaDecorations,
+    // which Monaco rejects. Redraw once the current editor update is done.
+    this.client.awareness.off("change", this.binding._rerenderDecorations);
+    this.client.awareness.on("change", this.queueRemoteCursorRender);
     this.selectionDisposable = this.editor.onDidChangeCursorSelection(() => {
       this.updateSelectionAwareness();
     });
@@ -103,6 +111,15 @@ export class MonacoCollaborationBinding {
     this.client.awareness.on("change", this.updateCursorStyle);
     this.updateCursorStyle();
   }
+
+  private queueRemoteCursorRender = (): void => {
+    if (this.remoteCursorRenderQueued) return;
+    this.remoteCursorRenderQueued = true;
+    queueMicrotask(() => {
+      this.remoteCursorRenderQueued = false;
+      if (!this.disposed) this.binding?._rerenderDecorations();
+    });
+  };
 
   private updateCursorStyle = (): void => {
     if (this.disposed || typeof document === "undefined") return;

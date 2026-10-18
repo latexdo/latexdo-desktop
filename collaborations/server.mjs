@@ -1202,6 +1202,27 @@ async function handleProjectRoute(request, response, url, parts) {
   const projectId = parts[2];
   const route = parts.slice(3).join("/");
 
+  // Stopping sharing deletes the copy: only its owner may.
+  if (route === "" && request.method === "DELETE") {
+    const { meta, identity } = await authorizeProject(request, url, projectId, "admin");
+    if (meta.ownerSession !== identity.sessionId) {
+      throw new HttpError(403, "Only the owner can delete this project.");
+    }
+    await stopShare(meta);
+    for (const [key, room] of rooms) {
+      if (room.projectId === projectId) {
+        rooms.delete(key);
+        room.closeAll(1012, "Project deleted");
+      }
+    }
+    await rm(projectDir(projectId), { recursive: true, force: true });
+    if (knownProjectCount !== null) {
+      knownProjectCount = Math.max(0, knownProjectCount - 1);
+    }
+    sendJson(response, request, 200, { deleted: true });
+    return;
+  }
+
   if (route === "files" && request.method === "GET") {
     await authorizeProject(request, url, projectId, "viewer");
     sendJson(response, request, 200, await listProjectFiles(projectId));

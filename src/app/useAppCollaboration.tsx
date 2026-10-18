@@ -876,6 +876,11 @@ export function useAppCollaboration(ctx: AppCtx08) {
     const hosted = Boolean(collaborationState.hosted);
     setCollaborationBusy(true);
     try {
+      // Unsaved edits go into the shared copy first so they come home too.
+      const dirtyDocuments = documentsRef.current.filter(
+        (document) => document.content !== document.savedContent,
+      );
+      await Promise.all(dirtyDocuments.map((document) => saveDocument(document)));
       const state = await window.latexdo.stopCollaboration(currentProject);
       setCollaborationState(state);
       setCollaborationPermissions([]);
@@ -883,17 +888,21 @@ export function useAppCollaboration(ctx: AppCtx08) {
         setStatusMessage("Sharing stopped");
         return;
       }
-      // Bring the shared edits home, then go back to the folder they came from.
-      const result = await window.latexdo.saveSharedProjectToFolder(currentProject);
+      // Bring the shared edits home, delete the online copy, then go back to
+      // the folder they came from.
+      const result = await window.latexdo.saveSharedProjectToFolder(currentProject, {
+        ask: false,
+      });
       if (result.saved && result.project) {
+        await window.latexdo.deleteSharedProject(currentProject);
         await loadProject(result.project, true, false);
         setShareDialogOpen(false);
         setStatusMessage(
-          `Sharing stopped. ${result.written ?? 0} changed file(s) saved to your folder.`,
+          `Sharing stopped. ${result.written ?? 0} changed file(s) saved to your folder; the online copy was deleted.`,
         );
       } else {
         setStatusMessage(
-          "Sharing stopped. The shared copy stays open; use Save to my folder to keep its changes.",
+          "Sharing stopped. The shared copy stays open until you save it to your folder.",
         );
       }
     } catch (error) {
@@ -939,12 +948,15 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
     setCollaborationBusy(true);
     try {
-      const result = await window.latexdo.saveSharedProjectToFolder(currentProject);
+      const result = await window.latexdo.saveSharedProjectToFolder(currentProject, {
+        ask: false,
+      });
       if (result.saved && result.project) {
+        await window.latexdo.deleteSharedProject(currentProject);
         await loadProject(result.project, true, false);
         setShareDialogOpen(false);
         setStatusMessage(
-          `Back in your folder. ${result.written ?? 0} changed file(s) saved from the shared copy.`,
+          `Back in your folder. ${result.written ?? 0} changed file(s) saved from the shared copy; the online copy was deleted.`,
         );
       } else {
         setShareStartError("Could not find your folder. Use Save to my folder first.");

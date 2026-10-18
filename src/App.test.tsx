@@ -418,6 +418,7 @@ function installLatexDoMock(options?: {
     setCollaborationApproval: vi.fn(),
     resolveCollaborationRequest: vi.fn(),
     saveSharedProjectToFolder: vi.fn().mockResolvedValue({ saved: false }),
+    deleteSharedProject: vi.fn().mockResolvedValue(undefined),
     openSharedProjectFolder: vi.fn().mockResolvedValue(null),
     onHostSharingChanged: vi.fn(() => () => undefined),
     getGitStatus: vi.fn().mockResolvedValue(
@@ -802,7 +803,10 @@ describe("App critical UI controls", () => {
     act(() => menuCommandListener?.("file.saveResearchSpaceAs"));
 
     await waitFor(() => {
-      expect(api.saveResearchSpaceAs).toHaveBeenCalledWith(project.id);
+      expect(api.saveResearchSpaceAs).toHaveBeenCalledWith(
+        project.id,
+        expect.any(String),
+      );
     });
     await waitFor(() => {
       expect(
@@ -3592,7 +3596,12 @@ describe("App critical UI controls", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop sharing" }));
     await waitFor(() => expect(api.stopCollaboration).toHaveBeenCalledWith(project.id));
     await waitFor(() =>
-      expect(api.saveSharedProjectToFolder).toHaveBeenCalledWith(project.id),
+      expect(api.saveSharedProjectToFolder).toHaveBeenCalledWith(project.id, {
+        ask: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(api.deleteSharedProject).toHaveBeenCalledWith(project.id),
     );
     await waitFor(() =>
       expect(

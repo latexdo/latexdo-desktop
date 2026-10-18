@@ -60,6 +60,7 @@ vi.mock("y-monaco", () => ({
     }
 
     destroy = vi.fn();
+    _rerenderDecorations = vi.fn();
   },
 }));
 
@@ -128,6 +129,30 @@ describe("MonacoCollaborationBinding provenance", () => {
     );
 
     expect(seen).toContainEqual({ kind: "remote", stackOrigin: "remote" });
+    binding.destroy();
+  });
+
+  it("redraws remote cursors after the current editor update, not inside it", async () => {
+    const binding = new MonacoCollaborationBinding({
+      editor: fakeEditor() as never,
+      projectId: "project",
+      relativePath: "main.tex",
+      shareToken: "token",
+      apiBaseUrl: "http://localhost",
+      clientName: "Alice",
+      color: "#123456",
+    });
+    await Promise.resolve();
+    const yBinding = mocks.lastMonacoBinding as { _rerenderDecorations: () => void };
+    const render = vi.mocked(yBinding._rerenderDecorations);
+    expect(mocks.lastClient?.awareness.off).toHaveBeenCalledWith("change", render);
+
+    // Several awareness changes in one editor update draw once, afterwards.
+    for (const listener of mocks.lastClient?.awareness.listeners ?? []) listener();
+    for (const listener of mocks.lastClient?.awareness.listeners ?? []) listener();
+    expect(render).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(render).toHaveBeenCalledTimes(1);
     binding.destroy();
   });
 

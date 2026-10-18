@@ -17,12 +17,12 @@ import {
   MessageSquare,
   Play,
   Sigma,
-  Table2,
   Underline,
   User,
   WandSparkles,
   X,
 } from "lucide-react";
+import { TableSizePicker } from "../../components/TableSizePicker";
 import { KnowledgeGraphView } from "../../components/KnowledgeGraphView";
 import { pathForDisplay } from "../../pathDisplay";
 import type { AppCtx } from "../appContext";
@@ -326,6 +326,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
     compiling,
     currentLineHasBookmark,
     documentOutline,
+    insertLatexTable,
     latexEditorView,
     mode,
     openLinkAtCursor,
@@ -589,16 +590,10 @@ export function renderSourceToolbar(ctx: AppCtx) {
           >
             <ExternalLink size={14} />
           </button>
-          <button
-            type="button"
-            className="tex-format-button icon-only"
-            onClick={() => applyLatexToolbarCommand("formatTable")}
-            title="Format LaTeX table columns"
-            aria-label="Format table"
-            data-tour-id="formatting"
-          >
-            <Table2 size={14} />
-          </button>
+          <TableSizePicker
+            onInsert={insertLatexTable}
+            onAlignColumns={() => applyLatexToolbarCommand("formatTable")}
+          />
           <button
             type="button"
             className={`tex-format-button icon-only ${

@@ -28,6 +28,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
     bookmarkDecorationsRef,
     citationManagerOpen,
     closeActiveTab,
+    closedTabPathsRef,
     compile,
     createDialog,
     defaultCreateRelativePath,
@@ -42,6 +43,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
     projectEntriesRef,
     projectIdRef,
     proofreadingSettings,
+    reopenClosedTabArmedRef,
     spellCheckerSettings,
     revealPendingSource,
     reviewChats,
@@ -348,6 +350,59 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
     window.addEventListener("keydown", handleCloseTabKeyDown, true);
     return () => window.removeEventListener("keydown", handleCloseTabKeyDown, true);
   }, [closeActiveTab]);
+
+  const reopenClosedTab = useCallback(() => {
+    const entries = flattenEntries(projectEntriesRef.current);
+    while (closedTabPathsRef.current.length) {
+      const path = closedTabPathsRef.current.pop() as string;
+      if (documentsRef.current.some((document) => document.path === path)) {
+        continue;
+      }
+      const entry = entries.find((item) => item.path === path);
+      if (entry) {
+        void openDocument(entry);
+        return true;
+      }
+    }
+    return false;
+  }, [openDocument]);
+
+  // Cmd/Ctrl+Z right after closing a tab reopens it (repeat to walk back
+  // through earlier closes); any other key or click returns Cmd/Ctrl+Z to
+  // normal undo. Cmd/Ctrl+Shift+T reopens the last closed tab at any time.
+  useEffect(() => {
+    const disarm = () => {
+      reopenClosedTabArmedRef.current = false;
+    };
+    const handleReopenKeyDown = (event: KeyboardEvent) => {
+      if (["Meta", "Control", "Shift", "Alt"].includes(event.key)) {
+        return;
+      }
+      const modifier = event.metaKey || event.ctrlKey;
+      const key = event.key.toLowerCase();
+      const isUndo = modifier && !event.altKey && !event.shiftKey && key === "z";
+      const isReopen = modifier && !event.altKey && event.shiftKey && key === "t";
+      // Cmd/Ctrl+W is the close itself, which just armed the reopen.
+      if (modifier && !event.altKey && !event.shiftKey && key === "w") {
+        return;
+      }
+      if ((isUndo && reopenClosedTabArmedRef.current) || isReopen) {
+        if (reopenClosedTab()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+      disarm();
+    };
+
+    window.addEventListener("keydown", handleReopenKeyDown, true);
+    window.addEventListener("pointerdown", disarm, true);
+    return () => {
+      window.removeEventListener("keydown", handleReopenKeyDown, true);
+      window.removeEventListener("pointerdown", disarm, true);
+    };
+  }, [reopenClosedTab]);
 
   useEffect(() => {
     const editor = editorRef.current;

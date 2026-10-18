@@ -7,7 +7,6 @@ import {
   Highlighter,
   MessageSquareText,
   NotebookPen,
-  PanelRight,
   Search,
   StickyNote,
   Trash2,
@@ -443,20 +442,21 @@ export const ResearchPdfReader: React.FC<ResearchPdfReaderProps> = ({
     >
       <div className="research-review-command-strip">
         <div className="research-review-mode">
-          <BookOpenText size={17} />
-          <div>
-            <span>Reader Mode</span>
-            <strong>{document.metadata.title || document.name}</strong>
-          </div>
+          <BookOpenText size={15} />
+          <strong>{document.metadata.title || document.name}</strong>
+          <small>
+            {highlights.length} highlights · {notes.length} notes
+          </small>
         </div>
         <div className="research-review-actions" aria-label="Review tools">
           <button
             type="button"
             disabled={!activeContext}
             onClick={() => questionInputRef.current?.focus()}
+            title="Ask about the selection"
+            aria-label="Ask"
           >
-            <MessageSquareText size={14} />
-            Ask
+            <MessageSquareText size={15} />
           </button>
           <button
             type="button"
@@ -467,48 +467,41 @@ export const ResearchPdfReader: React.FC<ResearchPdfReaderProps> = ({
                 displayText: "Explain this passage",
               });
             }}
+            title="Explain the selection"
+            aria-label="Explain"
           >
-            <Bot size={14} />
-            Explain
+            <Bot size={15} />
           </button>
           <button
             type="button"
             disabled={!toolbar}
             onClick={() => toolbar && highlightSelection(toolbar.selection)}
+            title="Highlight the selection"
+            aria-label="Highlight"
           >
-            <Highlighter size={14} />
-            Highlight
+            <Highlighter size={15} />
           </button>
           <button
             type="button"
             disabled={!toolbar}
             onClick={() => toolbar && startNote(toolbar.selection)}
+            title="Add a note to the selection"
+            aria-label="Note"
           >
-            <StickyNote size={14} />
-            Note
+            <StickyNote size={15} />
           </button>
           <button
             type="button"
-            className="research-review-export"
             disabled={annotations.length === 0}
             onClick={generateReview}
-            title="Generate a TXT file from saved notes and highlights only"
+            title="Generate review (TXT from saved notes and highlights)"
+            aria-label="Generate review"
           >
-            <Download size={14} />
-            Generate Review
+            <Download size={15} />
           </button>
-          <span>
-            <PanelRight size={13} />
-            Research panel open
-          </span>
         </div>
       </div>
       <aside className="research-outline" aria-label="Reader navigation">
-        <div>
-          <p className="reader-mode-label">Reader Mode</p>
-          <h2>{document.metadata.title || document.name}</h2>
-          <small>External PDF · source material</small>
-        </div>
         <div className="research-outline-section">
           <span>Outline</span>
           <button type="button">Abstract</button>
@@ -542,16 +535,6 @@ export const ResearchPdfReader: React.FC<ResearchPdfReaderProps> = ({
       </aside>
 
       <main className="research-pdf-stage" aria-label={`${document.name} reader`}>
-        <div className="research-reader-toolbar">
-          <div>
-            <strong>{document.name}</strong>
-            <span>Read, annotate, and ask AI about exact evidence.</span>
-          </div>
-          <div>
-            <span>{highlights.length} highlights</span>
-            <span>{notes.length} notes</span>
-          </div>
-        </div>
         <div className="research-pdf-scroll">
           <PdfPreview
             data={data}

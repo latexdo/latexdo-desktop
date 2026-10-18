@@ -47,7 +47,15 @@ describe("statusbarStateFor", () => {
     );
     expect(
       statusbarStateFor({ ...base, sharing: true, liveConnection: "connecting" }),
-    ).toBe("idle");
+    ).toBe("online");
+  });
+
+  it("colors the bar for the online copy and while sharing is busy", () => {
+    expect(statusbarStateFor({ ...base, onlineCopy: true })).toBe("online");
+    expect(statusbarStateFor({ ...base, onlineBusy: true })).toBe("online");
+    expect(
+      statusbarStateFor({ ...base, onlineCopy: true, liveConnection: "disconnected" }),
+    ).toBe("offline");
   });
 
   it("shows offline when the computer has no network", () => {

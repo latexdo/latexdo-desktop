@@ -12,7 +12,7 @@ import {
   flattenEntries,
   formatDuration,
 } from "../features/project/projectUtils";
-import { compilerSetupIssue, isTextDocument } from "./appShared";
+import { compilerSetupIssue, isTextDocument, rememberClosedTab } from "./appShared";
 import type { AppCtx03 } from "./appContext";
 import { toolTabKey } from "../features/workspace/toolTabs";
 
@@ -24,6 +24,7 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
     autoCompileSignature,
     browserAutoOpenRef,
     collaborationState,
+    closedTabPathsRef,
     compileRunIdRef,
     compiling,
     currentUserRole,
@@ -46,6 +47,7 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
     projectIdRef,
     projectPathRef,
     realtimeBlockedDocumentsRef,
+    reopenClosedTabArmedRef,
     realtimeReadyDocumentsRef,
     refreshProject,
     rootFile,
@@ -459,6 +461,9 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
       );
       documentsRef.current = nextDocuments;
       setDocuments(nextDocuments);
+      if (target) {
+        rememberClosedTab(closedTabPathsRef, reopenClosedTabArmedRef, target.path);
+      }
 
       const nextPath =
         nextDocuments[Math.min(index, nextDocuments.length - 1)]?.path ?? "";

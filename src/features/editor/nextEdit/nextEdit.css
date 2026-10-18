@@ -42,3 +42,28 @@
   transform: translateY(-0.03em);
   vertical-align: middle;
 }
+
+/* Gutter marks, like Copilot's next edit: an arrow on the edited line, and
+   one at the cursor pointing towards the edit while it is out of reach. */
+.latexdo-next-edit-gutter,
+.latexdo-next-edit-jump-up,
+.latexdo-next-edit-jump-down {
+  display: grid;
+  place-items: center;
+  margin-left: 3px;
+  color: #28d879;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.latexdo-next-edit-gutter::before {
+  content: "→";
+}
+
+.latexdo-next-edit-jump-up::before {
+  content: "↑";
+}
+
+.latexdo-next-edit-jump-down::before {
+  content: "↓";
+}

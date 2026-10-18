@@ -116,7 +116,11 @@ import {
   runGitAction,
 } from "./gitActions.js";
 import { registerTerminalIpc } from "./terminal.js";
-import { disposePeerCollab, registerPeerCollabIpc } from "./peerCollabIpc.js";
+import {
+  disposePeerCollab,
+  registerPeerCollabIpc,
+  sharedProjectSourceFolder,
+} from "./peerCollabIpc.js";
 import { registerAiIpc } from "./ai/aiIpc.js";
 import { stopBundledSpeechServer } from "./voiceStt.js";
 import { fetchOrcidProfile } from "./orcid.js";
@@ -3267,8 +3271,6 @@ function buildApplicationMenu(): void {
     {
       label: "View",
       submenu: [
-        menuCommand("Command Palette...", "view.commandPalette", "CmdOrCtrl+Shift+P"),
-        { type: "separator" },
         menuCommand("Explorer", "view.explorer", "CmdOrCtrl+Shift+E"),
         menuCommand("Source Control", "view.sourceControl", "Ctrl+Shift+G"),
         menuCommand("Extensions", "view.extensions", "CmdOrCtrl+Shift+X"),
@@ -6707,6 +6709,55 @@ async function startApp(): Promise<void> {
     await trustWorkspace(path.dirname(space.filePath));
     return scheduleProjectGarbageCollection(registerResearchSpace(space));
   });
+  // An online (shared) copy has no folder here: save its files into a new
+  // folder next to the space file, so the space opens like any other.
+  ipcMain.handle(
+    "research-space:save-as-cloud",
+    async (event, ...rawArgs: unknown[]) => {
+      const channel = "research-space:save-as-cloud";
+      const [rawName, rawFiles] = expectIpcArgs(channel, rawArgs, 2);
+      if (typeof rawName !== "string" || !Array.isArray(rawFiles)) {
+        invalidIpcInput(channel);
+      }
+      const files = rawFiles.map((file: unknown) => {
+        if (!isRecord(file)) {
+          invalidIpcInput(channel);
+        }
+        const relativePath = parseRelativePath(channel, file.relativePath);
+        return typeof file.base64 === "string"
+          ? { relativePath, bytes: Buffer.from(file.base64, "base64") }
+          : {
+              relativePath,
+              content: typeof file.content === "string" ? file.content : "",
+            };
+      });
+      const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+      const filePath = await chooseResearchSpaceFile(window, rawName.slice(0, 120));
+      if (!filePath) {
+        return null;
+      }
+      const parent = path.dirname(filePath);
+      const usedNames = new Set(
+        (await readdir(parent).catch(() => [] as string[])).map((name) =>
+          name.toLowerCase(),
+        ),
+      );
+      const folderPath = path.join(
+        parent,
+        uniqueResearchSpaceFolderName(
+          researchSpaceDefaultName(filePath),
+          "project",
+          usedNames,
+        ),
+      );
+      // A new, empty folder: nothing of the user's is ever replaced.
+      await mkdir(folderPath);
+      await materializeCloudCompileFiles(folderPath, files);
+      const space = await createResearchSpaceFile(filePath, [folderPath]);
+      await trustWorkspace(parent);
+      return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    },
+  );
   ipcMain.handle("research-space:add-folder", async (event, ...rawArgs: unknown[]) => {
     const channel = "research-space:add-folder";
     const [rawProjectId] = expectIpcArgs(channel, rawArgs, 1);
@@ -7782,7 +7833,13 @@ async function startApp(): Promise<void> {
       request.projectId,
     );
     await materializeCloudCompileFiles(projectPath, files);
+    // The owner's own shared copy is as trusted as the folder it came from.
+    const sourceFolder = await sharedProjectSourceFolder(request.projectId);
+    const sourceTrusted = sourceFolder
+      ? await isWorkspaceTrusted(sourceFolder).catch(() => false)
+      : false;
     if (
+      !sourceTrusted &&
       !(await ensureWorkspaceTrust(
         BrowserWindow.fromWebContents(event.sender),
         projectPath,

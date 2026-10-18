@@ -491,46 +491,56 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <label className="kg-toggle">
+        <label
+          className={`kg-pill ${citedOnly ? "on" : ""}`}
+          title="Show only papers cited in your text"
+        >
           <input
             type="checkbox"
+            aria-label="Cited only"
             checked={citedOnly}
             onChange={(event) => setCitedOnly(event.target.checked)}
           />
-          Cited only
+          Cited
         </label>
-        <label className="kg-toggle kg-online-toggle">
+        <label
+          className={`kg-pill ${onlineDiscovery ? "on" : ""}`}
+          title="Find related papers online (OpenAlex, Crossref)"
+        >
           <input
             type="checkbox"
+            aria-label="Search online"
             checked={onlineDiscovery}
             onChange={(event) => setOnlineDiscovery(event.target.checked)}
           />
-          Search online
+          Online
         </label>
-        <button
-          type="button"
-          className={`kg-btn ${showControls ? "active" : ""}`}
-          onClick={() => setShowControls((value) => !value)}
-          title="Graph parameters"
-          aria-expanded={showControls}
-          aria-controls="knowledge-graph-parameters"
-        >
-          <SlidersHorizontal size={13} /> Parameters
-        </button>
-        {onRecommendForSelection ? (
-          <button
-            type="button"
-            className="kg-btn"
-            onClick={onRecommendForSelection}
-            title="Ask the AI to recommend citations for the selected text"
-          >
-            <AiIcon size={13} /> Recommend citations
-          </button>
-        ) : null}
         <span className="kg-stats">
           {graph.stats.nodeCount} papers · {graph.stats.edgeCount} links ·{" "}
           {graph.stats.citedCount} cited · {graph.stats.componentCount} clusters
         </span>
+        <button
+          type="button"
+          className={`kg-icon-btn ${showControls ? "active" : ""}`}
+          onClick={() => setShowControls((value) => !value)}
+          title="Graph parameters"
+          aria-label="Graph parameters"
+          aria-expanded={showControls}
+          aria-controls="knowledge-graph-parameters"
+        >
+          <SlidersHorizontal size={14} />
+        </button>
+        {onRecommendForSelection ? (
+          <button
+            type="button"
+            className="kg-icon-btn"
+            onClick={onRecommendForSelection}
+            title="Recommend citations for the selected text"
+            aria-label="Recommend citations"
+          >
+            <AiIcon size={14} />
+          </button>
+        ) : null}
       </div>
 
       {onlineDiscovery ? (
@@ -647,61 +657,78 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
         </div>
       ) : null}
 
-      {showControls ? (
-        <div
-          className="kg-controls"
-          id="knowledge-graph-parameters"
-          role="region"
-          aria-label="Graph parameters"
-        >
-          <div className="kg-controls-relations">
-            {relationOrder.map((relation) => (
-              <label key={relation} className="kg-toggle">
-                <input
-                  type="checkbox"
-                  checked={params.relations[relation]}
-                  onChange={(event) => setRelation(relation, event.target.checked)}
-                />
-                {edgeRelationLabels[relation]}
-              </label>
-            ))}
-          </div>
-          <label className="kg-slider">
-            Topic similarity threshold: {params.titleSimilarityThreshold.toFixed(2)}
-            <input
-              type="range"
-              min={0.05}
-              max={0.6}
-              step={0.01}
-              value={params.titleSimilarityThreshold}
-              onChange={(event) =>
-                onParamsChange({
-                  ...params,
-                  titleSimilarityThreshold: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-          <label className="kg-slider">
-            Max links per paper: {params.maxEdgesPerNode}
-            <input
-              type="range"
-              min={2}
-              max={12}
-              step={1}
-              value={params.maxEdgesPerNode}
-              onChange={(event) =>
-                onParamsChange({
-                  ...params,
-                  maxEdgesPerNode: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-        </div>
-      ) : null}
-
       <div className="kg-canvas-wrap">
+        {showControls ? (
+          <div
+            className="kg-controls"
+            id="knowledge-graph-parameters"
+            role="region"
+            aria-label="Graph parameters"
+          >
+            <span className="kg-controls-title">Link papers that share</span>
+            <div className="kg-controls-relations">
+              {relationOrder.map((relation) => (
+                <label
+                  key={relation}
+                  className={`kg-pill ${params.relations[relation] ? "on" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={edgeRelationLabels[relation]}
+                    checked={params.relations[relation]}
+                    onChange={(event) => setRelation(relation, event.target.checked)}
+                  />
+                  {edgeRelationLabels[relation]}
+                </label>
+              ))}
+            </div>
+            <label className="kg-slider">
+              <span>
+                Topic match
+                <output>{params.titleSimilarityThreshold.toFixed(2)}</output>
+              </span>
+              <input
+                type="range"
+                aria-label="Topic similarity threshold"
+                min={0.05}
+                max={0.6}
+                step={0.01}
+                value={params.titleSimilarityThreshold}
+                onChange={(event) =>
+                  onParamsChange({
+                    ...params,
+                    titleSimilarityThreshold: Number(event.target.value),
+                  })
+                }
+              />
+              <small>
+                <span>Loose</span>
+                <span>Strict</span>
+              </small>
+            </label>
+            <label className="kg-slider">
+              <span>
+                Links per paper
+                <output>{params.maxEdgesPerNode}</output>
+              </span>
+              <input
+                type="range"
+                aria-label="Max links per paper"
+                min={2}
+                max={12}
+                step={1}
+                value={params.maxEdgesPerNode}
+                onChange={(event) =>
+                  onParamsChange({
+                    ...params,
+                    maxEdgesPerNode: Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+          </div>
+        ) : null}
+
         {rendered.nodes.length === 0 ? (
           <div className="kg-empty">
             {graph.nodes.length ? (

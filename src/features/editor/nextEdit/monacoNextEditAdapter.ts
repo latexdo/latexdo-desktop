@@ -76,6 +76,30 @@ export function installMonacoNextEdit({
     };
   }
 
+  // Drawn after the event that changed it: cursor and content events can fire
+  // while Monaco is applying decorations, and nested deltaDecorations fail.
+  let renderQueued = false;
+  function scheduleRender(): void {
+    if (renderQueued) return;
+    renderQueued = true;
+    queueMicrotask(() => {
+      renderQueued = false;
+      render(activeController.getSuggestion());
+    });
+  }
+
+  /** Whether the cursor is on the lines the suggestion changes. */
+  function cursorNear(
+    targetModel: Monaco.editor.ITextModel,
+    candidate: NextEditCandidate,
+  ): boolean {
+    const line = editor.getPosition()?.lineNumber ?? 0;
+    return (
+      line >= targetModel.getPositionAt(candidate.startOffset).lineNumber &&
+      line <= targetModel.getPositionAt(candidate.endOffset).lineNumber
+    );
+  }
+
   function render(candidate: NextEditCandidate | null): void {
     if (disposed) return;
     if (!candidate || !validateCandidateAgainstModel(candidate)) {
@@ -91,9 +115,25 @@ export function installMonacoNextEdit({
       return;
     }
 
+    const near = cursorNear(targetModel, candidate);
+    const cursorLine = editor.getPosition()?.lineNumber ?? 1;
+    const targetLine = targetModel.getPositionAt(candidate.startOffset).lineNumber;
     decorations?.set([
       decorationForCandidate(monaco, targetModel, candidate),
-      tabHintDecoration(monaco, targetModel, candidate),
+      tabHintDecoration(monaco, targetModel, candidate, near),
+      gutterDecoration(monaco, targetLine, "latexdo-next-edit-gutter"),
+      // Away from the edit, an arrow at the cursor points to it, as in Copilot.
+      ...(near
+        ? []
+        : [
+            gutterDecoration(
+              monaco,
+              cursorLine,
+              targetLine < cursorLine
+                ? "latexdo-next-edit-jump-up"
+                : "latexdo-next-edit-jump-down",
+            ),
+          ]),
     ]);
     visibleKey.set(true);
   }
@@ -103,7 +143,25 @@ export function installMonacoNextEdit({
     currentText = currentModel?.getValue() ?? "";
     currentRevision = currentModel?.getVersionId() ?? currentRevision + 1;
     activeController.onDocumentChanged(snapshotFor());
-    render(activeController.getSuggestion());
+    scheduleRender();
+  }
+
+  /**
+   * Tab, as in Copilot: away from the suggestion it jumps there first; on the
+   * suggestion's lines it applies it.
+   */
+  function jumpOrAccept(): boolean {
+    const candidate = activeController.getSuggestion();
+    const targetModel = editor.getModel();
+    if (!candidate || !targetModel || !validateCandidateAgainstModel(candidate)) {
+      return false;
+    }
+    if (cursorNear(targetModel, candidate)) return acceptVisibleSuggestion();
+    const start = targetModel.getPositionAt(candidate.startOffset);
+    editor.setPosition(start);
+    editor.revealPositionInCenterIfOutsideViewport(start);
+    scheduleRender();
+    return true;
   }
 
   function acceptVisibleSuggestion(): boolean {
@@ -162,7 +220,9 @@ export function installMonacoNextEdit({
     return targetModel.getValueInRange(range) === candidate.expectedText;
   }
 
-  const unsubscribeSuggestion = activeController.subscribeSuggestionChanged(render);
+  const unsubscribeSuggestion = activeController.subscribeSuggestionChanged(() =>
+    scheduleRender(),
+  );
   disposables.push({
     dispose: unsubscribeSuggestion,
   });
@@ -201,13 +261,13 @@ export function installMonacoNextEdit({
       for (const edit of edits) {
         activeController.observeEdit(edit);
       }
-      render(activeController.getSuggestion());
+      scheduleRender();
     }),
     editor.onDidChangeCursorPosition((event) => {
       const targetModel = editor.getModel();
       if (!targetModel) return;
       activeController.onCursorMoved(targetModel.getOffsetAt(event.position));
-      render(activeController.getSuggestion());
+      scheduleRender();
     }),
     editor.onDidChangeCursorSelection((event) => {
       const targetModel = editor.getModel();
@@ -216,7 +276,7 @@ export function installMonacoNextEdit({
         targetModel.getOffsetAt(event.selection.getStartPosition()),
         targetModel.getOffsetAt(event.selection.getEndPosition()),
       );
-      render(activeController.getSuggestion());
+      scheduleRender();
     }),
     editor.onDidChangeModel(() => {
       decorations?.clear();
@@ -225,12 +285,13 @@ export function installMonacoNextEdit({
     }),
     editor.addAction({
       id: acceptActionId,
-      label: "Accept Next Edit Suggestion",
+      label: "Go to or Accept Next Edit Suggestion",
       keybindings: [monaco.KeyCode.Tab],
+      // Ghost text at the cursor has Tab first.
       precondition:
-        "editorTextFocus && latexdoNextEditVisible && !suggestWidgetVisible && !renameInputVisible && !inSnippetMode",
+        "editorTextFocus && latexdoNextEditVisible && !inlineSuggestionVisible && !suggestWidgetVisible && !renameInputVisible && !inSnippetMode",
       run: () => {
-        acceptVisibleSuggestion();
+        jumpOrAccept();
       },
     }),
     editor.addAction({
@@ -315,6 +376,7 @@ function tabHintDecoration(
   monaco: typeof Monaco,
   model: Monaco.editor.ITextModel,
   candidate: NextEditCandidate,
+  near: boolean,
 ): Monaco.editor.IModelDeltaDecoration {
   const text = model.getValue();
   const lineBreak = text.indexOf("\n", candidate.endOffset);
@@ -328,7 +390,7 @@ function tabHintDecoration(
     ),
     options: {
       after: {
-        content: "Tab",
+        content: near ? "Tab to accept" : "Tab to go here",
         inlineClassName: "latexdo-next-edit-tab-hint",
         cursorStops: monaco.editor.InjectedTextCursorStops.None,
       },
@@ -336,6 +398,17 @@ function tabHintDecoration(
       zIndex: 20,
       showIfCollapsed: true,
     },
+  };
+}
+
+function gutterDecoration(
+  monaco: typeof Monaco,
+  lineNumber: number,
+  className: string,
+): Monaco.editor.IModelDeltaDecoration {
+  return {
+    range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+    options: { linesDecorationsClassName: className },
   };
 }
 

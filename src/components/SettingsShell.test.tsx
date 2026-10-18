@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsShell, type SettingsPage } from "./SettingsShell";
 
@@ -80,7 +80,9 @@ describe("SettingsShell", () => {
   it("lists categories by group and shows one page at a time", () => {
     const { onSelectPage, onClose } = renderShell();
     const nav = screen.getByRole("navigation", { name: "Settings categories" });
-    expect(nav).toHaveTextContent("LatexDoGeneralAI AssistantApplicationUpdates");
+    expect(nav).toHaveTextContent(
+      "LatexDoGeneralAppearanceEditor and compilerAI AssistantApplicationUpdates",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "General" })).toBeVisible();
     expect(screen.queryByText("Project files")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "General" })).toHaveAttribute(
@@ -122,6 +124,26 @@ describe("SettingsShell", () => {
     expect(search).toHaveValue("");
     expect(screen.getByText("Word wrap")).toBeVisible();
     expect(screen.queryByText("Project files")).not.toBeInTheDocument();
+  });
+
+  it("lists the open page's sub-sections and folds them on a second click", () => {
+    renderShell();
+    const general = screen.getByRole("button", { name: "General" });
+    expect(general).toHaveAttribute("aria-expanded", "true");
+    const sections = screen.getByRole("group", { name: "General sections" });
+    const scrollIntoView = vi.fn();
+    const headings = document.querySelectorAll<HTMLElement>(
+      ".settings-section-heading",
+    );
+    headings[1].scrollIntoView = scrollIntoView;
+    fireEvent.click(
+      within(sections).getByRole("button", { name: "Editor and compiler" }),
+    );
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    fireEvent.click(general);
+    expect(general).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("group", { name: "General sections" })).toBeNull();
   });
 
   it("jumps to the search box with Cmd/Ctrl+F", () => {

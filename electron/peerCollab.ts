@@ -9,7 +9,15 @@
 import { CloudE2ee } from "./cloudE2ee.js";
 import { ProjectKeyStore, type KeyProtection } from "./collabKeys.js";
 import { randomBytes } from "node:crypto";
-import { lstat, mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -809,6 +817,27 @@ export class PeerCollabService {
   async hostedProject(projectId: string): Promise<HostedProject | null> {
     const projects = await this.hosted();
     return Object.hasOwn(projects, projectId) ? projects[projectId] : null;
+  }
+
+  /**
+   * Forgets a shared copy once sharing stops: its folder link and, for a
+   * project hosted on this computer, the copy itself. The folder it was
+   * shared from is never touched.
+   */
+  async forgetHostedProject(projectId: string): Promise<void> {
+    if (!hostedProjectIdPattern.test(projectId)) {
+      throw new Error("Invalid hosted project.");
+    }
+    await rm(path.join(this.deps.dataDirectory, "data", "projects", projectId), {
+      recursive: true,
+      force: true,
+    });
+    const projects = await this.hosted();
+    if (!Object.hasOwn(projects, projectId)) return;
+    delete projects[projectId];
+    const temporaryPath = `${this.hostedFile}.${process.pid}.tmp`;
+    await writeFile(temporaryPath, JSON.stringify(projects, null, 2), "utf8");
+    await rename(temporaryPath, this.hostedFile);
   }
 
   /**

@@ -121,16 +121,22 @@ export function useAppMenuCommands(ctx: AppCtx19) {
     const changeResearchSpace = async (
       change: (
         projectId: string,
+        projectName: string,
       ) => Promise<Awaited<ReturnType<typeof window.latexdo.saveResearchSpaceAs>>>,
       doneMessage: string,
     ) => {
-      const { projectId, hideProjectEntries, loadProject, setStatusMessage } =
-        latest.current;
+      const {
+        projectId,
+        projectName,
+        hideProjectEntries,
+        loadProject,
+        setStatusMessage,
+      } = latest.current;
       if (!projectId || hideProjectEntries) {
         setStatusMessage("Open a project first.");
         return;
       }
-      const project = await change(projectId);
+      const project = await change(projectId, projectName);
       if (project) {
         await loadProject(project, false, false);
         setStatusMessage(doneMessage);
@@ -226,9 +232,6 @@ export function useAppMenuCommands(ctx: AppCtx19) {
           }
           return;
         }
-        case "view.commandPalette":
-          runEditorAction("editor.action.quickCommand");
-          return;
         case "view.toggleSidebar":
           c.toggleSidebar();
           return;
