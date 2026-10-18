@@ -3267,8 +3267,6 @@ function buildApplicationMenu(): void {
     {
       label: "View",
       submenu: [
-        menuCommand("Command Palette...", "view.commandPalette", "CmdOrCtrl+Shift+P"),
-        { type: "separator" },
         menuCommand("Explorer", "view.explorer", "CmdOrCtrl+Shift+E"),
         menuCommand("Source Control", "view.sourceControl", "Ctrl+Shift+G"),
         menuCommand("Extensions", "view.extensions", "CmdOrCtrl+Shift+X"),

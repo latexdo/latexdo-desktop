@@ -226,9 +226,6 @@ export function useAppMenuCommands(ctx: AppCtx19) {
           }
           return;
         }
-        case "view.commandPalette":
-          runEditorAction("editor.action.quickCommand");
-          return;
         case "view.toggleSidebar":
           c.toggleSidebar();
           return;
