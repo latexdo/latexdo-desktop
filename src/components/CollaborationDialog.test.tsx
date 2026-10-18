@@ -83,7 +83,9 @@ describe("CollaborationDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Regenerate/i }));
     expect(props.onRegenerate).toHaveBeenCalledTimes(1);
 
-    expect(screen.queryByRole("button", { name: "Add your name" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add your name" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
     expect(props.onJoin).toHaveBeenCalledTimes(1);
@@ -212,9 +214,7 @@ describe("CollaborationDialog", () => {
     });
     render(<CollaborationDialog {...props} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Sharing is on.",
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("Sharing is on.");
     expect(screen.getByLabelText("Share link")).toHaveValue("latexdo-invite:abc");
     expect(screen.getAllByRole("button", { name: /^Copy/ })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));

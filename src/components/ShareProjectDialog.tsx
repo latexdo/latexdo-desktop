@@ -183,9 +183,7 @@ export function ShareProjectDialog({
               ) : (
                 <Loader2 size={14} className="spin" aria-hidden="true" />
               )}
-              {hostLive
-                ? "Sharing is on."
-                : (host?.message ?? "Starting…")}
+              {hostLive ? "Sharing is on." : (host?.message ?? "Starting…")}
             </p>
             <div className="share-link-field">
               <Link size={15} aria-hidden="true" />
@@ -263,7 +261,9 @@ export function ShareProjectDialog({
             ) : (
               <>
                 {state.hosted ? (
-                  <p className="share-hint">Shared copy of your project. Sharing is off.</p>
+                  <p className="share-hint">
+                    Shared copy of your project. Sharing is off.
+                  </p>
                 ) : null}
                 {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
@@ -405,7 +405,9 @@ export function ShareProjectDialog({
               <input
                 value={joinToken}
                 placeholder={
-                  hostingAvailable ? "Paste an invite to join" : "Paste token or share link"
+                  hostingAvailable
+                    ? "Paste an invite to join"
+                    : "Paste token or share link"
                 }
                 aria-label="Join collaboration token"
                 onChange={(event) => onJoinTokenChange(event.target.value)}
