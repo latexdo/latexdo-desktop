@@ -37,6 +37,7 @@ import {
 import {
   collaborationProjectReconciliationMs,
   pdfImportStatsSummary,
+  rememberClosedTab,
 } from "./appShared";
 import type { AppCtx09 } from "./appContext";
 
@@ -46,6 +47,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     activeDocumentIsLatex,
     activePath,
     activePathRef,
+    closedTabPathsRef,
     collaborationAvailable,
     collaborationState,
     createDialog,
@@ -67,6 +69,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     projectIdRef,
     refreshCollaborationState,
     refreshProject,
+    reopenClosedTabArmedRef,
     requireLegalAcceptance,
     rootFileRef,
     setActivePath,
@@ -919,6 +922,9 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     const nextDocuments = currentDocuments.filter((document) => document.path !== path);
     documentsRef.current = nextDocuments;
     setDocuments(nextDocuments);
+    if (target) {
+      rememberClosedTab(closedTabPathsRef, reopenClosedTabArmedRef, target.path);
+    }
     if (activePathRef.current === path) {
       const nextPath =
         nextDocuments[Math.min(index, nextDocuments.length - 1)]?.path ?? "";

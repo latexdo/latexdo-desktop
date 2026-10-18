@@ -1,6 +1,6 @@
 import type * as Monaco from "monaco-editor";
 import { AlertTriangle, CircleCheck, Download, ExternalLink } from "lucide-react";
-import { lazy, useEffect, useState } from "react";
+import { lazy, useEffect, useState, type MutableRefObject } from "react";
 import appIconUrl from "../../build/icon.svg";
 import {
   loadAiConfig,
@@ -786,6 +786,20 @@ export function isTextDocument(
   document: OpenDocument | null | undefined,
 ): document is TextOpenDocument {
   return Boolean(document && (document.kind ?? "text") === "text");
+}
+
+const closedTabHistoryLimit = 20;
+
+/** Records a closed tab so Cmd/Ctrl+Z (or Cmd/Ctrl+Shift+T) can reopen it. */
+export function rememberClosedTab(
+  closedTabPathsRef: MutableRefObject<string[]>,
+  reopenClosedTabArmedRef: MutableRefObject<boolean>,
+  path: string,
+): void {
+  const history = closedTabPathsRef.current.filter((item) => item !== path);
+  history.push(path);
+  closedTabPathsRef.current = history.slice(-closedTabHistoryLimit);
+  reopenClosedTabArmedRef.current = true;
 }
 
 export function isPreviewAssetMimeType(mimeType: string | null): mimeType is string {
