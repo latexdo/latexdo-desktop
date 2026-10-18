@@ -803,7 +803,10 @@ describe("App critical UI controls", () => {
     act(() => menuCommandListener?.("file.saveResearchSpaceAs"));
 
     await waitFor(() => {
-      expect(api.saveResearchSpaceAs).toHaveBeenCalledWith(project.id);
+      expect(api.saveResearchSpaceAs).toHaveBeenCalledWith(
+        project.id,
+        expect.any(String),
+      );
     });
     await waitFor(() => {
       expect(

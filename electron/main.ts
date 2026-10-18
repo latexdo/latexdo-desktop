@@ -6709,6 +6709,55 @@ async function startApp(): Promise<void> {
     await trustWorkspace(path.dirname(space.filePath));
     return scheduleProjectGarbageCollection(registerResearchSpace(space));
   });
+  // An online (shared) copy has no folder here: save its files into a new
+  // folder next to the space file, so the space opens like any other.
+  ipcMain.handle(
+    "research-space:save-as-cloud",
+    async (event, ...rawArgs: unknown[]) => {
+      const channel = "research-space:save-as-cloud";
+      const [rawName, rawFiles] = expectIpcArgs(channel, rawArgs, 2);
+      if (typeof rawName !== "string" || !Array.isArray(rawFiles)) {
+        invalidIpcInput(channel);
+      }
+      const files = rawFiles.map((file: unknown) => {
+        if (!isRecord(file)) {
+          invalidIpcInput(channel);
+        }
+        const relativePath = parseRelativePath(channel, file.relativePath);
+        return typeof file.base64 === "string"
+          ? { relativePath, bytes: Buffer.from(file.base64, "base64") }
+          : {
+              relativePath,
+              content: typeof file.content === "string" ? file.content : "",
+            };
+      });
+      const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+      const filePath = await chooseResearchSpaceFile(window, rawName.slice(0, 120));
+      if (!filePath) {
+        return null;
+      }
+      const parent = path.dirname(filePath);
+      const usedNames = new Set(
+        (await readdir(parent).catch(() => [] as string[])).map((name) =>
+          name.toLowerCase(),
+        ),
+      );
+      const folderPath = path.join(
+        parent,
+        uniqueResearchSpaceFolderName(
+          researchSpaceDefaultName(filePath),
+          "project",
+          usedNames,
+        ),
+      );
+      // A new, empty folder: nothing of the user's is ever replaced.
+      await mkdir(folderPath);
+      await materializeCloudCompileFiles(folderPath, files);
+      const space = await createResearchSpaceFile(filePath, [folderPath]);
+      await trustWorkspace(parent);
+      return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    },
+  );
   ipcMain.handle("research-space:add-folder", async (event, ...rawArgs: unknown[]) => {
     const channel = "research-space:add-folder";
     const [rawProjectId] = expectIpcArgs(channel, rawArgs, 1);

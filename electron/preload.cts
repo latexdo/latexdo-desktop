@@ -915,48 +915,52 @@ async function importCloudDocument(
   );
 }
 
+type CloudProjectFile = { relativePath: string; content?: string; base64?: string };
+
+/** Every file of an online project, figures included when the server has them. */
+async function fetchCloudProjectFiles(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<CloudProjectFile[]> {
+  const token = cloudShareTokenForProject(projectId);
+  const projectPath = `/api/projects/${encodeURIComponent(projectId)}`;
+  try {
+    // One request for the whole project, figures included.
+    return (
+      await cloudRequestJson<{ files: CloudProjectFile[] }>(
+        `${projectPath}/files/bundle`,
+        { signal },
+        token,
+        cloudCompileTimeoutMs,
+      )
+    ).files;
+  } catch (error) {
+    if (!(error instanceof CloudApiError) || error.status !== 404) throw error;
+  }
+  // A server without bundles (self-hosted): fetch the text files one by one.
+  const entries = flattenProjectEntries(
+    await cloudRequestJson<ProjectEntry[]>(`${projectPath}/files`, { signal }, token),
+  );
+  const files: CloudProjectFile[] = [];
+  for (const entry of entries) {
+    if (entry.type !== "file") continue;
+    const body = await cloudRequestJson<{ content: string }>(
+      `${projectPath}/files/content?${filePathQuery(entry.relativePath)}`,
+      { signal },
+      token,
+      cloudCompileTimeoutMs,
+    );
+    files.push({ relativePath: entry.relativePath, content: body.content });
+  }
+  return files;
+}
+
 async function compileCloudProject(request: CompileRequest): Promise<CompileResult> {
   cloudCompileControllers.get(request.projectId)?.abort();
   const controller = new AbortController();
   cloudCompileControllers.set(request.projectId, controller);
   try {
-    const token = cloudShareTokenForProject(request.projectId);
-    const projectPath = `/api/projects/${encodeURIComponent(request.projectId)}`;
-    let files: { relativePath: string; content?: string; base64?: string }[];
-    try {
-      // One request for the whole project, figures included.
-      files = (
-        await cloudRequestJson<{
-          files: { relativePath: string; content?: string; base64?: string }[];
-        }>(
-          `${projectPath}/files/bundle`,
-          { signal: controller.signal },
-          token,
-          cloudCompileTimeoutMs,
-        )
-      ).files;
-    } catch (error) {
-      if (!(error instanceof CloudApiError) || error.status !== 404) throw error;
-      // A server without bundles (self-hosted): fetch the text files one by one.
-      const entries = flattenProjectEntries(
-        await cloudRequestJson<ProjectEntry[]>(
-          `${projectPath}/files`,
-          { signal: controller.signal },
-          token,
-        ),
-      );
-      files = [];
-      for (const entry of entries) {
-        if (entry.type !== "file") continue;
-        const body = await cloudRequestJson<{ content: string }>(
-          `${projectPath}/files/content?${filePathQuery(entry.relativePath)}`,
-          { signal: controller.signal },
-          token,
-          cloudCompileTimeoutMs,
-        );
-        files.push({ relativePath: entry.relativePath, content: body.content });
-      }
-    }
+    const files = await fetchCloudProjectFiles(request.projectId, controller.signal);
 
     return (await ipcRenderer.invoke("latex:compile-cloud", {
       projectId: request.projectId,
@@ -1046,10 +1050,25 @@ const api = {
     ipcRenderer.invoke("provider:import-overleaf-project", gitUrl),
   createResearchSpace: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("research-space:create"),
-  saveResearchSpaceAs: (projectId: string): Promise<OpenProject | null> =>
-    ipcRenderer.invoke("research-space:save-as", projectId),
-  addFolderToResearchSpace: (projectId: string): Promise<OpenProject | null> =>
-    ipcRenderer.invoke("research-space:add-folder", projectId),
+  saveResearchSpaceAs: async (
+    projectId: string,
+    projectName = "",
+  ): Promise<OpenProject | null> => {
+    if (!isCloudProject(projectId)) {
+      return ipcRenderer.invoke("research-space:save-as", projectId);
+    }
+    // The online copy is downloaded and saved into a folder on this computer.
+    const files = await fetchCloudProjectFiles(projectId);
+    return ipcRenderer.invoke("research-space:save-as-cloud", projectName, files);
+  },
+  addFolderToResearchSpace: async (projectId: string): Promise<OpenProject | null> => {
+    if (isCloudProject(projectId)) {
+      throw new Error(
+        "This is the online copy. Use Save as Research Space first, then add folders.",
+      );
+    }
+    return ipcRenderer.invoke("research-space:add-folder", projectId);
+  },
   listProject: (
     projectId: string,
     options?: ProjectListOptions,
