@@ -372,6 +372,8 @@ export function renderEditorDropZone(ctx: AppCtx) {
                 strings: true,
               },
               snippetSuggestions: "top",
+              // Copilot-style ghost text, with its hover toolbar.
+              inlineSuggest: { enabled: true, showToolbar: "onHover" },
               suggest: {
                 showSnippets: true,
                 showStatusBar: true,

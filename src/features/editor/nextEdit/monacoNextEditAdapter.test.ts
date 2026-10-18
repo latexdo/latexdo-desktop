@@ -263,17 +263,24 @@ function makeSuggestionVisible(editor: FakeEditor) {
 }
 
 describe("monacoNextEditAdapter", () => {
-  it("toggles the context key and renders a decoration when a suggestion appears", () => {
+  it("toggles the context key and renders a decoration when a suggestion appears", async () => {
     const { editor } = setup();
 
     makeSuggestionVisible(editor);
+    await Promise.resolve();
 
     expect(editor.contextValue).toBe(true);
-    expect(editor.decorations).toHaveLength(2);
     expect(editor.decorations[0]?.options.after?.content).toContain("bar");
-    // The Tab hint is its own decoration at the end of the edited line.
+    // The Tab hint is its own decoration at the end of the edited line; the
+    // cursor is on another line, so Tab first goes there.
     const hint = editor.decorations[1];
-    expect(hint?.options.after?.content).toBe("Tab");
+    expect(hint?.options.after?.content).toBe("Tab to go here");
+    expect(editor.decorations[2]?.options.linesDecorationsClassName).toBe(
+      "latexdo-next-edit-gutter",
+    );
+    expect(editor.decorations[3]?.options.linesDecorationsClassName).toBe(
+      "latexdo-next-edit-jump-down",
+    );
     expect(hint?.options.after?.inlineClassName).toBe("latexdo-next-edit-tab-hint");
     const hintOffset = editor.model.getOffsetAt(rangeStart(hint!.range as FakeRange));
     const editEnd = editor.model.getOffsetAt(
@@ -296,25 +303,34 @@ describe("monacoNextEditAdapter", () => {
     expect(tab?.precondition).toContain("!suggestWidgetVisible");
     expect(tab?.precondition).toContain("!renameInputVisible");
     expect(tab?.precondition).toContain("!inSnippetMode");
+    expect(tab?.precondition).toContain("!inlineSuggestionVisible");
     expect(escape?.precondition).toContain("latexdoNextEditVisible");
   });
 
-  it("accepts the visible suggestion as one undoable Monaco edit", () => {
+  it("goes to a suggestion on another line first, then accepts it as one undoable edit", async () => {
     const { editor } = setup();
     makeSuggestionVisible(editor);
+    await Promise.resolve();
     const tab = editor.actions.find(
       (action) => action.id === "latexdo.nextEdit.accept",
     );
+
+    tab?.run();
+    expect(editor.model.text).toBe("bar one\nbar two\nfoo three");
+    expect(editor.getPosition()?.lineNumber).toBe(3);
+    await Promise.resolve();
+    expect(editor.decorations[1]?.options.after?.content).toBe("Tab to accept");
 
     tab?.run();
 
     expect(editor.model.text).toBe("bar one\nbar two\nbar three");
     expect(editor.executeSources).toContain("latexdo.nextEdit.accept");
     expect(editor.undoStops).toBe(2);
+    await Promise.resolve();
     expect(editor.contextValue).toBe(false);
   });
 
-  it("expands a typed LaTeX command suffix into a whole-command replacement", () => {
+  it("expands a typed LaTeX command suffix into a whole-command replacement", async () => {
     const { editor } = setup(
       [
         "\\section{\\comp: A Lazy Completion Architecture}",
@@ -325,6 +341,7 @@ describe("monacoNextEditAdapter", () => {
     const firstCommandEnd = editor.model.text.indexOf("\\comp") + "\\comp".length;
 
     editor.replaceRange(firstCommandEnd, firstCommandEnd, "l");
+    await Promise.resolve();
 
     expect(editor.contextValue).toBe(true);
     expect(editor.decorations[0]?.options.className).toBe("latexdo-next-edit-remove");
@@ -339,7 +356,8 @@ describe("monacoNextEditAdapter", () => {
     const tab = editor.actions.find(
       (action) => action.id === "latexdo.nextEdit.accept",
     );
-    tab?.run();
+    tab?.run(); // goes to the suggestion
+    tab?.run(); // accepts it
 
     expect(editor.model.text).toContain("This section presents \\compl as");
     expect(editor.model.text).not.toContain("\\compll");

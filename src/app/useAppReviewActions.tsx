@@ -21,7 +21,10 @@ import {
   nextEditModelAvailable,
   type NextEditModelClient,
 } from "../features/editor/nextEdit/nextEditModelClient";
-import { registerSentenceCompletion } from "../features/editor/sentenceCompletion/registerSentenceCompletion";
+import {
+  registerInlineCompletion,
+  registerInlineCompletionKeys,
+} from "../features/editor/inlineCompletion/registerInlineCompletion";
 import {
   findSeedFromSelection,
   requestFind,
@@ -125,7 +128,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
     finishCitationInsert,
   } = ctx;
 
-  // The sentence-completion provider is registered once per editor mount and
+  // The ghost-text provider is registered once per editor mount and
   // asks this ref for a client, so AI setting changes apply immediately.
   const sentenceCompletionClientRef = useRef<NextEditModelClient | null>(null);
   useEffect(() => {
@@ -283,10 +286,11 @@ export function useAppReviewActions(ctx: AppCtx13) {
         ],
         run: () => openFindFromEditor(editor, "project"),
       }),
-      registerSentenceCompletion({
+      registerInlineCompletion({
         monaco,
         getClient: () => sentenceCompletionClientRef.current,
       }),
+      ...registerInlineCompletionKeys(editor, monaco),
       monaco.editor.registerCommand("latexdo.citation.accepted", () =>
         finishCitationInsert(editor),
       ),

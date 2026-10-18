@@ -702,10 +702,11 @@ export default function App() {
                     <div className="settings-section-heading">Writing assistance</div>
                     <label className="settings-row settings-toggle">
                       <span>
-                        <strong>Complete sentences as I type</strong>
+                        <strong>Suggest text as I type</strong>
                         <small>
-                          Grey text finishes the sentence you are writing. Press Tab to
-                          accept it or keep typing to ignore it.
+                          Grey text continues what you are writing. Tab accepts it,
+                          ⌘/Ctrl+→ accepts one word, Esc hides it and ⌥/Alt+\ asks for a
+                          suggestion now.
                         </small>
                       </span>
                       <input
