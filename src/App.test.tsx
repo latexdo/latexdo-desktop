@@ -3585,9 +3585,12 @@ describe("App critical UI controls", () => {
     );
     expect(api.joinCollaboration).not.toHaveBeenCalled();
 
-    fireEvent.click(within(dialog).getByLabelText("Ask me before someone new joins"));
+    const approval = within(dialog).getByLabelText("Ask me before someone new joins");
+    expect(approval).toBeChecked();
+    expect(approval).toBeEnabled();
+    fireEvent.click(approval);
     await waitFor(() =>
-      expect(api.setCollaborationApproval).toHaveBeenCalledWith(project.id, true),
+      expect(api.setCollaborationApproval).toHaveBeenCalledWith(project.id, false),
     );
     fireEvent.click(await within(dialog).findByRole("button", { name: "Allow" }));
     await waitFor(() =>

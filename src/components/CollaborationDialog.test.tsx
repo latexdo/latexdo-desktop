@@ -198,7 +198,7 @@ describe("CollaborationDialog", () => {
         ...activeState,
         hosted: true,
         inviteCode: "latexdo-invite:abc",
-        requireApproval: false,
+        requireApproval: true,
         pending: [{ clientId: "client-new", name: "New Person", requestedAt: 1 }],
         host: {
           active: true,
@@ -219,8 +219,11 @@ describe("CollaborationDialog", () => {
     expect(screen.getAllByRole("button", { name: /^Copy/ })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     expect(props.onCopy).toHaveBeenCalledWith("latexdo-invite:abc");
-    fireEvent.click(screen.getByLabelText("Ask me before someone new joins"));
-    expect(props.onRequireApprovalChange).toHaveBeenCalledWith(true);
+    const approval = screen.getByLabelText("Ask me before someone new joins");
+    expect(approval).toBeChecked();
+    expect(approval).toBeEnabled();
+    fireEvent.click(approval);
+    expect(props.onRequireApprovalChange).toHaveBeenCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Allow" }));
     expect(props.onResolveRequest).toHaveBeenLastCalledWith("client-new", true);
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
