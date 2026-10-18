@@ -805,7 +805,8 @@ export const defaultSettings: AppSettings = {
   legalAcceptedAt: "",
   legalPolicyVersion,
   colorTheme: "graphite",
-  appearanceMode: "auto",
+  // New users start on the white theme; anyone who chose a look keeps it.
+  appearanceMode: "light",
   defaultEngine: "pdflatex",
   livePreview: false,
   editorFontSize: 13.5,

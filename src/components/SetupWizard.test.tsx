@@ -244,7 +244,7 @@ describe("SetupWizard", () => {
     expect(screen.getByLabelText("First name")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Balanced/i })).toBeNull();
     expect(screen.queryByText("Workspace")).toBeNull();
-    expect(screen.getByRole("button", { name: /Forest/i })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "Forest Light" })).toBeVisible();
 
     continueSetup();
     expect(screen.getByText("Do you want an AI assistant?")).toBeVisible();
@@ -274,10 +274,12 @@ describe("SetupWizard", () => {
       target: { value: "Ada" },
     });
 
-    const forestTheme = screen.getByRole("button", { name: /Forest/i });
-    fireEvent.click(forestTheme);
-    expect(onApplyTheme).toHaveBeenCalledWith("forest");
-    expect(forestTheme).toHaveAttribute("aria-pressed", "true");
+    // The same picker as Settings: every theme in light and dark, white first chosen.
+    const themes = screen.getByRole("radiogroup", { name: "Application theme" });
+    expect(within(themes).getAllByRole("radio")).toHaveLength(8);
+    expect(within(themes).getByRole("radio", { name: "Graphite Light" })).toBeChecked();
+    fireEvent.click(within(themes).getByRole("radio", { name: "Forest Dark" }));
+    expect(onApplyTheme).toHaveBeenCalledWith("forest", "dark");
     continueSetup();
 
     expect(screen.getByText(/Needs the LatexDo desktop app/i)).toBeVisible();

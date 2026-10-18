@@ -20,11 +20,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import {
-  colorThemeOptions,
+  defaultSettings,
   legalPrivacyUrl,
   legalTermsUrl,
   type ColorTheme,
 } from "../features/settings/settings";
+import { ThemePicker, type ThemeAppearance } from "./ThemePicker";
 import { type AiConfig, type AiProvider } from "../features/ai/aiConfig";
 import type { ResearcherProfile } from "../features/ai/researcherProfile";
 import {
@@ -95,9 +96,10 @@ function openExternalUrl(url: string): void {
 interface SetupWizardProps {
   initialConfig: AiConfig;
   isDesktop: boolean;
-  onApplyTheme: (theme: ColorTheme) => void;
-  /** Light or dark, so theme swatches match what the app shows. */
-  appearance?: "light" | "dark";
+  onApplyTheme: (theme: ColorTheme, appearance: ThemeAppearance) => void;
+  /** The theme and look the app shows now, marked as chosen. */
+  colorTheme?: ColorTheme;
+  appearance?: ThemeAppearance;
   onComplete: (config: AiConfig) => void;
   systemCapabilities?: AiSystemCapabilities | null;
   systemCapabilitiesState?: "idle" | "loading" | "ready" | "unavailable";
@@ -249,7 +251,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   initialConfig,
   isDesktop,
   onApplyTheme,
-  appearance = "dark",
+  colorTheme = defaultSettings.colorTheme,
+  appearance = "light",
   onComplete,
   systemCapabilities = null,
   systemCapabilitiesState = isDesktop ? "loading" : "unavailable",
@@ -305,7 +308,6 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
 
   const step = steps[stepIndex];
   const introSlide = useSetupIntroSlide(step === "welcome");
-  const [selectedTheme, setSelectedTheme] = React.useState<ColorTheme | null>(null);
   const setupBusy = installing || downloading || speechInstalling || texInstalling;
   const setInstallPart = (part: InstallPart, received: number, total: number) =>
     setInstallBytes((current) => ({
@@ -396,11 +398,6 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
       onAcceptLegal?.();
     }
     goNext();
-  };
-
-  const chooseTheme = (theme: ColorTheme) => {
-    setSelectedTheme(theme);
-    onApplyTheme(theme);
   };
 
   const selectProvider = (provider: AiProvider) => {
@@ -1119,27 +1116,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
                   <h3 id="setup-theme-title">
                     <Palette size={14} /> Theme
                   </h3>
-                  <div className="ai-wizard-theme-grid">
-                    {colorThemeOptions.map((theme) => (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        className={`ai-wizard-theme-swatch ${
-                          selectedTheme === theme.id ? "selected" : ""
-                        }`}
-                        onClick={() => chooseTheme(theme.id)}
-                        aria-pressed={selectedTheme === theme.id}
-                        title={theme.description}
-                      >
-                        <div className="ai-wizard-swatch-row">
-                          {theme.swatches[appearance].map((c) => (
-                            <span key={c} style={{ background: c }} />
-                          ))}
-                        </div>
-                        <span className="ai-wizard-theme-name">{theme.name}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <ThemePicker
+                    colorTheme={colorTheme}
+                    appearance={appearance}
+                    onChoose={onApplyTheme}
+                  />
                 </section>
               </div>
             )}

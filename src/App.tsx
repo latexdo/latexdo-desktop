@@ -264,9 +264,10 @@ export default function App() {
         <SetupWizard
           initialConfig={aiConfig}
           isDesktop={aiIsDesktop}
-          onApplyTheme={(theme) =>
-            setSettings((current) => ({ ...current, colorTheme: theme }))
+          onApplyTheme={(colorTheme, appearanceMode) =>
+            setSettings((current) => ({ ...current, colorTheme, appearanceMode }))
           }
+          colorTheme={settings.colorTheme}
           appearance={resolvedAppearance}
           onComplete={completeAiSetup}
           systemCapabilities={aiSystemCapabilities}
