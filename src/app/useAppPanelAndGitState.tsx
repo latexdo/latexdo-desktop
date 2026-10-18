@@ -58,6 +58,7 @@ import {
   defaultSettings,
   loadBookmarkStore,
   loadCollaborationDisplayName,
+  storeCollaborationDisplayName,
   loadKnowledgeGraphParams,
   storeKnowledgeGraphParams,
   normalizeBookmarkLines,
@@ -88,6 +89,7 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     activeDocument,
     activePath,
     activeResearchSpace,
+    aiConfig,
     citationProjectFiles,
     documents,
     engine,
@@ -210,9 +212,15 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
   const [currentUserRole, setCurrentUserRole] = useState<"admin" | "editor" | "viewer">(
     "viewer",
   );
-  const [collaborationDisplayName, setCollaborationDisplayName] = useState(
-    loadCollaborationDisplayName,
-  );
+  // The name collaborators see is the Profile name; the stored one is only a
+  // fallback for people who set it in the Share dialog before Profile had it.
+  const [storedCollaborationName] = useState(loadCollaborationDisplayName);
+  const profileName = aiConfig.profile.displayName.trim().slice(0, 80);
+  const collaborationDisplayName = profileName || storedCollaborationName;
+  useEffect(() => {
+    // The main process reads the name from storage when it shares a project.
+    if (profileName) storeCollaborationDisplayName(profileName);
+  }, [profileName]);
   const [collaborationBusy, setCollaborationBusy] = useState(false);
   const [collaborationCopied, setCollaborationCopied] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -817,7 +825,6 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     currentUserRole,
     setCurrentUserRole,
     collaborationDisplayName,
-    setCollaborationDisplayName,
     collaborationBusy,
     setCollaborationBusy,
     collaborationCopied,

@@ -21,10 +21,7 @@ import type {
 } from "../types";
 import { pathForDisplay } from "../pathDisplay";
 import { figureBytesToDataUrl } from "../figurePreview";
-import {
-  storeCollaborationDisplayName,
-  type WelcomeTemplate,
-} from "../features/settings/settings";
+import { type WelcomeTemplate } from "../features/settings/settings";
 import {
   createPathInDirectory,
   fileName,
@@ -73,7 +70,6 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     requireLegalAcceptance,
     rootFileRef,
     setActivePath,
-    setCollaborationDisplayName,
     setCollaborationState,
     setCreateDialog,
     setCreateError,
@@ -131,11 +127,6 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     },
     [collaborationAvailable, loadCollaborationPermissions, refreshCollaborationState],
   );
-
-  const handleCollaborationDisplayNameChange = useCallback((value: string) => {
-    const nextName = storeCollaborationDisplayName(value);
-    setCollaborationDisplayName(nextName);
-  }, []);
 
   const createProject = async () => {
     try {
@@ -946,7 +937,6 @@ export function useAppProjectCreation(ctx: AppCtx09) {
   return {
     handleUpdatePermission,
     handleRemoveCollaborator,
-    handleCollaborationDisplayNameChange,
     createProject,
     createResearchSpace,
     createProjectFromTemplate,

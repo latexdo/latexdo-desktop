@@ -51,7 +51,7 @@ function dialogProps(
     currentUserRole: "admin",
     onCopy: vi.fn(),
     onJoinTokenChange: vi.fn(),
-    onDisplayNameChange: vi.fn(),
+    onEditName: vi.fn(),
     onJoin: vi.fn(),
     onRegenerate: vi.fn(),
     onClose: vi.fn(),
@@ -83,10 +83,7 @@ describe("CollaborationDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Regenerate/i }));
     expect(props.onRegenerate).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText("Collaboration display name"), {
-      target: { value: "Publisher" },
-    });
-    expect(props.onDisplayNameChange).toHaveBeenCalledWith("Publisher");
+    expect(screen.queryByRole("button", { name: "Add your name" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
     expect(props.onJoin).toHaveBeenCalledTimes(1);
@@ -132,7 +129,7 @@ describe("CollaborationDialog", () => {
     expect(screen.getByRole("button", { name: "Join" })).toBeDisabled();
   });
 
-  it("lets the owner start sharing from this computer and pick how", () => {
+  it("lets the owner start sharing over the internet", () => {
     const props = dialogProps({
       state: { enabled: false, users: [] },
       hostingAvailable: true,
@@ -144,10 +141,8 @@ describe("CollaborationDialog", () => {
     expect(screen.queryByLabelText("Collaboration token")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start sharing" }));
     expect(props.onStartSharing).toHaveBeenLastCalledWith("internet");
-    fireEvent.click(screen.getByRole("radio", { name: /Same network only/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Start sharing" }));
-    expect(props.onStartSharing).toHaveBeenLastCalledWith("local");
-    expect(screen.getByPlaceholderText("Paste an invite")).toBeVisible();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Paste an invite to join")).toBeVisible();
   });
 
   it("shows progress while the internet link starts and the reason when it fails", () => {
@@ -190,7 +185,7 @@ describe("CollaborationDialog", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("The internet link was lost.");
-    expect(screen.getByText(/shared copy of your project/)).toBeVisible();
+    expect(screen.getByText(/shared copy of your project/i)).toBeVisible();
     expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
   });
 
@@ -323,9 +318,17 @@ describe("CollaborationDialog", () => {
       onSaveToFolder: vi.fn(),
     });
     render(<CollaborationDialog {...props} />);
-    expect(screen.getByText(/This is the shared copy of your project/)).toBeVisible();
+    expect(screen.getByText(/shared copy of your project/i)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Back to my folder" }));
     expect(props.onReturnToFolder).toHaveBeenCalledOnce();
+  });
+
+  it("sends people without a name to Profile instead of asking here", () => {
+    const props = dialogProps({ displayName: "" });
+    render(<CollaborationDialog {...props} />);
+    expect(screen.getByText(/see you as Guest/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Add your name" }));
+    expect(props.onEditName).toHaveBeenCalledOnce();
   });
 
   it("asks for a project before offering to share one", () => {
@@ -348,7 +351,7 @@ describe("CollaborationDialog", () => {
     const props = dialogProps();
     render(<CollaborationDialog {...props} />);
 
-    fireEvent.keyDown(screen.getByLabelText("Collaboration display name"), {
+    fireEvent.keyDown(screen.getByLabelText("Join collaboration token"), {
       key: "Escape",
     });
     expect(props.onClose).toHaveBeenCalledTimes(1);

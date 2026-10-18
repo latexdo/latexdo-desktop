@@ -3505,9 +3505,6 @@ describe("App critical UI controls", () => {
       api.createCollaborationLink.mock.invocationCallOrder[0],
     );
     await waitFor(() => expect(copy).toHaveBeenCalledWith("share-token"));
-    fireEvent.change(screen.getByLabelText("Collaboration display name"), {
-      target: { value: "Ada" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Collaboration token")).toHaveValue("new-token"),

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
+  ArrowLeft,
   Check,
   Copy,
   FolderDown,
-  Globe,
   KeyRound,
   Link,
   Loader2,
@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Square,
   UserRound,
-  Wifi,
   X,
 } from "lucide-react";
 import { CollaboratorsList } from "./CollaboratorsList";
@@ -45,7 +44,8 @@ export interface ShareProjectDialogProps {
   joinWaitingMessage?: string;
   onCopy: (value: string) => void;
   onJoinTokenChange: (value: string) => void;
-  onDisplayNameChange: (value: string) => void;
+  /** Opens Profile, where the name collaborators see is set. */
+  onEditName?: () => void;
   onJoin: () => void;
   onCancelJoin?: () => void;
   onRegenerate?: () => void;
@@ -85,7 +85,7 @@ export function ShareProjectDialog({
   joinWaitingMessage = "",
   onCopy,
   onJoinTokenChange,
-  onDisplayNameChange,
+  onEditName,
   onJoin,
   onCancelJoin,
   onRegenerate,
@@ -100,7 +100,6 @@ export function ShareProjectDialog({
   onRemoveCollaborator,
   onRefreshPermissions,
 }: ShareProjectDialogProps) {
-  const [mode, setMode] = useState<HostSharingMode>("internet");
   // One link to send: the browser link when the project is on the server,
   // otherwise the invite (Join accepts both).
   const webLink = webLinkForInvite(state.inviteCode);
@@ -167,19 +166,19 @@ export function ShareProjectDialog({
             <X size={16} />
           </button>
         </header>
-        <div className="share-section">
-          <h4 className="share-heading share-flush">Your name</h4>
-          <div className="share-name-row">
-            <UserRound size={15} aria-hidden="true" />
-            <input
-              value={displayName}
-              placeholder="How collaborators will see you"
-              aria-label="Collaboration display name"
-              onChange={(event) => onDisplayNameChange(event.target.value)}
-              maxLength={80}
-            />
+        {!displayName.trim() ? (
+          <div className="share-section">
+            <p className="share-hint share-name-missing">
+              <UserRound size={14} aria-hidden="true" />
+              Collaborators will see you as Guest.
+              {onEditName ? (
+                <button type="button" onClick={onEditName}>
+                  Add your name
+                </button>
+              ) : null}
+            </p>
           </div>
-        </div>
+        ) : null}
 
         {hostFlow && (hostLive || hostStarting) ? (
           <div className="share-section">
@@ -214,8 +213,8 @@ export function ShareProjectDialog({
             </div>
             <p className="share-hint">
               {webLink
-                ? "Anyone with this link can edit in their browser, no account or install needed. LatexDo users can also paste it under Join. The project stays online when you close LatexDo."
-                : "Collaborators paste this link under Join in LatexDo. It works while LatexDo stays open on this computer."}
+                ? "Anyone with the link can edit in a browser. Stays online when LatexDo is closed."
+                : "Paste it under Join in LatexDo. Works while LatexDo stays open."}
             </p>
             {isAdmin ? (
               <label className="share-check">
@@ -268,86 +267,45 @@ export function ShareProjectDialog({
               </p>
             ) : (
               <>
-                <h4>Share this project</h4>
-                <p className="share-hint">
-                  {state.hosted
-                    ? "This is the shared copy of your project. Sharing is off."
-                    : "No account needed. Choose how people reach the project."}
-                </p>
+                {state.hosted ? (
+                  <p className="share-hint">Shared copy of your project. Sharing is off.</p>
+                ) : null}
                 {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
                     {startError || host?.message}
                   </div>
                 ) : null}
-                <div
-                  className="share-modes"
-                  role="radiogroup"
-                  aria-label="How to share"
-                >
-                  <label
-                    className={`share-mode ${mode === "internet" ? "selected" : ""}`}
-                  >
-                    <input
-                      type="radio"
-                      name="share-mode"
-                      className="share-mode-radio"
-                      checked={mode === "internet"}
-                      onChange={() => setMode("internet")}
-                    />
-                    <span className="share-mode-icon" aria-hidden="true">
-                      <Globe size={16} />
-                    </span>
-                    <span className="share-mode-text">
-                      <strong>Over the internet</strong>
-                      <small>
-                        Works from anywhere and stays online when your computer is off.
-                        The invite never expires.
-                      </small>
-                    </span>
-                  </label>
-                  <label className={`share-mode ${mode === "local" ? "selected" : ""}`}>
-                    <input
-                      type="radio"
-                      name="share-mode"
-                      className="share-mode-radio"
-                      checked={mode === "local"}
-                      onChange={() => setMode("local")}
-                    />
-                    <span className="share-mode-icon" aria-hidden="true">
-                      <Wifi size={16} />
-                    </span>
-                    <span className="share-mode-text">
-                      <strong>Same network only</strong>
-                      <small>
-                        Shared from this computer, no internet needed. Not encrypted, so
-                        use a network you trust.
-                      </small>
-                    </span>
-                  </label>
-                </div>
+                <p className="share-hint">
+                  Works from anywhere, even when your computer is off. The invite never
+                  expires.
+                </p>
                 <div className="share-actions share-actions-stacked">
                   <button
                     type="button"
                     className="share-primary"
-                    onClick={() => onStartSharing?.(mode)}
+                    onClick={() => onStartSharing?.("internet")}
                     disabled={busy}
                   >
                     {busy ? <Loader2 size={14} className="spin" /> : <Link size={14} />}
                     {busy ? "Starting…" : "Start sharing"}
                   </button>
-                  {state.hosted && onReturnToFolder ? (
-                    <button type="button" onClick={onReturnToFolder} disabled={busy}>
-                      <FolderDown size={14} />
-                      Back to my folder
-                    </button>
-                  ) : null}
-                  {state.hosted && onSaveToFolder ? (
-                    <button type="button" onClick={onSaveToFolder} disabled={busy}>
-                      <FolderDown size={14} />
-                      Save to my folder
-                    </button>
-                  ) : null}
                 </div>
+                {state.hosted && (onReturnToFolder || onSaveToFolder) ? (
+                  <div className="share-links">
+                    {onReturnToFolder ? (
+                      <button type="button" onClick={onReturnToFolder} disabled={busy}>
+                        <ArrowLeft size={13} />
+                        Back to my folder
+                      </button>
+                    ) : null}
+                    {onSaveToFolder ? (
+                      <button type="button" onClick={onSaveToFolder} disabled={busy}>
+                        <FolderDown size={13} />
+                        Save to my folder
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </>
             )}
           </div>
@@ -451,15 +409,12 @@ export function ShareProjectDialog({
               onJoin();
             }}
           >
-            {hostFlow || joinedAsGuest ? (
-              <h4 className="share-heading">Join a project</h4>
-            ) : null}
             <div className="share-link-row">
               <LogIn size={15} />
               <input
                 value={joinToken}
                 placeholder={
-                  hostingAvailable ? "Paste an invite" : "Paste token or share link"
+                  hostingAvailable ? "Paste an invite to join" : "Paste token or share link"
                 }
                 aria-label="Join collaboration token"
                 onChange={(event) => onJoinTokenChange(event.target.value)}
