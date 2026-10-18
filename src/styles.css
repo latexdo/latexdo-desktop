@@ -3295,22 +3295,16 @@ button {
 .preview-header > div:first-child span {
   min-width: 0;
 }
-.preview-header > div:first-child span:not(.pane-label):not(.built-badge) {
+.preview-header > div:first-child span:not(.pane-label):not(.pdf-build-status) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.built-badge {
-  display: flex;
+.pdf-build-status {
+  display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 5px;
-  border-radius: 8px;
-  background: rgb(79 159 106 / 16%);
-  color: var(--success);
-  font-size: 9px;
-  font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .preview-actions {

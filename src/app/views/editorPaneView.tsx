@@ -3,7 +3,9 @@ import {
   ArrowLeftToLine,
   ArrowRightToLine,
   BookOpenText,
-  Check,
+  CircleCheck,
+  CircleAlert,
+  FileText,
   Code2,
   Command,
   Download,
@@ -472,6 +474,7 @@ export function renderSourcePane(ctx: AppCtx) {
 export function renderSplitHandle(ctx: AppCtx) {
   const {
     compileResult,
+    compiling,
     downloadPdf,
     handleBackwardSync,
     handleEditorCursorToPdf,
@@ -492,6 +495,20 @@ export function renderSplitHandle(ctx: AppCtx) {
     startResize,
   } = ctx;
   const pdfData = ctx.pdfData!;
+  const pdfStatus = compiling
+    ? "Building PDF"
+    : compileResult?.ok === false
+      ? "Build failed — showing the previous PDF"
+      : compileResult?.ok
+        ? "PDF ready"
+        : "PDF preview";
+  const PdfStatusIcon = compiling
+    ? LoaderCircle
+    : compileResult?.ok === false
+      ? CircleAlert
+      : compileResult?.ok
+        ? CircleCheck
+        : FileText;
   return (
     <>
       <div
@@ -508,14 +525,19 @@ export function renderSplitHandle(ctx: AppCtx) {
       <section className="preview-pane" data-tour-id="pdf-preview">
         <div className="preview-header">
           <div>
-            <span className="pane-label">PDF</span>
-            <BookOpenText size={15} />
+            <span
+              className="pdf-build-status"
+              role="img"
+              aria-label={pdfStatus}
+              title={pdfStatus}
+            >
+              <PdfStatusIcon
+                size={15}
+                className={compiling ? "spin" : undefined}
+                aria-hidden="true"
+              />
+            </span>
             <span>{fileName(rootFile).replace(/\.tex$/, ".pdf")}</span>
-            {compileResult?.ok ? (
-              <span className="built-badge">
-                <Check size={11} /> Built
-              </span>
-            ) : null}
           </div>
           <div className="preview-actions">
             <button
