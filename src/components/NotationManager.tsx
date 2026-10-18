@@ -337,9 +337,6 @@ export function NotationManager({ content, onInsertCode }: NotationManagerProps)
         <header className="notation-manager-pane-header">
           <div className="notation-manager-pane-title">
             <h2>Detected Notation</h2>
-            <span className="notation-manager-live">
-              <span className="notation-manager-live-dot" /> Live from active document
-            </span>
           </div>
           <div className="notation-manager-filter-row">
             <div
