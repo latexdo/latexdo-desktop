@@ -18,7 +18,8 @@ export function latexTableSnippet(rows: number, columns: number): LatexTableSnip
     { length: columnCount },
     (_, index) => `Column ${index + 1}`,
   );
-  const empty = Array.from({ length: columnCount }, () => "");
+  // Blank cells padded to their header's width, so the `&`s line up.
+  const empty = header.map((cell) => " ".repeat(cell.length));
   const row = (cells: string[]) => `    ${cells.join(" & ")} \\\\`;
   const before = [
     "\\begin{table}[htbp]",
