@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PdfPreview from "./PdfPreview";
 
@@ -91,6 +91,55 @@ describe("PdfPreview", () => {
   beforeEach(() => {
     pdfjsMock.tasks.splice(0);
     pdfjsMock.getDocument.mockClear();
+  });
+
+  it("navigates to the clicked word on a single click without hijacking text selection", async () => {
+    const onNavigate = vi.fn();
+    render(
+      <PdfPreview
+        data={new Uint8Array([1])}
+        scale={100}
+        target={null}
+        onNavigate={onNavigate}
+      />,
+    );
+    pdfjsMock.tasks[0].resolve(pdfjsMock.createDocument("click"));
+    const page = await screen.findByTitle("Click a word to jump to its TeX source");
+    const span = document.createElement("span");
+    span.textContent = "First exact word then last";
+    page.querySelector(".textLayer")!.append(span);
+    const node = span.firstChild!;
+    const range = document.createRange();
+    range.setStart(node, 7);
+    range.collapse(true);
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: () => range,
+    });
+    try {
+      fireEvent.mouseDown(span, { clientX: 42, clientY: 84 });
+      fireEvent.click(span, { clientX: 42, clientY: 84, detail: 1 });
+      expect(onNavigate).toHaveBeenCalledOnce();
+      expect(onNavigate).toHaveBeenCalledWith({
+        page: 1,
+        x: 42,
+        y: 84,
+        word: "exact",
+        before: ["first"],
+        after: ["word", "then", "last"],
+      });
+      onNavigate.mockClear();
+      fireEvent.mouseDown(span, { clientX: 42, clientY: 84 });
+      fireEvent.click(span, { clientX: 100, clientY: 84, detail: 1 });
+      expect(onNavigate).not.toHaveBeenCalled();
+      range.setEnd(node, 10);
+      window.getSelection()!.addRange(range);
+      fireEvent.click(span, { clientX: 42, clientY: 84, detail: 1 });
+      expect(onNavigate).not.toHaveBeenCalled();
+    } finally {
+      window.getSelection()!.removeAllRanges();
+      Reflect.deleteProperty(document, "caretRangeFromPoint");
+    }
   });
 
   it("keeps the current PDF mounted while refreshed data is loading", async () => {

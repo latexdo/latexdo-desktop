@@ -192,7 +192,7 @@ vi.mock("./PdfPreview", () => ({
       type="button"
       data-testid="mock-pdf-preview"
       data-pdf-bytes={data?.byteLength ?? 0}
-      onDoubleClick={() => onNavigate?.({ page: 2, x: 42, y: 84, word: "Text" })}
+      onClick={() => onNavigate?.({ page: 2, x: 42, y: 84, word: "Text" })}
     >
       PDF preview
     </button>
@@ -3429,7 +3429,7 @@ describe("App critical UI controls", () => {
       expect(api.readPdf).toHaveBeenCalledWith("project-1", "main.pdf");
     });
 
-    fireEvent.doubleClick(await screen.findByTestId("mock-pdf-preview"));
+    fireEvent.click(await screen.findByTestId("mock-pdf-preview"));
 
     await waitFor(() => {
       expect(api.backwardSyncTex).toHaveBeenCalledWith(
