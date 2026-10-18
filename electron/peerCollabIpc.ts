@@ -243,7 +243,8 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
     "peer:cloud-save-project",
     async (event, ...args: unknown[]): Promise<SaveSharedProjectResult> => {
       const channel = "peer:cloud-save-project";
-      if (args.length !== 2) invalid(channel);
+      if (args.length !== 2 && args.length !== 3) invalid(channel);
+      const ask = args[2] !== false;
       const projectId = parseText(channel, args[0], 80);
       const rawFiles = args[1];
       if (!Array.isArray(rawFiles) || rawFiles.length > 5000) invalid(channel);
@@ -262,8 +263,9 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
       if (!hosted) {
         throw new Error("This project was not shared from a folder on this computer.");
       }
-      // Overwriting the user's own files is confirmed natively so page content
-      // can never trigger it on its own.
+      // A save the user asks for is confirmed natively. When sharing stops the
+      // copy comes home without asking; either way it is only ever written
+      // into the folder it was shared from, and nothing is deleted.
       const window = BrowserWindow.fromWebContents(event.sender);
       const options = {
         type: "question" as const,
@@ -273,10 +275,12 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
         message: "Save the shared changes to your folder?",
         detail: `Files in ${hosted.localRoot} are replaced by the shared versions. Nothing is deleted.`,
       };
-      const { response } = window
-        ? await dialog.showMessageBox(window, options)
-        : await dialog.showMessageBox(options);
-      if (response !== 0) return { saved: false };
+      if (ask) {
+        const { response } = window
+          ? await dialog.showMessageBox(window, options)
+          : await dialog.showMessageBox(options);
+        if (response !== 0) return { saved: false };
+      }
       const result = await peer.saveFilesToHostedFolder(projectId, files);
       return {
         saved: true,
@@ -302,14 +306,16 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
     "peer:host-save-project",
     async (event, ...args: unknown[]): Promise<SaveSharedProjectResult> => {
       const channel = "peer:host-save-project";
-      if (args.length !== 1) invalid(channel);
+      if (args.length !== 1 && args.length !== 2) invalid(channel);
+      const ask = args[1] !== false;
       const projectId = parseText(channel, args[0], 80);
       const hosted = await peer.hostedProject(projectId);
       if (!hosted) {
         throw new Error("This project was not shared from a folder on this computer.");
       }
-      // Overwriting the user's own files is confirmed natively so page content
-      // can never trigger it on its own.
+      // A save the user asks for is confirmed natively. When sharing stops the
+      // copy comes home without asking; either way it is only ever written
+      // into the folder it was shared from, and nothing is deleted.
       const window = BrowserWindow.fromWebContents(event.sender);
       const options = {
         type: "question" as const,
@@ -319,10 +325,12 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
         message: "Save the shared changes to your folder?",
         detail: `Files in ${hosted.localRoot} are replaced by the shared versions. Nothing is deleted.`,
       };
-      const { response } = window
-        ? await dialog.showMessageBox(window, options)
-        : await dialog.showMessageBox(options);
-      if (response !== 0) return { saved: false };
+      if (ask) {
+        const { response } = window
+          ? await dialog.showMessageBox(window, options)
+          : await dialog.showMessageBox(options);
+        if (response !== 0) return { saved: false };
+      }
       const result = await peer.saveHostedProject(projectId);
       return {
         saved: true,

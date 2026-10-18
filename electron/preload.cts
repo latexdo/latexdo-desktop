@@ -1427,11 +1427,18 @@ const api = {
       token,
     ).then((state) => normalizeCloudState(projectId, state));
   },
+  /**
+   * Writes the shared copy back into the folder it was shared from. Asks
+   * first unless `ask` is false, as when sharing stops and the edits simply
+   * come home.
+   */
   saveSharedProjectToFolder: async (
     projectId: string,
+    options: { ask?: boolean } = {},
   ): Promise<SaveSharedProjectResult> => {
+    const ask = options.ask !== false;
     if (cloudOriginForProject(projectId) !== internetCollaborationOrigin) {
-      return ipcRenderer.invoke("peer:host-save-project", projectId);
+      return ipcRenderer.invoke("peer:host-save-project", projectId, ask);
     }
     // Download the shared copy, then write it into the folder it came from.
     const bundle = await cloudRequestJson<{
@@ -1442,7 +1449,7 @@ const api = {
       cloudShareTokenForProject(projectId),
       cloudCompileTimeoutMs,
     );
-    return ipcRenderer.invoke("peer:cloud-save-project", projectId, bundle.files);
+    return ipcRenderer.invoke("peer:cloud-save-project", projectId, bundle.files, ask);
   },
   openSharedProjectFolder: (projectId: string): Promise<OpenProject | null> =>
     ipcRenderer.invoke("peer:host-open-folder", projectId),

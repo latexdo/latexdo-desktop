@@ -3596,7 +3596,9 @@ describe("App critical UI controls", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop sharing" }));
     await waitFor(() => expect(api.stopCollaboration).toHaveBeenCalledWith(project.id));
     await waitFor(() =>
-      expect(api.saveSharedProjectToFolder).toHaveBeenCalledWith(project.id),
+      expect(api.saveSharedProjectToFolder).toHaveBeenCalledWith(project.id, {
+        ask: false,
+      }),
     );
     await waitFor(() =>
       expect(api.deleteSharedProject).toHaveBeenCalledWith(project.id),

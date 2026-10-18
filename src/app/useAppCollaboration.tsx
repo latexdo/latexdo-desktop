@@ -890,7 +890,9 @@ export function useAppCollaboration(ctx: AppCtx08) {
       }
       // Bring the shared edits home, delete the online copy, then go back to
       // the folder they came from.
-      const result = await window.latexdo.saveSharedProjectToFolder(currentProject);
+      const result = await window.latexdo.saveSharedProjectToFolder(currentProject, {
+        ask: false,
+      });
       if (result.saved && result.project) {
         await window.latexdo.deleteSharedProject(currentProject);
         await loadProject(result.project, true, false);
@@ -946,7 +948,9 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
     setCollaborationBusy(true);
     try {
-      const result = await window.latexdo.saveSharedProjectToFolder(currentProject);
+      const result = await window.latexdo.saveSharedProjectToFolder(currentProject, {
+        ask: false,
+      });
       if (result.saved && result.project) {
         await window.latexdo.deleteSharedProject(currentProject);
         await loadProject(result.project, true, false);
