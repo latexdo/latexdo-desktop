@@ -3571,7 +3571,7 @@ describe("App critical UI controls", () => {
     fireEvent.click(screen.getAllByTitle("Share project")[0]);
     const dialog = await screen.findByRole("dialog", { name: "Share Project" });
     expect(api.createCollaborationLink).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Start sharing" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create link" }));
     await waitFor(() =>
       expect(api.createCollaborationLink).toHaveBeenCalledWith(
         project.id,

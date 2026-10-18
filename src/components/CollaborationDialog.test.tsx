@@ -129,7 +129,7 @@ describe("CollaborationDialog", () => {
     expect(screen.getByRole("button", { name: "Join" })).toBeDisabled();
   });
 
-  it("lets the owner start sharing over the internet", () => {
+  it("lets the owner create a share link", () => {
     const props = dialogProps({
       state: { enabled: false, users: [] },
       hostingAvailable: true,
@@ -139,7 +139,7 @@ describe("CollaborationDialog", () => {
     render(<CollaborationDialog {...props} />);
 
     expect(screen.queryByLabelText("Collaboration token")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Start sharing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
     expect(props.onStartSharing).toHaveBeenLastCalledWith("internet");
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("Paste an invite to join")).toBeVisible();
@@ -186,7 +186,7 @@ describe("CollaborationDialog", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent("The internet link was lost.");
     expect(screen.getByText(/shared copy of your project/i)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create link" })).toBeEnabled();
   });
 
   it("gives the owner the invite, approvals and every way to end access", () => {
@@ -213,7 +213,7 @@ describe("CollaborationDialog", () => {
     render(<CollaborationDialog {...props} />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Sharing is on, over the internet.",
+      "Sharing is on.",
     );
     expect(screen.getByLabelText("Share link")).toHaveValue("latexdo-invite:abc");
     expect(screen.getAllByRole("button", { name: /^Copy/ })).toHaveLength(1);
@@ -307,7 +307,7 @@ describe("CollaborationDialog", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "others.bib is larger than 32 MB",
     );
-    expect(screen.getByRole("button", { name: "Start sharing" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create link" })).toBeEnabled();
   });
 
   it("takes the owner from the shared copy back to their own folder", () => {
@@ -343,7 +343,7 @@ describe("CollaborationDialog", () => {
     );
     expect(screen.getByText(/Open a project to share it/)).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Start sharing" }),
+      screen.queryByRole("button", { name: "Create link" }),
     ).not.toBeInTheDocument();
   });
 

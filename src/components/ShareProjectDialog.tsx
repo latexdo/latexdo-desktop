@@ -62,11 +62,6 @@ export interface ShareProjectDialogProps {
   onRefreshPermissions?: () => Promise<void>;
 }
 
-const modeLabels: Record<HostSharingMode, string> = {
-  internet: "over the internet",
-  local: "on your local network",
-};
-
 export function ShareProjectDialog({
   open,
   state,
@@ -189,7 +184,7 @@ export function ShareProjectDialog({
                 <Loader2 size={14} className="spin" aria-hidden="true" />
               )}
               {hostLive
-                ? `Sharing is on, ${modeLabels[host?.mode ?? "internet"]}.`
+                ? "Sharing is on."
                 : (host?.message ?? "Starting…")}
             </p>
             <div className="share-link-field">
@@ -275,10 +270,6 @@ export function ShareProjectDialog({
                     {startError || host?.message}
                   </div>
                 ) : null}
-                <p className="share-hint">
-                  Works from anywhere, even when your computer is off. The invite never
-                  expires.
-                </p>
                 <div className="share-actions share-actions-stacked">
                   <button
                     type="button"
@@ -287,7 +278,7 @@ export function ShareProjectDialog({
                     disabled={busy}
                   >
                     {busy ? <Loader2 size={14} className="spin" /> : <Link size={14} />}
-                    {busy ? "Starting…" : "Start sharing"}
+                    {busy ? "Creating link…" : "Create link"}
                   </button>
                 </div>
                 {state.hosted && (onReturnToFolder || onSaveToFolder) ? (
