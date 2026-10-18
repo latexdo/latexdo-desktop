@@ -133,6 +133,7 @@ vi.mock("./terminal.js", () => ({ registerTerminalIpc: vi.fn() }));
 vi.mock("./peerCollabIpc.js", () => ({
   registerPeerCollabIpc: vi.fn(),
   disposePeerCollab: vi.fn(),
+  sharedProjectSourceFolder: vi.fn(async () => null),
 }));
 vi.mock("./buildInfo.js", () => ({
   readBuildInfo: () => ({
