@@ -50,8 +50,11 @@ export default defineConfig({
     // The same applies to the set-up of the Electron main-process suites.
     hookTimeout: 30_000,
     include: [
-      "{src,electron,collaborations,scripts,latexdo}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
+      "{src,electron,collaborations,scripts,latexdo,web}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
     ],
+    // The Cloudflare server has its own end-to-end suite (node --test) that
+    // runs against a live server.
+    exclude: ["**/node_modules/**", "collaborations/cloudflare/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
@@ -66,6 +69,8 @@ export default defineConfig({
         "src/test-setup.ts",
         "scripts/test-*",
         "scripts/run-packaged-app-tests.mjs",
+        // A separate Workers project with its own typecheck and test suite.
+        "collaborations/cloudflare/**",
       ],
       thresholds: {
         // Baseline for all source, including previously unmeasured files.

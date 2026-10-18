@@ -16,10 +16,11 @@
     "ai:check:source": "node scripts/validate-sync.mjs latexdo-sync.json",
     "build": "npm run ai:sync && tsc -b && vite build && node scripts/verify-built-assets.mjs && tsc -p tsconfig.electron.json && node scripts/write-build-info.mjs dist-electron",
     "start": "electron .",
-    "typecheck": "npm run ai:sync && tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false",
+    "typecheck": "npm run ai:sync && tsc -b --pretty false && tsc -p tsconfig.electron.json --pretty false && tsc -p web/guest/tsconfig.json --pretty false",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
+    "build:guest": "vite build --config web/guest/vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -113,6 +114,18 @@
     "productName": "LatexDo",
     "icon": "build/icon.png",
     "npmRebuild": true,
+    "fileAssociations": [
+      {
+        "ext": [
+          "latexdo-space",
+          "latexdo-workspace"
+        ],
+        "name": "LatexDo Research Space",
+        "description": "LatexDo Research Space",
+        "role": "Editor",
+        "mimeType": "application/x-latexdo-space"
+      }
+    ],
     "afterPack": "scripts/after-pack-linux.cjs",
     "asarUnpack": [
       "**/node_modules/node-pty/**",
@@ -157,7 +170,27 @@
       "notarize": true,
       "extendInfo": {
         "NSDocumentsFolderUsageDescription": "LatexDo needs access to open and save LaTeX projects in your Documents folder.",
-        "NSDownloadsFolderUsageDescription": "LatexDo needs access to export generated PDFs and project files to Downloads."
+        "NSDownloadsFolderUsageDescription": "LatexDo needs access to export generated PDFs and project files to Downloads.",
+        "UTExportedTypeDeclarations": [
+          {
+            "UTTypeIdentifier": "com.latexdo.research-space",
+            "UTTypeDescription": "LatexDo Research Space",
+            "UTTypeConformsTo": [
+              "public.json",
+              "public.data"
+            ],
+            "UTTypeIconFile": "icon.icns",
+            "UTTypeTagSpecification": {
+              "public.filename-extension": [
+                "latexdo-space",
+                "latexdo-workspace"
+              ],
+              "public.mime-type": [
+                "application/x-latexdo-space"
+              ]
+            }
+          }
+        ]
       }
     },
     "win": {

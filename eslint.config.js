@@ -12,6 +12,9 @@ export default tseslint.config(
       "node_modules/**",
       "release/**",
       "out/**",
+      // The co-author web editor, built from web/guest.
+      "collaborations/cloudflare/public/**",
+      "**/.wrangler/**",
       "*.config.js",
       "*.config.ts",
     ],

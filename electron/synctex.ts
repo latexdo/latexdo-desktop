@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, realpath } from "node:fs/promises";
 import path from "node:path";
 import { findTexExecutable, texToolPath } from "./compiler.js";
-import type { SyncTexPdfLocation, SyncTexSourceLocation } from "./types.js";
+import type { SyncTexBox, SyncTexPdfLocation, SyncTexSourceLocation } from "./types.js";
 
 const executableCandidates =
   process.platform === "darwin"
@@ -114,9 +114,20 @@ export async function forwardSyncTex(
   if (!record?.Page) {
     return null;
   }
+  // A source line that wraps has one box per PDF line; the word can be on any.
+  const page = numberField(record, "Page");
+  const boxes: SyncTexBox[] = records
+    .filter((item) => numberField(item, "Page") === page)
+    .map((item) => ({
+      h: numberField(item, "h"),
+      v: numberField(item, "v"),
+      width: numberField(item, "W"),
+      height: numberField(item, "H"),
+    }));
 
   return {
-    page: numberField(record, "Page"),
+    page,
+    boxes,
     x: numberField(record, "x"),
     y: numberField(record, "y"),
     h: numberField(record, "h"),
@@ -142,8 +153,13 @@ export async function backwardSyncTex(
     return null;
   }
 
+  // TeX records real paths: on macOS the temp folder (where shared projects
+  // compile) is /var/… but recorded as /private/var/…, and any symlinked
+  // project folder differs the same way. Compare real paths.
+  const realProjectPath = await realpath(projectPath).catch(() => projectPath);
   const inputPath = path.resolve(projectPath, record.Input);
-  const relativePath = path.relative(projectPath, inputPath);
+  const realInputPath = await realpath(inputPath).catch(() => inputPath);
+  const relativePath = path.relative(realProjectPath, realInputPath);
   if (
     relativePath.startsWith("..") ||
     path.isAbsolute(relativePath) ||

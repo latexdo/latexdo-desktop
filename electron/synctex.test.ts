@@ -11,6 +11,7 @@ vi.mock("node:fs/promises", () => ({
   access: vi.fn(async () => {
     throw new Error("absent");
   }),
+  realpath: vi.fn(async (value: string) => value),
 }));
 vi.mock("node:child_process", () => ({
   spawn: vi.fn(() => {
@@ -45,7 +46,17 @@ describe("SyncTeX process integration", () => {
       "SyncTeX result begin\nOutput:paper.pdf\nPage:2\nx:12.5\ny:20\nh:10\nv:30\nW:42\nH:9\nOutput:paper.pdf\nPage:3\nx:99\nSyncTeX result end";
     expect(
       await forwardSyncTex("/paper", "paper.pdf", "source with space.tex", 12, 3),
-    ).toEqual({ page: 2, x: 12.5, y: 20, h: 10, v: 30, width: 42, height: 9 });
+    ).toEqual({
+      page: 2,
+      x: 12.5,
+      y: 20,
+      h: 10,
+      v: 30,
+      width: 42,
+      height: 9,
+      // Only the boxes on the first match's page; the page-3 match is elsewhere.
+      boxes: [{ h: 10, v: 30, width: 42, height: 9 }],
+    });
     expect(spawn).toHaveBeenCalledWith(
       "synctex",
       ["view", "-i", "12:3:source with space.tex", "-o", "paper.pdf"],
@@ -84,6 +95,7 @@ describe("SyncTeX process integration", () => {
       v: 0,
       width: 0,
       height: 0,
+      boxes: [{ h: 0, v: 0, width: 0, height: 0 }],
     });
   });
   it.each(["TeX failed", ""])("surfaces subprocess errors (%s)", async (error) => {

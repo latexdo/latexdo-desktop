@@ -1,6 +1,7 @@
 import type * as Monaco from "monaco-editor";
-import { useCallback, useEffect, useLayoutEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { HostSharingMode, GitChangedEvent } from "../types";
+import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
 import {
   bookmarkKey,
@@ -88,6 +89,9 @@ export function useAppCollaboration(ctx: AppCtx08) {
     sourceSyncClearTimerRef,
     sourceSyncDecorationsRef,
   } = ctx;
+  // The live editing connection, shown as the status bar's color.
+  const [liveConnection, setLiveConnection] =
+    useState<CollaborationConnectionStatus>("idle");
 
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
@@ -162,6 +166,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
             color: collaboration.color,
             emoji: collaboration.emoji,
             onStatusChange: (status) => {
+              setLiveConnection(status);
               if (status === "connected") {
                 setStatusMessage(
                   `Live collaboration syncing: ${pathForDisplay(document.relativePath)}`,
@@ -231,6 +236,11 @@ export function useAppCollaboration(ctx: AppCtx08) {
             },
             onPresenceChange: (users) => {
               setCollaborationState((current) => ({ ...current, users }));
+            },
+            onProjectChanged: (revision) => {
+              setCollaborationState((current) =>
+                current.revision === revision ? current : { ...current, revision },
+              );
             },
           });
         },
@@ -602,6 +612,24 @@ export function useAppCollaboration(ctx: AppCtx08) {
       );
     }
   };
+
+  // A Research Space or folder opened from Finder, the Dock or the command line.
+  useEffect(() => {
+    return window.latexdo.onOpenRequested?.(() => {
+      void (async () => {
+        try {
+          const project = await window.latexdo.openRequestedProject?.();
+          if (project) {
+            await loadProject(project, true, false);
+          }
+        } catch (error) {
+          setStatusMessage(
+            error instanceof Error ? error.message : "Could not open the file.",
+          );
+        }
+      })();
+    });
+  }, [loadProject, setStatusMessage]);
 
   const importOverleafProject = useCallback(
     async (gitUrl: string) => {
@@ -988,6 +1016,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
   );
 
   return {
+    liveConnection,
     connectCollaborationBinding,
     applyEditorBlameDecorations,
     handleEditorChange,

@@ -46,6 +46,7 @@ export class CollaborationClient {
       onConnectionError: options.onConnectionError,
       onSynced: options.onSynced,
       onPresenceChange: options.onPresenceChange,
+      onProjectChanged: options.onProjectChanged,
     });
   }
 

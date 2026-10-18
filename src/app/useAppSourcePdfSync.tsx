@@ -2,6 +2,7 @@ import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo } from "react";
 import type { PdfClickLocation } from "../PdfPreview";
 import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
+import { sourceContextAt } from "../features/pdf/wordMatch";
 import type {
   ConferenceTemplate,
   Diagnostic,
@@ -666,7 +667,10 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
       if (!editorModelMatchesPath(editorRef.current, document.path)) {
         return;
       }
-      const word = model?.getWordAtPosition(position)?.word;
+      // The word under the cursor and its neighbours, to find it in the PDF.
+      const context = model
+        ? sourceContextAt(model.getValue(), position.lineNumber, position.column)
+        : null;
       let pdfPath = pdfPathRef.current;
       const sourceIsDirty = documentsRef.current.some(
         (item) => item.content !== item.savedContent,
@@ -696,7 +700,12 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
 
         setPreviewVisible(true);
         suppressPdfScrollSyncUntilRef.current = Date.now() + 900;
-        setPdfTarget({ ...location, word });
+        setPdfTarget({
+          ...location,
+          word: context?.word,
+          before: context?.before,
+          after: context?.after,
+        });
         setStatusMessage(
           `Showing ${pathForDisplay(document.name)}:${position.lineNumber} in PDF`,
         );
@@ -782,6 +791,8 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
           line: location.line,
           column: location.column,
           word: pdfLocation.word,
+          before: pdfLocation.before,
+          after: pdfLocation.after,
         };
         await openDocument(entry);
         setWelcomeOpen(false);
@@ -908,7 +919,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
     editorScrollSyncRunIdRef.current = syncRunId;
 
     try {
-      const word = model.getWordAtPosition({ lineNumber, column })?.word;
+      const context = sourceContextAt(model.getValue(), lineNumber, column);
       const location = await window.latexdo.forwardSyncTex(
         currentProject,
         pdfPath,
@@ -921,7 +932,12 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
       }
 
       suppressPdfScrollSyncUntilRef.current = Date.now() + 900;
-      setPdfTarget({ ...location, word });
+      setPdfTarget({
+        ...location,
+        word: context?.word,
+        before: context?.before,
+        after: context?.after,
+      });
     } catch {
       // Scroll sync is opportunistic: no compiled SyncTeX match means no movement.
     }

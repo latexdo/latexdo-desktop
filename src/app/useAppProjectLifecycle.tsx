@@ -201,11 +201,13 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
     browserAutoOpenRef.current = true;
     void (async () => {
       try {
-        // On the desktop: a shared cloud project first, else the folder
-        // that was open when LatexDo last closed (#229).
+        // On the desktop: a file opened from Finder first, then a shared
+        // cloud project, else the folder that was open when LatexDo last
+        // closed (#229).
         const project =
           runtime === "desktop"
-            ? ((await window.latexdo.restoreCloudProject()) ??
+            ? ((await window.latexdo.openRequestedProject?.()) ??
+              (await window.latexdo.restoreCloudProject()) ??
               (await window.latexdo.reopenLastProject?.()) ??
               null)
             : await window.latexdo.openProject();

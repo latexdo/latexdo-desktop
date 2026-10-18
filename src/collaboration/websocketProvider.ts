@@ -11,6 +11,8 @@ import type { CollaboratorPresence, CollaboratorRole } from "../types";
 const messageSync = 0;
 const messageAwareness = 1;
 const messageProjectPresence = 4;
+/** The project's files changed (added, moved, deleted or replaced). */
+const messageProjectChanged = 5;
 const reconnectInitialDelayMs = 750;
 const reconnectMaxDelayMs = 10_000;
 const outboundHighWaterBytes = 512 * 1024;
@@ -39,6 +41,7 @@ export interface LatexDoWebsocketProviderOptions {
   onConnectionError?: (message: string, status?: number) => void;
   onSynced?: () => void;
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
+  onProjectChanged?: (revision: number) => void;
 }
 
 function isCollaboratorRole(value: unknown): value is CollaboratorRole {
@@ -93,6 +96,7 @@ export class LatexDoWebsocketProvider {
   private readonly onConnectionError?: (message: string, status?: number) => void;
   private readonly onSynced?: () => void;
   private readonly onPresenceChange?: (users: CollaboratorPresence[]) => void;
+  private readonly onProjectChanged?: (revision: number) => void;
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private outboundDrainTimer: number | null = null;
@@ -111,6 +115,7 @@ export class LatexDoWebsocketProvider {
     this.onConnectionError = options.onConnectionError;
     this.onSynced = options.onSynced;
     this.onPresenceChange = options.onPresenceChange;
+    this.onProjectChanged = options.onProjectChanged;
     this.doc.on("update", this.handleDocUpdate);
     this.awareness.on("update", this.handleAwarenessUpdate);
     this.connect();
@@ -300,6 +305,18 @@ export class LatexDoWebsocketProvider {
         if (decoding.hasContent(decoder) || raw.length > maxPresenceFrameBytes) return;
         const users = parseProjectPresence(JSON.parse(raw) as unknown);
         if (users) this.onPresenceChange?.(users);
+      } catch {
+        return;
+      }
+    }
+
+    if (messageType === messageProjectChanged) {
+      try {
+        const raw = decoding.readVarString(decoder);
+        const revision = (JSON.parse(raw) as { revision?: unknown }).revision;
+        if (typeof revision === "number" && Number.isFinite(revision)) {
+          this.onProjectChanged?.(revision);
+        }
       } catch {
         return;
       }

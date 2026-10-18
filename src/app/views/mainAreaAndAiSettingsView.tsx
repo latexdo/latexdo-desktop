@@ -415,9 +415,11 @@ export function renderShareProjectDialog(ctx: AppCtx) {
           setStatusMessage(
             text === collaborationState.inviteCode
               ? "Invite copied"
-              : text === collaborationState.shareUrl
-                ? "Collaboration link copied"
-                : "Collaboration token copied",
+              : text.includes("/join#")
+                ? "Web link copied"
+                : text === collaborationState.shareUrl
+                  ? "Collaboration link copied"
+                  : "Collaboration token copied",
           );
         })();
       }}

@@ -7,7 +7,15 @@ import {
 } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
-import type { SyncTexPdfLocation } from "./types";
+import type { SyncTexBox, SyncTexPdfLocation } from "./types";
+import {
+  contextAt,
+  contextScore,
+  normalizeWord,
+  textWords,
+  wordSimilarity,
+  type WordContext,
+} from "./features/pdf/wordMatch";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -16,6 +24,9 @@ export interface PdfClickLocation {
   x: number;
   y: number;
   word?: string;
+  /** The clicked word's neighbours, to find the exact occurrence in the source. */
+  before?: string[];
+  after?: string[];
 }
 
 export interface PdfPreviewRect {
@@ -90,103 +101,171 @@ interface HighlightRect {
   height: number;
 }
 
-const wordPattern = /[\p{L}\p{N}_'-]+/gu;
-
-function wordsIn(text: string): Array<{ word: string; start: number; end: number }> {
-  return Array.from(text.matchAll(wordPattern), (match) => ({
-    word: match[0],
-    start: match.index,
-    end: match.index + match[0].length,
-  }));
+interface PageWordPart {
+  node: Text;
+  start: number;
+  end: number;
 }
 
-function wordAtPoint(event: React.MouseEvent): string | undefined {
+interface PageWord {
+  word: string;
+  norm: string;
+  parts: PageWordPart[];
+}
+
+/**
+ * The words of a rendered page in reading order. A word broken by a hyphen at
+ * the end of a PDF line ("vex-" / "ingly") is joined into one.
+ */
+function pageWords(textLayer: HTMLElement): PageWord[] {
+  const words: PageWord[] = [];
+  let hyphenPending = false;
+  for (const span of textLayer.querySelectorAll("span")) {
+    const node = Array.from(span.childNodes).find(
+      (child): child is Text => child.nodeType === Node.TEXT_NODE,
+    );
+    const text = node?.textContent ?? "";
+    if (!node || !text) continue;
+    const found = textWords(text);
+    found.forEach((item, index) => {
+      const part = { node, start: item.start, end: item.end };
+      const previous = words[words.length - 1];
+      if (hyphenPending && index === 0 && previous) {
+        previous.word += item.word;
+        previous.norm = normalizeWord(previous.word);
+        previous.parts.push(part);
+      } else {
+        words.push({ word: item.word, norm: normalizeWord(item.word), parts: [part] });
+      }
+      hyphenPending = false;
+    });
+    const last = found[found.length - 1];
+    if (last && /^[-\u00ad\u2010]\s*$/.test(text.slice(last.end))) hyphenPending = true;
+    else if (text.trim()) hyphenPending = false;
+  }
+  return words;
+}
+
+function partRect(part: PageWordPart, pageBounds: DOMRect): HighlightRect {
+  const range = document.createRange();
+  range.setStart(part.node, part.start);
+  range.setEnd(part.node, part.end);
+  const bounds = range.getBoundingClientRect();
+  return {
+    left: bounds.left - pageBounds.left,
+    top: bounds.top - pageBounds.top,
+    width: bounds.width,
+    height: bounds.height,
+  };
+}
+
+/** The word under a double-click, with its neighbours on the page. */
+function wordAtPoint(
+  event: React.MouseEvent,
+  textLayer: HTMLElement | null,
+): WordContext | undefined {
   const element = event.target instanceof Element ? event.target : null;
   const span = element?.closest(".textLayer span");
-  if (!(span instanceof HTMLElement)) {
+  if (!(span instanceof HTMLElement) || !textLayer) {
     return undefined;
   }
-
-  const text = span.textContent ?? "";
-  const words = wordsIn(text);
-  if (!words.length) {
-    return undefined;
-  }
+  const node = Array.from(span.childNodes).find(
+    (child): child is Text => child.nodeType === Node.TEXT_NODE,
+  );
+  if (!node) return undefined;
 
   const pointDocument = document as Document & {
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
   };
   const range = pointDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
-  let offset = -1;
-  if (range?.startContainer.nodeType === Node.TEXT_NODE) {
-    offset = range.startOffset;
-  }
-
+  let offset = range?.startContainer === node ? range.startOffset : -1;
   if (offset < 0) {
     const bounds = span.getBoundingClientRect();
     const ratio =
       bounds.width > 0
         ? Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width))
         : 0;
-    offset = Math.round(text.length * ratio);
+    offset = Math.round((node.textContent ?? "").length * ratio);
   }
 
-  return (
-    words.find(({ start, end }) => offset >= start && offset <= end)?.word ??
-    words.reduce((nearest, word) =>
-      Math.abs((word.start + word.end) / 2 - offset) <
-      Math.abs((nearest.start + nearest.end) / 2 - offset)
-        ? word
-        : nearest,
-    ).word
-  );
+  const words = pageWords(textLayer);
+  let best = -1;
+  let bestDistance = Infinity;
+  words.forEach((word, index) => {
+    for (const part of word.parts) {
+      if (part.node !== node) continue;
+      const distance =
+        offset < part.start
+          ? part.start - offset
+          : offset > part.end
+            ? offset - part.end
+            : 0;
+      if (distance < bestDistance) {
+        best = index;
+        bestDistance = distance;
+      }
+    }
+  });
+  return best < 0 ? undefined : contextAt(words, best);
 }
 
+function boxRect(box: SyncTexBox, cssScale: number): HighlightRect {
+  return {
+    left: box.h * cssScale,
+    top: (box.v - box.height) * cssScale,
+    width: box.width * cssScale,
+    height: box.height * cssScale,
+  };
+}
+
+function distanceToRect(x: number, y: number, rect: HighlightRect): number {
+  const dx = Math.max(rect.left - x, 0, x - (rect.left + rect.width));
+  const dy = Math.max(rect.top - y, 0, y - (rect.top + rect.height));
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * The exact occurrence of the source word on this page: same word, same
+ * neighbours, closest to the lines SyncTeX named.
+ */
 function findWordHighlight(
   textLayer: HTMLElement,
   pageElement: HTMLElement,
-  word: string,
-  targetX: number,
-  targetY: number,
+  target: SyncTexPdfLocation,
+  cssScale: number,
 ): HighlightRect | null {
+  if (!target.word) return null;
+  const wanted = normalizeWord(target.word);
+  const context: WordContext = {
+    word: target.word,
+    before: target.before ?? [],
+    after: target.after ?? [],
+  };
   const pageBounds = pageElement.getBoundingClientRect();
-  let best:
-    | {
-        distance: number;
-        rect: HighlightRect;
-      }
-    | undefined;
-
-  for (const span of textLayer.querySelectorAll("span")) {
-    const textNode = Array.from(span.childNodes).find(
-      (node) => node.nodeType === Node.TEXT_NODE,
+  const boxes = (
+    target.boxes?.length
+      ? target.boxes
+      : [{ h: target.h, v: target.v, width: target.width, height: target.height }]
+  ).map((box) => boxRect(box, cssScale));
+  const lineHeight = Math.max(8, ...boxes.map((box) => box.height));
+  const words = pageWords(textLayer);
+  let best: { score: number; rect: HighlightRect } | null = null;
+  words.forEach((word, index) => {
+    const similarity = wordSimilarity(word.norm, wanted);
+    if (!similarity) return;
+    const rect = partRect(word.parts[0]!, pageBounds);
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const distance = Math.min(
+      ...boxes.map((box) => distanceToRect(centerX, centerY, box)),
     );
-    const text = textNode?.textContent ?? "";
-    let start = text.indexOf(word);
-
-    while (textNode && start >= 0) {
-      const range = document.createRange();
-      range.setStart(textNode, start);
-      range.setEnd(textNode, start + word.length);
-      const bounds = range.getBoundingClientRect();
-      const rect = {
-        left: bounds.left - pageBounds.left,
-        top: bounds.top - pageBounds.top,
-        width: bounds.width,
-        height: bounds.height,
-      };
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const distance = Math.hypot(centerX - targetX, centerY - targetY);
-
-      if (!best || distance < best.distance) {
-        best = { distance, rect };
-      }
-      start = text.indexOf(word, start + word.length);
-    }
-  }
-
-  return best?.rect ?? null;
+    const score =
+      similarity * 3 +
+      contextScore(words, index, context) * 4 -
+      (distance / lineHeight) * 0.5;
+    if (!best || score > best.score) best = { score, rect };
+  });
+  return (best as { rect: HighlightRect } | null)?.rect ?? null;
 }
 
 function PdfPage({
@@ -294,16 +373,9 @@ function PdfPage({
 
     const targetX = target.x * cssScale;
     const targetY = target.y * cssScale;
-    const exactHighlight =
-      target.word && textLayerRef.current
-        ? findWordHighlight(
-            textLayerRef.current,
-            pageRef.current,
-            target.word,
-            targetX,
-            targetY,
-          )
-        : null;
+    const exactHighlight = textLayerRef.current
+      ? findWordHighlight(textLayerRef.current, pageRef.current, target, cssScale)
+      : null;
     setHighlight(
       exactHighlight ?? {
         left: Math.max(0, targetX - 4),
@@ -321,11 +393,14 @@ function PdfPage({
     }
     event.preventDefault();
     const bounds = event.currentTarget.getBoundingClientRect();
+    const context = wordAtPoint(event, textLayerRef.current);
     onNavigate({
       page: pageNumber,
       x: (event.clientX - bounds.left) / cssScale,
       y: (event.clientY - bounds.top) / cssScale,
-      word: wordAtPoint(event),
+      ...(context
+        ? { word: context.word, before: context.before, after: context.after }
+        : {}),
     });
   };
 

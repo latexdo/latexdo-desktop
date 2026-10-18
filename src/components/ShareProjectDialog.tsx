@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { CollaboratorsList } from "./CollaboratorsList";
+import { webLinkForInvite } from "../collaboration/webLink";
 import { PermissionManagement } from "./PermissionManagement";
 import type {
   CollaborationState,
@@ -100,6 +101,13 @@ export function ShareProjectDialog({
   onRefreshPermissions,
 }: ShareProjectDialogProps) {
   const [mode, setMode] = useState<HostSharingMode>("internet");
+  const [webLinkCopied, setWebLinkCopied] = useState(false);
+  const webLink = webLinkForInvite(state.inviteCode);
+  useEffect(() => {
+    if (!webLinkCopied) return;
+    const timer = setTimeout(() => setWebLinkCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [webLinkCopied]);
 
   useEffect(() => {
     if (!open) return;
@@ -197,14 +205,35 @@ export function ShareProjectDialog({
                 onClick={() => state.inviteCode && onCopy(state.inviteCode)}
                 disabled={!state.inviteCode}
               >
-                {copied ? <Check size={15} /> : <Copy size={15} />}
-                {copied ? "Copied" : "Copy invite"}
+                {copied && !webLinkCopied ? <Check size={15} /> : <Copy size={15} />}
+                {copied && !webLinkCopied ? "Copied" : "Copy invite"}
               </button>
             </div>
+            {webLink ? (
+              <div className="share-link-row share-flush">
+                <Globe size={15} />
+                <input
+                  readOnly
+                  value={webLink}
+                  aria-label="Web link"
+                  onFocus={(event) => event.target.select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCopy(webLink);
+                    setWebLinkCopied(true);
+                  }}
+                >
+                  {webLinkCopied ? <Check size={15} /> : <Copy size={15} />}
+                  {webLinkCopied ? "Copied" : "Copy web link"}
+                </button>
+              </div>
+            ) : null}
             <p className="share-hint">
-              Send the invite to your collaborators. They open Share in their LatexDo
-              and paste it under Join. It works while LatexDo stays open on this
-              computer.
+              {webLink
+                ? "Send the web link: your collaborators edit in their browser, with no account or install. People with LatexDo can paste the invite or the link under Join. The project stays online when you close LatexDo."
+                : "Send the invite to your collaborators. They open Share in their LatexDo and paste it under Join. It works while LatexDo stays open on this computer."}
             </p>
             {isAdmin ? (
               <label className="share-check">
@@ -261,7 +290,7 @@ export function ShareProjectDialog({
                 <p className="share-hint">
                   {state.hosted
                     ? "This is the shared copy of your project. Sharing is off."
-                    : "Share this project straight from your computer. No account and no server needed."}
+                    : "No account needed. Choose how people reach the project."}
                 </p>
                 {startError || (host?.phase === "failed" && host.message) ? (
                   <div className="share-error share-flush" role="alert">
@@ -288,7 +317,10 @@ export function ShareProjectDialog({
                     </span>
                     <span className="share-mode-text">
                       <strong>Over the internet</strong>
-                      <small>Works from anywhere, through a free encrypted link.</small>
+                      <small>
+                        Works from anywhere and stays online when your computer is off.
+                        The invite never expires.
+                      </small>
                     </span>
                   </label>
                   <label className={`share-mode ${mode === "local" ? "selected" : ""}`}>
@@ -305,7 +337,8 @@ export function ShareProjectDialog({
                     <span className="share-mode-text">
                       <strong>Same network only</strong>
                       <small>
-                        No internet needed. Not encrypted, so use a network you trust.
+                        Shared from this computer, no internet needed. Not encrypted, so
+                        use a network you trust.
                       </small>
                     </span>
                   </label>

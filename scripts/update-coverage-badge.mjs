@@ -15,7 +15,11 @@ async function verifyDirectory(relative) {
   for (const entry of await readdir(new URL(relative, root), { withFileTypes: true })) {
     const file = `${relative}${entry.name}`;
     if (entry.isDirectory()) {
-      if (!["node_modules", "__tests__"].includes(entry.name)) {
+      // collaborations/cloudflare is a separate Workers project with its own tests.
+      if (
+        !["node_modules", "__tests__"].includes(entry.name) &&
+        file !== "collaborations/cloudflare"
+      ) {
         await verifyDirectory(`${file}/`);
       }
       continue;

@@ -34,6 +34,7 @@ export interface CollaborationClientOptions extends CollaborationRoomOptions {
   onConnectionError?: (message: string, status?: number) => void;
   onSynced?: () => void;
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
+  onProjectChanged?: (revision: number) => void;
 }
 
 export interface CollaborationDocument {

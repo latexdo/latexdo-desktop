@@ -33,6 +33,7 @@ import { useAppEditorDecorations } from "./app/useAppEditorDecorations";
 import { useAppCitationSearch } from "./app/useAppCitationSearch";
 import { useAppMonacoSetup } from "./app/useAppMonacoSetup";
 import { useAppCollaboration } from "./app/useAppCollaboration";
+import { statusbarStateFor, useNetworkOnline } from "./app/statusbarState";
 import { useAppProjectCreation } from "./app/useAppProjectCreation";
 import { useAppAiActions } from "./app/useAppAiActions";
 import { useAppWorkspaceLayout } from "./app/useAppWorkspaceLayout";
@@ -87,6 +88,7 @@ import {
 } from "./app/views/settingsAboutView";
 
 export default function App() {
+  const networkOnline = useNetworkOnline();
   // The component's state and handlers live in src/app, split by area. Each
   // hook receives what the earlier ones returned, so the hooks run in a fixed order.
   const s01 = useAppWorkspaceState();
@@ -222,6 +224,12 @@ export default function App() {
     whatsNew,
     whatsNewOpen,
   } = ctx;
+  const statusbarState = statusbarStateFor({
+    compileResult: ctx.compileResult,
+    sharing: ctx.collaborationState.enabled,
+    liveConnection: ctx.liveConnection,
+    online: networkOnline,
+  });
   const projectHasFile = (relativePath: string) =>
     allProjectEntries.some(
       (entry) => entry.type === "file" && entry.relativePath === relativePath,
@@ -456,7 +464,11 @@ export default function App() {
 
       {updateBannerVisible && availableUpdateVersion ? renderUpdateBanner(ctx) : null}
 
-      <footer className="statusbar" aria-label="Project diagnostics">
+      <footer
+        className="statusbar"
+        data-state={statusbarState}
+        aria-label="Project diagnostics"
+      >
         {renderStatusbarGroup(ctx)}
         <div className="statusbar-group">
           {mode !== "author" ? (
