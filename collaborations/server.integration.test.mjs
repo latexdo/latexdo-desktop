@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import * as Y from "yjs";
+import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import * as sync from "y-protocols/sync";
 
@@ -462,6 +463,46 @@ describe("real collaboration HTTP service", () => {
     const denied = await request(base + "/open", late, "POST", {});
     expect(denied.status).toBe(403);
     expect((await denied.json()).code).toBe("access-removed");
+  });
+  it("tells the owner's open document about join requests the moment they arrive", async () => {
+    const { id, token } = await shared();
+    const base = `/api/shares/${token}`;
+    await request(`/api/projects/${id}/files/content?path=main.tex`, owner, "PUT", {
+      content: "",
+    });
+    await request(base + "/approval", owner, "PUT", { requireApproval: true });
+    const url = new URL(`/api/projects/${id}/files/collaborate`, origin);
+    url.protocol = "ws:";
+    url.search = new URLSearchParams({
+      session: owner.session,
+      clientId: owner.client,
+      path: "main.tex",
+    }).toString();
+    const socket = new WebSocket(url);
+    socket.binaryType = "arraybuffer";
+    sockets.add(socket);
+    const pushed = [];
+    socket.addEventListener("message", (event) => {
+      const decoder = decoding.createDecoder(new Uint8Array(event.data));
+      if (decoding.readVarUint(decoder) !== 6) return;
+      pushed.push(JSON.parse(decoding.readVarString(decoder)).pending);
+    });
+    await new Promise((resolve, reject) => {
+      socket.addEventListener("open", resolve, { once: true });
+      socket.addEventListener("error", reject, { once: true });
+    });
+    const knock = await request(base + "/open", guest, "POST", {});
+    expect((await knock.json()).code).toBe("approval-pending");
+    await vi.waitFor(() =>
+      expect(pushed.at(-1)?.map((entry) => entry.clientId)).toEqual([guest.client]),
+    );
+    await request(base + `/pending/${guest.client}`, owner, "POST", {
+      action: "approve",
+    });
+    await vi.waitFor(() => expect(pushed.at(-1)).toEqual([]));
+    expect((await request(base + "/open", guest, "POST", {})).status).toBe(200);
+    socket.close();
+    sockets.delete(socket);
   });
   it("retires the invite when a collaborator is removed", async () => {
     const { token } = await shared();

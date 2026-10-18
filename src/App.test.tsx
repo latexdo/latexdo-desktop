@@ -3505,9 +3505,6 @@ describe("App critical UI controls", () => {
       api.createCollaborationLink.mock.invocationCallOrder[0],
     );
     await waitFor(() => expect(copy).toHaveBeenCalledWith("share-token"));
-    fireEvent.change(screen.getByLabelText("Collaboration display name"), {
-      target: { value: "Ada" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Collaboration token")).toHaveValue("new-token"),
@@ -3552,6 +3549,14 @@ describe("App critical UI controls", () => {
       requireApproval: true,
       pending: [{ clientId: "late", name: "Eve", requestedAt: 1 }],
     });
+    // The owner's app also asks who is waiting; the server gives the same answer.
+    api.getCollaborationPermissions.mockResolvedValue({
+      permissions: [],
+      isAdmin: true,
+      currentUserRole: "admin",
+      requireApproval: true,
+      pending: [{ clientId: "late", name: "Eve", requestedAt: 1 }],
+    });
     api.resolveCollaborationRequest.mockResolvedValue({ ...live, pending: [] });
     api.saveSharedProjectToFolder.mockResolvedValue({
       saved: true,
@@ -3566,7 +3571,7 @@ describe("App critical UI controls", () => {
     fireEvent.click(screen.getAllByTitle("Share project")[0]);
     const dialog = await screen.findByRole("dialog", { name: "Share Project" });
     expect(api.createCollaborationLink).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Start sharing" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create link" }));
     await waitFor(() =>
       expect(api.createCollaborationLink).toHaveBeenCalledWith(
         project.id,

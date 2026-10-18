@@ -6,13 +6,19 @@ import * as syncProtocol from "y-protocols/sync";
 import * as Y from "yjs";
 import { CollaborationApiError } from "./collaborationApi";
 import type { CollaborationConnectionStatus } from "./collaborationTypes";
-import type { CollaboratorPresence, CollaboratorRole } from "../types";
+import type {
+  CollaborationJoinRequest,
+  CollaboratorPresence,
+  CollaboratorRole,
+} from "../types";
 
 const messageSync = 0;
 const messageAwareness = 1;
 const messageProjectPresence = 4;
 /** The project's files changed (added, moved, deleted or replaced). */
 const messageProjectChanged = 5;
+/** Admins only: who is waiting to join the project, sent when it changes. */
+const messageJoinRequests = 6;
 const reconnectInitialDelayMs = 750;
 const reconnectMaxDelayMs = 10_000;
 const outboundHighWaterBytes = 512 * 1024;
@@ -24,6 +30,7 @@ const maxQueuedBytes = 96 * 1024 * 1024;
 const outboundDrainDelayMs = 50;
 const maxPresenceFrameBytes = 128 * 1024;
 const maxPresenceUsers = 50;
+const maxJoinRequests = 50;
 
 type AwarenessChange = {
   added: number[];
@@ -42,6 +49,7 @@ export interface LatexDoWebsocketProviderOptions {
   onSynced?: () => void;
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
   onProjectChanged?: (revision: number) => void;
+  onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
 }
 
 function isCollaboratorRole(value: unknown): value is CollaboratorRole {
@@ -87,6 +95,35 @@ function parseProjectPresence(value: unknown): CollaboratorPresence[] | null {
   return users;
 }
 
+function parseJoinRequests(value: unknown): CollaborationJoinRequest[] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = value as { version?: unknown; pending?: unknown };
+  if (snapshot.version !== 1 || !Array.isArray(snapshot.pending)) return null;
+  if (snapshot.pending.length > maxJoinRequests) return null;
+  const pending: CollaborationJoinRequest[] = [];
+  for (const value of snapshot.pending) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const request = value as Record<string, unknown>;
+    if (
+      typeof request.clientId !== "string" ||
+      !request.clientId ||
+      request.clientId.length > 160 ||
+      typeof request.name !== "string" ||
+      request.name.length > 80 ||
+      typeof request.requestedAt !== "number" ||
+      !Number.isSafeInteger(request.requestedAt)
+    ) {
+      return null;
+    }
+    pending.push({
+      clientId: request.clientId,
+      name: request.name,
+      requestedAt: request.requestedAt,
+    });
+  }
+  return pending;
+}
+
 export class LatexDoWebsocketProvider {
   readonly doc: Y.Doc;
   readonly awareness: Awareness;
@@ -97,6 +134,7 @@ export class LatexDoWebsocketProvider {
   private readonly onSynced?: () => void;
   private readonly onPresenceChange?: (users: CollaboratorPresence[]) => void;
   private readonly onProjectChanged?: (revision: number) => void;
+  private readonly onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private outboundDrainTimer: number | null = null;
@@ -116,6 +154,7 @@ export class LatexDoWebsocketProvider {
     this.onSynced = options.onSynced;
     this.onPresenceChange = options.onPresenceChange;
     this.onProjectChanged = options.onProjectChanged;
+    this.onJoinRequests = options.onJoinRequests;
     this.doc.on("update", this.handleDocUpdate);
     this.awareness.on("update", this.handleAwarenessUpdate);
     this.connect();
@@ -317,6 +356,18 @@ export class LatexDoWebsocketProvider {
         if (typeof revision === "number" && Number.isFinite(revision)) {
           this.onProjectChanged?.(revision);
         }
+      } catch {
+        return;
+      }
+    }
+
+    if (messageType === messageJoinRequests) {
+      if (buffer.byteLength > maxPresenceFrameBytes) return;
+      try {
+        const pending = parseJoinRequests(
+          JSON.parse(decoding.readVarString(decoder)) as unknown,
+        );
+        if (pending) this.onJoinRequests?.(pending);
       } catch {
         return;
       }

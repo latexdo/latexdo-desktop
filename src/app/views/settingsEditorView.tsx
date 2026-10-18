@@ -10,7 +10,6 @@ import { layoutPresetInfo } from "../../features/ai/aiConfig";
 import type { Engine } from "../../types";
 import {
   boundedInteger,
-  colorThemeOptions,
   defaultSettings,
   maxProjectTreeDepth,
   maxProjectTreeEntries,
@@ -20,6 +19,7 @@ import {
 } from "../../features/settings/settings";
 import { supportsProofreading } from "../../features/proofreading/proofreading";
 import { WorkspaceLayoutPreview } from "../appShared";
+import { ThemePicker } from "../../components/ThemePicker";
 import type { AppCtx } from "../appContext";
 
 export function renderCloudForm(ctx: AppCtx) {
@@ -212,42 +212,13 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
           <strong>Theme</strong>
           <small>Each theme is a complete look for the app and the editor.</small>
         </span>
-        <div className="theme-grid" role="radiogroup" aria-label="Application theme">
-          {(["dark", "light"] as const).flatMap((appearance) =>
-            colorThemeOptions.map((theme) => {
-              const [background, accent, text] = theme.swatches[appearance];
-              const selected =
-                settings.colorTheme === theme.id && resolvedAppearance === appearance;
-              const label = `${theme.name} ${appearance === "dark" ? "Dark" : "Light"}`;
-              return (
-                <button
-                  key={`${theme.id}-${appearance}`}
-                  type="button"
-                  className={`theme-choice ${selected ? "active" : ""}`}
-                  style={{ background, color: text }}
-                  onClick={() =>
-                    setSettings((current) => ({
-                      ...current,
-                      colorTheme: theme.id,
-                      appearanceMode: appearance,
-                    }))
-                  }
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={label}
-                  title={theme.description}
-                >
-                  <span
-                    className="theme-choice-accent"
-                    style={{ background: accent }}
-                  />
-                  <strong>{theme.name}</strong>
-                  <small>{appearance === "dark" ? "Dark" : "Light"}</small>
-                </button>
-              );
-            }),
-          )}
-        </div>
+        <ThemePicker
+          colorTheme={settings.colorTheme}
+          appearance={resolvedAppearance}
+          onChoose={(colorTheme, appearanceMode) =>
+            setSettings((current) => ({ ...current, colorTheme, appearanceMode }))
+          }
+        />
       </div>
 
       <div className="settings-row settings-row-stack">

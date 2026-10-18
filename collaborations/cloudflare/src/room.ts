@@ -40,6 +40,8 @@ import type { UsageMeter } from "./usage";
 const messageProjectPresence = 4;
 /** The file tree changed: the client reloads it. */
 const messageProjectChanged = 5;
+/** Admins only: who is waiting to join (plaintext JSON, encrypted names). */
+const messageJoinRequests = 6;
 /** client → room: one encrypted update. room → client: (seq, update). */
 const messageUpdate = 10;
 /** room → client on connect: (seq, count, updates…, role), the whole log. */
@@ -270,8 +272,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       shareToken: null,
       retiredShareTokens: [],
       sharingStopped: false,
-      // A leaked invite alone is not enough: newcomers wait for the owner.
-      requireApproval: true,
+      // The invite carries the project key, so whoever holds it is already
+      // trusted to read; making them wait on an owner who may be offline only
+      // strands them. Owners who want a gate turn approval on.
+      requireApproval: false,
       permissions: {
         [identity.clientId]: {
           clientId: identity.clientId,
@@ -466,6 +470,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       // Turning approval off must not silently admit people who were waiting.
       if (!body.requireApproval) auth.meta.pending = {};
       this.writeMeta(auth.meta);
+      this.broadcastJoinRequests(auth.meta);
       return json(200, this.state(auth));
     }
     if (route.startsWith("pending/") && method === "POST") {
@@ -495,6 +500,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         updatedAt: now(),
       };
       this.writeMeta(auth.meta);
+      this.broadcastJoinRequests(auth.meta);
       return json(200, this.state(auth));
     }
     if (route === "permissions" && method === "PUT") {
@@ -684,6 +690,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       requestedAt: existing?.requestedAt ?? now(),
     };
     this.writeMeta(meta);
+    this.broadcastJoinRequests(meta);
   }
 
   private ensureShare(meta: ProjectMeta): void {
@@ -704,6 +711,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     // Nobody new can join through a retired invite: drop their requests too.
     meta.pending = {};
     this.writeMeta(meta);
+    this.broadcastJoinRequests(meta);
   }
 
   /** Ends sharing: invites stop working and everyone but the owner leaves. */
@@ -811,6 +819,27 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       JSON.stringify({ version: 1, users: this.activePresence() }),
     );
     this.broadcastAll(encoding.toUint8Array(encoder));
+  }
+
+  /**
+   * Tells the admins with a file open who is waiting, the moment it changes,
+   * so a guest is let in without anyone reopening the Share window.
+   */
+  private broadcastJoinRequests(meta: ProjectMeta): void {
+    const message = this.joinRequestsFrame(meta);
+    for (const socket of this.ctx.getWebSockets()) {
+      if (this.info(socket)?.role === "admin") this.send(socket, message);
+    }
+  }
+
+  private joinRequestsFrame(meta: ProjectMeta): Uint8Array {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, messageJoinRequests);
+    encoding.writeVarString(
+      encoder,
+      JSON.stringify({ version: 1, pending: this.pendingList(meta) }),
+    );
+    return encoding.toUint8Array(encoder);
   }
 
   private bumpRevision(): void {
@@ -1429,6 +1458,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     // The app needs the role to know whether it may send edits.
     encoding.writeVarString(encoder, auth.role);
     this.send(server, encoding.toUint8Array(encoder));
+    // An admin who (re)connects learns at once who is already waiting.
+    if (auth.role === "admin" && Object.keys(auth.meta.pending).length) {
+      this.send(server, this.joinRequestsFrame(auth.meta));
+    }
     this.presence.set(auth.identity.clientId, {
       clientId: auth.identity.clientId,
       name: auth.identity.clientName,

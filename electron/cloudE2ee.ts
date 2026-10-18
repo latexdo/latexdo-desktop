@@ -63,6 +63,7 @@ const messageSync = 0;
 const messageAwareness = 1;
 const messageProjectPresence = 4;
 const messageProjectChanged = 5;
+const messageJoinRequests = 6;
 const messageUpdate = 10;
 const messageLog = 11;
 const messageCursor = 12;
@@ -633,18 +634,18 @@ export class CloudE2ee {
         }
         return;
       }
-      if (type === messageProjectPresence) {
+      if (type === messageProjectPresence || type === messageJoinRequests) {
         try {
           const raw = JSON.parse(decoding.readVarString(decoder)) as unknown;
           const encoder = encoding.createEncoder();
-          encoding.writeVarUint(encoder, messageProjectPresence);
+          encoding.writeVarUint(encoder, type);
           encoding.writeVarString(
             encoder,
             JSON.stringify(await this.openNames(raw, key)),
           );
           sendToEditor(encoding.toUint8Array(encoder));
         } catch {
-          // A malformed presence frame is dropped.
+          // A malformed presence or join-request frame is dropped.
         }
         return;
       }

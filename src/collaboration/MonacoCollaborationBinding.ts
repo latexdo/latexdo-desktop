@@ -6,7 +6,7 @@ import type {
   CollaborationConnectionStatus,
   CollaborationRoomOptions,
 } from "./collaborationTypes";
-import type { CollaboratorPresence } from "../types";
+import type { CollaborationJoinRequest, CollaboratorPresence } from "../types";
 import type { EditOrigin } from "../features/editor/nextEdit/nextEditTypes";
 import type { EditorMutationOrigin } from "./editProvenance";
 import { remoteCursorCss, type RemoteCursor } from "./collaboratorLook";
@@ -27,6 +27,7 @@ export interface MonacoCollaborationBindingOptions extends CollaborationRoomOpti
   onSynced?: () => void;
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
   onProjectChanged?: (revision: number) => void;
+  onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
 }
 
 export class MonacoCollaborationBinding {
@@ -60,6 +61,9 @@ export class MonacoCollaborationBinding {
       },
       onProjectChanged: (revision) => {
         if (!this.disposed) options.onProjectChanged?.(revision);
+      },
+      onJoinRequests: (pending) => {
+        if (!this.disposed) options.onJoinRequests?.(pending);
       },
     });
   }

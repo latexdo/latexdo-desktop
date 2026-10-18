@@ -368,7 +368,6 @@ export function renderShareProjectDialog(ctx: AppCtx) {
     copyToClipboard,
     createCollaborationLink,
     currentUserRole,
-    handleCollaborationDisplayNameChange,
     handleRemoveCollaborator,
     handleUpdatePermission,
     hostingAvailable,
@@ -446,7 +445,10 @@ export function renderShareProjectDialog(ctx: AppCtx) {
           setJoinCollaborationError("");
         }
       }}
-      onDisplayNameChange={handleCollaborationDisplayNameChange}
+      onEditName={() => {
+        setShareDialogOpen(false);
+        ctx.setProfileOpen(true);
+      }}
       onJoin={() => void joinCollaborationFromDialog()}
       onRegenerate={() => void regenerateCollaborationLink()}
       onClose={() => {

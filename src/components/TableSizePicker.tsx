@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Table2 } from "lucide-react";
 
 /*
@@ -8,6 +9,8 @@ import { Table2 } from "lucide-react";
 
 const maxRows = 8;
 const maxColumns = 8;
+// The grid (8 × 16px cells, 3px gaps) plus the popover's padding and border.
+const popoverWidth = 172;
 
 interface TableSizePickerProps {
   onInsert: (rows: number, columns: number) => void;
@@ -47,9 +50,17 @@ export const TableSizePicker: React.FC<TableSizePickerProps> = ({
   }, [open]);
 
   const toggle = () => {
-    // Fixed, so the scrolling toolbar never clips it.
+    // Fixed and portaled to the body: the toolbar's `contain: paint` would
+    // otherwise both clip it and become its containing block, shifting it.
     const rect = buttonRef.current?.getBoundingClientRect();
-    if (rect) setPosition({ top: rect.bottom + 6, left: rect.left });
+    if (rect) {
+      // Stay inside the window when the button sits near its right edge.
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - popoverWidth - 8),
+      );
+      setPosition({ top: rect.bottom + 6, left });
+    }
     setSize({ rows: 3, columns: 3 });
     setOpen((value) => !value);
   };
@@ -98,58 +109,61 @@ export const TableSizePicker: React.FC<TableSizePickerProps> = ({
       >
         <Table2 size={14} />
       </button>
-      {open ? (
-        <div
-          ref={popoverRef}
-          className="table-size-picker"
-          role="dialog"
-          aria-label="Insert table"
-          style={{ top: position.top, left: position.left }}
-        >
-          <div
-            ref={gridRef}
-            className="table-size-grid"
-            role="grid"
-            aria-label={`${size.rows} by ${size.columns} table`}
-            tabIndex={0}
-            onKeyDown={onKeyDown}
-          >
-            {Array.from({ length: maxRows }, (_, row) => (
-              <div key={row} role="row" className="table-size-row">
-                {Array.from({ length: maxColumns }, (_, column) => (
-                  <button
-                    key={column}
-                    type="button"
-                    role="gridcell"
-                    tabIndex={-1}
-                    aria-label={`${row + 1} by ${column + 1} table`}
-                    className={
-                      row < size.rows && column < size.columns ? "on" : undefined
-                    }
-                    onPointerEnter={() =>
-                      setSize({ rows: row + 1, columns: column + 1 })
-                    }
-                    onClick={() => insert(row + 1, column + 1)}
-                  />
+      {open
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              className="table-size-picker"
+              role="dialog"
+              aria-label="Insert table"
+              style={{ top: position.top, left: position.left }}
+            >
+              <div
+                ref={gridRef}
+                className="table-size-grid"
+                role="grid"
+                aria-label={`${size.rows} by ${size.columns} table`}
+                tabIndex={0}
+                onKeyDown={onKeyDown}
+              >
+                {Array.from({ length: maxRows }, (_, row) => (
+                  <div key={row} role="row" className="table-size-row">
+                    {Array.from({ length: maxColumns }, (_, column) => (
+                      <button
+                        key={column}
+                        type="button"
+                        role="gridcell"
+                        tabIndex={-1}
+                        aria-label={`${row + 1} by ${column + 1} table`}
+                        className={
+                          row < size.rows && column < size.columns ? "on" : undefined
+                        }
+                        onPointerEnter={() =>
+                          setSize({ rows: row + 1, columns: column + 1 })
+                        }
+                        onClick={() => insert(row + 1, column + 1)}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
-            ))}
-          </div>
-          <div className="table-size-label">
-            {size.rows} × {size.columns} table
-          </div>
-          <button
-            type="button"
-            className="table-size-action"
-            onClick={() => {
-              setOpen(false);
-              onAlignColumns();
-            }}
-          >
-            Align columns of the table at cursor
-          </button>
-        </div>
-      ) : null}
+              <div className="table-size-label">
+                {size.rows} × {size.columns} table
+              </div>
+              <button
+                type="button"
+                className="table-size-action"
+                onClick={() => {
+                  setOpen(false);
+                  onAlignColumns();
+                }}
+              >
+                Align columns of the table at cursor
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 };

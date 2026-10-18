@@ -86,6 +86,8 @@ const messageAwareness = 1;
 const messageProjectPresence = 4;
 // The project's files changed (added, moved, deleted or replaced).
 const messageProjectChanged = 5;
+// Admins only: who is waiting to join, sent the moment it changes.
+const messageJoinRequests = 6;
 
 const rooms = new Map();
 
@@ -543,7 +545,10 @@ async function authorizeProject(request, url, projectId, minimumRole = "viewer")
     throw new HttpError(403, "You do not have access to this project.");
   }
   if (!existing && !isOwner && meta.requireApproval) {
-    if (recordPendingRequest(meta, identity)) await writeProjectMeta(meta);
+    if (recordPendingRequest(meta, identity)) {
+      await writeProjectMeta(meta);
+      broadcastJoinRequests(meta);
+    }
     throw new HttpError(
       403,
       "Waiting for the project owner to let you in.",
@@ -602,6 +607,7 @@ async function rotateShare(meta) {
     await writeSharesIndex(index);
   });
   await writeProjectMeta(meta);
+  broadcastJoinRequests(meta);
   return token;
 }
 
@@ -1443,6 +1449,7 @@ async function handleShareRoute(request, response, url, parts) {
     // Turning approval off must not silently admit people who were waiting.
     if (!body.requireApproval) meta.pending = {};
     await writeProjectMeta(meta);
+    broadcastJoinRequests(meta);
     sendJson(response, request, 200, collaborationState(meta, identity, role));
     return;
   }
@@ -1480,6 +1487,7 @@ async function handleShareRoute(request, response, url, parts) {
       configurable: true,
     });
     await writeProjectMeta(meta);
+    broadcastJoinRequests(meta);
     sendJson(response, request, 200, collaborationState(meta, identity, role));
     return;
   }
@@ -1721,6 +1729,28 @@ function broadcastProjectPresence(projectId, users) {
   }
 }
 
+function encodeJoinRequests(meta) {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, messageJoinRequests);
+  encoding.writeVarString(
+    encoder,
+    JSON.stringify({ version: 1, pending: pendingList(meta) }),
+  );
+  return encoding.toUint8Array(encoder);
+}
+
+// Lets the owner in an open document answer a join request without having
+// to reopen the Share window.
+function broadcastJoinRequests(meta) {
+  const frame = encodeJoinRequests(meta);
+  for (const room of rooms.values()) {
+    if (room.projectId !== meta.id) continue;
+    for (const conn of room.conns) {
+      if (conn.role === "admin") conn.sendBinary(frame);
+    }
+  }
+}
+
 function closeClientConnections(projectId, clientId, code, reason) {
   for (const room of rooms.values()) {
     if (room.projectId !== projectId) continue;
@@ -1791,6 +1821,9 @@ async function handleUpgrade(request, socket, head) {
       broadcastProjectPresence(projectId, activePresence(auth.meta));
       if (auth.role !== "viewer") conn.sendSyncStep1();
       conn.sendAwarenessStates();
+      if (auth.role === "admin" && Object.keys(auth.meta.pending).length) {
+        conn.sendBinary(encodeJoinRequests(auth.meta));
+      }
       if (head?.byteLength) conn.receive(head);
     });
   } catch (error) {

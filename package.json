@@ -10,6 +10,7 @@
     "dev": "node scripts/dev.mjs",
     "collab:start": "node collaborations/server.mjs",
     "collab:check": "node --check collaborations/server.mjs",
+    "test:collab:e2e": "node scripts/test-collab-e2e.mjs",
     "ai:sync": "node scripts/sync-ai.mjs",
     "ai:check": "npm run ai:check:catalog && npm run ai:check:source",
     "ai:check:catalog": "node scripts/validate-catalog.mjs catalog/latexdo-ai-catalog.v1.json",
