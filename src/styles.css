@@ -9140,7 +9140,9 @@ button {
 }
 
 .notation-manager-filters {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 2px;
   border: 1px solid var(--border-input);
   border-radius: 7px;
@@ -9149,6 +9151,7 @@ button {
 
 .notation-manager-filter {
   display: inline-flex;
+  justify-content: center;
   height: 24px;
   align-items: center;
   gap: 6px;
@@ -9448,7 +9451,9 @@ button {
 }
 
 .notation-manager-tabs {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   margin: 12px 14px 0;
   padding: 2px;
@@ -18837,7 +18842,9 @@ button {
 }
 
 .notation-manager-filters {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 2px;
   border: 1px solid var(--border-input);
   border-radius: 7px;
@@ -18846,6 +18853,7 @@ button {
 
 .notation-manager-filter {
   display: inline-flex;
+  justify-content: center;
   height: 24px;
   align-items: center;
   gap: 6px;
@@ -19145,7 +19153,9 @@ button {
 }
 
 .notation-manager-tabs {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   margin: 12px 14px 0;
   padding: 2px;
