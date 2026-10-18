@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   parseDarwinVmStatAvailableBytes,
   parseLinuxMemAvailableBytes,
@@ -9,6 +9,10 @@ import {
   fastTierRuntimeAvailability,
   findLatexDoAiTier,
 } from "../electron/ai/productTiers.js";
+
+// systemCapabilities imports models.ts, which pulls in Electron; without this
+// mock the Electron package tries to download its binary at import time.
+vi.mock("electron", () => ({ app: { getPath: () => "/tmp" } }));
 
 const GB = 1024 ** 3;
 
