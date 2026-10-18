@@ -5614,31 +5614,34 @@ button {
 
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
+@media (max-width: 720px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Each card is drawn in its own theme's colors, so it previews the look. */
 .theme-choice {
   display: grid;
-  min-height: 78px;
-  padding: 12px;
-  border: 1px solid var(--border-card);
+  gap: 2px;
+  padding: 10px 12px 10px;
+  border: 1px solid rgb(127 127 127 / 28%);
   border-radius: 8px;
-  background: var(--bg-card);
-  color: var(--text-secondary);
   cursor: pointer;
   text-align: left;
 }
 
 .theme-choice:hover {
-  border-color: var(--border-hover);
-  background: var(--bg-surface-hover);
+  border-color: rgb(127 127 127 / 60%);
 }
 
 .theme-choice.active {
-  border-color: var(--border-hover);
-  background: var(--accent-panel);
-  box-shadow: inset 0 0 0 1px var(--border-hover);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
 .theme-choice:focus-visible {
@@ -5646,39 +5649,22 @@ button {
   outline-offset: 2px;
 }
 
-.theme-choice-top {
-  display: flex;
-  min-width: 0;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.theme-choice-top > span:first-child {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
+.theme-choice-accent {
+  width: 22px;
+  height: 4px;
+  margin-bottom: 6px;
+  border-radius: 999px;
 }
 
 .theme-choice strong {
-  color: var(--text-primary);
+  color: inherit;
+  font-size: 13px;
 }
 
 .theme-choice small {
-  color: var(--text-muted);
-}
-
-.theme-swatches {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 4px;
-}
-
-.theme-swatches span {
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--border-input);
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+  color: inherit;
+  font-size: 11px;
+  opacity: 0.65;
 }
 
 .settings-workspace-grid {
@@ -6072,7 +6058,7 @@ button {
   }
 
   .theme-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-workspace-grid {
@@ -15432,75 +15418,6 @@ button {
   accent-color: var(--accent);
 }
 
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.theme-choice {
-  display: grid;
-  min-height: 78px;
-  padding: 12px;
-  border: 1px solid var(--border-card);
-  border-radius: 8px;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  text-align: left;
-}
-
-.theme-choice:hover {
-  border-color: var(--border-hover);
-  background: var(--bg-surface-hover);
-}
-
-.theme-choice.active {
-  border-color: var(--border-hover);
-  background: var(--accent-panel);
-  box-shadow: inset 0 0 0 1px var(--border-hover);
-}
-
-.theme-choice:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
-
-.theme-choice-top {
-  display: flex;
-  min-width: 0;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.theme-choice-top > span:first-child {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.theme-choice strong {
-  color: var(--text-primary);
-}
-
-.theme-choice small {
-  color: var(--text-muted);
-}
-
-.theme-swatches {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 4px;
-}
-
-.theme-swatches span {
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--border-input);
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
-}
-
 .settings-workspace-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -15892,7 +15809,7 @@ button {
   }
 
   .theme-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-workspace-grid {
@@ -29091,7 +29008,6 @@ body.pane-resizing .preview-pane > * {
    Hovering a card that is not chosen only lifts it in neutral gray; the accent
    border and a stronger fill mark the chosen card alone, so the two never look
    alike. Comes last to win over the earlier per-card rules. */
-.theme-choice:hover:not(.active),
 .settings-workspace-card:hover:not(.active),
 .voice-settings-choice:hover:not(.active),
 .share-mode:hover:not(.selected),
@@ -29101,7 +29017,6 @@ body.pane-resizing .preview-pane > * {
   background: var(--bg-surface-hover);
 }
 
-.theme-choice.active,
 .settings-workspace-card.active,
 .voice-settings-choice.active,
 .share-mode.selected,
@@ -29368,15 +29283,6 @@ body.pane-resizing .preview-pane > * {
    editor's settings page, still docked so it never blocks the window. */
 .settings-backdrop:has(.settings-shell) {
   width: min(1080px, calc(100vw - 72px));
-}
-
-/* Narrow theme cards put the color dots under the name instead of over it. */
-.theme-choice-top {
-  flex-wrap: wrap;
-}
-
-.theme-choice-top > span:first-child {
-  flex: 1 1 150px;
 }
 
 /* Selected tabs, filters and segments: a soft accent tint with accent text.
