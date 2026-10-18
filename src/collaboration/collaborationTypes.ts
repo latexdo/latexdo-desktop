@@ -1,6 +1,6 @@
 import type { Awareness } from "y-protocols/awareness";
 import type * as Y from "yjs";
-import type { CollaboratorPresence } from "../types";
+import type { CollaborationJoinRequest, CollaboratorPresence } from "../types";
 
 export type CollaborationConnectionStatus =
   | "idle"
@@ -35,6 +35,8 @@ export interface CollaborationClientOptions extends CollaborationRoomOptions {
   onSynced?: () => void;
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
   onProjectChanged?: (revision: number) => void;
+  /** Admins only: who is waiting to join, pushed by the server. */
+  onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
 }
 
 export interface CollaborationDocument {

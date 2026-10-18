@@ -590,6 +590,7 @@ function start(invite: WebInvite): void {
       emoji: look.emoji,
     });
     let cancelled = false;
+    let waiting = false;
     const attempt = async (): Promise<void> => {
       const result = await session.join();
       if (cancelled) return;
@@ -598,10 +599,19 @@ function start(invite: WebInvite): void {
         return;
       }
       if (result.status === "pending") {
-        showWaiting(name, () => {
-          cancelled = true;
-          askName(begin);
-        });
+        // Shown once; checking again must not redraw the page every time.
+        if (!waiting) {
+          waiting = true;
+          showWaiting(name, () => {
+            cancelled = true;
+            askName(begin);
+          });
+        }
+        setTimeout(() => void attempt(), approvalPollMs);
+        return;
+      }
+      // A brief network failure while waiting keeps the guest in line.
+      if (waiting && !result.code) {
         setTimeout(() => void attempt(), approvalPollMs);
         return;
       }

@@ -62,6 +62,8 @@ async function ownerEditor(projectId: string, token: string) {
     name: owner.name,
     share: token,
   });
+  // Join requests the server pushes to the owner, names already decrypted.
+  const joinRequests: Array<Array<{ clientId: string; name: string }>> = [];
   let resolveSynced!: () => void;
   const synced = new Promise<void>((resolve) => (resolveSynced = resolve));
   const socket = await service.openSocket(
@@ -77,6 +79,13 @@ async function ownerEditor(projectId: string, token: string) {
       onMessage: (data) => {
         const decoder = decoding.createDecoder(data);
         const type = decoding.readVarUint(decoder);
+        if (type === 6) {
+          const snapshot = JSON.parse(decoding.readVarString(decoder)) as {
+            pending: Array<{ clientId: string; name: string }>;
+          };
+          joinRequests.push(snapshot.pending);
+          return;
+        }
         if (type === 1) {
           awarenessProtocol.applyAwarenessUpdate(
             awareness,
@@ -104,7 +113,7 @@ async function ownerEditor(projectId: string, token: string) {
     socket.send(encoding.toUint8Array(encoder));
   });
   await synced;
-  return { text, awareness, socket };
+  return { text, awareness, socket, joinRequests };
 }
 
 async function until(condition: () => boolean | Promise<boolean>, label: string) {
@@ -170,25 +179,9 @@ describe.runIf(realCloud)("co-author web editor", () => {
       const invite = (await service.cloudInvite(token))!;
       const link = `${new URL(cloudOrigin).origin}/join#${invite.slice("latexdo-invite:".length)}`;
 
-      // A newcomer waits for the owner, who lets them in as an editor.
+      // Whoever opens the link is in at once, as an editor: nobody is left
+      // waiting on an owner who may be away.
       const ada = guestFor(new URL(link).hash, "Ada", "ada");
-      expect(await ada.join()).toEqual({ status: "pending" });
-      const waiting = await call(
-        "GET",
-        `/api/shares/${token}/permissions`,
-        undefined,
-        token,
-      );
-      expect(waiting.body.pending).toEqual([
-        expect.objectContaining({ clientId: ada.identity.clientId, name: "Ada" }),
-      ]);
-      const approved = await call(
-        "POST",
-        `/api/shares/${token}/pending/${encodeURIComponent(ada.identity.clientId)}`,
-        { action: "approve", role: "editor" },
-        token,
-      );
-      expect(approved.status).toBe(200);
       const joined = await ada.join();
       expect(joined).toMatchObject({
         status: "ready",
@@ -230,9 +223,27 @@ describe.runIf(realCloud)("co-author web editor", () => {
         "the owner sees the guest's cursor",
       );
 
-      // A viewer reads along but cannot change anything.
+      // With approval on, a newcomer waits and the owner's open editor hears
+      // about it at once (by name, decrypted on the owner's side).
+      await call(
+        "PUT",
+        `/api/shares/${token}/approval`,
+        { requireApproval: true },
+        token,
+      );
       const eve = guestFor(link, "Eve", "eve");
       expect((await eve.join()).status).toBe("pending");
+      await until(
+        () =>
+          ownerDoc.joinRequests.some((pending) =>
+            pending.some(
+              (request) =>
+                request.clientId === eve.identity.clientId && request.name === "Eve",
+            ),
+          ),
+        "the owner is told Eve is waiting",
+      );
+      // A viewer reads along but cannot change anything.
       await call(
         "POST",
         `/api/shares/${token}/pending/${encodeURIComponent(eve.identity.clientId)}`,

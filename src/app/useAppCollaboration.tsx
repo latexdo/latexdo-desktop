@@ -1,6 +1,10 @@
 import type * as Monaco from "monaco-editor";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import type { HostSharingMode, GitChangedEvent } from "../types";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type {
+  CollaborationJoinRequest,
+  HostSharingMode,
+  GitChangedEvent,
+} from "../types";
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
 import {
@@ -23,6 +27,9 @@ import {
   monaco,
 } from "./appShared";
 import type { AppCtx08 } from "./appContext";
+
+// The backstop for join requests when no live connection is open to push them.
+const joinRequestPollMs = 10_000;
 
 export function useAppCollaboration(ctx: AppCtx08) {
   const {
@@ -92,6 +99,12 @@ export function useAppCollaboration(ctx: AppCtx08) {
   // The live editing connection, shown as the status bar's color.
   const [liveConnection, setLiveConnection] =
     useState<CollaborationConnectionStatus>("idle");
+  // Who was already announced as waiting to join, so each person is announced once.
+  const seenJoinRequestsRef = useRef<Set<string> | null>(null);
+  // Set below; the live connection hands pushed join requests to it.
+  const joinRequestsRef = useRef<(pending: CollaborationJoinRequest[]) => void>(
+    () => undefined,
+  );
 
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
@@ -242,6 +255,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
                 current.revision === revision ? current : { ...current, revision },
               );
             },
+            onJoinRequests: (pending) => joinRequestsRef.current(pending),
           });
         },
       );
@@ -684,6 +698,105 @@ export function useAppCollaboration(ctx: AppCtx08) {
     },
     [collaborationAvailable],
   );
+
+  // Join requests reach the owner two ways: pushed live over the open file's
+  // connection the moment someone knocks, and fetched on a timer as a backstop
+  // for when no file is open. Either way the owner is told at once, so a guest
+  // never waits on someone who does not know they are there.
+  const sharedProjectId = collaborationState.projectId ?? projectId;
+  const announceJoinRequests = useCallback(
+    (
+      forProject: string,
+      pending: CollaborationJoinRequest[],
+      requireApproval?: boolean,
+    ) => {
+      setCollaborationState((current) => {
+        if (current.projectId && current.projectId !== forProject) return current;
+        const before = (current.pending ?? []).map((item) => item.clientId).join();
+        const after = pending.map((item) => item.clientId).join();
+        const approval = requireApproval ?? current.requireApproval;
+        return before === after && current.requireApproval === approval
+          ? current
+          : { ...current, pending, requireApproval: approval };
+      });
+      const seen = seenJoinRequestsRef.current;
+      seenJoinRequestsRef.current = new Set(pending.map((item) => item.clientId));
+      const fresh = pending.filter((item) => !seen?.has(item.clientId));
+      if (!fresh.length) return;
+      const names = fresh.map((item) => item.name || "Someone").join(", ");
+      const message = `${names} ${fresh.length === 1 ? "wants" : "want"} to join your project.`;
+      setShareDialogOpen(true);
+      setStatusMessage(message);
+      if (!globalThis.document.hasFocus() && typeof Notification !== "undefined") {
+        try {
+          new Notification("LatexDo", { body: `${message} Open LatexDo to allow it.` });
+        } catch {
+          // Notifications may be turned off; the Share window still shows it.
+        }
+      }
+    },
+    [setCollaborationState, setShareDialogOpen, setStatusMessage],
+  );
+
+  useEffect(() => {
+    if (!sharedProjectId) return;
+    joinRequestsRef.current = (pending) =>
+      announceJoinRequests(sharedProjectId, pending);
+  }, [announceJoinRequests, sharedProjectId]);
+
+  useEffect(() => {
+    seenJoinRequestsRef.current = null;
+  }, [sharedProjectId, collaborationState.token]);
+
+  useEffect(() => {
+    if (
+      !collaborationAvailable ||
+      !collaborationState.enabled ||
+      !collaborationState.token ||
+      // Nobody waits when approval is off; turning it on restarts the checks.
+      collaborationState.requireApproval === false ||
+      !sharedProjectId
+    ) {
+      return;
+    }
+    let stopped = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const check = async () => {
+      let result: Awaited<
+        ReturnType<typeof window.latexdo.getCollaborationPermissions>
+      >;
+      try {
+        result = await window.latexdo.getCollaborationPermissions(sharedProjectId);
+      } catch {
+        return;
+      }
+      if (stopped || !result) return;
+      if (!result.isAdmin) {
+        // Only the owner answers requests; guests have nothing to ask for.
+        if (timer) clearInterval(timer);
+        timer = null;
+        return;
+      }
+      announceJoinRequests(
+        sharedProjectId,
+        result.pending ?? [],
+        result.requireApproval,
+      );
+    };
+    void check();
+    timer = setInterval(() => void check(), joinRequestPollMs);
+    return () => {
+      stopped = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [
+    announceJoinRequests,
+    collaborationAvailable,
+    collaborationState.enabled,
+    collaborationState.requireApproval,
+    collaborationState.token,
+    sharedProjectId,
+  ]);
 
   // The desktop app shares a project straight from this computer; there the
   // user picks how to share in the dialog before anything is exposed.

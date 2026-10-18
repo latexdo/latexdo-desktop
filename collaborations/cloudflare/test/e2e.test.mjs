@@ -151,27 +151,53 @@ test("an encrypted shared project works end to end", async () => {
     figure,
   );
 
-  // Sharing; newcomers wait for approval by default.
+  // Sharing; whoever holds the invite (and so the key) joins at once.
   const token = (await call(owner, "POST", `/api/projects/${id}/share`, {})).body.token;
   assert.match(token, /^p[0-9a-f]{32}_[A-Za-z0-9_-]{43}$/);
+  const opened = await call(guest, "POST", `/api/shares/${token}/open`, {}, token);
+  assert.equal(opened.status, 200);
+  assert.equal(opened.body.collaboration.encrypted, true);
+  assert.equal(opened.body.collaboration.requireApproval, false);
+  assert.equal((await call(stranger, "GET", `/api/projects/${id}/files`)).status, 403);
+
+  // With approval on, a newcomer waits and the owner hears about it at once.
+  const a = await connect(owner, id, "main.tex");
+  await call(
+    owner,
+    "PUT",
+    `/api/shares/${token}/approval`,
+    { requireApproval: true },
+    token,
+  );
+  const late = person("enc1:late");
   assert.equal(
-    (await call(guest, "POST", `/api/shares/${token}/open`, {}, token)).body.code,
+    (await call(late, "POST", `/api/shares/${token}/open`, {}, token)).body.code,
     "approval-pending",
+  );
+  await until(
+    () =>
+      a.frames.some((frame) => frame.type === 6 && frame.data.includes(late.client)),
+    "join request pushed to the owner",
   );
   await call(
     owner,
     "POST",
-    `/api/shares/${token}/pending/${guest.client}`,
+    `/api/shares/${token}/pending/${late.client}`,
     { action: "approve" },
     token,
   );
-  const opened = await call(guest, "POST", `/api/shares/${token}/open`, {}, token);
-  assert.equal(opened.status, 200);
-  assert.equal(opened.body.collaboration.encrypted, true);
-  assert.equal((await call(stranger, "GET", `/api/projects/${id}/files`)).status, 403);
+  assert.equal(
+    (await call(late, "POST", `/api/shares/${token}/open`, {}, token)).status,
+    200,
+  );
+  await until(
+    () =>
+      a.frames.at(-1)?.type !== 6 ||
+      JSON.parse(a.frames.at(-1).data).pending.length === 0,
+    "answered request cleared",
+  );
 
   // Live: both get the stored log, then each other's updates and cursors.
-  const a = await connect(owner, id, "main.tex");
   const b = await connect(guest, id, "main.tex", token);
   assert.deepEqual(a.log.entries, [first]);
   assert.equal(b.log.role, "editor");

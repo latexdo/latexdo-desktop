@@ -324,6 +324,43 @@ describe("LatexDoWebsocketProvider", () => {
     doc.destroy();
   });
 
+  it("delivers validated join requests and ignores malformed ones", () => {
+    const onJoinRequests = vi.fn();
+    const doc = new Y.Doc();
+    const awareness = new Awareness(doc);
+    const provider = new LatexDoWebsocketProvider({
+      url: "wss://collab.example.org/socket",
+      doc,
+      awareness,
+      onJoinRequests,
+    });
+    const socket = FakeWebSocket.instances[0];
+    const frame = (snapshot: unknown) => {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, 6);
+      encoding.writeVarString(encoder, JSON.stringify(snapshot));
+      return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
+    };
+
+    socket.receive(
+      frame({
+        version: 1,
+        pending: [{ clientId: "web-1", name: "Ada", requestedAt: 1_723_000_000_000 }],
+      }),
+    );
+    socket.receive(frame({ version: 1, pending: [{ clientId: 7, name: "Eve" }] }));
+    socket.receive(frame({ version: 2, pending: [] }));
+
+    expect(onJoinRequests).toHaveBeenCalledTimes(1);
+    expect(onJoinRequests).toHaveBeenCalledWith([
+      { clientId: "web-1", name: "Ada", requestedAt: 1_723_000_000_000 },
+    ]);
+
+    provider.destroy();
+    awareness.destroy();
+    doc.destroy();
+  });
+
   it("ignores malformed and duplicate project presence users", () => {
     const onPresenceChange = vi.fn();
     const doc = new Y.Doc();

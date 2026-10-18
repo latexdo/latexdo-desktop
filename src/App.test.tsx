@@ -3552,6 +3552,14 @@ describe("App critical UI controls", () => {
       requireApproval: true,
       pending: [{ clientId: "late", name: "Eve", requestedAt: 1 }],
     });
+    // The owner's app also asks who is waiting; the server gives the same answer.
+    api.getCollaborationPermissions.mockResolvedValue({
+      permissions: [],
+      isAdmin: true,
+      currentUserRole: "admin",
+      requireApproval: true,
+      pending: [{ clientId: "late", name: "Eve", requestedAt: 1 }],
+    });
     api.resolveCollaborationRequest.mockResolvedValue({ ...live, pending: [] });
     api.saveSharedProjectToFolder.mockResolvedValue({
       saved: true,
