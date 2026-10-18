@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Crown, User, Pencil, Eye, Trash2, Loader2 } from "lucide-react";
 import type {
   CollaboratorPermission,
+  CollaboratorPresence,
   CollaboratorRole,
   PermissionUpdate,
 } from "../types";
@@ -10,6 +11,8 @@ export interface PermissionManagementProps {
   permissions: CollaboratorPermission[];
   isAdmin: boolean;
   currentUserRole: CollaboratorRole;
+  /** Who is connected right now, shown next to their name. */
+  presence?: CollaboratorPresence[];
   onUpdatePermission: (update: PermissionUpdate) => Promise<void>;
   onRemoveCollaborator: (clientId: string) => Promise<void>;
   onRefresh: () => Promise<void>;
@@ -37,6 +40,7 @@ export function PermissionManagement({
   permissions,
   isAdmin,
   currentUserRole,
+  presence = [],
   onUpdatePermission,
   onRemoveCollaborator,
   onRefresh,
@@ -126,9 +130,7 @@ export function PermissionManagement({
 
   return (
     <div className="permission-management">
-      <h4>
-        <Crown size={14} /> Project Permissions
-      </h4>
+      <h4>People with access</h4>
 
       {error ? <div className="permission-error">{error}</div> : null}
 
@@ -138,20 +140,35 @@ export function PermissionManagement({
         </p>
       ) : (
         <table className="permission-table">
-          <thead>
-            <tr>
-              <th>Collaborator</th>
-              <th>Role</th>
-              {isAdmin ? <th>Actions</th> : null}
-            </tr>
-          </thead>
           <tbody>
             {permissions.map((perm) => {
               const isCurrent = perm.isCurrent === true;
+              const online = presence.find((user) => user.clientId === perm.clientId);
               return (
                 <tr key={perm.clientId}>
                   <td>
-                    <span className="collaborator-name">{perm.name}</span>
+                    <span className="permission-person">
+                      <span className="collaborator-avatar" aria-hidden="true">
+                        {perm.name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="permission-person-text">
+                        <span className="collaborator-name">
+                          {perm.name}
+                          {isCurrent ? <small> (you)</small> : null}
+                        </span>
+                        {online ? (
+                          <small
+                            className="permission-online"
+                            title={online.currentFile ?? undefined}
+                          >
+                            <span className="share-status-dot" aria-hidden="true" />
+                            {online.currentFile
+                              ? online.currentFile.split("/").pop()
+                              : "Online"}
+                          </small>
+                        ) : null}
+                      </span>
+                    </span>
                   </td>
                   <td>
                     {isAdmin && !isCurrent ? (

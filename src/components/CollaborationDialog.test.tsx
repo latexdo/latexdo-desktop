@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CollaborationState, CollaboratorPermission } from "../types";
+import { encodePeerInvite } from "../../electron/peerInvite";
 import { CollaborationDialog } from "./CollaborationDialog";
 import type { ShareProjectDialogProps } from "./ShareProjectDialog";
 
@@ -73,8 +74,8 @@ describe("CollaborationDialog", () => {
     render(<CollaborationDialog {...props} />);
 
     expect(screen.getByRole("dialog", { name: "Share Project" })).toBeVisible();
-    expect(screen.getAllByText("Reviewer One").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("reports/main.tex")).toBeVisible();
+    expect(screen.getAllByText("Reviewer One")).toHaveLength(1);
+    expect(screen.getByText("main.tex")).toHaveAttribute("title", "reports/main.tex");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Copy" })[0]);
     expect(props.onCopy).toHaveBeenCalledWith("share-token");
@@ -169,7 +170,7 @@ describe("CollaborationDialog", () => {
       />,
     );
     expect(screen.getByRole("status")).toHaveTextContent("Connecting…");
-    expect(screen.getByRole("button", { name: "Copy invite" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeDisabled();
 
     rerender(
       <CollaborationDialog
@@ -219,8 +220,9 @@ describe("CollaborationDialog", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Sharing is on, over the internet.",
     );
-    expect(screen.getByLabelText("Invite")).toHaveValue("latexdo-invite:abc");
-    fireEvent.click(screen.getByRole("button", { name: "Copy invite" }));
+    expect(screen.getByLabelText("Share link")).toHaveValue("latexdo-invite:abc");
+    expect(screen.getAllByRole("button", { name: /^Copy/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     expect(props.onCopy).toHaveBeenCalledWith("latexdo-invite:abc");
     fireEvent.click(screen.getByLabelText("Ask me before someone new joins"));
     expect(props.onRequireApprovalChange).toHaveBeenCalledWith(true);
@@ -228,7 +230,7 @@ describe("CollaborationDialog", () => {
     expect(props.onResolveRequest).toHaveBeenLastCalledWith("client-new", true);
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
     expect(props.onResolveRequest).toHaveBeenLastCalledWith("client-new", false);
-    fireEvent.click(screen.getByRole("button", { name: "New invite" }));
+    fireEvent.click(screen.getByRole("button", { name: "New link" }));
     expect(props.onRegenerate).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Save to my folder" }));
     expect(props.onSaveToFolder).toHaveBeenCalledOnce();
@@ -237,6 +239,34 @@ describe("CollaborationDialog", () => {
     // Joining another project is not offered while this one is being shared.
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
     expect(screen.getByTitle("Remove collaborator")).toBeVisible();
+  });
+
+  it("offers a single browser link for projects on the server", () => {
+    const invite = encodePeerInvite({
+      token: `p${"a".repeat(32)}_${"b".repeat(43)}`,
+      addresses: ["https://collab.latexdo.org"],
+      key: "k".repeat(43),
+    });
+    const webLink = `https://collab.latexdo.org/join#${invite.slice("latexdo-invite:".length)}`;
+    const props = dialogProps({
+      hostingAvailable: true,
+      permissions: [permissions[0]],
+      state: {
+        ...activeState,
+        users: [],
+        hosted: true,
+        inviteCode: invite,
+        host: { active: true, mode: "internet", phase: "ready", addresses: [] },
+      },
+    });
+    render(<CollaborationDialog {...props} />);
+
+    expect(screen.getByLabelText("Share link")).toHaveValue(webLink);
+    expect(screen.queryByDisplayValue(invite)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(props.onCopy).toHaveBeenCalledWith(webLink);
+    expect(screen.getByText(/Only you so far/)).toBeVisible();
+    expect(screen.queryByText("People with access")).not.toBeInTheDocument();
   });
 
   it("shows a guest where they are and a waiting state they can cancel", () => {
@@ -259,7 +289,7 @@ describe("CollaborationDialog", () => {
     render(<CollaborationDialog {...props} />);
 
     expect(screen.getByText(/You joined “Thesis”/)).toBeVisible();
-    expect(screen.queryByLabelText("Invite")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Share link")).not.toBeInTheDocument();
     expect(screen.queryByText("Hidden")).not.toBeInTheDocument();
     expect(
       screen.getByText("Waiting for the project owner to let you in."),
