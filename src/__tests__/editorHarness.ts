@@ -235,6 +235,7 @@ export function createEditorHarness(
       getModel: () => model,
       ScrollType: { Smooth: 1 },
       GlyphMarginLane: { Center: 2 },
+      MouseTargetType: { GUTTER_GLYPH_MARGIN: 2 },
       OverviewRulerLane: { Center: 2 },
       TrackedRangeStickiness: { NeverGrowsWhenTypingAtEdges: 1 },
       InjectedTextCursorStops: { None: 0 },

@@ -4355,6 +4355,39 @@ describe("App critical UI controls", () => {
     expect(h.editor.setPosition).toHaveBeenCalledWith({ lineNumber: 2, column: 1 });
     expect(h.editor.revealLineInCenter).toHaveBeenCalledWith(2, 1);
   });
+  it("removes a bookmark by clicking its gutter marker and can toggle it again", async () => {
+    const h = await mountEditorIntegration("First\nSecond\nThird");
+    h.select(6);
+    await act(async () => {
+      h.run("latexdo.toggleBookmark");
+    });
+    expect(
+      Object.values(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")),
+    ).toContainEqual([2]);
+    // The click must act on the marker's line, not the current cursor line.
+    h.select(0);
+    await act(async () => {
+      h.listeners.get("onMouseDown")!({
+        target: {
+          type: h.instance.editor.MouseTargetType.GUTTER_GLYPH_MARGIN,
+          position: { lineNumber: 2, column: 1 },
+        },
+        event: { leftButton: true, detail: 1, preventDefault: vi.fn() },
+      });
+    });
+    expect(screen.getByText("Removed bookmark at line 2")).toBeVisible();
+    expect(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")).toEqual({});
+    await act(async () => {
+      h.run("latexdo.toggleBookmark");
+    });
+    expect(
+      Object.values(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")),
+    ).toContainEqual([2]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove bookmark at cursor" }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")).toEqual({}),
+    );
+  });
   it("editor integration formats tables through the registered editor action", async () => {
     const content = "\\begin{tabular}{ll}\na&long\\\\\nlong&b\\\\\n\\end{tabular}";
     const h = await mountEditorIntegration(content);

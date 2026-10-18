@@ -503,7 +503,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
             isWholeLine: true,
             className: "latexdo-bookmark-line",
             glyphMarginClassName: "latexdo-bookmark-glyph",
-            glyphMarginHoverMessage: { value: "Bookmark" },
+            glyphMarginHoverMessage: { value: "Click to remove bookmark" },
             overviewRuler: {
               color: "#f5c542",
               position: monaco.editor.OverviewRulerLane.Center,
