@@ -25607,10 +25607,11 @@ button {
 }
 .kg-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .kg-search {
@@ -25622,7 +25623,7 @@ button {
   border: 1px solid var(--border-input);
   border-radius: 6px;
   color: var(--text-muted);
-  flex: 1 1 140px;
+  flex: 0 1 280px;
   min-width: 120px;
 }
 .kg-search input {
@@ -25632,15 +25633,6 @@ button {
   outline: none;
   width: 100%;
   font-size: 12px;
-}
-.kg-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  white-space: nowrap;
 }
 .kg-btn {
   display: inline-flex;
@@ -25667,9 +25659,64 @@ button {
   cursor: not-allowed;
 }
 .kg-stats {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   font-size: 11px;
   color: var(--text-muted);
-  flex-basis: 100%;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kg-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.kg-pill:hover {
+  color: var(--text-primary);
+}
+.kg-pill.on {
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.kg-pill:has(input:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+.kg-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.kg-icon-btn {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.kg-icon-btn:hover,
+.kg-icon-btn.active {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
 }
 .kg-online-panel {
   display: flex;
@@ -25820,28 +25867,56 @@ button {
   font-size: 12px;
   padding: 8px 0;
 }
+/* Floats over the graph so opening it never pushes the canvas down. */
 .kg-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 12px;
+  width: min(260px, calc(100% - 16px));
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
   background: var(--bg-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+}
+.kg-controls-title {
+  margin-bottom: -6px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 .kg-controls-relations {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
 }
 .kg-slider {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 12px;
   color: var(--text-secondary);
+}
+.kg-slider > span {
+  display: flex;
+  justify-content: space-between;
+}
+.kg-slider output {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 .kg-slider input {
   width: 100%;
+  margin: 0;
+}
+.kg-slider small {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 .kg-canvas-wrap {
   position: relative;
@@ -28159,19 +28234,6 @@ body.pane-resizing .preview-pane > * {
 }
 .activity-dragging {
   opacity: 0.45;
-}
-
-.kg-toolbar {
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.kg-toolbar .kg-stats {
-  flex-basis: 100%;
-  margin-left: 0;
-}
-.kg-toolbar .kg-search {
-  min-width: min(180px, 100%);
-  flex: 1 1 180px;
 }
 
 /* ----- Notification center (#260) ----- */
