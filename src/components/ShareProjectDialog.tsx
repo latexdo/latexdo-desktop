@@ -101,13 +101,10 @@ export function ShareProjectDialog({
   onRefreshPermissions,
 }: ShareProjectDialogProps) {
   const [mode, setMode] = useState<HostSharingMode>("internet");
-  const [webLinkCopied, setWebLinkCopied] = useState(false);
+  // One link to send: the browser link when the project is on the server,
+  // otherwise the invite (Join accepts both).
   const webLink = webLinkForInvite(state.inviteCode);
-  useEffect(() => {
-    if (!webLinkCopied) return;
-    const timer = setTimeout(() => setWebLinkCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [webLinkCopied]);
+  const shareLink = webLink ?? state.inviteCode ?? "";
 
   useEffect(() => {
     if (!open) return;
@@ -137,6 +134,13 @@ export function ShareProjectDialog({
   const showPeople =
     (!hostFlow && !joinedAsGuest) ||
     (state.enabled && (!state.hosted || hostLive || hostStarting));
+  // Before anyone else joins, the online list and the permissions table would
+  // both just show the owner.
+  const onlyOwner = isAdmin && permissions.length <= 1 && state.users.length <= 1;
+  // Admins get one list of people: access, role and who is online.
+  const managePeople = Boolean(
+    isAdmin && onUpdatePermission && onRemoveCollaborator && onRefreshPermissions,
+  );
 
   return (
     <div
@@ -189,51 +193,29 @@ export function ShareProjectDialog({
                 ? `Sharing is on, ${modeLabels[host?.mode ?? "internet"]}.`
                 : (host?.message ?? "Starting…")}
             </p>
-            <div className="share-link-row share-flush">
-              <KeyRound size={15} />
+            <div className="share-link-field">
+              <Link size={15} aria-hidden="true" />
               <input
                 readOnly
-                value={state.inviteCode ?? ""}
-                placeholder={
-                  hostLive ? "Preparing invite…" : "Your invite appears here"
-                }
-                aria-label="Invite"
+                value={shareLink}
+                placeholder={hostLive ? "Preparing link…" : "Your link appears here"}
+                aria-label="Share link"
                 onFocus={(event) => event.target.select()}
               />
               <button
                 type="button"
-                onClick={() => state.inviteCode && onCopy(state.inviteCode)}
-                disabled={!state.inviteCode}
+                className="share-copy"
+                onClick={() => shareLink && onCopy(shareLink)}
+                disabled={!shareLink}
               >
-                {copied && !webLinkCopied ? <Check size={15} /> : <Copy size={15} />}
-                {copied && !webLinkCopied ? "Copied" : "Copy invite"}
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? "Copied" : "Copy link"}
               </button>
             </div>
-            {webLink ? (
-              <div className="share-link-row share-flush">
-                <Globe size={15} />
-                <input
-                  readOnly
-                  value={webLink}
-                  aria-label="Web link"
-                  onFocus={(event) => event.target.select()}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    onCopy(webLink);
-                    setWebLinkCopied(true);
-                  }}
-                >
-                  {webLinkCopied ? <Check size={15} /> : <Copy size={15} />}
-                  {webLinkCopied ? "Copied" : "Copy web link"}
-                </button>
-              </div>
-            ) : null}
             <p className="share-hint">
               {webLink
-                ? "Send the web link: your collaborators edit in their browser, with no account or install. People with LatexDo can paste the invite or the link under Join. The project stays online when you close LatexDo."
-                : "Send the invite to your collaborators. They open Share in their LatexDo and paste it under Join. It works while LatexDo stays open on this computer."}
+                ? "Anyone with this link can edit in their browser, no account or install needed. LatexDo users can also paste it under Join. The project stays online when you close LatexDo."
+                : "Collaborators paste this link under Join in LatexDo. It works while LatexDo stays open on this computer."}
             </p>
             {isAdmin ? (
               <label className="share-check">
@@ -251,10 +233,10 @@ export function ShareProjectDialog({
                   type="button"
                   onClick={onRegenerate}
                   disabled={busy || !state.inviteCode}
-                  title="Make a new invite. The current one stops working for new people."
+                  title="Make a new link. The current one stops working for new people."
                 >
                   <RefreshCw size={14} />
-                  New invite
+                  New link
                 </button>
               ) : null}
               {onSaveToFolder ? (
@@ -501,8 +483,19 @@ export function ShareProjectDialog({
           </form>
         ) : null}
 
-        {showPeople ? <CollaboratorsList users={state.users} /> : null}
+        {showPeople && onlyOwner ? (
+          <p className="share-hint share-people-empty">
+            Only you so far. Send the link to invite people.
+          </p>
+        ) : null}
+        {showPeople && !onlyOwner && !managePeople ? (
+          <div className="share-section">
+            <h4>Online now</h4>
+            <CollaboratorsList users={state.users} />
+          </div>
+        ) : null}
         {showPeople &&
+        !onlyOwner &&
         onUpdatePermission &&
         onRemoveCollaborator &&
         onRefreshPermissions ? (
@@ -510,6 +503,7 @@ export function ShareProjectDialog({
             permissions={permissions}
             isAdmin={isAdmin}
             currentUserRole={currentUserRole as "admin" | "editor" | "viewer"}
+            presence={state.users}
             onUpdatePermission={onUpdatePermission}
             onRemoveCollaborator={onRemoveCollaborator}
             onRefresh={onRefreshPermissions}

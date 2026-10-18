@@ -3570,7 +3570,7 @@ describe("App critical UI controls", () => {
       ),
     );
     await waitFor(() =>
-      expect(within(dialog).getByLabelText("Invite")).toHaveValue("latexdo-invite:abc"),
+      expect(within(dialog).getByLabelText("Share link")).toHaveValue("latexdo-invite:abc"),
     );
     expect(api.joinCollaboration).not.toHaveBeenCalled();
 

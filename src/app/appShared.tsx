@@ -1013,7 +1013,12 @@ export function editorModelMatchesPath(
   // The browser build names documents by URI ("browser://latexdo/…/main.tex"),
   // which has no file-system path to compare.
   if (uri.toString() === filePath || uri.toString(true) === filePath) return true;
-  return normalizeRelativePath(uri.fsPath) === normalizeRelativePath(filePath);
+  const modelPath = normalizeRelativePath(uri.fsPath);
+  const targetPath = normalizeRelativePath(filePath);
+  if (modelPath === targetPath) return true;
+  // Cloud projects use relative paths ("chapters/intro.tex"), which Monaco
+  // turns into file:///chapters/intro.tex, so the model path gains a "/".
+  return !targetPath.startsWith("/") && modelPath === `/${targetPath}`;
 }
 
 export function getNearbyCitationContext(

@@ -26,7 +26,11 @@ export function CollaboratorsList({ users }: { users: CollaboratorPresence[] }) 
           </span>
           <span className="collaborator-meta">
             <strong>{user.name}</strong>
-            {user.currentFile ? <small>{user.currentFile}</small> : null}
+            {user.currentFile ? (
+              <small title={user.currentFile}>
+                {user.currentFile.split("/").pop()}
+              </small>
+            ) : null}
             {user.role ? (
               <span className="collaborator-role" title={user.role}>
                 {roleIcons[user.role] ?? <User size={12} />}

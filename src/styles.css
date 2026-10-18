@@ -4546,13 +4546,12 @@ button {
 }
 
 .permission-management h4 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   margin: 0;
-  color: var(--text-heading);
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .permission-management.info {
@@ -4588,7 +4587,7 @@ button {
 
 .permission-table th,
 .permission-table td {
-  padding: 8px 12px;
+  padding: 8px 0;
   text-align: left;
   border-bottom: 1px solid var(--border-card);
 }
@@ -4603,6 +4602,52 @@ button {
 
 .permission-table td {
   color: var(--text-primary);
+}
+
+.permission-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.permission-table td:nth-child(2) {
+  width: 120px;
+}
+
+.permission-table td:nth-child(3) {
+  width: 36px;
+  text-align: right;
+}
+
+.permission-person {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.permission-person-text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.permission-person-text small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.permission-online {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-online .share-status-dot {
+  width: 6px;
+  height: 6px;
 }
 
 .permission-table select {
@@ -4703,6 +4748,69 @@ button {
 .share-project-dialog .collaborators-list,
 .share-project-dialog .collaborators-empty {
   margin: 0 18px;
+}
+
+.share-section .collaborators-list,
+.share-section .collaborators-empty {
+  margin: 0;
+}
+
+/* The link and its copy button read as one control. */
+.share-link-field {
+  display: grid;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.share-link-field:focus-within {
+  border-color: var(--border-focus);
+}
+
+.share-link-field input {
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.share-copy {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent-bg);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.share-copy:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.share-people-empty {
+  padding: 14px 18px 0;
+  border-top: 1px solid var(--border-card);
+  color: var(--text-muted);
 }
 
 .share-project-dialog {
