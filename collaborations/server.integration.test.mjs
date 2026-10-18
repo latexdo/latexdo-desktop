@@ -504,6 +504,20 @@ describe("real collaboration HTTP service", () => {
     expect(again.token).not.toBe(token);
     expect((await request(`/api/projects/${id}/files`, guest)).status).toBe(200);
   });
+  it("deletes a project only for its owner, invite and files included", async () => {
+    const { id, token } = await shared();
+    await request(`/api/shares/${token}/open`, guest, "POST", {});
+    expect((await request(`/api/projects/${id}`, guest, "DELETE")).status).toBe(403);
+    const deleted = await request(`/api/projects/${id}`, owner, "DELETE");
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true });
+    expect((await request(`/api/projects/${id}/files`)).status).toBe(404);
+    expect((await request(`/api/shares/${token}/open`, guest, "POST", {})).status).toBe(
+      404,
+    );
+    const own = await (await request("/api/projects")).json();
+    expect(own.projects.map((project) => project.id)).not.toContain(id);
+  });
   it("applies authorized Yjs changes and persists shared document state", async () => {
     const { id, token } = await shared();
     await request(`/api/shares/${token}/open`, guest, "POST", {});

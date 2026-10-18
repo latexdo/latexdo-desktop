@@ -298,6 +298,15 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     const route = parts.slice(3).join("/");
     const method = request.method;
 
+    // Stopping sharing deletes the copy: only its owner may.
+    if (route === "" && method === "DELETE") {
+      const auth = await this.authorize(request, url, "admin");
+      if (auth.meta.ownerSessionHash !== auth.sessionHash) {
+        throw new HttpError(403, "Only the owner can delete this project.");
+      }
+      await this.deleteProject("Project deleted");
+      return json(200, { deleted: true });
+    }
     if (route === "files/collaborate") return await this.openSocket(request, url);
     if (route === "files" && method === "GET") {
       await this.authorize(request, url, "viewer");
@@ -1343,6 +1352,18 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     await this.scheduleCleanup();
   }
 
+  private async deleteProject(reason: string): Promise<void> {
+    const meta = this.readMeta();
+    if (!meta) return;
+    for (const socket of this.ctx.getWebSockets()) socket.close(1008, reason);
+    this.pending.clear();
+    await this.usage()
+      .report(meta.id, 0)
+      .catch(() => undefined);
+    await this.ctx.storage.deleteAll();
+    this.meta = null;
+  }
+
   /**
    * A project nobody has opened for a long time is deleted, so abandoned or
    * junk projects cannot fill the account's storage.
@@ -1351,13 +1372,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     const meta = this.readMeta();
     if (!meta) return;
     if (now() - (meta.lastActiveAt ?? meta.createdAt) > limits.inactiveProjectMs) {
-      for (const socket of this.ctx.getWebSockets())
-        socket.close(1008, "Project expired");
-      await this.usage()
-        .report(meta.id, 0)
-        .catch(() => undefined);
-      await this.ctx.storage.deleteAll();
-      this.meta = null;
+      await this.deleteProject("Project expired");
       return;
     }
     if (this.flushScheduled) return;

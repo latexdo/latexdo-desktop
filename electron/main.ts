@@ -116,7 +116,11 @@ import {
   runGitAction,
 } from "./gitActions.js";
 import { registerTerminalIpc } from "./terminal.js";
-import { disposePeerCollab, registerPeerCollabIpc } from "./peerCollabIpc.js";
+import {
+  disposePeerCollab,
+  registerPeerCollabIpc,
+  sharedProjectSourceFolder,
+} from "./peerCollabIpc.js";
 import { registerAiIpc } from "./ai/aiIpc.js";
 import { stopBundledSpeechServer } from "./voiceStt.js";
 import { fetchOrcidProfile } from "./orcid.js";
@@ -7780,7 +7784,13 @@ async function startApp(): Promise<void> {
       request.projectId,
     );
     await materializeCloudCompileFiles(projectPath, files);
+    // The owner's own shared copy is as trusted as the folder it came from.
+    const sourceFolder = await sharedProjectSourceFolder(request.projectId);
+    const sourceTrusted = sourceFolder
+      ? await isWorkspaceTrusted(sourceFolder).catch(() => false)
+      : false;
     if (
+      !sourceTrusted &&
       !(await ensureWorkspaceTrust(
         BrowserWindow.fromWebContents(event.sender),
         projectPath,

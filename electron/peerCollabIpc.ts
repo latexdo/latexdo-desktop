@@ -62,6 +62,13 @@ export function disposePeerCollab(): void {
   service = null;
 }
 
+/** The folder a project was shared from on this computer, if it was. */
+export async function sharedProjectSourceFolder(
+  projectId: string,
+): Promise<string | null> {
+  return (await service?.hostedProject(projectId))?.localRoot ?? null;
+}
+
 export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
   const peer = new PeerCollabService({
     dataDirectory: path.join(app.getPath("userData"), "collaboration-host"),
@@ -224,6 +231,12 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
     const channel = "peer:has-folder";
     if (args.length !== 1) invalid(channel);
     return (await peer.hostedProject(parseText(channel, args[0], 80))) !== null;
+  });
+
+  ipcMain.handle("peer:forget-shared-project", async (_event, ...args: unknown[]) => {
+    const channel = "peer:forget-shared-project";
+    if (args.length !== 1) invalid(channel);
+    await peer.forgetHostedProject(parseText(channel, args[0], 80));
   });
 
   ipcMain.handle(

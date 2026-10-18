@@ -56,6 +56,10 @@ export class OwnerIndex extends DurableObject<Record<string, unknown>> {
     );
   }
 
+  remove(id: string): void {
+    this.sql.exec("DELETE FROM projects WHERE id = ?", id);
+  }
+
   list(): Array<{ id: string; name: string; updatedAt: number }> {
     return this.sql
       .exec<{ id: string; name: string; created: number }>(
@@ -176,7 +180,19 @@ export default {
         );
       }
       if (!projectId) throw new HttpError(404, "Project not found.");
-      return await env.PROJECTS.get(env.PROJECTS.idFromName(projectId)).fetch(request);
+      const response = await env.PROJECTS.get(env.PROJECTS.idFromName(projectId)).fetch(
+        request,
+      );
+      if (
+        parts[1] === "projects" &&
+        parts.length === 3 &&
+        request.method === "DELETE" &&
+        response.ok
+      ) {
+        const identity = requestIdentity(request, url);
+        await (await ownerIndex(env, identity.sessionId)).remove(projectId);
+      }
+      return response;
     } catch (error) {
       return errorResponse(error);
     }

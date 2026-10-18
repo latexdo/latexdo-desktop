@@ -1348,6 +1348,34 @@ const api = {
     }
     return normalizeCloudState(projectId, { ...state, token: undefined });
   },
+  /**
+   * Deletes the owner's shared copy from the server once sharing stops, so
+   * nothing of the project stays online. Call it after the copy's edits are
+   * saved back to the folder it came from.
+   */
+  deleteSharedProject: async (projectId: string): Promise<void> => {
+    if (!isCloudProject(projectId)) return;
+    const local = cloudOriginForProject(projectId) === localHostOrigin;
+    try {
+      await cloudRequestJson(
+        `/api/projects/${encodeURIComponent(projectId)}`,
+        { method: "DELETE" },
+        cloudShareTokenForProject(projectId),
+      );
+    } catch (error) {
+      // A copy on this computer is removed below even when its server is off.
+      if (!local && !(error instanceof CloudApiError && error.status === 404)) {
+        throw error;
+      }
+    }
+    await ipcRenderer.invoke("peer:forget-shared-project", projectId);
+    forgetCloudShareToken(projectId);
+    cloudProjectIds.delete(projectId);
+    liveHostedProjectIds.delete(projectId);
+    if (storageGet(cloudActiveProjectKey)?.trim() === projectId) {
+      storageRemove(cloudActiveProjectKey);
+    }
+  },
   setCollaborationApproval: async (
     projectId: string,
     requireApproval: boolean,

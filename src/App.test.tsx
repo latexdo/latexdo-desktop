@@ -418,6 +418,7 @@ function installLatexDoMock(options?: {
     setCollaborationApproval: vi.fn(),
     resolveCollaborationRequest: vi.fn(),
     saveSharedProjectToFolder: vi.fn().mockResolvedValue({ saved: false }),
+    deleteSharedProject: vi.fn().mockResolvedValue(undefined),
     openSharedProjectFolder: vi.fn().mockResolvedValue(null),
     onHostSharingChanged: vi.fn(() => () => undefined),
     getGitStatus: vi.fn().mockResolvedValue(
@@ -3593,6 +3594,9 @@ describe("App critical UI controls", () => {
     await waitFor(() => expect(api.stopCollaboration).toHaveBeenCalledWith(project.id));
     await waitFor(() =>
       expect(api.saveSharedProjectToFolder).toHaveBeenCalledWith(project.id),
+    );
+    await waitFor(() =>
+      expect(api.deleteSharedProject).toHaveBeenCalledWith(project.id),
     );
     await waitFor(() =>
       expect(

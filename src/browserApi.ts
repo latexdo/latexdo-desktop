@@ -666,6 +666,8 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return { saved: false };
     },
 
+    async deleteSharedProject() {},
+
     async openSharedProjectFolder() {
       return null;
     },

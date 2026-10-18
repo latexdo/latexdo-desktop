@@ -227,6 +227,8 @@ export default function App() {
   const statusbarState = statusbarStateFor({
     compileResult: ctx.compileResult,
     sharing: ctx.collaborationState.enabled,
+    onlineCopy: ctx.hasVisibleProject && Boolean(ctx.collaborationState.hosted),
+    onlineBusy: ctx.collaborationBusy,
     liveConnection: ctx.liveConnection,
     online: networkOnline,
   });
