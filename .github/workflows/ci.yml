@@ -134,10 +134,10 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # The default checkout is the triggering commit (the same SHA as
+      # target_sha); not passing a ref keeps the npm cache safe from poisoning.
       - name: Check out repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.pipeline.outputs.target_sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
