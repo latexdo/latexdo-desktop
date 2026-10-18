@@ -2170,6 +2170,73 @@ button {
   outline-offset: 1px;
 }
 
+.table-size-picker {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+}
+
+.table-size-grid {
+  display: grid;
+  gap: 3px;
+  outline: none;
+}
+
+.table-size-row {
+  display: flex;
+  gap: 3px;
+}
+
+.table-size-row button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 2px;
+  background: var(--bg-input);
+  cursor: pointer;
+}
+
+.table-size-row button.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.table-size-grid:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.table-size-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-size-action {
+  padding: 5px 8px;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.table-size-action:hover {
+  color: var(--text-primary);
+}
+
 .tex-format-divider {
   width: 1px;
   height: 18px;

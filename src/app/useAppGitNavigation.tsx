@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { latexTableSnippet } from "../latex/tableSnippet";
 import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
 import type { Diagnostic, GitChangeEntry, GitChangedEvent } from "../types";
 import { pathForDisplay } from "../pathDisplay";
@@ -516,6 +517,47 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     emitProductEvent({ type: "format:applied" });
   }, []);
 
+  /** Inserts a new table of the size picked in the toolbar's grid. */
+  const insertLatexTable = useCallback((rows: number, columns: number) => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    const document = documentsRef.current.find((d) => d.path === activePathRef.current);
+    const selection = editor?.getSelection();
+    if (
+      !editor ||
+      !model ||
+      !selection ||
+      !document ||
+      !editorModelMatchesPath(editor, document.path) ||
+      languageFor(document.name) !== "latex"
+    ) {
+      setStatusMessage("Open a TeX file to insert a table.");
+      return;
+    }
+    const snippet = latexTableSnippet(rows, columns);
+    // A table is a block: it starts on a line of its own.
+    const lineBefore = model
+      .getLineContent(selection.startLineNumber)
+      .slice(0, selection.startColumn - 1);
+    const lead = lineBefore.trim() ? "\n" : "";
+    const startOffset = model.getOffsetAt(selection.getStartPosition()) + lead.length;
+    editor.pushUndoStop();
+    editor.executeEdits("latex-table-insert", [
+      { range: selection, text: lead + snippet.text, forceMoveMarkers: true },
+    ]);
+    editor.pushUndoStop();
+    const start = model.getPositionAt(startOffset + snippet.selectStart);
+    const end = model.getPositionAt(startOffset + snippet.selectEnd);
+    editor.setSelection(
+      new monaco.Selection(start.lineNumber, start.column, end.lineNumber, end.column),
+    );
+    editor.revealRangeInCenterIfOutsideViewport(
+      new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+    );
+    editor.focus();
+    setStatusMessage(`Inserted a ${rows} × ${columns} table.`);
+  }, []);
+
   const applyLatexToolbarCommand = useCallback((command: LatexToolbarCommand) => {
     const editor = editorRef.current;
     const model = editor?.getModel();
@@ -724,5 +766,6 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     openGitFileHistory,
     applyLatexPrettier,
     applyLatexToolbarCommand,
+    insertLatexTable,
   };
 }
