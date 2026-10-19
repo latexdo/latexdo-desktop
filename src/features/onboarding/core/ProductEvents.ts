@@ -6,6 +6,7 @@ export type ProductEvent =
   | { type: "ai:selection-attached" }
   | { type: "ai:file-context-attached"; path: string }
   | { type: "ai:command-selected"; command: string }
+  | { type: "ai:starter-used"; id: string }
   | { type: "citation:inserted"; key?: string }
   | { type: "compile:succeeded" }
   | { type: "compile:failed" }
