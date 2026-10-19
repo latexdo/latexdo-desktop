@@ -6,6 +6,23 @@ import {
 } from "../citationStyle";
 
 describe("resolveCitationStyle", () => {
+  it("falls back to the selection, then the project, then plain cite", () => {
+    expect(
+      resolveCitationStyle({ selectedText: "as shown by \\textcite{a}" }),
+    ).toMatchObject({ command: "textcite", source: "selection" });
+    expect(
+      resolveCitationStyle({
+        activeFilePath: "intro.tex",
+        usages: [{ key: "b", command: "citep", sourceFile: "other.tex", line: 1 }],
+      }),
+    ).toMatchObject({ command: "citep", source: "project" });
+    expect(resolveCitationStyle({})).toEqual({
+      command: "cite",
+      source: "fallback",
+      confidence: 0.4,
+    });
+  });
+
   it("prefers a nearby citation command", () => {
     const result = resolveCitationStyle({
       nearbyText: "Prior work \\parencite{a}.",

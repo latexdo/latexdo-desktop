@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseLatexDoInput, tokenizeCommandLine } from "./commandParser";
+import {
+  isLatexDoCommandLine,
+  isPotentialLatexDoCommandPrefix,
+  parseLatexDoInput,
+  tokenizeCommandLine,
+} from "./commandParser";
 
 describe("commandParser", () => {
   it("tokenizes whitespace and quoted values", () => {
@@ -33,5 +38,60 @@ describe("commandParser", () => {
 
   it("leaves ordinary shell commands external", () => {
     expect(parseLatexDoInput("npm test")).toEqual({ kind: "external" });
+  });
+});
+
+describe("commandParser edge cases", () => {
+  it("keeps a trailing backslash literally", () => {
+    expect(tokenizeCommandLine("latexdo path\\")).toEqual({
+      ok: true,
+      tokens: ["latexdo", "path\\"],
+    });
+  });
+
+  it("names the unterminated single quote", () => {
+    expect(tokenizeCommandLine("latexdo note 'oops")).toEqual({
+      ok: false,
+      message: "Unterminated single quote.",
+    });
+  });
+
+  it("returns a parse error result for bad quoting", () => {
+    expect(parseLatexDoInput('latexdo "x')).toEqual({
+      kind: "error",
+      result: { ok: false, message: "Unterminated double quote." },
+    });
+  });
+
+  it("classifies empty and foreign input as external", () => {
+    expect(parseLatexDoInput("   ")).toEqual({ kind: "external" });
+    expect(parseLatexDoInput("git status")).toEqual({ kind: "external" });
+    expect(parseLatexDoInput("LatexDo build now")).toEqual({
+      kind: "latexdo",
+      tokens: ["LatexDo", "build", "now"],
+      args: ["build", "now"],
+    });
+  });
+});
+
+describe("command line detection", () => {
+  it.each([
+    ["latexdo", true],
+    ["  LATEXDO build", true],
+    ["latexdoo", false],
+    ["ls", false],
+  ])("isLatexDoCommandLine(%j) -> %s", (input, expected) => {
+    expect(isLatexDoCommandLine(input)).toBe(expected);
+  });
+
+  it.each([
+    ["", true],
+    ["  lat", true],
+    ["latexdo", true],
+    ["latexdo build", true],
+    ["latexdox", false],
+    ["git", false],
+  ])("isPotentialLatexDoCommandPrefix(%j) -> %s", (input, expected) => {
+    expect(isPotentialLatexDoCommandPrefix(input)).toBe(expected);
   });
 });

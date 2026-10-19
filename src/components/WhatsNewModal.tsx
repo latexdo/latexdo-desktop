@@ -42,9 +42,12 @@ export function WhatsNewModal({
   onViewFullNotes,
 }: WhatsNewModalProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
+  // Captured during the first render: by the time effects run, autoFocus has
+  // already moved focus to Continue.
+  const previouslyFocusedRef = useRef(document.activeElement as HTMLElement | null);
 
   useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previouslyFocused = previouslyFocusedRef.current;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {

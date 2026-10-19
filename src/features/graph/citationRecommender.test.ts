@@ -103,3 +103,59 @@ describe("formatRecommendations", () => {
     expect(formatRecommendations([])).toContain("No matching references");
   });
 });
+
+describe("recommendCitations edge cases", () => {
+  it("returns nothing for a passage with no meaningful words", () => {
+    expect(recommendCitations("the and of \\cite{x}", library)).toEqual([]);
+  });
+
+  it("scores each key once, counts venue hits and editors, and tolerates missing authors", () => {
+    const entries = [
+      entry({
+        key: "dup",
+        editor: "Someone",
+        title: "Graph rewriting",
+        booktitle: "Workshop on graph rewriting systems",
+      }),
+      entry({ key: "dup", title: "Graph rewriting again" }),
+      entry({ key: "venueOnly", journal: "Rewriting Letters" }),
+      entry({ key: "noVenueHit", title: "Graph things", journal: "Unrelated Press" }),
+    ];
+    const results = recommendCitations("We study graph rewriting systems.", entries);
+    expect(results.filter((r) => r.key === "dup")).toHaveLength(1);
+    const dup = results.find((r) => r.key === "dup")!;
+    expect(dup.reasons).toContain("Venue matches passage");
+    expect(dup.entry.title).toBe("Graph rewriting");
+    expect(results.find((r) => r.key === "venueOnly")?.reasons).toEqual([
+      "Venue matches passage",
+    ]);
+    expect(results.find((r) => r.key === "noVenueHit")?.reasons).not.toContain(
+      "Venue matches passage",
+    );
+  });
+
+  it("matches surnames written as 'First Last' and ignores too-short names", () => {
+    const results = recommendCitations(
+      "Results by Hinton were extended later.",
+      [
+        entry({
+          key: "h",
+          author: "{Geoffrey} Hinton and {} and X",
+          title: "Other topic",
+          doi: "10.1/x",
+        }),
+      ],
+    );
+    expect(results[0].reasons).toEqual(["Author mentioned: Hinton"]);
+  });
+});
+
+describe("formatRecommendations fallbacks", () => {
+  it("labels untitled, cited entries without reasons", () => {
+    expect(
+      formatRecommendations([
+        { key: "k", score: 0.5, reasons: [], alreadyCited: true, entry: entry({ key: "k" }) },
+      ]),
+    ).toBe("1. key=k (score 0.5) [already cited]\n   (untitled)");
+  });
+});

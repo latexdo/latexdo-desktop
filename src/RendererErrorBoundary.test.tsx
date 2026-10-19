@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RendererErrorBoundary } from "./RendererErrorBoundary";
 
@@ -47,5 +47,33 @@ describe("RendererErrorBoundary", () => {
         }),
       );
     });
+  });
+
+  it("reloads the window from the recovery state", () => {
+    Object.defineProperty(window, "latexdo", {
+      configurable: true,
+      value: { reportRendererIssue: vi.fn().mockResolvedValue(undefined) },
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const originalLocation = window.location;
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, reload },
+    });
+    try {
+      render(
+        <RendererErrorBoundary>
+          <BrokenChild />
+        </RendererErrorBoundary>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Reload Editor" }));
+      expect(reload).toHaveBeenCalledOnce();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 });

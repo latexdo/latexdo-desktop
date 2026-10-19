@@ -150,3 +150,41 @@ describe("isNewerRelease", () => {
     );
   });
 });
+
+describe("compareLatexDoVersions edge cases", () => {
+  it("pads missing core parts with zero", () => {
+    expect(compareLatexDoVersions("1.2", "1.2.0")).toBe(0);
+    expect(compareLatexDoVersions("1.2.0", "1.2")).toBe(0);
+    expect(compareLatexDoVersions("1.2", "1.2.1")).toBe(-1);
+  });
+
+  it("compares non-numeric parts lexically", () => {
+    expect(compareLatexDoVersions("1.x", "1.x")).toBe(0);
+    expect(compareLatexDoVersions("1.b", "1.a")).toBe(1);
+    expect(compareLatexDoVersions("1.a", "1.b")).toBe(-1);
+  });
+
+  it("ranks a longer pre-release above its prefix", () => {
+    expect(compareLatexDoVersions("1.0.0-beta", "1.0.0-beta.1")).toBe(-1);
+    expect(compareLatexDoVersions("1.0.0-beta.1", "1.0.0-beta")).toBe(1);
+    expect(compareLatexDoVersions("1.0.0-beta.2", "1.0.0-beta.2")).toBe(0);
+    expect(compareLatexDoVersions("1.0.0-alpha", "1.0.0-beta")).toBe(-1);
+  });
+});
+
+describe("isNewerRelease without timestamps", () => {
+  it("is false when either timestamp is missing", () => {
+    expect(
+      isNewerRelease(
+        { version: "1.0.0", commit: "b" },
+        { version: "1.0.0", commit: "a", timestamp: "2026-01-01T00:00:00Z" },
+      ),
+    ).toBe(false);
+    expect(
+      isNewerRelease(
+        { version: "1.0.0", commit: "b", timestamp: "2026-01-02T00:00:00Z" },
+        { version: "1.0.0", commit: "a" },
+      ),
+    ).toBe(false);
+  });
+});

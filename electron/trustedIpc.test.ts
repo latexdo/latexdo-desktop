@@ -67,3 +67,36 @@ describe("privileged IPC sender boundary", () => {
     expect(() => invoke(event)).toThrow(/Untrusted/);
   });
 });
+
+describe("trusted sender edge cases", () => {
+  it("rejects a destroyed sender and a malformed frame URL", () => {
+    const { contents, event, mainFrame } = sender();
+    trustIpcRenderer(contents, "latexdo://app/index.html");
+    const handler = vi.fn();
+    ipcMain.handle("file:read", handler);
+    const invoke = registration.handle.mock.calls[0][1];
+    mainFrame.url = "not a url";
+    expect(() => invoke(event)).toThrow(/Untrusted/);
+    mainFrame.url = "latexdo://app/index.html";
+    (contents as unknown as { isDestroyed: () => boolean }).isDestroyed = () => true;
+    expect(() => invoke(event)).toThrow(/Untrusted/);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing sender frame and URLs carrying credentials", () => {
+    const { contents, event, mainFrame } = sender();
+    trustIpcRenderer(contents, "http://127.0.0.1:5173/");
+    const handler = vi.fn();
+    ipcMain.on("terminal:write", handler);
+    const on = registration.on.mock.calls[0][1];
+    on({ ...event, senderFrame: null } as unknown as IpcMainEvent);
+    mainFrame.url = "http://user@127.0.0.1:5173/";
+    on(event as unknown as IpcMainEvent);
+    mainFrame.url = "http://:pw@127.0.0.1:5173/";
+    on(event as unknown as IpcMainEvent);
+    expect(handler).not.toHaveBeenCalled();
+    mainFrame.url = "http://127.0.0.1:5173/";
+    on(event as unknown as IpcMainEvent, "data");
+    expect(handler).toHaveBeenCalledWith(event, "data");
+  });
+});

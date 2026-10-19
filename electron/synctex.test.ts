@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { EventEmitter } from "node:events";
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 const runtime = vi.hoisted(() => ({
   output: "",
   error: "",
@@ -32,6 +32,7 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 import { spawn } from "node:child_process";
+import { access, realpath } from "node:fs/promises";
 import { forwardSyncTex, backwardSyncTex } from "./synctex.js";
 beforeEach(() => {
   runtime.output = "";
@@ -110,5 +111,51 @@ describe("SyncTeX process integration", () => {
     await expect(
       forwardSyncTex("/paper", "paper.pdf", "main.tex", 1, 1),
     ).rejects.toThrow("ENOENT");
+  });
+
+  it("compares real paths and falls back to the given paths when they cannot be resolved", async () => {
+    runtime.output = "SyncTeX result begin\nInput:/paper/chapters/intro.tex\nLine:7\nColumn:-1\nSyncTeX result end";
+    vi.mocked(realpath).mockRejectedValueOnce(new Error("gone")).mockRejectedValueOnce(new Error("gone"));
+    expect(await backwardSyncTex("/paper", "paper.pdf", 1, 2, 3)).toEqual({
+      file: "chapters/intro.tex",
+      line: 7,
+      column: 1,
+    });
+  });
+});
+
+describe("finding synctex", () => {
+  const realPlatform = process.platform;
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: realPlatform, configurable: true });
+    vi.resetModules();
+  });
+
+  async function freshForward(platform: string) {
+    Object.defineProperty(process, "platform", { value: platform, configurable: true });
+    vi.resetModules();
+    const fresh = await import("./synctex.js");
+    runtime.output = "SyncTeX result begin\nOutput:paper.pdf\nPage:1\nx:1\ny:1\nSyncTeX result end";
+    return fresh.forwardSyncTex("/paper", "paper.pdf", "main.tex", 1, 1);
+  }
+
+  it("prefers the MacTeX install on macOS", async () => {
+    vi.mocked(access).mockResolvedValueOnce(undefined);
+    await freshForward("darwin");
+    expect(vi.mocked(spawn).mock.calls[0][0]).toBe("/Library/TeX/texbin/synctex");
+  });
+
+  it("tries the next macOS location when the first is missing", async () => {
+    vi.mocked(access)
+      .mockRejectedValueOnce(new Error("absent"))
+      .mockResolvedValueOnce(undefined);
+    await freshForward("darwin");
+    expect(vi.mocked(spawn).mock.calls[0][0]).toBe("/usr/local/bin/synctex");
+  });
+
+  it("uses PATH elsewhere", async () => {
+    await freshForward("linux");
+    expect(access).not.toHaveBeenCalled();
+    expect(vi.mocked(spawn).mock.calls[0][0]).toMatch(/synctex$/);
   });
 });

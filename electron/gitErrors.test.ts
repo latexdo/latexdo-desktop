@@ -100,3 +100,65 @@ describe("runGitExclusive", () => {
     expect(order).toEqual(["first", "second"]);
   });
 });
+
+describe("getGitErrorCode covers every recognised failure", () => {
+  it.each([
+    ["error: failed to push some refs to 'origin'", "PushRejected"],
+    ["fatal: The current branch topic has no upstream branch.", "NoUpstreamBranch"],
+    ["fatal: No configured push destination.", "NoRemoteRepositorySpecified"],
+    [
+      "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+      "PermissionDenied",
+    ],
+    ["fatal: Could not read from remote repository.", "RemoteConnectionError"],
+    ["remote: Permission to a/b.git denied to someone.", "PermissionDenied"],
+    ["No local changes to save", "NoLocalChanges"],
+    ["error: No stash entries found.", "NoStashFound"],
+    [
+      "error: Your local changes to the following files would be overwritten by merge",
+      "LocalChangesOverwritten",
+    ],
+    ["CONFLICT (content): Merge conflict in main.tex", "Conflict"],
+    ["fatal: bad config file line 3 in .git/config", "BadConfigFile"],
+    ["cannot create standard input pipe", "CantCreatePipe"],
+    ["error: The branch 'topic' is not fully merged.", "BranchNotFullyMerged"],
+    ["fatal: Couldn't find remote ref topic", "NoRemoteReference"],
+    ["fatal: A branch named 'topic' already exists.", "BranchAlreadyExists"],
+    ["fatal: 'bad..name' is not a valid branch name", "InvalidBranchName"],
+    [
+      "error: cannot pull with rebase: Please commit your changes or stash them.",
+      "DirtyWorkTree",
+    ],
+    ["nothing added to commit but untracked files present", "NothingToCommit"],
+  ])("recognises %j", (output, code) => {
+    expect(getGitErrorCode(output)).toBe(code);
+  });
+
+  it("gives a readable message only for known codes", () => {
+    expect(gitErrorMessage("PushRejected")).toMatch(/Pull first/);
+    expect(gitErrorMessage("BadConfigFile")).toBeNull();
+    expect(gitErrorMessage(undefined)).toBeNull();
+  });
+});
+
+describe("retryWhileRepositoryIsLocked default wait", () => {
+  it("waits with real timers between attempts", async () => {
+    vi.useFakeTimers();
+    try {
+      const run = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(Object.assign(new Error("locked"), {
+          gitErrorCode: "RepositoryIsLocked",
+        }))
+        .mockResolvedValue("done");
+      const result = retryWhileRepositoryIsLocked(run);
+      await vi.advanceTimersByTimeAsync(49);
+      expect(run).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(result).resolves.toBe("done");
+      expect(run).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

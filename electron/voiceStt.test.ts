@@ -4,9 +4,14 @@ import { mkdtemp, mkdir, writeFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-const runtime = vi.hoisted(() => ({ root: "" }));
+const runtime = vi.hoisted(() => ({ root: "", packaged: false }));
 vi.mock("electron", () => ({
-  app: { isPackaged: false, getAppPath: () => runtime.root },
+  app: {
+    get isPackaged() {
+      return runtime.packaged;
+    },
+    getAppPath: () => runtime.root,
+  },
 }));
 vi.mock("./speechRuntime.js", () => ({
   installedSpeechRoot: () => path.join(runtime.root, "installed"),
@@ -37,6 +42,7 @@ beforeEach(async () => {
   vi.mocked(spawn).mockClear();
 });
 afterEach(async () => {
+  runtime.packaged = false;
   stopBundledSpeechServer();
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -188,3 +194,94 @@ describe("local speech server lifecycle", () => {
     );
   });
 });
+
+describe("local speech server discovery and startup failures", () => {
+  async function installAt(dir: string, name = "whisper-server") {
+    await mkdir(path.join(dir, "bin"), { recursive: true });
+    await writeFile(path.join(dir, "bin", name), "binary", { mode: 0o755 });
+    await mkdir(path.join(dir, "models"), { recursive: true });
+    await writeFile(path.join(dir, "models", "ggml-tiny.en.bin"), "model");
+  }
+
+  it("finds the development resources folder when no root is configured", async () => {
+    vi.stubEnv("LATEXDO_SPEECH_ROOT", "");
+    const dev = path.join(root, "resources", "speech");
+    await installAt(dev);
+    answerAfterSpawn();
+    expect(await ensureBundledSpeechServer({ baseUrl: "http://localhost/v1" })).toMatchObject({
+      ok: true,
+      bundled: true,
+    });
+    expect(spawn).toHaveBeenCalledWith(
+      path.join(dev, "bin", "whisper-server"),
+      serverArgs(path.join(dev, "models", "ggml-tiny.en.bin"), "8080"),
+      expect.anything(),
+    );
+  });
+
+  it("prefers the installed runtime and uses resourcesPath when packaged", async () => {
+    vi.stubEnv("LATEXDO_SPEECH_ROOT", "");
+    runtime.packaged = true;
+    const resources = path.join(root, "packaged");
+    const original = process.resourcesPath;
+    Object.defineProperty(process, "resourcesPath", { value: resources, configurable: true });
+    try {
+      await installAt(path.join(resources, "speech"));
+      answerAfterSpawn();
+      expect(await ensureBundledSpeechServer()).toMatchObject({ ok: true });
+      expect(vi.mocked(spawn).mock.calls[0][0]).toBe(
+        path.join(resources, "speech", "bin", "whisper-server"),
+      );
+    } finally {
+      Object.defineProperty(process, "resourcesPath", { value: original, configurable: true });
+    }
+  });
+
+  it("looks for .exe servers on Windows", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    try {
+      await installAt(root, "server.exe");
+      answerAfterSpawn();
+      expect(await ensureBundledSpeechServer()).toMatchObject({ ok: true });
+      expect(vi.mocked(spawn).mock.calls[0][0]).toBe(path.join(root, "bin", "server.exe"));
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
+  });
+
+  it("treats network errors as an absent server", async () => {
+    fetcher.mockRejectedValue(new TypeError("refused"));
+    expect(await ensureBundledSpeechServer()).toMatchObject({
+      ok: false,
+      code: "missing-runtime",
+    });
+  });
+
+  it("aborts a probe that hangs", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fetcher.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))),
+        ),
+    );
+    const pending = ensureBundledSpeechServer();
+    await vi.advanceTimersByTimeAsync(1200 * 4);
+    expect(await pending).toMatchObject({ ok: false, code: "missing-runtime" });
+  });
+
+  it("stops waiting when the server exits during startup", async () => {
+    await install();
+    vi.mocked(spawn).mockImplementationOnce(() => {
+      const child = Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() });
+      queueMicrotask(() => child.emit("exit", 1));
+      return child as never;
+    });
+    expect(await ensureBundledSpeechServer()).toMatchObject({
+      ok: false,
+      code: "start-failed",
+    });
+  });
+});
+

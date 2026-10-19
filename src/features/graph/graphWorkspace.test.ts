@@ -46,4 +46,30 @@ describe("Paper-aware graph filtering", () => {
     expect(read.mock.calls.filter(([path]) => path === "main.tex")).toHaveLength(1);
     expect(read).not.toHaveBeenCalledWith("unused.tex");
   });
+
+  it("skips unsafe include paths and keeps explicit extensions", async () => {
+    const sources: Record<string, string> = {
+      "main.tex":
+        "Root \\input{ } \\input{/etc/passwd} \\input{../secret} \\input{\\macro} \\input{table.tikz}",
+      "table.tikz": "TikZ table",
+    };
+    const read = vi.fn(async (path: string) => {
+      if (!(path in sources)) throw new Error("Missing source");
+      return sources[path];
+    });
+    const paper = await readPaperSources("main.tex", read);
+    expect(paper).toContain("TikZ table");
+    expect(read.mock.calls.map(([path]) => path)).toEqual(["main.tex", "table.tikz"]);
+  });
+
+  it("reports a missing include of the root file", async () => {
+    const read = vi.fn(async (path: string) => {
+      if (path === "main.tex") return "\\input{missing}";
+      throw new Error("Missing source");
+    });
+    await expect(readPaperSources("main.tex", read)).rejects.toThrow(
+      "Could not read included paper source: missing.tex",
+    );
+  });
 });
+

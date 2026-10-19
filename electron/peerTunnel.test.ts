@@ -211,3 +211,69 @@ describe("quick tunnel process", () => {
     expect(stalled.child.kill).toHaveBeenCalled();
   });
 });
+
+describe("tar and DNS edge cases", () => {
+  function entry(name: string, content: Buffer, type = "0", size?: string) {
+    const header = Buffer.alloc(512);
+    header.write(name, 0, "utf8");
+    header.write(size ?? content.length.toString(8).padStart(11, "0"), 124, "utf8");
+    header.write(type, 156, "utf8");
+    const padding = Buffer.alloc((512 - (content.length % 512)) % 512);
+    return Buffer.concat([header, content, padding]);
+  }
+
+  it("skips other entries and directories and accepts ./ prefixes", () => {
+    const archive = gzipSync(
+      Buffer.concat([
+        entry("README", Buffer.from("x".repeat(600))),
+        entry("cloudflared", Buffer.alloc(0), "5"),
+        entry("./cloudflared", Buffer.from("bin")),
+      ]),
+    );
+    expect(extractTarGzEntry(archive, "cloudflared").toString()).toBe("bin");
+  });
+
+  it("stops on a bad size field, a missing size or truncated data", () => {
+    expect(() =>
+      extractTarGzEntry(gzipSync(entry("cloudflared", Buffer.from("a"), "0", "zz")), "cloudflared"),
+    ).toThrow("does not contain");
+    const noSize = Buffer.alloc(512);
+    noSize.write("cloudflared", 0, "utf8");
+    expect(extractTarGzEntry(gzipSync(noSize), "cloudflared").length).toBe(0);
+    const truncated = entry("cloudflared", Buffer.from("abc"), "0", "00000001000");
+    expect(() => extractTarGzEntry(gzipSync(truncated.subarray(0, 600)), "cloudflared")).toThrow(
+      "does not contain",
+    );
+  });
+
+  it("keeps polling after an error response and stops when aborted", async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(async () => {
+      controller.abort();
+      return new Response("", { status: 500 });
+    });
+    expect(
+      await waitForTunnelDns("x.trycloudflare.com", {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        intervalMs: 1,
+        signal: controller.signal,
+      }),
+    ).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("uses global fetch and default timings", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => Response.json({ Answer: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const pending = waitForTunnelDns("x.trycloudflare.com");
+      await vi.advanceTimersByTimeAsync(31_000);
+      await expect(pending).resolves.toBe(false);
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(10);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+});

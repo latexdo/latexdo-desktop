@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { SettingsShell, type SettingsPage } from "./SettingsShell";
+import { filterSettings, SettingsShell, type SettingsPage } from "./SettingsShell";
 
 const pages: SettingsPage[] = [
   {
@@ -150,5 +150,101 @@ describe("SettingsShell", () => {
     renderShell();
     fireEvent.keyDown(window, { key: "f", metaKey: true });
     expect(screen.getByRole("searchbox", { name: "Search settings" })).toHaveFocus();
+  });
+});
+
+describe("SettingsShell navigation details", () => {
+  it("falls back to the first page for an unknown id and handles no pages", () => {
+    renderShell("missing");
+    expect(screen.getByRole("heading", { level: 1, name: "General" })).toBeVisible();
+  });
+
+  it("renders nothing to browse when there are no pages", () => {
+    render(
+      <SettingsShell pages={[]} activePage="x" onSelectPage={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(document.querySelectorAll("[data-settings-page]")).toHaveLength(0);
+    fireEvent.scroll(document.querySelector(".settings-list")!);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "any" } });
+    expect(screen.getByRole("status")).toHaveTextContent("0 settings found");
+  });
+
+  it("scrolls to a page's results when its category is chosen while searching", () => {
+    const { onSelectPage } = renderShell();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "updates" } });
+    const page = document.querySelector<HTMLElement>('[data-settings-page="application"]')!;
+    const scrollIntoView = vi.fn();
+    page.scrollIntoView = scrollIntoView;
+    fireEvent.click(screen.getByRole("button", { name: /Updates/ }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+    expect(onSelectPage).not.toHaveBeenCalled();
+  });
+
+  it("counts several matches and leaves Escape alone when the query is empty", () => {
+    renderShell();
+    const search = screen.getByRole("searchbox");
+    const onWindowKey = vi.fn();
+    window.addEventListener("keydown", onWindowKey);
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(onWindowKey).toHaveBeenCalled();
+    window.removeEventListener("keydown", onWindowKey);
+    fireEvent.change(search, { target: { value: "check" } });
+    fireEvent.change(search, { target: { value: "r" } });
+    expect(screen.getByRole("status").textContent).toMatch(/^\d+ settings found$/);
+  });
+
+  it("highlights the sub-section scrolled into view", () => {
+    renderShell();
+    const list = document.querySelector<HTMLElement>(".settings-list")!;
+    const headings = document.querySelectorAll<HTMLElement>(".settings-section-heading");
+    list.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    headings[0].getBoundingClientRect = () => ({ top: -100 }) as DOMRect;
+    headings[1].getBoundingClientRect = () => ({ top: 20 }) as DOMRect;
+    fireEvent.scroll(list);
+    const sections = screen.getByRole("group", { name: "General sections" });
+    expect(within(sections).getByRole("button", { name: "Editor and compiler" })).toHaveClass(
+      "active",
+    );
+    headings[1].getBoundingClientRect = () => ({ top: 500 }) as DOMRect;
+    fireEvent.scroll(list);
+    expect(within(sections).getByRole("button", { name: "Appearance" })).toHaveClass(
+      "active",
+    );
+  });
+
+  it("ignores Ctrl with other keys and accepts Ctrl+F", () => {
+    renderShell();
+    const search = screen.getByRole("searchbox");
+    fireEvent.keyDown(window, { key: "g", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "f" });
+    expect(search).not.toHaveFocus();
+    fireEvent.keyDown(window, { key: "F", ctrlKey: true });
+    expect(search).toHaveFocus();
+  });
+});
+
+describe("filterSettings", () => {
+  it("searches titles and plain headings in pages without a body wrapper", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <section data-settings-page="a">
+        <div class="settings-section-heading">Plain heading</div>
+        <div><button title="Secret tooltip">x</button></div>
+        <div>Other</div>
+      </section>
+      <section data-settings-page="b"><div>Nothing</div><div>Else</div></section>`;
+    const counts = filterSettings(root, "tooltip");
+    expect([...counts]).toEqual([
+      ["a", 1],
+      ["b", 0],
+    ]);
+    const [a, b] = root.querySelectorAll<HTMLElement>("section");
+    expect(a.hidden).toBe(false);
+    expect(a.hasAttribute("data-follows-page")).toBe(false);
+    expect(b.hidden).toBe(true);
+    expect(filterSettings(root, "plain heading").get("a")).toBe(2);
+    filterSettings(root, "");
+    expect(b.hidden).toBe(false);
+    expect(b.hasAttribute("data-follows-page")).toBe(true);
   });
 });

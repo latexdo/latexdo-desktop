@@ -135,3 +135,60 @@ describe("project search", () => {
     expect(isProjectSearchablePath("node_modules/pkg/file.ts")).toBe(false);
   });
 });
+
+describe("project search patterns and edge cases", () => {
+  const search = (patch: Partial<typeof defaultProjectSearchOptions>, input = files) =>
+    searchProjectFiles(input, { ...defaultProjectSearchOptions, query: "alpha", ...patch });
+  const paths = (patch: Partial<typeof defaultProjectSearchOptions>) =>
+    search(patch).files.map((f) => f.path);
+
+  it("matches extension, bare-name, ? and ** glob patterns", () => {
+    expect(paths({ include: ".bib" })).toEqual(["references.bib"]);
+    expect(paths({ include: "tex" })).toEqual(["main.tex", "chapters/method.tex"]);
+    expect(paths({ include: "method" })).toEqual(["chapters/method.tex"]);
+    expect(paths({ include: "**/m?thod.tex" })).toEqual(["chapters/method.tex"]);
+    expect(paths({ include: "chapters/**" })).toEqual(["chapters/method.tex"]);
+    expect(paths({ include: "*.tex", exclude: "chapters/*.tex" })).toEqual(["main.tex"]);
+  });
+
+  it("skips files without an extension and normalises Windows paths", () => {
+    expect(isProjectSearchablePath("Makefile")).toBe(false);
+    const result = search({}, [{ path: "\\sub\\a.tex", content: "alpha\r\nalpha\rbeta" }]);
+    expect(result.files[0].path).toBe("sub/a.tex");
+    expect(result.files[0].matches.map((m) => m.line)).toEqual([1, 2]);
+  });
+
+  it("applies whole-word filtering to regex searches and skips zero-length matches", () => {
+    const whole = search({ query: "alpha", useRegex: true, wholeWord: true, matchCase: true });
+    expect(whole.totalMatches).toBe(1);
+    const lookahead = search({ query: "(?=Alpha)", useRegex: true });
+    expect(lookahead.totalMatches).toBe(0);
+    expect(lookahead.error).toBeUndefined();
+  });
+
+  it("clamps context lines and stops after the result cap mid-file", () => {
+    const result = search({ contextLines: 10, maxResults: 2 }, [
+      { path: "a.tex", content: "x\nalpha alpha alpha\ny" },
+      { path: "b.tex", content: "alpha" },
+    ]);
+    expect(result.truncated).toBe(true);
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0].matches[0].before).toEqual(["x"]);
+    expect(result.files[0].matches[0].after).toEqual(["y"]);
+    const none = search({ contextLines: -4 }, [{ path: "a.tex", content: "x\nalpha" }]);
+    expect(none.files[0].matches[0].before).toEqual([]);
+  });
+
+  it("rejects regexes that match empty text and formats the error", () => {
+    const result = search({ query: "a*", useRegex: true });
+    expect(result.error).toBe("Regular expression must not match empty text.");
+    expect(formatProjectSearchResults(result)).toBe(result.error);
+  });
+
+  it("returns an empty result for an empty query", () => {
+    const result = search({ query: "" });
+    expect(result).toMatchObject({ totalMatches: 0, skippedFiles: files.length });
+    expect(formatProjectSearchResults(result)).toBe("");
+  });
+});
+

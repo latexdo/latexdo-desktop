@@ -38,3 +38,27 @@ describe("figure preview helpers", () => {
     expect(figurePreviewCandidatePaths("/absolute/plot.png", "main.tex")).toEqual([]);
   });
 });
+
+describe("figure preview edge cases", () => {
+  it("skips includegraphics commands away from the cursor", () => {
+    const line = "\\includegraphics{a.png} and \\includegraphics{b.png}";
+    expect(parseIncludeGraphicsAtPosition(line, 40)?.path).toBe("b.png");
+    expect(parseIncludeGraphicsAtPosition(line, 26)).toBeNull();
+  });
+
+  it("ignores an empty includegraphics path", () => {
+    expect(parseIncludeGraphicsAtPosition("\\includegraphics{  }", 3)).toBeNull();
+  });
+
+  it("resolves mime types and inline rendering by extension", async () => {
+    const { figurePreviewMimeType, figureCanRenderInline } = await import(
+      "../figurePreview"
+    );
+    expect(figurePreviewMimeType("a/b.PNG")).toBe("image/png");
+    expect(figurePreviewMimeType("plot.")).toBeNull();
+    expect(figurePreviewMimeType("plot.tiff")).toBeNull();
+    expect(figureCanRenderInline("plot.svg")).toBe(true);
+    expect(figureCanRenderInline("plot.pdf")).toBe(false);
+    expect(figureCanRenderInline("plot.eps")).toBe(false);
+  });
+});

@@ -241,3 +241,159 @@ describe("suggestion usage", () => {
     expect(loadAiSuggestionUsage()).toEqual({ b: { count: 1, lastUsed: 3 } });
   });
 });
+
+describe("buildAiSuggestions edge cases", () => {
+  const ids = (result: { id: string }[]) => result.map((r) => r.id);
+  const all = (overrides: Partial<AiSuggestionSignals>) => buildAiSuggestions(signals(overrides), 50);
+
+  it("describes a failed build without diagnostics", () => {
+    const result = all({ compile: { ok: false, diagnostics: [] } });
+    const fix = result.find((r) => r.id === "fix-compile")!;
+    expect(fix.reason).toBe("The last build failed");
+    expect(fix.prompt.startsWith("The last build failed.")).toBe(true);
+    expect(result.find((r) => r.id === "explain-compile")!.reason).toBe(
+      "The last build failed",
+    );
+  });
+
+  it("falls back to cascade errors and omits locations without a file", () => {
+    const result = all({
+      compile: {
+        ok: false,
+        diagnostics: [
+          diag({ isCascade: true, file: "", message: "Cascade" }),
+          diag({ isCascade: true, file: "C:\\p\\a.tex", line: 0, message: "Other" }),
+          diag({ source: "chktex", message: "lint" }),
+        ],
+      },
+    });
+    const fix = result.find((r) => r.id === "fix-compile")!;
+    expect(fix.label).toBe("Fix the 2 compile errors");
+    expect(fix.reason).toBe("Cascade");
+    expect(fix.prompt).toContain("- Cascade");
+    expect(fix.prompt).toContain("- a.tex: Other");
+    expect(fix.prompt).not.toContain("lint");
+  });
+
+  it("names references, mixed unresolved items and overfull boxes", () => {
+    const refs = all({
+      compile: {
+        ok: true,
+        diagnostics: [diag({ severity: "warning", message: "Reference `fig:a' undefined" })],
+      },
+    });
+    expect(refs.find((r) => r.id === "fix-undefined-refs")!.label).toBe(
+      "Resolve 1 undefined reference",
+    );
+    const mixed = all({
+      compile: {
+        ok: true,
+        diagnostics: [
+          diag({ severity: "warning", message: "Citation `x' undefined" }),
+          diag({ severity: "warning", message: "Reference `y' undefined" }),
+          diag({ severity: "warning", message: "Overfull \\hbox (3pt too wide)", file: "" }),
+          diag({ severity: "warning", message: "Overfull \\hbox (1pt too wide)" }),
+        ],
+      },
+    });
+    expect(mixed.find((r) => r.id === "fix-undefined-refs")!.label).toBe(
+      "Resolve 2 undefined citation or references",
+    );
+    const boxes = mixed.find((r) => r.id === "fix-overfull")!;
+    expect(boxes.label).toBe("Fix 2 overfull lines");
+    expect(boxes.reason).toBe("Overfull \\hbox (3pt too wide)");
+    const located = all({
+      compile: { ok: true, diagnostics: [diag({ severity: "warning", message: "Overfull \\vbox" })] },
+    });
+    expect(located.find((r) => r.id === "fix-overfull")!.reason).toBe(
+      "Overfull \\vbox · main.tex:42",
+    );
+  });
+
+  it("explains selected math and truncates long previews", () => {
+    const math = all({ selectionText: "$$ \\frac{a}{b} $$" });
+    expect(ids(math)).toContain("explain-math");
+    const long = all({ selectionText: "word ".repeat(40) });
+    const rewrite = long.find((r) => r.id === "rewrite-selection")!;
+    expect(rewrite.reason.endsWith("…”")).toBe(true);
+    expect(ids(long)).toContain("cite-selection");
+    expect(ids(all({ selectionText: "\\cite{a} " + "word ".repeat(20) }))).not.toContain(
+      "cite-selection",
+    );
+  });
+
+  it("offers bibliography cleanup for .bib files and nothing for other files", () => {
+    const bib = all({ activeFile: "/p/refs.bib" });
+    expect(bib.find((r) => r.id === "tidy-bib")!.reason).toBe("refs.bib");
+    expect(ids(all({ activeFile: "/p/fig.png" }))).not.toContain("draft-outline");
+    expect(ids(all({ activeFile: null }))).not.toContain("draft-outline");
+  });
+
+  it("describes drafts by word count, TODOs, abstracts and summaries", () => {
+    const draft = all({ documentText: "word ".repeat(50) + " TODO" });
+    expect(draft.find((r) => r.id === "draft-outline")!.reason).toBe("main.tex has 51 words so far");
+    expect(draft.find((r) => r.id === "work-todos")!.label).toBe("Resolve the TODO");
+
+    const noAbstract = `\\documentclass{article}\n\\begin{document}\n\\section{A}\n${"w ".repeat(300)}\\section{B}\n${"w ".repeat(300)}\\end{document}`;
+    const result = all({ documentText: noAbstract });
+    expect(ids(result)).toContain("write-abstract");
+    expect(result.find((r) => r.id === "summarize")!.reason).toBe("2 sections in main.tex");
+
+    const flat = all({ documentText: "w ".repeat(200) });
+    expect(flat.find((r) => r.id === "summarize")!.reason).toBe("main.tex");
+  });
+
+  it("offers a LaTeX question without a project and applies weekly recency", () => {
+    expect(ids(all({ hasProject: false }))).toContain("latex-help");
+    const week = all({
+      hasProject: false,
+      usage: {
+        "make-table": { count: 2, lastUsed: now - 3 * 24 * 60 * 60 * 1000 },
+        "make-figure": { count: 1, lastUsed: now - 30 * 24 * 60 * 60 * 1000 },
+        "latex-help": { count: 0, lastUsed: now },
+      },
+    });
+    expect(week.find((r) => r.id === "make-table")!.fromHistory).toBe(true);
+    expect(week.find((r) => r.id === "make-figure")!.fromHistory).toBe(false);
+    expect(week.find((r) => r.id === "latex-help")!.fromHistory).toBe(false);
+  });
+
+  it("ignores storage entries that are not usage records and setItem failures", () => {
+    window.localStorage.setItem(
+      aiSuggestionUsageStorageKey,
+      JSON.stringify({ ok: { count: 1, lastUsed: 2 }, bad: null, half: { count: 1 } }),
+    );
+    expect(loadAiSuggestionUsage()).toEqual({ ok: { count: 1, lastUsed: 2 } });
+    window.localStorage.setItem(aiSuggestionUsageStorageKey, "42");
+    expect(loadAiSuggestionUsage()).toEqual({});
+
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("quota");
+    };
+    try {
+      expect(recordAiSuggestionUsage("x", 5)).toEqual({ x: { count: 1, lastUsed: 5 } });
+    } finally {
+      Storage.prototype.setItem = setItem;
+    }
+  });
+
+  it("caps a single group at two cards even with a high limit", () => {
+    const result = all({ selectionText: "$$ \\frac{a}{b} $$ " + "word ".repeat(15) });
+    expect(result.filter((r) => ["explain-math", "rewrite-selection", "cite-selection"].includes(r.id))).toHaveLength(2);
+  });
+
+  it("handles bare file names and documents without \\end{document}", () => {
+    const result = all({ activeFile: "main.tex", documentText: "\\begin{document} TODO TODO" });
+    expect(result.find((r) => r.id === "work-todos")).toMatchObject({
+      label: "Work through 2 TODOs",
+      reason: "2 markers in main.tex",
+    });
+  });
+
+  it("returns null for blank or unrecognised typed requests", () => {
+    expect(classifyTypedRequest("   ")).toBeNull();
+    expect(classifyTypedRequest("hello there")).toBeNull();
+  });
+});
+

@@ -88,4 +88,81 @@ describe("localTranscriptionDetection", () => {
     const servers = await detectLocalTranscriptionServers({ timeoutMs: 50 });
     expect(servers).toEqual([]);
   });
+
+  it("reads model lists in both payload shapes and ignores entries without ids", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes(":1234")) return modelsResponse({ data: [{ id: 3 }, null, { id: "a" }] });
+      if (url.includes(":8080"))
+        return modelsResponse({ models: [{ id: "distil-whisper" }, { name: "x" }] });
+      return modelsResponse({ unexpected: true });
+    });
+    const servers = await detectLocalTranscriptionServers({ allowNonLoopback: true });
+    expect(servers).toEqual([
+      {
+        label: "LM Studio · http://localhost:1234/v1",
+        baseUrl: "http://localhost:1234/v1",
+        models: ["a"],
+      },
+      {
+        label: "whisper.cpp server · http://localhost:8080/v1",
+        baseUrl: "http://localhost:8080/v1",
+        models: ["distil-whisper"],
+        speechModel: "distil-whisper",
+      },
+      {
+        label: "faster-whisper server · http://localhost:8000/v1",
+        baseUrl: "http://localhost:8000/v1",
+        models: [],
+      },
+    ]);
+  });
+
+  it("gives up on servers that do not answer in time", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementation(
+        (_input, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      );
+      const pending = detectLocalTranscriptionServers({ timeoutMs: 100 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await pending).toEqual([]);
+      for (const call of fetchMock.mock.calls) {
+        expect(call[1]?.signal?.aborted).toBe(true);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips candidates whose address cannot be confirmed as loopback", async () => {
+    fetchMock.mockResolvedValue(modelsResponse({ data: [{ id: "whisper-1" }] }));
+    const hosts = ["127.0.0.1", "::1", "example.com"];
+    let call = 0;
+    vi.stubGlobal(
+      "URL",
+      class {
+        hostname: string;
+        constructor() {
+          const host = hosts[call++];
+          if (host === undefined) throw new TypeError("Invalid URL");
+          this.hostname = host;
+        }
+      },
+    );
+    const servers = await detectLocalTranscriptionServers();
+    expect(servers.map((server) => server.baseUrl)).toEqual([
+      "http://localhost:1234/v1",
+      "http://localhost:8080/v1",
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    call = 3;
+    expect(await detectLocalTranscriptionServers()).toEqual([]);
+  });
 });

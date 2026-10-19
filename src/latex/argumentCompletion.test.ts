@@ -90,3 +90,21 @@ describe("project files", () => {
     expect(projectFileMatchesKind("texFile", "figures/plot.png")).toBe(false);
   });
 });
+
+describe("projectFileMatchesKind by kind", () => {
+  it("matches bibliography files only for bibliography arguments", () => {
+    expect(projectFileMatchesKind("bibFile", "refs/main.BIB")).toBe(true);
+    expect(projectFileMatchesKind("bibFile", "main.tex")).toBe(false);
+  });
+
+  it("matches nothing for argument kinds that are not files", () => {
+    expect(projectFileMatchesKind("package", "amsmath.sty")).toBe(false);
+  });
+});
+
+describe("openEnvironmentAt with stray ends", () => {
+  it("ignores an \\end that closes nothing", () => {
+    const text = "\\begin{proof}\\end{figure}";
+    expect(openEnvironmentAt(text, text.length)).toBe("proof");
+  });
+});

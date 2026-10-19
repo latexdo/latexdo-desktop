@@ -62,3 +62,14 @@ describe("statusbarStateFor", () => {
     expect(statusbarStateFor({ ...base, online: false })).toBe("offline");
   });
 });
+
+describe("useNetworkOnline server snapshot", () => {
+  it("reports online when rendered on the server", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { useNetworkOnline } = await import("./statusbarState");
+    function Probe() {
+      return <span>{useNetworkOnline() ? "online" : "offline"}</span>;
+    }
+    expect(renderToString(<Probe />)).toContain("online");
+  });
+});

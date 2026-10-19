@@ -109,3 +109,52 @@ describe("citation analysis", () => {
     expect(createBibtexStub("newKey")).toContain("doi = {}");
   });
 });
+
+describe("citation analysis edge cases", () => {
+  it("groups entries that reuse a key and titles without a year", () => {
+    const analysis = analyzeCitationLibrary([
+      { path: "main.tex", content: "\\cite{zeta,alpha,beta}" },
+      {
+        path: "refs.bib",
+        content: `
+@misc{same, title = {A Long Untitled Report}}
+@misc{SAME, title = {A Long Untitled Report}}
+`,
+      },
+    ]);
+    expect(analysis.duplicateGroups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reason: "key", value: "same" }),
+        expect.objectContaining({ reason: "title" }),
+      ]),
+    );
+    expect(analysis.missingKeys).toEqual(["alpha", "beta", "zeta"]);
+  });
+
+  it("scores an untyped entry without the type bonus", async () => {
+    const { citationQualityScore } = await import("../citationAnalysis");
+    const typed = citationQualityScore({ key: "a", type: "article", title: "T" } as never);
+    const unknown = citationQualityScore({ key: "a", type: "unknown", title: "T" } as never);
+    const untyped = citationQualityScore({ key: "a", title: "T" } as never);
+    expect(typed - unknown).toBe(10);
+    expect(untyped).toBe(unknown);
+    expect(
+      citationQualityScore({
+        key: "b",
+        type: "article",
+        title: "T",
+        editor: "E",
+        year: "2020",
+        journal: "J",
+        url: "https://x",
+      } as never),
+    ).toBe(100);
+    expect(citationQualityScore({ key: "c", eprint: "1234" } as never)).toBe(16);
+  });
+
+  it("names the venue or says there is none", async () => {
+    const { citationVenue } = await import("../citationAnalysis");
+    expect(citationVenue({ key: "a", journal: "Nature" } as never)).toBe("Nature");
+    expect(citationVenue({ key: "a" } as never)).toBe("No venue");
+  });
+});

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { tikzFromTrace, traceImage, traceSummary } from "./imageToTikz";
+import {
+  figurePathForImage,
+  tikzFromTrace,
+  traceImage,
+  traceSummary,
+} from "./imageToTikz";
 
 function canvas(width: number, height: number, background: number[]) {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -85,5 +90,57 @@ describe("traceImage (#119)", () => {
     expect(traceSummary({ boxes: [], lines: [], background: "#ffffff" })).toMatch(
       /No boxes or lines found/,
     );
+  });
+});
+
+describe("TikZ output details", () => {
+  it("names basic colours, writes others as RGB and styles lines", () => {
+    const tikz = tikzFromTrace(
+      {
+        boxes: [
+          { x: 0, y: 0, w: 50, h: 50, color: "#FF0000", filled: false },
+          { x: 0, y: 0, w: 50, h: 50, color: "#000000", filled: false },
+          { x: 0, y: 0, w: 50, h: 50, color: "#123456", filled: true },
+        ],
+        lines: [
+          { x1: 0, y1: 0, x2: 50, y2: 0, color: "#0000ff" },
+          { x1: 0, y1: 0, x2: 0, y2: 50, color: "#000000" },
+        ],
+      },
+      100,
+      100,
+    );
+    expect(tikz).toContain("\\draw[draw=red] (0.00,2.00) rectangle (1.00,1.00);");
+    expect(tikz).toContain("\\draw (0.00,2.00) rectangle (1.00,1.00);");
+    expect(tikz).toContain(
+      "[draw={rgb,255:red,18;green,52;blue,86}, fill={rgb,255:red,18;green,52;blue,86}]",
+    );
+    expect(tikz).toContain("\\draw[draw=blue] (0.00,2.00) -- (1.00,2.00);");
+    expect(tikz).toContain("\\draw (0.00,2.00) -- (0.00,1.00);");
+  });
+
+  it("summarises single and plural shapes", () => {
+    const box = { x: 0, y: 0, w: 1, h: 1, color: "#000000", filled: false };
+    const line = { x1: 0, y1: 0, x2: 1, y2: 1, color: "#000000" };
+    expect(traceSummary({ boxes: [box], lines: [line] })).toBe("Traced 1 box and 1 line.");
+    expect(traceSummary({ boxes: [box, box], lines: [] })).toBe("Traced 2 boxes.");
+    expect(traceSummary({ boxes: [], lines: [line, line] })).toBe("Traced 2 lines.");
+  });
+
+  it("makes safe figure paths and defaults the image name", () => {
+    expect(figurePathForImage("my figure (1).png")).toBe("figures/my-figure-1-.png");
+    expect(figurePathForImage("")).toBe("figures/image.png");
+  });
+
+  it("treats transparent pixels as a white background", () => {
+    const width = 120;
+    const height = 120;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 20; y <= 80; y += 1)
+      for (let x = 20; x <= 90; x += 1) data.set([200, 30, 30, 255], (y * width + x) * 4);
+    const trace = traceImage(data, width, height);
+    expect(trace.boxes).toEqual([
+      expect.objectContaining({ x: 20, y: 20, filled: true }),
+    ]);
   });
 });

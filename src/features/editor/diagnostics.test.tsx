@@ -116,3 +116,62 @@ describe("diagnostic presentation and safe fixes", () => {
     expect(applyTextFix("intro\nchanged end", fix)).toBeNull();
   });
 });
+
+describe("diagnostic message variants", () => {
+  it("summarises undefined reference and citation warnings", () => {
+    expect(diagnosticHeadline(diagnostic("LaTeX Warning: There were undefined references."))).toBe(
+      "Some references are unresolved",
+    );
+    expect(diagnosticHeadline(diagnostic("There were undefined citations."))).toBe(
+      "Some citations are unresolved",
+    );
+  });
+
+  it("builds the full marker message with every optional section", () => {
+    const text = diagnosticMarkerMessage(
+      diagnostic("Undefined control sequence", {
+        highlightText: "\\foo",
+        detail: "detail",
+        originReason: "macro defined here",
+        reportedLine: 9,
+        suggestion: "define it",
+        compilerExcerpt: "l.9 \\foo",
+      }),
+    );
+    expect(text).toContain("Problem: \\foo");
+    expect(text).toContain("Why this location: macro defined here");
+    expect(text).toContain("LaTeX stopped later at line 9, column 1.");
+    expect(text).toContain("Suggested fix: define it");
+    expect(text).toContain("Compiler excerpt:\nl.9 \\foo");
+
+    const minimal = diagnosticMarkerMessage(diagnostic("  ", { reportedLine: 2, reportedColumn: 4 }));
+    expect(minimal).not.toContain("Problem:");
+    expect(minimal).not.toContain("stopped later");
+    expect(
+      diagnosticMarkerMessage(diagnostic("x", { reportedLine: 5, reportedColumn: 4 })),
+    ).toContain("line 5, column 4.");
+  });
+
+  it("labels accuracy with and without confidence", () => {
+    expect(diagnosticAccuracyLabel(diagnostic("x", { locationAccuracy: "exact" }))).toBe(
+      "Exact origin",
+    );
+    expect(
+      diagnosticAccuracyLabel(diagnostic("x", { locationAccuracy: "inferred", locationConfidence: 70 })),
+    ).toBe("Likely origin · 70%");
+    expect(diagnosticAccuracyLabel(diagnostic("x"))).toBe("Compiler line");
+  });
+
+  it("highlights with an explicit end column and empty highlighted text", () => {
+    const { container } = render(
+      <p>{diagnosticContextContent(diagnostic("x", { column: 2, endColumn: 4 }), "abcdef", true)}</p>,
+    );
+    expect(container.querySelector("mark")?.textContent).toBe("bc");
+    const { container: empty } = render(
+      <p>{diagnosticContextContent(diagnostic("x", { column: 9 }), "ab", true)}</p>,
+    );
+    expect(empty.querySelector("mark")?.textContent).toBe(" ");
+    expect(diagnosticContextContent(diagnostic(), "", false)).toBe(" ");
+  });
+});
+

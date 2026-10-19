@@ -23,17 +23,17 @@ export function diagnosticHeadline(diagnostic: Diagnostic): string {
   if (normalized.includes("file `") && normalized.includes("' not found")) {
     return "A required file is missing";
   }
-  if (normalized.includes("citation") && normalized.includes("undefined")) {
-    return "Citation key not found";
-  }
-  if (normalized.includes("reference") && normalized.includes("undefined")) {
-    return "Reference could not be resolved";
-  }
   if (normalized.includes("there were undefined references")) {
     return "Some references are unresolved";
   }
   if (normalized.includes("there were undefined citations")) {
     return "Some citations are unresolved";
+  }
+  if (normalized.includes("citation") && normalized.includes("undefined")) {
+    return "Citation key not found";
+  }
+  if (normalized.includes("reference") && normalized.includes("undefined")) {
+    return "Reference could not be resolved";
   }
 
   return diagnostic.severity === "warning" ? "LaTeX warning" : "LaTeX error";

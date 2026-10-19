@@ -358,3 +358,33 @@ describe("runReproducibilityChecks", () => {
     });
   });
 });
+
+describe("runReproducibilityChecks on a complete ML paper", () => {
+  it("raises none of the ML-only checks when every detail is reported", () => {
+    const result = runReproducibilityChecks(
+      makeDoc(
+        `${mlPaper} We use a learning rate of 0.1, trained on an NVIDIA A100 GPU, ` +
+          "with random seed 42, and report accuracy.",
+      ),
+      defaultSettings,
+    );
+    expect(
+      result.filter((d) => /Hyperparameters|Hardware|seeds|metrics/i.test(d.message)),
+    ).toEqual([]);
+  });
+});
+
+describe("runReproducibilityChecks with ML checks switched off", () => {
+  it("skips each ML-only check that is disabled", () => {
+    const result = runReproducibilityChecks(makeDoc(mlPaper), {
+      ...defaultSettings,
+      checkHyperparameters: false,
+      checkHardwareDetails: false,
+      checkRandomSeeds: false,
+      checkEvaluationMetrics: false,
+    });
+    expect(
+      result.filter((d) => /Hyperparameters|Hardware|seeds|metrics/i.test(d.message)),
+    ).toEqual([]);
+  });
+});

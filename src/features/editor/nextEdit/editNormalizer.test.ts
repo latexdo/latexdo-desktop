@@ -152,6 +152,7 @@ describe("editNormalizer", () => {
   it("classifies undo and redo before learning", () => {
     expect(originForContentChange({ changes: [], isUndoing: true }, null)).toBe("undo");
     expect(originForContentChange({ changes: [], isRedoing: true }, null)).toBe("redo");
+    expect(originForContentChange({ changes: [], isUndoing: true }, null)).toBe("undo");
     expect(originForContentChange({ changes: [] }, "programmatic")).toBe(
       "programmatic",
     );
@@ -221,3 +222,71 @@ describe("editNormalizer", () => {
     expect(isLearnableEdit(edits[0], { language: "latex" })).toBe(false);
   });
 });
+
+describe("isLearnableEdit guards", () => {
+  const base = {
+    id: "edit-1",
+    documentKey: "k",
+    revisionBefore: 1,
+    revisionAfter: 2,
+    origin: "user" as const,
+    startOffsetBefore: 10,
+    endOffsetBefore: 13,
+    oldText: "foo",
+    newText: "bar",
+    beforeContext: "before ",
+    afterContext: " after",
+    cursorOffsetAfter: 13,
+    timestamp: 1,
+  };
+
+  it("accepts a small user edit in a supported language", () => {
+    expect(isLearnableEdit(base, { language: "latex" })).toBe(true);
+    expect(isLearnableEdit(base)).toBe(true);
+  });
+
+  it.each([
+    ["non-user origin", { origin: "undo" as const }, {}],
+    ["composition", {}, { isComposing: true }],
+    ["unsupported language", {}, { language: "python" }],
+    ["no-op", { newText: "foo" }, {}],
+    ["long old text", { oldText: "x".repeat(513) }, {}],
+    ["long new text", { newText: "x".repeat(513) }, {}],
+    ["oversized context", { beforeContext: "b".repeat(200), afterContext: "a".repeat(200) }, {}],
+    [
+      "whole document rewrite",
+      { startOffsetBefore: 0, beforeContext: "", afterContext: "", newText: "y".repeat(300) },
+      {},
+    ],
+  ])("rejects %s", (_name, patch, options) => {
+    expect(isLearnableEdit({ ...base, ...patch }, options)).toBe(false);
+  });
+
+  it("derives the origin from undo/redo flags", () => {
+    expect(originForContentChange({ changes: [], isRedoing: true }, null)).toBe("redo");
+    expect(originForContentChange({ changes: [], isUndoing: true }, null)).toBe("undo");
+    expect(originForContentChange({ changes: [], isUndoing: true }, "next-edit")).toBe(
+      "next-edit",
+    );
+  });
+
+  it("drops changes with invalid ranges", () => {
+    const run = (change: { rangeOffset: number; rangeLength: number; text: string }) =>
+      normalizeContentChangeEvent({
+        documentKey: "k",
+        revisionBefore: 1,
+        revisionAfter: 2,
+        beforeText: "abc",
+        afterText: "abcd",
+        event: { changes: [change] },
+        origin: "user",
+      });
+    expect(run({ rangeOffset: 0.5, rangeLength: 0, text: "d" })).toEqual([]);
+    expect(run({ rangeOffset: -1, rangeLength: 0, text: "d" })).toEqual([]);
+    expect(run({ rangeOffset: 2, rangeLength: 5, text: "d" })).toEqual([]);
+    const [edit] = run({ rangeOffset: 3, rangeLength: 0, text: "d" });
+    expect(edit.cursorOffsetAfter).toBe(4);
+    expect(typeof edit.timestamp).toBe("number");
+  });
+});
+
