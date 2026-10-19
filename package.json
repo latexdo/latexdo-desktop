@@ -113,6 +113,9 @@
   "build": {
     "appId": "com.latexdo.editor",
     "productName": "LatexDo",
+    "directories": {
+      "output": "release"
+    },
     "icon": "build/icon.png",
     "npmRebuild": true,
     "fileAssociations": [

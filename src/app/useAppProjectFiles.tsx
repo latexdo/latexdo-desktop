@@ -28,6 +28,7 @@ import {
   reviewSnapshot,
 } from "./appShared";
 import type { AppCtx02 } from "./appContext";
+import { markDocumentsSaved } from "./markDocumentsSaved";
 
 export function useAppProjectFiles(ctx: AppCtx02) {
   const {
@@ -528,7 +529,10 @@ ${macroEnd}
     );
 
     for (const entry of texEntries) {
-      const content = await window.latexdo.readFile(currentProject, entry.relativePath);
+      // A file LatexDo cannot read (e.g. not UTF-8) must not block the build.
+      const content = await window.latexdo
+        .readFile(currentProject, entry.relativePath)
+        .catch(() => "");
       if (usesLatexDoReviewMacros(content)) {
         return true;
       }
@@ -547,9 +551,13 @@ ${macroEnd}
 
     for (const entry of texEntries) {
       const openDocument = findOpenDocument(entry.relativePath);
+      // An unreadable file is left untouched rather than failing the build.
       const content =
         openDocument?.content ??
-        (await window.latexdo.readFile(currentProject, entry.relativePath));
+        (await window.latexdo
+          .readFile(currentProject, entry.relativePath)
+          .catch(() => null));
+      if (content === null) continue;
       const normalizedContent = normalizeLatexDoReviewMarkup(content);
 
       if (normalizedContent !== content) {
@@ -573,6 +581,12 @@ ${macroEnd}
     dirtyDocuments: OpenDocument[],
   ): Promise<void> => {
     const rootRelativePath = rootFileRef.current;
+    const contentsAtStart = new Map(
+      documentsRef.current.map((document) => [
+        normalizeRelativePath(document.relativePath),
+        document.content,
+      ]),
+    );
     const rootEntry = findProjectEntry(rootRelativePath);
     const rootDocument = findOpenDocument(rootRelativePath);
     const savedContents = await normalizeReviewMarkupForCompile(currentProject);
@@ -636,15 +650,14 @@ ${macroEnd}
     }
 
     if (savedContents.size > 0) {
+      const writes = new Map(
+        [...savedContents].map(([path, written]) => [
+          path,
+          { from: contentsAtStart.get(path) ?? written, written },
+        ]),
+      );
       setDocuments((current) => {
-        const nextDocuments = current.map((document) => {
-          const savedContent = savedContents.get(
-            normalizeRelativePath(document.relativePath),
-          );
-          return savedContent === undefined
-            ? document
-            : { ...document, content: savedContent, savedContent };
-        });
+        const nextDocuments = markDocumentsSaved(current, writes);
         documentsRef.current = nextDocuments;
         return nextDocuments;
       });

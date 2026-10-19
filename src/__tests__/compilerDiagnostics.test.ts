@@ -88,6 +88,30 @@ describe("compiler diagnostics", () => {
     );
   });
 
+  it("reports a failed biber run instead of only an exit code", () => {
+    const diagnostics = parseDiagnostics(
+      [
+        "Package biblatex Warning: Please (re)run Biber on the file:",
+        "(biblatex)                main",
+        "(biblatex)                and rerun LaTeX afterwards.",
+        "Running 'biber  \".latexdo/build/job-1/main.bcf\"'",
+        "ERROR - Cannot find 'refs.bib'!",
+        "Latexmk: Error return from 'biber .latexdo/build/job-1/main'",
+        "Latexmk: Errors, so I did not complete making targets",
+      ].join("\n"),
+      projectPath,
+      "main.tex",
+    );
+
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        message: "biber failed, so the bibliography or index could not be built.",
+        compilerExcerpt: expect.stringContaining("ERROR - Cannot find 'refs.bib'!"),
+      }),
+    );
+  });
+
   it("creates a fallback diagnostic for explicit LaTeX errors without source lines", () => {
     const diagnostics = parseDiagnostics(
       [

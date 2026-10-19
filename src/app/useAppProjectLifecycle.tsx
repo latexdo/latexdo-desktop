@@ -260,9 +260,12 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
         document.relativePath,
         document.content,
       );
+      // Mark only what was written: edits typed during the write stay unsaved.
       setDocuments((current) => {
         const nextDocuments = current.map((item) =>
-          item.path === document.path ? { ...item, savedContent: item.content } : item,
+          item.path === document.path
+            ? { ...item, savedContent: document.content }
+            : item,
         );
         documentsRef.current = nextDocuments;
         return nextDocuments;
@@ -315,7 +318,7 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
               setDocuments((current) => {
                 const nextDocuments = current.map((document) =>
                   document.path === asymptoteDocument.path
-                    ? { ...document, savedContent: document.content }
+                    ? { ...document, savedContent: asymptoteDocument.content }
                     : document,
                 );
                 documentsRef.current = nextDocuments;
