@@ -17,7 +17,15 @@ import {
   Trash2,
   Shapes,
   ChevronDown,
+  CircleX,
+  TriangleAlert,
+  TextSelect,
+  PenLine,
+  BookMarked,
+  ScanSearch,
+  History,
 } from "lucide-react";
+import type { CompileResult } from "../types";
 import type { AiConfig } from "../features/ai/aiConfig";
 import type { AgentContext, EditProposal } from "../features/ai/aiTools";
 import { findLocalModel } from "../features/ai/aiModels";
@@ -54,6 +62,14 @@ import { VoiceDictationButton } from "./VoiceDictationButton";
 import { VoiceRecordingBar, isVoiceBarStatus } from "./VoiceRecordingBar";
 import { LocalSpeechInstallCard } from "./LocalSpeechInstallCard";
 import { useLocalSpeechInstall } from "../features/voice/useLocalSpeechInstall";
+import {
+  buildAiSuggestions,
+  classifyTypedRequest,
+  loadAiSuggestionUsage,
+  recordAiSuggestionUsage,
+  type AiSuggestion,
+  type AiSuggestionKind,
+} from "../features/ai/aiSuggestions";
 
 interface Suggestion {
   /** Text inserted after the trigger character. */
@@ -102,7 +118,20 @@ interface AiSidebarProps {
   onSelectModel?: (id: string) => void;
   /** Puts a TikZ figure from an answer into the document and previews it. */
   onInsertFigure?: (code: string) => void;
+  /** Last build, so the empty chat can offer to fix what just broke. */
+  compileResult?: CompileResult | null;
+  compiling?: boolean;
 }
+
+const suggestionIcons: Record<AiSuggestionKind, React.ReactNode> = {
+  error: <CircleX size={15} />,
+  warning: <TriangleAlert size={15} />,
+  selection: <TextSelect size={15} />,
+  write: <PenLine size={15} />,
+  review: <ScanSearch size={15} />,
+  figure: <Shapes size={15} />,
+  sources: <BookMarked size={15} />,
+};
 
 /** The TikZ code blocks of an answer, in order. */
 export function tikzBlocksIn(text: string): string[] {
@@ -167,6 +196,8 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
   onInsertFigure,
   modelOptions = [],
   onSelectModel,
+  compileResult = null,
+  compiling = false,
 }) => {
   const {
     messages,
@@ -498,6 +529,55 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // Smart starters for the empty chat. The editor's selection and text are
+  // read through ctx, which doesn't re-render us, so refresh on a light
+  // timer and whenever the pointer or focus comes into the chat.
+  const showStarters = configured && messages.length === 0;
+  const [suggestionUsage, setSuggestionUsage] = React.useState(loadAiSuggestionUsage);
+  const [starterTick, setStarterTick] = React.useState(0);
+  const refreshStarters = React.useCallback(() => setStarterTick((t) => t + 1), []);
+  React.useEffect(() => {
+    if (!showStarters) return;
+    const timer = window.setInterval(refreshStarters, 2500);
+    window.addEventListener("focus", refreshStarters);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshStarters);
+    };
+  }, [showStarters, refreshStarters]);
+  const starterSignature = React.useRef("");
+  const starterCache = React.useRef<AiSuggestion[]>([]);
+  const starters = React.useMemo(() => {
+    if (!showStarters) return [];
+    const tab = ctx.workspaceTab?.() ?? null;
+    const selection = ctx.selection();
+    const next = buildAiSuggestions({
+      hasProject: ctx.hasProject?.() ?? true,
+      workspaceKind: tab?.kind ?? (ctx.activeFilePath() ? "document" : null),
+      activeFile: ctx.activeFilePath(),
+      compiling,
+      compile: compileResult,
+      selectionText: selection.hasSelection ? selection.text : "",
+      documentText: ctx.documentText(),
+      usage: suggestionUsage,
+      now: Date.now(),
+    });
+    // Keep the same array while nothing changed so the cards don't flicker.
+    const signature = next.map((s) => `${s.id}|${s.label}|${s.reason}`).join("\n");
+    if (signature === starterSignature.current) return starterCache.current;
+    starterSignature.current = signature;
+    starterCache.current = next;
+    return next;
+    // starterTick re-reads the editor state behind ctx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStarters, ctx, compiling, compileResult, suggestionUsage, starterTick]);
+
+  const runStarter = (starter: AiSuggestion) => {
+    if (!sendPrompt(starter.prompt, starter.label)) return;
+    setSuggestionUsage(recordAiSuggestionUsage(starter.id));
+    emitProductEvent({ type: "ai:starter-used", id: starter.id });
+  };
+
   const submit = () => submitText(input.trim());
 
   function submitText(text: string) {
@@ -514,6 +594,8 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
     if (!fullMessage) return;
     setInput("");
     setSuggest(null);
+    const typed = classifyTypedRequest(text);
+    if (typed) setSuggestionUsage(recordAiSuggestionUsage(typed));
     void send(fullMessage);
   }
 
@@ -564,6 +646,8 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
   return (
     <div
       className={`ai-sidebar ${configured && messages.length === 0 ? "is-empty" : ""}`}
+      onPointerEnter={showStarters ? refreshStarters : undefined}
+      onFocus={showStarters ? refreshStarters : undefined}
     >
       {/* One row: target tab, model and approval state beside the actions. */}
       <div className="ai-sidebar-header">
@@ -675,6 +759,43 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
                 Type <code>@</code> to attach a project file, or <code>\</code> for
                 quick commands.
               </p>
+              {starters.length > 0 && (
+                <div
+                  className="ai-starters"
+                  role="list"
+                  aria-label="Suggested requests"
+                  data-tour-id="ai-starters"
+                >
+                  {starters.map((starter) => (
+                    <button
+                      key={starter.id}
+                      type="button"
+                      role="listitem"
+                      className={`ai-starter ai-starter-${starter.kind}`}
+                      onClick={() => runStarter(starter)}
+                      disabled={isRunning}
+                      title={starter.reason}
+                    >
+                      <span className="ai-starter-icon" aria-hidden="true">
+                        {suggestionIcons[starter.kind]}
+                      </span>
+                      <span className="ai-starter-text">
+                        <span className="ai-starter-label">{starter.label}</span>
+                        <span className="ai-starter-reason">{starter.reason}</span>
+                      </span>
+                      {starter.fromHistory && (
+                        <span
+                          className="ai-starter-history"
+                          aria-label="You often ask for this"
+                          title="You often ask for this"
+                        >
+                          <History size={12} />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {messages.map((m) => (

@@ -415,6 +415,8 @@ export function renderSidebar(ctx: AppCtx) {
                 modelOptions={modelOptions}
                 onSelectModel={selectModel}
                 onInsertFigure={(code) => void ctx.insertFigure(code)}
+                compileResult={ctx.compileResult}
+                compiling={ctx.compiling}
               />
             </div>
           );
