@@ -330,6 +330,26 @@ describe("terminal shell selection", () => {
     expect(terminal.resize).not.toHaveBeenCalled();
   });
 
+  it("fills missing colour and home variables and keeps user overrides", async () => {
+    for (const key of ["COLORTERM", "HOME", "ZDOTDIR", "HISTFILE", "LS_COLORS"])
+      vi.stubEnv(key, undefined);
+    vi.stubEnv("CLICOLOR", "0");
+    vi.stubEnv("FORCE_COLOR", "3");
+    vi.stubEnv("PS1", "$ ");
+    await create(sender);
+    const env = mocks.pty.mock.calls[0][2].env;
+    expect(env).toMatchObject({
+      COLORTERM: "truecolor",
+      HOME: os.tmpdir(),
+      ZDOTDIR: os.tmpdir(),
+      HISTFILE: `${os.tmpdir()}/latexdo-shell-history`,
+      CLICOLOR: "0",
+      FORCE_COLOR: "3",
+      PS1: "$ ",
+    });
+    expect(env.LS_COLORS).toContain("di=1;34");
+  });
+
   it("reports exit code 0 when the PTY gives no exit details", async () => {
     const { id } = await create(sender);
     terminal.onExit.mock.calls[0][0](undefined);

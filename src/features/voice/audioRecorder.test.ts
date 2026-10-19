@@ -5,6 +5,8 @@ import {
   defaultAudioConstraints,
   isAudioCaptureSupported,
   pickPreferredMimeType,
+  stopAllTracks,
+  toVoiceDictationError,
 } from "./audioRecorder";
 
 interface FakeTrack {
@@ -258,5 +260,249 @@ describe("audioRecorder", () => {
       expect(blob).not.toBeNull();
       expect(track.stop).toHaveBeenCalled();
     });
+  });
+});
+
+describe("audioRecorder edge cases", () => {
+  let track: FakeTrack;
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    FakeMediaRecorder.instances = [];
+    FakeMediaRecorder.isTypeSupported = vi.fn(
+      (type: string) => type === "audio/webm;codecs=opus",
+    );
+    installMediaRecorder();
+    track = { stop: vi.fn(), kind: "audio" };
+    installGetUserMedia(makeFakeStream(track));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+  });
+
+  it("converts errors into voice dictation errors", () => {
+    const cause = new Error("x");
+    expect(
+      toVoiceDictationError(new AudioCaptureError("cancelled", "stop", cause)),
+    ).toEqual({ code: "cancelled", message: "stop", cause });
+    expect(toVoiceDictationError("weird")).toEqual({
+      code: "recording-failed",
+      message: "Voice recording failed. Your existing text was not changed.",
+      cause: "weird",
+    });
+    expect(toVoiceDictationError(null, "unsupported").code).toBe("unsupported");
+  });
+
+  it("has no preferred MIME type without MediaRecorder or isTypeSupported", () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    expect(pickPreferredMimeType()).toBeUndefined();
+    vi.stubGlobal("MediaRecorder", class {});
+    expect(pickPreferredMimeType()).toBeUndefined();
+  });
+
+  it.each([
+    ["TrackStartError", "device-unavailable"],
+    ["OverconstrainedError", "device-unavailable"],
+    ["SecurityError", "permission-denied"],
+    ["PermissionDeniedError", "permission-denied"],
+    ["DevicesNotFoundError", "device-not-found"],
+    ["Whatever", "recording-failed"],
+  ])("maps %s to %s", async (name, code) => {
+    installGetUserMedia(new DOMException("x", name));
+    await expect(new AudioRecorder().start()).rejects.toMatchObject({ code });
+  });
+
+  it("maps a nameless rejection to recording-failed", async () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: () => Promise.reject(null) },
+    });
+    await expect(new AudioRecorder().start()).rejects.toMatchObject({
+      code: "recording-failed",
+    });
+  });
+
+  it("refuses to start where capture is unsupported and ignores a second start", async () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    await expect(new AudioRecorder().start()).rejects.toMatchObject({ code: "unsupported" });
+    installMediaRecorder();
+    const recorder = new AudioRecorder();
+    await recorder.start();
+    await recorder.start();
+    expect(getLastGetUserMedia()).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the stream when cancelled during the permission prompt", async () => {
+    const recorder = new AudioRecorder();
+    const starting = recorder.start();
+    recorder.cancel();
+    await expect(starting).rejects.toMatchObject({ code: "cancelled" });
+    expect(track.stop).toHaveBeenCalledTimes(1);
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it("returns null when nothing was recorded or stop is called before start", async () => {
+    const recorder = new AudioRecorder();
+    expect(await recorder.stop()).toBeNull();
+    await recorder.start();
+    const rec = FakeMediaRecorder.instances[0];
+    rec.mimeType = " ";
+    rec.stop = function () {
+      this.state = "inactive";
+      this.emitChunk(0);
+      this.onstop?.();
+    };
+    expect(await recorder.stop()).toBeNull();
+    expect(await recorder.stop()).toBeNull();
+  });
+
+  it("falls back to audio/webm for blobs without a MIME type and shares one stop", async () => {
+    const recorder = new AudioRecorder();
+    await recorder.start();
+    const rec = FakeMediaRecorder.instances[0];
+    rec.mimeType = "";
+    rec.stop = function () {
+      this.state = "inactive";
+    };
+    const first = recorder.stop();
+    const second = recorder.stop();
+    rec.emitChunk(4);
+    rec.onstop?.();
+    const [a, b] = await Promise.all([first, second]);
+    expect(b).toBe(a);
+    expect(a?.type).toBe("audio/webm");
+  });
+
+  it("rejects the pending stop when the recorder errors", async () => {
+    const recorder = new AudioRecorder();
+    await recorder.start();
+    const rec = FakeMediaRecorder.instances[0];
+    rec.stop = () => undefined;
+    const stopping = recorder.stop();
+    rec.onerror?.(new Event("error"));
+    await expect(stopping).rejects.toMatchObject({ code: "recording-failed" });
+    expect(track.stop).toHaveBeenCalled();
+    expect(recorder.state).toBe("stopped");
+  });
+
+  it("an error with no pending stop just releases the microphone", async () => {
+    const recorder = new AudioRecorder({ maxDurationMs: 1000 });
+    await recorder.start();
+    FakeMediaRecorder.instances[0].onerror?.(new Event("error"));
+    expect(recorder.state).toBe("stopped");
+    expect(track.stop).toHaveBeenCalledTimes(1);
+    expect(await recorder.stop()).toBeNull();
+  });
+
+  it("checks the duration cap without stopping early or twice", async () => {
+    vi.useFakeTimers();
+    const onDurationLimit = vi.fn();
+    const recorder = new AudioRecorder({ maxDurationMs: 1200, onDurationLimit });
+    await recorder.start();
+    vi.advanceTimersByTime(1000);
+    expect(onDurationLimit).not.toHaveBeenCalled();
+    expect(recorder.durationLimitReachedFlag).toBe(false);
+    const rec = FakeMediaRecorder.instances[0];
+    rec.state = "inactive";
+    vi.advanceTimersByTime(500);
+    expect(onDurationLimit).toHaveBeenCalledTimes(1);
+    expect(recorder.durationLimitReachedFlag).toBe(true);
+    expect(recorder.state).toBe("recording");
+    recorder.cancel();
+    expect(recorder.state).toBe("recording");
+  });
+
+  it("skips the timer check after recording stopped and cancel releases a finished stream", async () => {
+    vi.useFakeTimers();
+    const recorder = new AudioRecorder({ maxDurationMs: 100 });
+    await recorder.start();
+    const rec = FakeMediaRecorder.instances[0];
+    // Stop without the onstop handler clearing the cap timer.
+    rec.onstop = null;
+    rec.stop();
+    (recorder as unknown as { recorderState: string }).recorderState = "stopped";
+    vi.advanceTimersByTime(1000);
+    expect(recorder.durationLimitReachedFlag).toBe(false);
+    recorder.cancel();
+    expect(track.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("works without a duration cap callback", async () => {
+    vi.useFakeTimers();
+    const recorder = new AudioRecorder({ maxDurationMs: 10 });
+    await recorder.start();
+    vi.advanceTimersByTime(500);
+    expect(recorder.durationLimitReachedFlag).toBe(true);
+  });
+
+  it("reports microphone levels and closes the audio context", async () => {
+    vi.useFakeTimers();
+    const close = vi.fn(() => Promise.reject(new Error("closed")));
+    const connect = vi.fn();
+    class FakeAudioContext {
+      createAnalyser() {
+        return {
+          fftSize: 0,
+          getByteTimeDomainData(samples: Uint8Array) {
+            samples.fill(0);
+          },
+        };
+      }
+      createMediaStreamSource() {
+        return { connect };
+      }
+      close = close;
+    }
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    const onLevel = vi.fn();
+    const recorder = new AudioRecorder({ onLevel });
+    await recorder.start();
+    vi.advanceTimersByTime(70);
+    expect(connect).toHaveBeenCalled();
+    expect(onLevel).toHaveBeenCalledWith(1);
+    await recorder.stop();
+    expect(close).toHaveBeenCalled();
+    vi.advanceTimersByTime(500);
+    expect(onLevel).toHaveBeenCalledTimes(1);
+  });
+
+  it("records without a meter when AudioContext is missing or fails", async () => {
+    vi.stubGlobal("AudioContext", undefined);
+    const onLevel = vi.fn();
+    const first = new AudioRecorder({ onLevel });
+    await first.start();
+    expect(first.state).toBe("recording");
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        constructor() {
+          throw new Error("no audio");
+        }
+      },
+    );
+    const second = new AudioRecorder({ onLevel });
+    await second.start();
+    expect(await second.stop()).not.toBeNull();
+    expect(onLevel).not.toHaveBeenCalled();
+  });
+
+  it("stopAllTracks tolerates null streams and failing tracks", () => {
+    expect(() => stopAllTracks(null)).not.toThrow();
+    const good = { stop: vi.fn() };
+    const stream = {
+      getTracks: () => [
+        {
+          stop: () => {
+            throw new Error("x");
+          },
+        },
+        good,
+      ],
+    } as unknown as MediaStream;
+    stopAllTracks(stream);
+    expect(good.stop).toHaveBeenCalled();
   });
 });

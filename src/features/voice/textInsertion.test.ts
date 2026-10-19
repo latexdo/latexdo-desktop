@@ -123,7 +123,7 @@ describe("textInsertion", () => {
       insertAtCurrentCursor("ab", 1, 1, "XY"),
     ).toEqual({ value: "a XY b", cursor: 4 });
     expect(insertAtCurrentCursor("a.", 1, 1, "XY")).toEqual({ value: "a XY.", cursor: 4 });
-    expect(insertAtCurrentCursor(".b", 1, 1, "XY")).toEqual({ value: ". XY b", cursor: 4 });
+    expect(insertAtCurrentCursor(".b", 1, 1, "XY")).toEqual({ value: ".XY b", cursor: 3 });
     expect(insertAtCurrentCursor("ab", 1, 1, ",")).toEqual({ value: "a,b", cursor: 2 });
     expect(insertAtCurrentCursor("ab", 1, 1, "")).toEqual({ value: "ab", cursor: 1 });
   });

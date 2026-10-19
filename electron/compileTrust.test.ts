@@ -102,7 +102,9 @@ describe("canonicalCompileTarget", () => {
     const { realpath } = await import("node:fs/promises");
     const { canonicalCompileTarget } = await import("./compileTrust.js");
     const target = path.join(dir, "main.tex");
-    await expect(canonicalCompileTarget(dir, target)).resolves.toBe(await realpath(target));
+    await expect(canonicalCompileTarget(dir, target)).resolves.toBe(
+      await realpath(target),
+    );
   });
 
   it("falls back to the given path for a missing output file", async () => {

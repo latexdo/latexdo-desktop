@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectSearchPanel } from "./ProjectSearchPanel";
 import type { ProjectSearchFile } from "../search/projectSearch";
@@ -243,8 +250,10 @@ describe("ProjectSearchPanel navigation and filters", () => {
       fireEvent.click(copy);
       expect(await screen.findByText("Copied")).toBeVisible();
       expect(writeText).toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1600);
-      expect(screen.getByRole("button", { name: /copy/i })).toHaveTextContent("Copy");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1600);
+      });
+      expect(await screen.findByRole("button", { name: /^copy$/i })).toBeVisible();
 
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
       fireEvent.click(screen.getByRole("button", { name: /copy/i }));

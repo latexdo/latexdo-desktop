@@ -12,13 +12,39 @@ function contextAt(doc: string, marker = "|") {
 
 const index: LatexIndex = {
   citations: [
-    { key: "knuth84", type: "book", title: "The TeXbook", author: "Knuth", year: "1984", sourceFile: "refs.bib" },
-    { key: "lamport94", type: "book", title: "LaTeX", author: "Lamport", year: "1994", sourceFile: "refs.bib" },
+    {
+      key: "knuth84",
+      type: "book",
+      title: "The TeXbook",
+      author: "Knuth",
+      year: "1984",
+      sourceFile: "refs.bib",
+    },
+    {
+      key: "lamport94",
+      type: "book",
+      title: "LaTeX",
+      author: "Lamport",
+      year: "1994",
+      sourceFile: "refs.bib",
+    },
   ],
   citedKeys: ["knuth84"],
   labels: [
-    { key: "fig:one", kind: "figure", caption: "First", line: 3, sourceFile: "main.tex" },
-    { key: "sec:intro", kind: "section", title: "Intro", line: 1, sourceFile: "intro.tex" },
+    {
+      key: "fig:one",
+      kind: "figure",
+      caption: "First",
+      line: 3,
+      sourceFile: "main.tex",
+    },
+    {
+      key: "sec:intro",
+      kind: "section",
+      title: "Intro",
+      line: 1,
+      sourceFile: "intro.tex",
+    },
     { key: "eq:bare", kind: "equation", line: 9, sourceFile: "main.tex" },
   ],
 };
@@ -51,16 +77,34 @@ describe("latexCompletionSource", () => {
       ...index,
       citedKeys: undefined as unknown as string[],
     }))(contextAt("\\citep{|"));
-    expect(result!.options.map((o) => o.label).sort()).toEqual(["knuth84", "lamport94"]);
+    expect(result!.options.map((o) => o.label).sort()).toEqual([
+      "knuth84",
+      "lamport94",
+    ]);
   });
 
   it("offers labels for references with kind/source detail and joined info", () => {
     const result = latexCompletionSource(() => index)(contextAt("as in \\ref{fi|}"));
     expect(result!.from).toBe("as in \\ref{".length);
     expect(result!.options).toEqual([
-      { label: "fig:one", type: "reference", detail: "figure · main.tex:3", info: "First" },
-      { label: "sec:intro", type: "reference", detail: "section · intro.tex:1", info: "Intro" },
-      { label: "eq:bare", type: "reference", detail: "equation · main.tex:9", info: "" },
+      {
+        label: "fig:one",
+        type: "reference",
+        detail: "figure · main.tex:3",
+        info: "First",
+      },
+      {
+        label: "sec:intro",
+        type: "reference",
+        detail: "section · intro.tex:1",
+        info: "Intro",
+      },
+      {
+        label: "eq:bare",
+        type: "reference",
+        detail: "equation · main.tex:9",
+        info: "",
+      },
     ]);
   });
 });

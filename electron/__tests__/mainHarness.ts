@@ -295,7 +295,11 @@ export function fakeChild(
     }
     child.emit("spawn");
     if (behaviour.hang) return;
-    child.emit("exit", behaviour.exitCode ?? 0, behaviour.signal ?? null);
+    child.emit(
+      "exit",
+      "exitCode" in behaviour ? behaviour.exitCode : 0,
+      behaviour.signal ?? null,
+    );
   });
   return child;
 }

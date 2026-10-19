@@ -60,7 +60,9 @@ describe("VoiceRecordingBar", () => {
   it("keeps only the most recent levels", () => {
     const levels = Array.from({ length: voiceLevelHistory + 5 }, () => 1);
     const { container } = renderBar({ levels });
-    expect(container.querySelectorAll(".voice-bar-wave i")).toHaveLength(voiceLevelHistory);
+    expect(container.querySelectorAll(".voice-bar-wave i")).toHaveLength(
+      voiceLevelHistory,
+    );
     expect(container.querySelectorAll(".voice-bar-wave i.is-empty")).toHaveLength(0);
   });
 
@@ -79,14 +81,19 @@ describe("VoiceRecordingBar", () => {
     const { container } = renderBar({ status: status as VoiceDictationStatus });
     expect(screen.getByRole("status").textContent).toContain(label);
     expect(container.querySelector(".voice-bar-time")).toBeNull();
-    expect((screen.getByLabelText("Stop voice dictation") as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByLabelText("Stop voice dictation") as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
-  it.each(["stop", "send"] as const)("shows a spinner on the %s button once recording ends", (pending) => {
-    const { container } = renderBar({ status: "transcribing", pending });
-    const cls = pending === "stop" ? ".voice-bar-stop" : ".voice-bar-send";
-    expect(container.querySelector(`${cls} .spin`)).not.toBeNull();
-    const other = pending === "stop" ? ".voice-bar-send" : ".voice-bar-stop";
-    expect(container.querySelector(`${other} .spin`)).toBeNull();
-  });
+  it.each(["stop", "send"] as const)(
+    "shows a spinner on the %s button once recording ends",
+    (pending) => {
+      const { container } = renderBar({ status: "transcribing", pending });
+      const cls = pending === "stop" ? ".voice-bar-stop" : ".voice-bar-send";
+      expect(container.querySelector(`${cls} .spin`)).not.toBeNull();
+      const other = pending === "stop" ? ".voice-bar-send" : ".voice-bar-stop";
+      expect(container.querySelector(`${other} .spin`)).toBeNull();
+    },
+  );
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   citationCommandsInText,
+  commandCounts,
+  commandFromPackages,
   formatCitation,
   resolveCitationStyle,
 } from "../citationStyle";
@@ -104,3 +106,23 @@ describe("formatCitation", () => {
     );
   });
 });
+
+describe("citation command helpers", () => {
+  it("counts only supported commands, folding starred variants", () => {
+    const counts = commandCounts([
+      { command: "citep*" },
+      { command: "citep" },
+      { command: "nocite" },
+      { command: undefined },
+    ] as { command?: string }[] as never);
+    expect([...counts]).toEqual([["citep", 2]]);
+  });
+
+  it("infers the command from the bibliography package", () => {
+    expect(commandFromPackages("\\usepackage[round]{natbib}")).toBe("citep");
+    expect(commandFromPackages("\\usepackage{amsmath, biblatex}")).toBe("parencite");
+    expect(commandFromPackages("\\addbibresource{refs.bib}")).toBe("parencite");
+    expect(commandFromPackages("\\usepackage{amsmath}")).toBeNull();
+  });
+});
+

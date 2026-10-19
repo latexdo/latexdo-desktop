@@ -271,14 +271,28 @@ describe("sync manifest validation", () => {
     [{ schemaVersion: 1, files: ["a"] }, "files[0] must be an object"],
     [{ schemaVersion: 1, files: [{ from: "", to: "b" }] }, "non-empty relative path"],
     [{ schemaVersion: 1, files: [{ from: "a", to: 3 }] }, "non-empty relative path"],
-    [{ schemaVersion: 1, files: [{ from: "x/../a", to: "b" }] }, "inside this repository"],
-    [{ schemaVersion: 1, files: [], styleFragments: [null] }, "styleFragments[0] must be an object"],
     [
-      { schemaVersion: 1, files: [], styleFragments: [{ from: "a", to: "b", startMarker: 1, endMarker: "e" }] },
+      { schemaVersion: 1, files: [{ from: "x/../a", to: "b" }] },
+      "inside this repository",
+    ],
+    [
+      { schemaVersion: 1, files: [], styleFragments: [null] },
+      "styleFragments[0] must be an object",
+    ],
+    [
+      {
+        schemaVersion: 1,
+        files: [],
+        styleFragments: [{ from: "a", to: "b", startMarker: 1, endMarker: "e" }],
+      },
       "startMarker/endMarker must be strings",
     ],
     [
-      { schemaVersion: 1, files: [], styleFragments: [{ from: "a", to: "b", startMarker: "s", endMarker: null }] },
+      {
+        schemaVersion: 1,
+        files: [],
+        styleFragments: [{ from: "a", to: "b", startMarker: "s", endMarker: null }],
+      },
       "startMarker/endMarker must be strings",
     ],
   ])("rejects malformed manifest %j", async (manifest, message) => {
@@ -294,7 +308,12 @@ describe("sync manifest validation", () => {
       schemaVersion: 1,
       files: [{ from: "a", to: "b" }],
       styleFragments: [
-        { from: "style.css", to: "style.css", startMarker: "/* AI */", endMarker: "/* END */" },
+        {
+          from: "style.css",
+          to: "style.css",
+          startMarker: "/* AI */",
+          endMarker: "/* END */",
+        },
       ],
     });
     await expect(run("validate-sync.mjs", file)).resolves.toBeUndefined();
@@ -325,7 +344,9 @@ describe("catalog and sync edge cases", () => {
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining("cloudProviders[0] must be an object"),
     );
-    await expect(run("sync-ai.mjs")).rejects.toThrow(/localModels\[0\] must be an object/);
+    await expect(run("sync-ai.mjs")).rejects.toThrow(
+      /localModels\[0\] must be an object/,
+    );
   });
   it("validates the repository catalog when no path argument is given", async () => {
     process.cwd.mockReturnValue(repo);

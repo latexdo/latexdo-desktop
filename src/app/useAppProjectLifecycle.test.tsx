@@ -171,7 +171,7 @@ describe("loadProject", () => {
       listProject: vi.fn(async () => [
         file("notes.md"),
         file("paper.tex"),
-        { type: "limit", name: "…", path: "/p/…", relativePath: "…" },
+        { ...file("big"), type: "directory", children: [{ ...file("big/x"), limited: true }] },
       ]),
     });
     const { ctx, setters } = makeCtx();
@@ -269,10 +269,8 @@ describe("automatic project open", () => {
   });
 });
 
-describe("generateRebuttalFile", () => {
-  // Not returned by the hook, so it is exercised indirectly elsewhere; only
-  // the lifecycle API below is public.
-  it("is not exposed", () => {
+describe("hook API", () => {
+  it("exposes the project lifecycle actions", () => {
     const { result } = mount(makeCtx().ctx);
     expect(Object.keys(result.current).sort()).toEqual([
       "cancelCompile",
@@ -550,10 +548,12 @@ describe("closeActiveTab", () => {
     expect(ctx.reopenClosedTabArmedRef.current).toBe(true);
     expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Closed c.tex");
 
+    // A path with no open document closes nothing and keeps the remaining tabs.
     ctx.documentsRef.current = [a];
     ctx.activePathRef.current = "/p/ghost.tex";
     result.current.closeActiveTab();
-    expect(ctx.activePathRef.current).toBe(a.path);
+    expect(ctx.documentsRef.current).toEqual([a]);
+    expect(ctx.activePathRef.current).toBe("");
     expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Closed active tab");
 
     ctx.documentsRef.current = [];
@@ -685,7 +685,8 @@ describe("downloadPdf", () => {
     ctx.projectIdRef.current = "p";
     ctx.pdfPathRef.current = "/b/old.pdf";
     ctx.documentsRef.current = [doc("main.tex", "a", "b")];
-    await act(() => mount(ctx).result.current.downloadPdf());
+    const { result } = mount(ctx);
+    await act(() => result.current.downloadPdf());
     expect(api.compile).toHaveBeenCalled();
     expect(api.readPdf).toHaveBeenLastCalledWith("p", "/b/new.pdf");
     expect(clicks).toHaveLength(1);

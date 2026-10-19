@@ -404,7 +404,11 @@ describe("PDF operator fallbacks", () => {
 
   it("drops curved subpaths before a new moveTo and records vector artwork", async () => {
     const { page } = await extract([
-      [91, [13, 15, 13, 16, 17], [0, 0, 1, 1, 2, 2, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90]],
+      [
+        91,
+        [13, 15, 13, 16, 17],
+        [0, 0, 1, 1, 2, 2, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90],
+      ],
       [22],
     ]);
     expect(page.rules).toEqual([]);
@@ -439,7 +443,13 @@ describe("PDF operator fallbacks", () => {
       [31],
       [37, "F1", 10],
       [42, 1, 0, 0, 1, 72, 700],
-      [44, [{ originalCharCode: 65, width: 500, isSpace: false }, { unicode: " ", width: 250 }]],
+      [
+        44,
+        [
+          { originalCharCode: 65, width: 500, isSpace: false },
+          { unicode: " ", width: 250 },
+        ],
+      ],
     ]);
     p.getViewport = () => ({ width: 1, height: 1, transform: null as never });
     const page = await extractPage(p, 0, new Map(), [], { remaining: 100 });

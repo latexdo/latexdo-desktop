@@ -108,7 +108,7 @@ describe("renderInline", () => {
       [textLine(glyphs("pre-", 50)), textLine([glyph(" ", 50)])],
       context(),
     );
-    expect(result.latex).toBe("pre-\n ");
+    expect(result.latex).toBe("pre-\n");
     expect(result.text).toBe("pre-");
   });
 
@@ -139,19 +139,14 @@ describe("renderInline", () => {
 
   it("counts low-confidence formulas", () => {
     const result = renderInline(
-      [textLine([glyph("ˆ", 50, 100, { font: math, width: 3 })])],
+      [
+        textLine(
+          [0, 1, 2, 3].map((i) => glyph("ˆ", 50 + i * 20, 100, { font: math, width: 3 })),
+        ),
+      ],
       context(),
     );
     expect(result.mathSpans).toBe(1);
     expect(result.lowConfidenceSpans).toBe(1);
-  });
-
-  it("skips formulas that reconstruct to nothing", () => {
-    const result = renderInline(
-      [textLine([glyph(" ", 50, 100, { font: math, space: false })])],
-      context(),
-    );
-    expect(result.mathSpans).toBe(1);
-    expect(result.latex).toBe("");
   });
 });

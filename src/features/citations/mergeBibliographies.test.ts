@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bibBlocks,
   mergeBibliographies,
   retargetBibliographyCommands,
 } from "./mergeBibliographies";
@@ -93,3 +94,65 @@ describe("retargetBibliographyCommands", () => {
     ).toBeNull();
   });
 });
+
+describe("bibBlocks", () => {
+  it("skips stray @ signs, honours escapes and parenthesised entries", () => {
+    const blocks = bibBlocks(
+      [
+        "Email me at someone@example.org.",
+        "@misc(paren, title = {A {nested} \\} title}, note = \"x\")",
+        "@comment{ignored}",
+        "@preamble{\"\\newcommand{\\x}{y}\"}",
+        "@article{open, title = {never closed",
+      ].join("\n"),
+    );
+    expect(blocks.map(({ type, key }) => [type, key])).toEqual([
+      ["misc", "paren"],
+      ["comment", null],
+      ["preamble", null],
+    ]);
+    expect(blocks[0].text).toContain("A {nested}");
+  });
+
+  it("leaves a key-less entry without a key", () => {
+    expect(bibBlocks("@article{ }")[0]).toMatchObject({ type: "article", key: null });
+  });
+});
+
+describe("mergeBibliographies edge cases", () => {
+  it("drops @comment blocks, writes repeated macros once and lists every conflicting file", () => {
+    const merged = mergeBibliographies(
+      [
+        { path: "a.bib", content: "@comment{x}\n@string{k = {v}}\n@book{key, title = {A}}" },
+        { path: "b.bib", content: "@string{k =   {v}}\n@book{key, title = {B}}" },
+        { path: "c.bib", content: "@book{key, title = {C}}" },
+      ],
+      new Date("2026-01-02T00:00:00Z"),
+    );
+    expect(merged.content).not.toContain("@comment");
+    expect(merged.content.match(/@string/g)).toHaveLength(1);
+    expect(merged.conflicts).toEqual([
+      { key: "key", keptFrom: "a.bib", droppedFrom: ["b.bib", "c.bib"] },
+    ]);
+    expect(merged.content).toContain("% Merged by LatexDo on 2026-01-02 from:");
+  });
+});
+
+describe("retargetBibliographyCommands edge cases", () => {
+  it("keeps \\addbibresource options and handles a final line without a newline", () => {
+    expect(
+      retargetBibliographyCommands(
+        "\\addbibresource[label=a]{./old.bib}",
+        ["old.bib"],
+        "merged.bib",
+      ),
+    ).toBe("\\addbibresource[label=a]{merged.bib}");
+  });
+
+  it("does not list the merged file twice in \\bibliography", () => {
+    expect(
+      retargetBibliographyCommands("\\bibliography{merged,old}", ["old.bib"], "merged.bib"),
+    ).toBe("\\bibliography{merged}");
+  });
+});
+

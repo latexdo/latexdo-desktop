@@ -144,8 +144,8 @@ export function citationCompletionMarkdown(
     entry.eprint ? `**Eprint:** ${escapeMarkdownText(entry.eprint)}` : undefined,
     safeUrl
       ? `**URL:** [${escapeMarkdownText(safeUrl)}](${safeUrl})`
-      : entry.url
-        ? `**URL:** ${escapeMarkdownText(entry.url)}`
+      : entry.url?.trim()
+        ? `**URL:** ${escapeMarkdownText(entry.url.trim())}`
         : undefined,
     `**Source:** \`${entry.sourceFile}\``,
   ].filter(Boolean);

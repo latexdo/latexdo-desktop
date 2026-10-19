@@ -14,7 +14,9 @@ describe("useCollaborationContext", () => {
   it("returns the provided state", () => {
     const state = { marker: true } as unknown as CollaborationProviderState;
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <CollaborationContext.Provider value={state}>{children}</CollaborationContext.Provider>
+      <CollaborationContext.Provider value={state}>
+        {children}
+      </CollaborationContext.Provider>
     );
     const { result } = renderHook(() => useCollaborationContext(), { wrapper });
     expect(result.current).toBe(state);

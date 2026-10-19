@@ -151,7 +151,9 @@ describe("runNotationChecks", () => {
 
 describe("analyzeNotation coverage edge cases", () => {
   it("attributes first use to the last chapter when there are no sections", () => {
-    const doc = makeDoc("\\chapter{Intro}\nSome $q$ here.\n\\chapter{Methods}\nThen $z$.");
+    const doc = makeDoc(
+      "\\chapter{Intro}\nSome $q$ here.\n\\chapter{Methods}\nThen $z$.",
+    );
     const result = analyzeNotation(doc);
     expect(result.find((s) => s.symbol === "q")?.firstUseSection).toBe("Intro");
     expect(result.find((s) => s.symbol === "z")?.firstUseSection).toBe("Methods");

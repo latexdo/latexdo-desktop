@@ -197,7 +197,10 @@ describe("build-downloads-release-index", () => {
 describe("build-downloads-release-index fallbacks", () => {
   it("orders a dated release before an undated one and tolerates a manifest without files", async () => {
     const dir = path.join(root, "site");
-    await json(path.join(dir, "v9.0.0/manifest.json"), manifest({ publishedAt: undefined }));
+    await json(
+      path.join(dir, "v9.0.0/manifest.json"),
+      manifest({ publishedAt: undefined }),
+    );
     await json(path.join(dir, "v1.0.0/manifest.json"), manifest());
     await json(path.join(dir, "manifest.json"), { version: "1.0.0" });
     await run("build-downloads-release-index.mjs", dir);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   generateScholarToken,
   scholarCodenameCombinationCount,
@@ -144,3 +144,184 @@ describe("buildResearchContext", () => {
     expect(context).toContain("1843");
   });
 });
+
+describe("token randomness sources", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("rejects out-of-range draws so codenames stay uniformly distributed", () => {
+    let call = 0;
+    vi.stubGlobal("crypto", {
+      getRandomValues(bytes: Uint8Array) {
+        call += 1;
+        // Call 1 is the suffix; call 2 is the first codename draw, which
+        // lands above the largest multiple of the list size and is redrawn.
+        bytes.fill(call === 2 ? 0xff : 0);
+        return bytes;
+      },
+    });
+    const token = generateScholarToken();
+    expect(token).toBe(`sch-stellar-atlas-${"0".repeat(26)}`);
+    expect(call).toBe(4);
+  });
+
+  it("falls back to Math.random without Web Crypto", () => {
+    vi.stubGlobal("crypto", {});
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(generateScholarToken()).toBe(`sch-stellar-atlas-${"0".repeat(26)}`);
+    expect(random).toHaveBeenCalled();
+  });
+});
+
+describe("profile normalisation edge cases", () => {
+  it("returns a token unchanged when it has no codename", () => {
+    expect(tokenCodename("plain")).toBe("plain");
+  });
+
+  it("builds the default anonymous profile from nothing", () => {
+    const profile = normalizeResearcherProfile(null);
+    expect(profile).toMatchObject({
+      mode: "anonymous",
+      title: "",
+      externalProviders: [],
+      papers: [],
+      papersFetchedAt: 0,
+      includeInContext: true,
+    });
+    expect(profile.token).toMatch(/^sch-/);
+  });
+
+  it("keeps valid saved fields and drops invalid ones", () => {
+    const profile = normalizeResearcherProfile({
+      mode: "orcid",
+      token: "sch-a-b-C",
+      title: "Baron",
+      papersFetchedAt: 42,
+      includeInContext: false,
+      papers: [
+        null,
+        "paper",
+        { title: "" },
+        { title: "Kept", year: "2020", doi: "10.1/x", journal: "J" },
+        { title: "Bare", year: 2020 },
+      ],
+    });
+    expect(profile.mode).toBe("orcid");
+    expect(profile.token).toBe("sch-a-b-C");
+    expect(profile.title).toBe("");
+    expect(profile.papersFetchedAt).toBe(42);
+    expect(profile.includeInContext).toBe(false);
+    expect(profile.papers).toEqual([
+      { title: "Kept", year: "2020", doi: "10.1/x", journal: "J" },
+      { title: "Bare", year: undefined, doi: undefined, journal: undefined },
+    ]);
+    expect(normalizeResearcherProfile({ papers: "nope" }).papers).toEqual([]);
+  });
+
+  it("normalises external provider connections", () => {
+    vi.spyOn(Date, "now").mockReturnValue(777);
+    const profile = normalizeResearcherProfile({
+      externalProviders: [
+        null,
+        "zotero",
+        { provider: "github", username: "x" },
+        { provider: "zotero", username: "   " },
+        {
+          provider: "zotero",
+          username: " Ada ",
+          displayName: " Ada L ",
+          title: "Dr",
+          affiliation: " Lab ",
+          confirmed: true,
+          connectedAt: 5,
+          updatedAt: 9,
+          projectFetchUrl: " https://example.org/p ",
+        },
+        { provider: "zotero", username: "ada" },
+        {
+          provider: "overleaf",
+          username: "grace",
+          connectedAt: Number.NaN,
+          updatedAt: Number.POSITIVE_INFINITY,
+          projectFetchUrl: "   ",
+          affiliation: "  ",
+        },
+      ],
+    });
+    expect(profile.externalProviders).toEqual([
+      {
+        provider: "zotero",
+        username: "Ada",
+        displayName: "Ada L",
+        title: "Dr",
+        affiliation: "Lab",
+        confirmed: true,
+        connectedAt: 5,
+        updatedAt: 9,
+        projectFetchUrl: "https://example.org/p",
+      },
+      {
+        provider: "overleaf",
+        username: "grace",
+        displayName: "",
+        title: "",
+        affiliation: undefined,
+        confirmed: false,
+        connectedAt: 777,
+        updatedAt: 777,
+        projectFetchUrl: undefined,
+      },
+    ]);
+    expect(normalizeResearcherProfile({ externalProviders: {} }).externalProviders).toEqual(
+      [],
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("keeps at most twenty provider connections", () => {
+    const profile = normalizeResearcherProfile({
+      externalProviders: Array.from({ length: 25 }, (_, index) => ({
+        provider: "mendeley",
+        username: `user${index}`,
+      })),
+    });
+    expect(profile.externalProviders).toHaveLength(20);
+  });
+
+  it("titles provider names and falls back to the username", () => {
+    expect(
+      providerDisplayNameWithTitle({ title: "Prof", displayName: "  ", username: " ada " }),
+    ).toBe("Prof ada");
+    expect(
+      providerDisplayNameWithTitle({ title: "", displayName: "Ada", username: "ada" }),
+    ).toBe("Ada");
+    expect(displayNameWithTitle({ title: "Dr", displayName: "  " })).toBe("");
+    expect(displayNameWithTitle({ title: "", displayName: "Ada" })).toBe("Ada");
+  });
+
+  it("suggests readable names from provider usernames", () => {
+    expect(suggestDisplayNameFromProviderUsername("@@1234")).toBe("");
+    expect(suggestDisplayNameFromProviderUsername("omarabedelkader")).toBe(
+      "Abedelkader",
+    );
+    expect(suggestDisplayNameFromProviderUsername("jd_smith")).toBe("JD Smith");
+  });
+
+  it("omits empty context and lists ORCID and bare papers", () => {
+    const base = normalizeResearcherProfile({ token: "sch-a-b-C" });
+    expect(buildResearchContext(base)).toBeNull();
+    expect(buildResearchContext({ ...base, displayName: "Ada", includeInContext: false })).toBeNull();
+    expect(
+      buildResearchContext({ ...base, mode: "orcid", orcidId: "0000-0001" }),
+    ).toBe("About the person you are assisting:\nORCID: 0000-0001");
+    expect(
+      buildResearchContext({
+        ...base,
+        papers: [{ title: "Untitled draft" }, { title: "Dated", year: "2021" }],
+      }),
+    ).toContain("- Untitled draft\n- Dated (2021)");
+  });
+});
+

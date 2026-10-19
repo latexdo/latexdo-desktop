@@ -167,7 +167,7 @@ function splitAuthors(raw: string): string[] {
   let text = raw
     .trim()
     .replace(/\s*&\s*/g, " and ")
-    .replace(/\bet\s+al\.?/i, "others");
+    .replace(/,?\s*\bet\s+al\.?/i, " and others");
   text = text.replace(/,\s*and\s+/gi, " and ").replace(/\s+and\s+/gi, " and ");
 
   // Surname-first styles repeat the pattern `Surname, I. I.`, so the separating

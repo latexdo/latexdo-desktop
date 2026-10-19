@@ -40,7 +40,9 @@ describe("validateDownloadManifest", () => {
   it("drops invalid file entries and requires every platform", () => {
     const files = raw().files as unknown[];
     expect(
-      validateDownloadManifest(raw({ files: [...files.slice(1), file("macos-arm64", { size: 0 })] })),
+      validateDownloadManifest(
+        raw({ files: [...files.slice(1), file("macos-arm64", { size: 0 })] }),
+      ),
     ).toBeNull();
     const valid = validateDownloadManifest(
       raw({ files: [...files, null, file("extra-x", { sha256: "nope" })] }),
@@ -73,7 +75,9 @@ describe("updateCheckFromDownloadManifest", () => {
       error: "No website download manifest version found.",
     });
     const manifest = validateDownloadManifest(raw({ version: null }))!;
-    expect(updateCheckFromDownloadManifest(manifest, "1.0.0", fallback).error).toBeDefined();
+    expect(
+      updateCheckFromDownloadManifest(manifest, "1.0.0", fallback).error,
+    ).toBeDefined();
   });
 
   it("strips a v prefix and falls back when the downloads page is empty", () => {

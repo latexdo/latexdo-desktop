@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { ReviewChat } from "../../types";
 import { normalizeRebuttalItem, removeLegacyReviewPlaceholders } from "./reviewState";
 
-function chat(id: string, comments: Array<{ author: string; text: string }>): ReviewChat {
+function chat(
+  id: string,
+  comments: Array<{ author: string; text: string }>,
+): ReviewChat {
   return {
     id,
     filePath: "main.tex",
     selection: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2, text: "x" },
-    comments: comments.map((c, i) => ({ id: `${id}-${i}`, ...c })) as ReviewChat["comments"],
+    comments: comments.map((c, i) => ({
+      id: `${id}-${i}`,
+      ...c,
+    })) as ReviewChat["comments"],
   };
 }
 
@@ -39,12 +45,17 @@ describe("removeLegacyReviewPlaceholders", () => {
 });
 
 describe("normalizeRebuttalItem", () => {
-  const base = { id: "r", reviewerComment: "c", authorComment: "a", modificationMade: "m" };
+  const base = {
+    id: "r",
+    reviewerComment: "c",
+    authorComment: "a",
+    modificationMade: "m",
+  };
   it("coerces insertedInTex to a boolean", () => {
     expect(normalizeRebuttalItem(base).insertedInTex).toBe(false);
-    expect(
-      normalizeRebuttalItem({ ...base, insertedInTex: true }).insertedInTex,
-    ).toBe(true);
+    expect(normalizeRebuttalItem({ ...base, insertedInTex: true }).insertedInTex).toBe(
+      true,
+    );
     expect(normalizeRebuttalItem({ ...base, reviewer: "R2" })).toEqual({
       ...base,
       reviewer: "R2",

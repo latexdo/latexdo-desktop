@@ -235,15 +235,18 @@ describe("tar and DNS edge cases", () => {
 
   it("stops on a bad size field, a missing size or truncated data", () => {
     expect(() =>
-      extractTarGzEntry(gzipSync(entry("cloudflared", Buffer.from("a"), "0", "zz")), "cloudflared"),
+      extractTarGzEntry(
+        gzipSync(entry("cloudflared", Buffer.from("a"), "0", "zz")),
+        "cloudflared",
+      ),
     ).toThrow("does not contain");
     const noSize = Buffer.alloc(512);
     noSize.write("cloudflared", 0, "utf8");
     expect(extractTarGzEntry(gzipSync(noSize), "cloudflared").length).toBe(0);
     const truncated = entry("cloudflared", Buffer.from("abc"), "0", "00000001000");
-    expect(() => extractTarGzEntry(gzipSync(truncated.subarray(0, 600)), "cloudflared")).toThrow(
-      "does not contain",
-    );
+    expect(() =>
+      extractTarGzEntry(gzipSync(truncated.subarray(0, 600)), "cloudflared"),
+    ).toThrow("does not contain");
   });
 
   it("keeps polling after an error response and stops when aborted", async () => {

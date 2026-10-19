@@ -30,6 +30,13 @@ vi.mock("./cloudE2ee.js", () => ({
   }),
 }));
 
+const tunnelDefaults = vi.hoisted(() => ({
+  ensureCloudflared: vi.fn(async () => "/bin/default"),
+  startQuickTunnel: vi.fn(async () => ({ url: "https://d.trycloudflare.com", stop: () => {} })),
+  waitForTunnelDns: vi.fn(async () => undefined),
+}));
+vi.mock("./peerTunnel.js", () => tunnelDefaults);
+
 const { PeerCollabService } = await import("./peerCollab.js");
 const { decodePeerInvite, encodePeerInvite, localHostOrigin } = await import(
   "./peerInvite.js"
@@ -284,6 +291,25 @@ describe("internet sharing", () => {
     expect(deps.waitForTunnel).toHaveBeenCalledWith("abc.trycloudflare.com", expect.anything());
   });
 
+  it("uses the bundled tunnel helpers by default", async () => {
+    const { service } = make({
+      ensureTunnelBinary: undefined,
+      startTunnel: undefined,
+      waitForTunnel: undefined,
+    });
+    expect((await service.startSharing("internet")).addresses).toEqual([
+      "https://d.trycloudflare.com",
+    ]);
+    expect(tunnelDefaults.ensureCloudflared).toHaveBeenCalled();
+    expect(tunnelDefaults.startQuickTunnel).toHaveBeenCalledWith(
+      expect.objectContaining({ binaryPath: "/bin/default", port: 4001 }),
+    );
+    expect(tunnelDefaults.waitForTunnelDns).toHaveBeenCalledWith(
+      "d.trycloudflare.com",
+      expect.anything(),
+    );
+  });
+
   it("fails when the tunnel exits, but not for an old tunnel", async () => {
     let onExit: ((detail: string) => void) | undefined;
     const startTunnel = vi.fn(async (options: { onExit: (d: string) => void }) => {
@@ -308,9 +334,13 @@ describe("internet sharing", () => {
     {
       const { service } = make();
       const first = service.startSharing("internet");
-      void service.stopSharing();
+      const stopping = service.stopSharing();
       await first;
+      await stopping;
       expect(service.status().phase).toBe("off");
+      expect(statuses.some((s) => s.message === "Preparing a secure internet link…")).toBe(
+        false,
+      );
     }
     // During the helper download, including progress.
     {
@@ -798,6 +828,8 @@ describe("hosted projects", () => {
     await mkdir(path.join(files, "chapters", "deep"), { recursive: true });
     await writeFile(path.join(files, "main.tex"), "main");
     await writeFile(path.join(files, "chapters", "deep", "a.tex"), "a");
+    // Links in the shared copy are skipped.
+    await symlink(path.join(files, "main.tex"), path.join(files, "link.tex"));
     expect(await service.saveHostedProject(projectId)).toEqual({ folder, written: 2 });
     expect(await readFile(path.join(folder, "chapters", "deep", "a.tex"), "utf8")).toBe("a");
     // Unchanged files are not rewritten.

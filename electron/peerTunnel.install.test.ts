@@ -5,10 +5,18 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const zlib = vi.hoisted(() => ({ tar: null as Buffer | null }));
+vi.mock("node:zlib", async (original) => {
+  const actual = await original<typeof import("node:zlib")>();
+  return {
+    ...actual,
+    gunzipSync: (input: Buffer, options?: object) =>
+      zlib.tar ?? actual.gunzipSync(input, options),
+  };
+});
 vi.mock("node:crypto", async (original) => ({
   ...(await original<typeof import("node:crypto")>()),
   createHash: () => {
@@ -28,7 +36,11 @@ vi.mock("node:child_process", async (original) => ({
   spawn: spawnMock,
 }));
 
-import { cloudflaredAssetFor, ensureCloudflared, startQuickTunnel } from "./peerTunnel.js";
+import {
+  cloudflaredAssetFor,
+  ensureCloudflared,
+  startQuickTunnel,
+} from "./peerTunnel.js";
 
 function tarGz(name: string, content: Buffer): Buffer {
   const header = Buffer.alloc(512);
@@ -41,6 +53,7 @@ function tarGz(name: string, content: Buffer): Buffer {
 
 let directory: string;
 beforeEach(async () => {
+  spawnMock.mockReset();
   directory = await mkdtemp(path.join(os.tmpdir(), "latexdo-tunnel-install-"));
 });
 afterEach(async () => {
@@ -74,24 +87,29 @@ describe("installing the verified helper", () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
-  it("extracts an archived binary and rejects an archive with the wrong executable", async () => {
+  it("extracts an archived binary and checks the executable inside", async () => {
     const asset = cloudflaredAssetFor("darwin", "arm64")!;
-    // The archive "hash" is its bytes; wrap the payload so it matches the pinned one.
-    const tarBytes = tarGz("./cloudflared", Buffer.from(asset.binarySha256));
-    const download = gzipSync(tarBytes);
-    // The archive must hash to `asset.sha256`, which a gzip stream cannot do
-    // with an echo hash, so check the mismatch path instead.
-    await expect(
-      ensureCloudflared({
+    const fetchImpl = (async () =>
+      new Response(Buffer.from(asset.sha256))) as unknown as typeof fetch;
+    try {
+      zlib.tar = tarGz("./cloudflared", Buffer.from("not the pinned executable"));
+      await expect(
+        ensureCloudflared({ directory, platform: "darwin", arch: "arm64", fetchImpl }),
+      ).rejects.toThrow("integrity check");
+      zlib.tar = tarGz("./cloudflared", Buffer.from(asset.binarySha256));
+      const installed = await ensureCloudflared({
         directory,
         platform: "darwin",
         arch: "arm64",
-        fetchImpl: (async () => new Response(download)) as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow("integrity check");
+        fetchImpl,
+      });
+      expect(await readFile(installed, "utf8")).toBe(asset.binarySha256);
+    } finally {
+      zlib.tar = null;
+    }
   });
 
-  it("rejects a download whose executable does not match after a matching archive", async () => {
+  it("installs the Windows helper with an .exe name", async () => {
     const asset = cloudflaredAssetFor("win32", "x64")!;
     const fetchImpl = (async () =>
       new Response(Buffer.from(asset.sha256))) as unknown as typeof fetch;
@@ -134,7 +152,10 @@ describe("streamed download limits", () => {
   }
 
   it("stops a stream that grows beyond the limit and ignores cancel errors", async () => {
-    const { response, cancel } = streamingResponse([{ byteLength: 121 * 1024 * 1024 }], null);
+    const { response, cancel } = streamingResponse(
+      [{ byteLength: 121 * 1024 * 1024 }],
+      null,
+    );
     const onProgress = vi.fn();
     await expect(
       ensureCloudflared({
@@ -164,7 +185,11 @@ describe("streamed download limits", () => {
         directory,
         platform: "linux",
         arch: "ia32",
-        fetchImpl: (async () => ({ ok: true, status: 204, body: null })) as unknown as typeof fetch,
+        fetchImpl: (async () => ({
+          ok: true,
+          status: 204,
+          body: null,
+        })) as unknown as typeof fetch,
       }),
     ).rejects.toThrow("Download failed (204)");
   });
@@ -207,6 +232,7 @@ describe("quick tunnel defaults", () => {
       homeDirectory: path.join(directory, "home"),
     });
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
     helper.emit("error", new Error("ENOENT"));
     await expect(starting).rejects.toThrow("could not start: ENOENT");
     expect(helper.kill).toHaveBeenCalled();
@@ -221,6 +247,7 @@ describe("quick tunnel defaults", () => {
       homeDirectory: directory,
     });
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
     helper.signalCode = "SIGTERM";
     helper.emit("exit", null);
     await expect(starting).rejects.toThrow("(code unknown)");
@@ -240,6 +267,7 @@ describe("quick tunnel defaults", () => {
       onExit,
     });
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
     helper.stdout.emit(
       "data",
       Buffer.from("https://a-b.trycloudflare.com\nRegistered tunnel connection"),
@@ -252,12 +280,19 @@ describe("quick tunnel defaults", () => {
 
     const other = child();
     spawnMock.mockReturnValue(other);
-    const second = startQuickTunnel({ binaryPath: "/b", port: 1, homeDirectory: directory });
+    const second = startQuickTunnel({
+      binaryPath: "/b",
+      port: 1,
+      homeDirectory: directory,
+    });
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(other.stderr.listenerCount("data")).toBe(1));
     other.stderr.emit("data", Buffer.from("Registered tunnel connection"));
     other.stderr.emit("data", Buffer.from("https://c-d.trycloudflare.com"));
     other.stderr.emit("data", Buffer.from("Registered tunnel connection"));
-    await expect(second).resolves.toMatchObject({ url: "https://c-d.trycloudflare.com" });
+    await expect(second).resolves.toMatchObject({
+      url: "https://c-d.trycloudflare.com",
+    });
     expect(() => other.emit("exit", 1)).not.toThrow();
   });
 });

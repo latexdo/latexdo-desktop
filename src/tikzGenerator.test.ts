@@ -192,7 +192,12 @@ describe("TikZ generator and parser edge cases", () => {
 
   it("omits unnamed stroke widths and keeps fill, dashes and rotation", () => {
     const code = generate(
-      shape("rect", { strokeWidth: 1.1, fill: "#ff0000", dashed: true, rotation: 12.345 }),
+      shape("rect", {
+        strokeWidth: 1.1,
+        fill: "#ff0000",
+        dashed: true,
+        rotation: 12.345,
+      }),
     );
     expect(code).toContain("[draw, fill=");
     expect(code).toContain("dashed, rotate=12.35");
@@ -217,7 +222,12 @@ describe("TikZ generator and parser edge cases", () => {
       1200,
       800,
     );
-    expect(text).toMatchObject({ kind: "text", stroke: "#ff0000", fontSize: 16, label: "Hi" });
+    expect(text).toMatchObject({
+      kind: "text",
+      stroke: "#ff0000",
+      fontSize: 16,
+      label: "Hi",
+    });
     const [unlabeled] = parseTikzCode("\\node at (1,15);", 1200, 800);
     expect(unlabeled.label).toBe("text");
   });
@@ -279,6 +289,8 @@ describe("TikZ generator and parser edge cases", () => {
       ["line", "Line label"],
       ["line", "Free"],
     ]);
-    expect(parseTikzCode("\\node at (1,1) {A};\n\\node at (2,2) {B};", 1200, 800)).toHaveLength(2);
+    expect(
+      parseTikzCode("\\node at (1,1) {A};\n\\node at (2,2) {B};", 1200, 800),
+    ).toHaveLength(2);
   });
 });

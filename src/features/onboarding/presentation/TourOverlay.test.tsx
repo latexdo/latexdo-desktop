@@ -240,4 +240,53 @@ describe("interactive onboarding tour", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     },
   );
+  it("does not launch before a launch is requested", () => {
+    setup({ launchNonce: 0 });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("clips the spotlight to a scrolling ancestor and drops it when clipped away", () => {
+    const view = render(
+      <>
+        <div data-testid="scroller" style={{ overflowX: "auto", overflowY: "auto" }}>
+          <button data-tour-id="compile">Clipped target</button>
+        </div>
+        <TourOverlay tour={tour} launchNonce={1} onPrepare={vi.fn()} onRestore={vi.fn()} />
+      </>,
+    );
+    act(() => vi.advanceTimersByTime(650));
+    vi.spyOn(screen.getByText("Clipped target"), "getBoundingClientRect").mockReturnValue({
+      top: 20,
+      left: 30,
+      width: 100,
+      height: 40,
+      bottom: 60,
+      right: 130,
+    } as DOMRect);
+    const scroller = vi
+      .spyOn(screen.getByTestId("scroller"), "getBoundingClientRect")
+      .mockReturnValue({ top: 0, left: 0, bottom: 50, right: 80 } as DOMRect);
+    start();
+    // Intersected with the scroller (0..80 × 0..50), then padded by 8px.
+    expect(view.container.querySelector(".tour-spotlight")).toHaveStyle({
+      top: "12px",
+      left: "22px",
+      width: "66px",
+      height: "46px",
+    });
+    scroller.mockReturnValue({ top: 0, left: 0, bottom: 50, right: 34 } as DOMRect);
+    fireEvent.resize(window);
+    expect(view.container.querySelector(".tour-spotlight")).toBeNull();
+  });
+  it("shows a tour without steps without a spotlight", () => {
+    const empty: TourDefinition = { ...tour, id: "empty-tour", steps: [] };
+    const view = render(
+      <TourOverlay tour={empty} launchNonce={1} onPrepare={vi.fn()} onRestore={vi.fn()} />,
+    );
+    act(() => vi.advanceTimersByTime(650));
+    start();
+    fireEvent.resize(window);
+    expect(view.container.querySelector(".tour-spotlight")).toBeNull();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+  });
 });
+
