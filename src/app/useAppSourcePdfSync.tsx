@@ -822,9 +822,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
   const handlePdfPointToSource = useCallback(async () => {
     const location = pdfTarget ?? lastPdfLocation;
     if (!location) {
-      setStatusMessage(
-        "Show the editor cursor in the PDF or double-click a PDF point first",
-      );
+      setStatusMessage("Show the editor cursor in the PDF or click a PDF point first");
       return;
     }
 

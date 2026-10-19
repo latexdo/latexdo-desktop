@@ -1,4 +1,12 @@
-import { Globe, Loader2, Search } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  Clock3,
+  Globe,
+  Loader2,
+  Search,
+  TextQuote,
+} from "lucide-react";
 import {
   forwardRef,
   useDeferredValue,
@@ -52,10 +60,17 @@ export interface CitationSearchContext {
 type Tab = "library" | "recent" | "suggested" | "online";
 
 const tabLabels: Record<Tab, string> = {
-  library: "📚 Library",
-  recent: "📌 Recent",
-  suggested: "✨ For this sentence",
-  online: "🌐 Online",
+  library: "Library",
+  recent: "Recent",
+  suggested: "For this sentence",
+  online: "Online",
+};
+
+const tabIcons: Record<Tab, React.ReactNode> = {
+  library: <BookOpen size={14} aria-hidden="true" />,
+  recent: <Clock3 size={14} aria-hidden="true" />,
+  suggested: <TextQuote size={14} aria-hidden="true" />,
+  online: <Globe size={14} aria-hidden="true" />,
 };
 
 type Row =
@@ -87,12 +102,12 @@ interface CitationSearchPopupProps {
 
 function fitNote(fit: ContextFit): string | null {
   if (fit.kind === "fits") {
-    return `🎯 Fits this sentence — it shares ${fit.shared
+    return `Fits this sentence — it shares ${fit.shared
       .map((term) => `“${term}”`)
       .join(", ")}`;
   }
   if (fit.kind === "weak") {
-    return "⚠️ May not fit here — nothing in its title matches the sentence you are writing";
+    return "May not fit here — nothing in its title matches the sentence you are writing";
   }
   return null;
 }
@@ -356,7 +371,8 @@ export const CitationSearchPopup = forwardRef<HTMLDivElement, CitationSearchPopu
     const activeNote =
       activeRow?.kind === "entry"
         ? (fitNote(citationContextFit(activeRow.entry, contextTerms)) ??
-          (activeRow.reason ? `✨ ${activeRow.reason}` : null))
+          activeRow.reason ??
+          null)
         : activeRow?.kind === "paper"
           ? activeRow.existing
             ? `Already in your library as ${activeRow.existing.key} — Enter cites it`
@@ -452,6 +468,7 @@ export const CitationSearchPopup = forwardRef<HTMLDivElement, CitationSearchPopu
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => setTab(item)}
                 >
+                  {tabIcons[item]}
                   {tabLabels[item]}
                 </button>
               ))}
@@ -544,12 +561,20 @@ function EntryRow({
       <div className="citation-search-row-top">
         <code>{entry.key}</code>
         {recent ? (
-          <span className="citation-search-badge recent">📌 recent</span>
+          <span className="citation-search-badge recent">
+            <Clock3 size={11} aria-hidden="true" /> recent
+          </span>
         ) : null}
         {cited ? <span className="citation-search-cited">cited</span> : null}
-        {fits ? <span className="citation-search-badge fits">🎯 fits</span> : null}
+        {fits ? (
+          <span className="citation-search-badge fits">
+            <Check size={11} aria-hidden="true" /> fits
+          </span>
+        ) : null}
         {suggested && !fits ? (
-          <span className="citation-search-badge suggested">✨ related</span>
+          <span className="citation-search-badge suggested">
+            <TextQuote size={11} aria-hidden="true" /> related
+          </span>
         ) : null}
       </div>
       {entry.title ? <strong>{entry.title}</strong> : null}
@@ -573,7 +598,9 @@ function PaperRow({
   return (
     <>
       <div className="citation-search-row-top">
-        <span className="citation-search-badge online">🌐 {paper.provider}</span>
+        <span className="citation-search-badge online">
+          <Globe size={11} aria-hidden="true" /> {paper.provider}
+        </span>
         {existing ? (
           <span className="citation-search-cited">in library</span>
         ) : (

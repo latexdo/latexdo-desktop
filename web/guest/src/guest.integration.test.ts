@@ -179,9 +179,15 @@ describe.runIf(realCloud)("co-author web editor", () => {
       const invite = (await service.cloudInvite(token))!;
       const link = `${new URL(cloudOrigin).origin}/join#${invite.slice("latexdo-invite:".length)}`;
 
-      // Whoever opens the link is in at once, as an editor: nobody is left
-      // waiting on an owner who may be away.
+      // New guests wait for the owner to approve them.
       const ada = guestFor(new URL(link).hash, "Ada", "ada");
+      expect((await ada.join()).status).toBe("pending");
+      await call(
+        "POST",
+        `/api/shares/${token}/pending/${encodeURIComponent(ada.identity.clientId)}`,
+        { action: "approve" },
+        token,
+      );
       const joined = await ada.join();
       expect(joined).toMatchObject({
         status: "ready",

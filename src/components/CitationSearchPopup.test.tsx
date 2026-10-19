@@ -100,7 +100,7 @@ describe("CitationSearchPopup", () => {
     fireEvent.focus(input);
     const options = screen.getAllByRole("option");
     expect(options[0]).toHaveTextContent("lovelace1843");
-    expect(options[0]).toHaveTextContent("📌 recent");
+    expect(options[0]).toHaveTextContent("recent");
   });
 
   it("starts the search from the key fragment typed in \\cite{}", () => {
@@ -123,7 +123,7 @@ describe("CitationSearchPopup", () => {
       }),
     });
     fireEvent.focus(screen.getByRole("combobox", { name: "Search bibliography" }));
-    expect(screen.getByRole("status")).toHaveTextContent("⚠️ May not fit here");
+    expect(screen.getByRole("status")).toHaveTextContent("May not fit here");
   });
 
   it("moves between lists with Tab and adds an online paper to the bibliography", async () => {
@@ -141,18 +141,18 @@ describe("CitationSearchPopup", () => {
       renderPopup({ onSearchOnline, onAddOnline });
       const input = screen.getByRole("combobox", { name: "Search bibliography" });
       fireEvent.focus(input);
-      expect(screen.getByRole("tab", { name: "📚 Library" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Library" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
       fireEvent.keyDown(input, { key: "Tab" });
-      expect(screen.getByRole("tab", { name: "📌 Recent" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Recent" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
       fireEvent.keyDown(input, { key: "Tab", shiftKey: true });
       fireEvent.keyDown(input, { key: "Tab", shiftKey: true });
-      expect(screen.getByRole("tab", { name: "🌐 Online" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Online" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
@@ -161,7 +161,7 @@ describe("CitationSearchPopup", () => {
         await vi.advanceTimersByTimeAsync(500);
       });
       expect(onSearchOnline).toHaveBeenCalledWith("attention", expect.any(AbortSignal));
-      expect(screen.getByRole("option")).toHaveTextContent("🌐 Crossref");
+      expect(screen.getByRole("option")).toHaveTextContent("Crossref");
       expect(screen.getByRole("option")).toHaveTextContent("＋ new entry");
       await act(async () => {
         fireEvent.keyDown(input, { key: "Enter" });

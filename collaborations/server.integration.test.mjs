@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import * as Y from "yjs";
@@ -47,6 +47,17 @@ async function request(route, identity = owner, method = "GET", body, extra = {}
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+async function approveGuest(token, identity = guest) {
+  const base = `/api/shares/${token}`;
+  expect((await request(base + "/open", identity, "POST", {})).status).toBe(403);
+  expect(
+    (
+      await request(base + `/pending/${identity.client}`, owner, "POST", {
+        action: "approve",
+      })
+    ).status,
+  ).toBe(200);
 }
 async function create() {
   const response = await request("/api/projects", owner, "POST", {
@@ -308,6 +319,7 @@ describe("real collaboration HTTP service", () => {
   it("enrolls shared members, records presence and enforces downgraded permissions", async () => {
     const { id, token } = await shared();
     const base = `/api/shares/${token}`;
+    await approveGuest(token);
     const opened = await request(base + "/open", guest, "POST", {});
     expect(opened.status).toBe(200);
     expect((await opened.json()).project.id).toBe(id);
@@ -386,6 +398,7 @@ describe("real collaboration HTTP service", () => {
     const refused = await request(`/api/shares/${token}/open`, guest, "POST", {});
     expect(refused.status).toBe(403);
     expect((await refused.json()).code).toBe("invite-expired");
+    await approveGuest(rotated.token);
     expect(
       (
         await request(
@@ -403,6 +416,7 @@ describe("real collaboration HTTP service", () => {
   });
   it("keeps existing collaborators signed in when the invite is rotated", async () => {
     const { id, token } = await shared();
+    await approveGuest(token);
     await request(`/api/shares/${token}/open`, guest, "POST", {});
     const rotated = await (
       await request(`/api/projects/${id}/share/rotate`, owner, "POST", {})
@@ -413,7 +427,28 @@ describe("real collaboration HTTP service", () => {
     expect(presence.status).toBe(200);
     expect((await presence.json()).token).toBe(rotated.token);
   });
-  it("holds newcomers for approval and lets an admin allow or deny them", async () => {
+  it("lets the owner disable approval so newcomers can join directly", async () => {
+    const { token } = await shared();
+    const base = `/api/shares/${token}`;
+    const changed = await request(base + "/approval", owner, "PUT", {
+      requireApproval: false,
+    });
+    expect(changed.status).toBe(200);
+    expect((await changed.json()).requireApproval).toBe(false);
+    expect((await request(base + "/open", guest, "POST", {})).status).toBe(200);
+  });
+  it("preserves disabled approval for existing shares", async () => {
+    const { id, token } = await shared();
+    const file = path.join(directory, "projects", id, "project.json");
+    const meta = JSON.parse(await readFile(file, "utf8"));
+    meta.requireApproval = false;
+    await writeFile(file, JSON.stringify(meta));
+    const response = await request(`/api/shares/${token}/open`, guest, "POST", {});
+    expect(response.status).toBe(200);
+    expect((await response.json()).collaboration.requireApproval).toBe(false);
+    expect((await request(`/api/projects/${id}/files`, guest)).status).toBe(200);
+  });
+  it("requires approval by default and lets an admin allow or deny newcomers", async () => {
     const { token } = await shared();
     const base = `/api/shares/${token}`;
     const late = { session: "late-private-session", client: "late-public-id" };
@@ -425,13 +460,9 @@ describe("real collaboration HTTP service", () => {
       (await request(base + "/approval", owner, "PUT", { requireApproval: "yes" }))
         .status,
     ).toBe(400);
-    expect(
-      (
-        await (
-          await request(base + "/approval", owner, "PUT", { requireApproval: true })
-        ).json()
-      ).requireApproval,
-    ).toBe(true);
+    expect((await (await request(base + "/permissions")).json()).requireApproval).toBe(
+      true,
+    );
     const knock = await request(base + "/open", guest, "POST", {});
     expect(knock.status).toBe(403);
     expect((await knock.json()).code).toBe("approval-pending");
@@ -507,6 +538,7 @@ describe("real collaboration HTTP service", () => {
   it("retires the invite when a collaborator is removed", async () => {
     const { token } = await shared();
     const base = `/api/shares/${token}`;
+    await approveGuest(token);
     await request(base + "/open", guest, "POST", {});
     expect(
       (await request(base + "/collaborators/" + guest.client, owner, "DELETE")).status,
@@ -519,10 +551,11 @@ describe("real collaboration HTTP service", () => {
     expect(state.token).not.toBe(token);
     expect(
       (await request(`/api/shares/${state.token}/open`, sneaky, "POST", {})).status,
-    ).toBe(200);
+    ).toBe(403);
   });
   it("stops sharing for everyone but the owner and can share again", async () => {
     const { id, token } = await shared();
+    await approveGuest(token);
     await request(`/api/shares/${token}/open`, guest, "POST", {});
     expect((await request(`/api/projects/${id}/share`, guest, "DELETE")).status).toBe(
       403,
@@ -547,6 +580,7 @@ describe("real collaboration HTTP service", () => {
   });
   it("deletes a project only for its owner, invite and files included", async () => {
     const { id, token } = await shared();
+    await approveGuest(token);
     await request(`/api/shares/${token}/open`, guest, "POST", {});
     expect((await request(`/api/projects/${id}`, guest, "DELETE")).status).toBe(403);
     const deleted = await request(`/api/projects/${id}`, owner, "DELETE");
@@ -561,6 +595,7 @@ describe("real collaboration HTTP service", () => {
   });
   it("applies authorized Yjs changes and persists shared document state", async () => {
     const { id, token } = await shared();
+    await approveGuest(token);
     await request(`/api/shares/${token}/open`, guest, "POST", {});
     await request(`/api/projects/${id}/files/content?path=main.tex`, owner, "PUT", {
       content: "",

@@ -192,7 +192,7 @@ vi.mock("./PdfPreview", () => ({
       type="button"
       data-testid="mock-pdf-preview"
       data-pdf-bytes={data?.byteLength ?? 0}
-      onDoubleClick={() => onNavigate?.({ page: 2, x: 42, y: 84, word: "Text" })}
+      onClick={() => onNavigate?.({ page: 2, x: 42, y: 84, word: "Text" })}
     >
       PDF preview
     </button>
@@ -3429,7 +3429,7 @@ describe("App critical UI controls", () => {
       expect(api.readPdf).toHaveBeenCalledWith("project-1", "main.pdf");
     });
 
-    fireEvent.doubleClick(await screen.findByTestId("mock-pdf-preview"));
+    fireEvent.click(await screen.findByTestId("mock-pdf-preview"));
 
     await waitFor(() => {
       expect(api.backwardSyncTex).toHaveBeenCalledWith(
@@ -3585,9 +3585,12 @@ describe("App critical UI controls", () => {
     );
     expect(api.joinCollaboration).not.toHaveBeenCalled();
 
-    fireEvent.click(within(dialog).getByLabelText("Ask me before someone new joins"));
+    const approval = within(dialog).getByLabelText("Ask me before someone new joins");
+    expect(approval).toBeChecked();
+    expect(approval).toBeEnabled();
+    fireEvent.click(approval);
     await waitFor(() =>
-      expect(api.setCollaborationApproval).toHaveBeenCalledWith(project.id, true),
+      expect(api.setCollaborationApproval).toHaveBeenCalledWith(project.id, false),
     );
     fireEvent.click(await within(dialog).findByRole("button", { name: "Allow" }));
     await waitFor(() =>
@@ -4351,6 +4354,39 @@ describe("App critical UI controls", () => {
     });
     expect(h.editor.setPosition).toHaveBeenCalledWith({ lineNumber: 2, column: 1 });
     expect(h.editor.revealLineInCenter).toHaveBeenCalledWith(2, 1);
+  });
+  it("removes a bookmark by clicking its gutter marker and can toggle it again", async () => {
+    const h = await mountEditorIntegration("First\nSecond\nThird");
+    h.select(6);
+    await act(async () => {
+      h.run("latexdo.toggleBookmark");
+    });
+    expect(
+      Object.values(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")),
+    ).toContainEqual([2]);
+    // The click must act on the marker's line, not the current cursor line.
+    h.select(0);
+    await act(async () => {
+      h.listeners.get("onMouseDown")!({
+        target: {
+          type: h.instance.editor.MouseTargetType.GUTTER_GLYPH_MARGIN,
+          position: { lineNumber: 2, column: 1 },
+        },
+        event: { leftButton: true, detail: 1, preventDefault: vi.fn() },
+      });
+    });
+    expect(screen.getByText("Removed bookmark at line 2")).toBeVisible();
+    expect(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")).toEqual({});
+    await act(async () => {
+      h.run("latexdo.toggleBookmark");
+    });
+    expect(
+      Object.values(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")),
+    ).toContainEqual([2]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove bookmark at cursor" }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(bookmarksStorageKey) ?? "{}")).toEqual({}),
+    );
   });
   it("editor integration formats tables through the registered editor action", async () => {
     const content = "\\begin{tabular}{ll}\na&long\\\\\nlong&b\\\\\n\\end{tabular}";

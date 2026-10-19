@@ -151,13 +151,24 @@ test("an encrypted shared project works end to end", async () => {
     figure,
   );
 
-  // Sharing; whoever holds the invite (and so the key) joins at once.
+  // Sharing requires owner approval by default, even with the invite and key.
   const token = (await call(owner, "POST", `/api/projects/${id}/share`, {})).body.token;
   assert.match(token, /^p[0-9a-f]{32}_[A-Za-z0-9_-]{43}$/);
+  assert.equal(
+    (await call(guest, "POST", `/api/shares/${token}/open`, {}, token)).body.code,
+    "approval-pending",
+  );
+  await call(
+    owner,
+    "POST",
+    `/api/shares/${token}/pending/${guest.client}`,
+    { action: "approve" },
+    token,
+  );
   const opened = await call(guest, "POST", `/api/shares/${token}/open`, {}, token);
   assert.equal(opened.status, 200);
   assert.equal(opened.body.collaboration.encrypted, true);
-  assert.equal(opened.body.collaboration.requireApproval, false);
+  assert.equal(opened.body.collaboration.requireApproval, true);
   assert.equal((await call(stranger, "GET", `/api/projects/${id}/files`)).status, 403);
 
   // With approval on, a newcomer waits and the owner hears about it at once.
@@ -312,6 +323,71 @@ test("an encrypted shared project works end to end", async () => {
     "sharing-stopped",
   );
   a.close();
+});
+
+test("approval defaults on and can be disabled and re-enabled", async () => {
+  const owner = person("enc1:approval-owner");
+  const guest = person("enc1:approval-guest");
+  const next = person("enc1:approval-next");
+  const created = await call(owner, "POST", "/api/projects", {
+    folderName: "enc1:approval-test",
+  });
+  assert.equal(created.status, 200);
+  const id = created.body.id;
+  try {
+    const shared = await call(owner, "POST", `/api/projects/${id}/share`, {});
+    assert.equal(shared.status, 200);
+    assert.equal(shared.body.requireApproval, true);
+    const token = shared.body.token;
+    const route = `/api/shares/${token}`;
+    assert.equal(
+      (await call(guest, "POST", `${route}/open`, {}, token)).body.code,
+      "approval-pending",
+    );
+    const disabled = await call(
+      owner,
+      "PUT",
+      `${route}/approval`,
+      { requireApproval: false },
+      token,
+    );
+    assert.equal(disabled.status, 200);
+    assert.equal(disabled.body.requireApproval, false);
+    assert.equal(
+      (await call(owner, "GET", `${route}/permissions`, undefined, token)).body
+        .requireApproval,
+      false,
+    );
+    assert.equal((await call(guest, "POST", `${route}/open`, {}, token)).status, 200);
+    const enabled = await call(
+      owner,
+      "PUT",
+      `${route}/approval`,
+      { requireApproval: true },
+      token,
+    );
+    assert.equal(enabled.status, 200);
+    assert.equal(enabled.body.requireApproval, true);
+    assert.equal(
+      (await call(next, "POST", `${route}/open`, {}, token)).body.code,
+      "approval-pending",
+    );
+    assert.equal(
+      (
+        await call(
+          owner,
+          "POST",
+          `${route}/pending/${next.client}`,
+          { action: "approve" },
+          token,
+        )
+      ).status,
+      200,
+    );
+    assert.equal((await call(next, "POST", `${route}/open`, {}, token)).status, 200);
+  } finally {
+    assert.equal((await call(owner, "DELETE", `/api/projects/${id}`)).status, 200);
+  }
 });
 
 test("refuses browsers, unsafe paths and floods", async () => {

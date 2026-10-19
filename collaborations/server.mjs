@@ -257,6 +257,7 @@ async function readProjectMeta(projectId) {
   if (!parsed || parsed.schemaVersion !== 1 || parsed.id !== projectId) {
     throw new HttpError(404, "Project not found.");
   }
+  parsed.requireApproval = parsed.requireApproval !== false;
   parsed.permissions =
     parsed.permissions && typeof parsed.permissions === "object"
       ? parsed.permissions
@@ -289,6 +290,7 @@ async function createProject(identity, folderName) {
     id: projectId,
     name,
     ownerSession: identity.sessionId,
+    requireApproval: true,
     createdAt: timestamp,
     updatedAt: timestamp,
     shareToken: null,

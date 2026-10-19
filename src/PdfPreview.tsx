@@ -159,7 +159,7 @@ function partRect(part: PageWordPart, pageBounds: DOMRect): HighlightRect {
   };
 }
 
-/** The word under a double-click, with its neighbours on the page. */
+/** The word under a click, with its neighbours on the page. */
 function wordAtPoint(
   event: React.MouseEvent,
   textLayer: HTMLElement | null,
@@ -387,8 +387,18 @@ function PdfPage({
     pageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [cssScale, pageNumber, rendered, target]);
 
-  const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!onNavigate) {
+  const mouseDownRef = useRef<{ x: number; y: number } | null>(null);
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const start = mouseDownRef.current;
+    mouseDownRef.current = null;
+    const selection = window.getSelection();
+    const dragged =
+      start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5;
+    const selectedText =
+      selection &&
+      !selection.isCollapsed &&
+      event.currentTarget.contains(selection.anchorNode);
+    if (!onNavigate || event.detail > 1 || dragged || selectedText) {
       return;
     }
     event.preventDefault();
@@ -409,8 +419,15 @@ function PdfPage({
       ref={pageRef}
       className={`pdf-page ${onNavigate ? "pdf-page-interactive" : ""}`}
       data-page-number={pageNumber}
-      title={onNavigate ? "Double-click to jump to source" : undefined}
-      onDoubleClick={onNavigate ? handleDoubleClick : undefined}
+      title={onNavigate ? "Click a word to jump to its TeX source" : undefined}
+      onMouseDown={
+        onNavigate
+          ? (event) => {
+              mouseDownRef.current = { x: event.clientX, y: event.clientY };
+            }
+          : undefined
+      }
+      onClick={onNavigate ? handleClick : undefined}
     >
       <canvas ref={canvasRef} />
       <div ref={textLayerRef} className="textLayer" />

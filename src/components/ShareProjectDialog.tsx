@@ -213,7 +213,7 @@ export function ShareProjectDialog({
               <label className="share-check">
                 <input
                   type="checkbox"
-                  checked={Boolean(state.requireApproval)}
+                  checked={state.requireApproval !== false}
                   onChange={(event) => onRequireApprovalChange?.(event.target.checked)}
                 />
                 Ask me before someone new joins

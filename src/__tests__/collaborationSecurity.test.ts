@@ -43,6 +43,14 @@ async function project() {
   const { id } = (await created.json()) as { id: string };
   const shared = await request(`/api/projects/${id}/share`, owner, "POST");
   const { token } = (await shared.json()) as { token: string };
+  expect((await request(`/api/shares/${token}/open`, member, "POST")).status).toBe(403);
+  expect(
+    (
+      await request(`/api/shares/${token}/pending/${member.client}`, owner, "POST", {
+        action: "approve",
+      })
+    ).status,
+  ).toBe(200);
   expect((await request(`/api/shares/${token}/open`, member, "POST")).status).toBe(200);
   return { id, token };
 }
@@ -241,6 +249,13 @@ describe("collaboration security boundaries", () => {
     const { token } = await project();
     const second = { client: "second-member", session: "second-secret" };
     await request(`/api/shares/${token}/open`, second, "POST");
+    expect(
+      (
+        await request(`/api/shares/${token}/pending/${second.client}`, owner, "POST", {
+          action: "approve",
+        })
+      ).status,
+    ).toBe(200);
     const responses = await Promise.all(
       [member, second].map((identity) =>
         request(`/api/shares/${token}/permissions`, owner, "PUT", {

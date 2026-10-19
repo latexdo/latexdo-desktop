@@ -272,10 +272,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       shareToken: null,
       retiredShareTokens: [],
       sharingStopped: false,
-      // The invite carries the project key, so whoever holds it is already
-      // trusted to read; making them wait on an owner who may be offline only
-      // strands them. Owners who want a gate turn approval on.
-      requireApproval: false,
+      requireApproval: true,
       permissions: {
         [identity.clientId]: {
           clientId: identity.clientId,
@@ -562,6 +559,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       .toArray()[0];
     if (!row) return null;
     this.meta = JSON.parse(row.value) as ProjectMeta;
+    this.meta.requireApproval = this.meta.requireApproval !== false;
     return this.meta;
   }
 

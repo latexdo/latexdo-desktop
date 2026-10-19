@@ -226,6 +226,28 @@ describe("hosting a project from this computer", () => {
     ).rejects.toThrow("has not been joined");
     const resolved = await visitor.service.resolveInvite(`  ${invite}\n`);
     expect(resolved).toEqual({ origin: started.addresses[0], token });
+    expect(
+      (
+        await call(
+          visitor.service,
+          resolved.origin,
+          guest,
+          "POST",
+          `/api/shares/${token}/open`,
+          {},
+          token,
+        )
+      ).body.code,
+    ).toBe("approval-pending");
+    await call(
+      host.service,
+      localHostOrigin,
+      owner,
+      "POST",
+      `/api/shares/${token}/pending/${guest.client}`,
+      { action: "approve" },
+      token,
+    );
     const opened = await call(
       visitor.service,
       resolved.origin,
@@ -496,6 +518,16 @@ describe("hosting a project from this computer", () => {
       token,
     );
 
+    await call(
+      host.service,
+      localHostOrigin,
+      owner,
+      "POST",
+      `/api/shares/${token}/pending/${guest.client}`,
+      { action: "approve" },
+      token,
+    );
+
     const guestDocument = await joinDocument(
       visitor.service,
       resolved.origin,
@@ -620,6 +652,24 @@ describe("hosting a project from this computer", () => {
         projectId,
         token,
       );
+      await call(
+        visitor.service,
+        resolved.origin,
+        guest,
+        "POST",
+        `/api/shares/${token}/open`,
+        {},
+        token,
+      );
+      await call(
+        host.service,
+        localHostOrigin,
+        owner,
+        "POST",
+        `/api/shares/${token}/pending/${guest.client}`,
+        { action: "approve" },
+        token,
+      );
       const guestDocument = await joinDocument(
         visitor.service,
         resolved.origin,
@@ -683,17 +733,29 @@ describe("hosting a project from this computer", () => {
         key: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       });
 
-      // Newcomers wait for the owner by default; this owner lets anyone in.
+      const resolved = await visitorApp.service.resolveInvite(invite);
+      expect(
+        (
+          await call(
+            visitorApp.service,
+            resolved.origin,
+            guest,
+            "POST",
+            `/api/shares/${token}/open`,
+            {},
+            token,
+          )
+        ).body.code,
+      ).toBe("approval-pending");
       await call(
         ownerApp.service,
         cloudOrigin,
         owner,
-        "PUT",
-        `/api/shares/${token}/approval`,
-        { requireApproval: false },
+        "POST",
+        `/api/shares/${token}/pending/${guest.client}`,
+        { action: "approve" },
         token,
       );
-      const resolved = await visitorApp.service.resolveInvite(invite);
       const opened = await call(
         visitorApp.service,
         resolved.origin,

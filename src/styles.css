@@ -3295,22 +3295,16 @@ button {
 .preview-header > div:first-child span {
   min-width: 0;
 }
-.preview-header > div:first-child span:not(.pane-label):not(.built-badge) {
+.preview-header > div:first-child span:not(.pane-label):not(.pdf-build-status) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.built-badge {
-  display: flex;
+.pdf-build-status {
+  display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 5px;
-  border-radius: 8px;
-  background: rgb(79 159 106 / 16%);
-  color: var(--success);
-  font-size: 9px;
-  font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .preview-actions {
@@ -9140,7 +9134,9 @@ button {
 }
 
 .notation-manager-filters {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 2px;
   border: 1px solid var(--border-input);
   border-radius: 7px;
@@ -9149,6 +9145,7 @@ button {
 
 .notation-manager-filter {
   display: inline-flex;
+  justify-content: center;
   height: 24px;
   align-items: center;
   gap: 6px;
@@ -9448,7 +9445,9 @@ button {
 }
 
 .notation-manager-tabs {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   margin: 12px 14px 0;
   padding: 2px;
@@ -18837,7 +18836,9 @@ button {
 }
 
 .notation-manager-filters {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   padding: 2px;
   border: 1px solid var(--border-input);
   border-radius: 7px;
@@ -18846,6 +18847,7 @@ button {
 
 .notation-manager-filter {
   display: inline-flex;
+  justify-content: center;
   height: 24px;
   align-items: center;
   gap: 6px;
@@ -19145,7 +19147,9 @@ button {
 }
 
 .notation-manager-tabs {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   margin: 12px 14px 0;
   padding: 2px;
@@ -26568,6 +26572,9 @@ body.pane-resizing .preview-pane > * {
 }
 
 .citation-search-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 9px 5px;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -26590,6 +26597,9 @@ body.pane-resizing .preview-pane > * {
 }
 
 .citation-search-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
   padding: 0 6px;
   border-radius: var(--radius-pill);

@@ -152,6 +152,10 @@ export function useAppReviewActions(ctx: AppCtx13) {
     cancelReformulation,
   };
 
+  // Editor actions live for the whole mount, including document switches.
+  const bookmarkActionsRef = useRef({ toggleBookmarkAtCurrentLine, jumpToBookmark });
+  bookmarkActionsRef.current = { toggleBookmarkAtCurrentLine, jumpToBookmark };
+
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
     setEditorCursorLine(editor.getPosition()?.lineNumber ?? null);
@@ -313,19 +317,19 @@ export function useAppReviewActions(ctx: AppCtx13) {
         id: "latexdo.toggleBookmark",
         label: "Toggle Bookmark",
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F2],
-        run: () => toggleBookmarkAtCurrentLine(),
+        run: () => bookmarkActionsRef.current.toggleBookmarkAtCurrentLine(),
       }),
       editor.addAction({
         id: "latexdo.nextBookmark",
         label: "Go to Next Bookmark",
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.F2],
-        run: () => jumpToBookmark("next"),
+        run: () => bookmarkActionsRef.current.jumpToBookmark("next"),
       }),
       editor.addAction({
         id: "latexdo.previousBookmark",
         label: "Go to Previous Bookmark",
         keybindings: [monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.F2],
-        run: () => jumpToBookmark("previous"),
+        run: () => bookmarkActionsRef.current.jumpToBookmark("previous"),
       }),
       editor.addAction({
         id: "latexdo.showCompletionDetails",
@@ -438,6 +442,17 @@ export function useAppReviewActions(ctx: AppCtx13) {
     ];
     applyBookmarkDecorations(editor, activeBookmarkLines);
     editorMouseDisposableRef.current = editor.onMouseDown((event) => {
+      if (
+        event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN &&
+        event.target.position &&
+        event.event.leftButton &&
+        event.event.detail === 1
+      ) {
+        event.event.preventDefault();
+        editor.setPosition(event.target.position);
+        bookmarkActionsRef.current.toggleBookmarkAtCurrentLine();
+        return;
+      }
       if (event.event.detail === 2 && event.target.position) {
         void forwardSyncRef.current?.(event.target.position);
       }

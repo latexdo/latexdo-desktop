@@ -204,6 +204,7 @@ need a fixed production backend, build/release with the desired
 - Do not expose the backend data directory over the web.
 - Share tokens are bearer capabilities; anyone with a token can join unless an
   admin removes or demotes them, or approval for newcomers is turned on.
+
 - Rotating a token, or removing a collaborator, retires the old token: it admits
   nobody new, while people who already joined stay signed in.
 - Admins can change collaborator roles. Viewers are blocked from HTTP writes and
