@@ -400,6 +400,7 @@ export function aiChatStateStorageKey(chatId: string): string {
 }
 
 export function normalizePersistedAiChat(raw: unknown): AiChatTab | null {
+  if (!raw || typeof raw !== "object") return null;
   const value = raw as Partial<AiChatTab>;
   if (typeof value.id !== "string" || typeof value.title !== "string") {
     return null;
@@ -551,6 +552,7 @@ export function labelForGgufFile(fileName: string): string {
 export function normalizeCustomLatexDoAiModelRecord(
   raw: unknown,
 ): CustomLatexDoAiModelRecord | null {
+  if (!raw || typeof raw !== "object") return null;
   const value = raw as Partial<CustomLatexDoAiModelRecord>;
   if (
     typeof value.fileName !== "string" ||

@@ -32,15 +32,17 @@ vi.mock("./cloudE2ee.js", () => ({
 
 const tunnelDefaults = vi.hoisted(() => ({
   ensureCloudflared: vi.fn(async () => "/bin/default"),
-  startQuickTunnel: vi.fn(async () => ({ url: "https://d.trycloudflare.com", stop: () => {} })),
+  startQuickTunnel: vi.fn(async () => ({
+    url: "https://d.trycloudflare.com",
+    stop: () => {},
+  })),
   waitForTunnelDns: vi.fn(async () => undefined),
 }));
 vi.mock("./peerTunnel.js", () => tunnelDefaults);
 
 const { PeerCollabService } = await import("./peerCollab.js");
-const { decodePeerInvite, encodePeerInvite, localHostOrigin } = await import(
-  "./peerInvite.js"
-);
+const { decodePeerInvite, encodePeerInvite, localHostOrigin } =
+  await import("./peerInvite.js");
 type Deps = ConstructorParameters<typeof PeerCollabService>[0];
 
 const cloud = "https://collab.example";
@@ -97,8 +99,11 @@ function make(overrides: Partial<Deps> = {}) {
       lo: undefined,
     }),
     ensureTunnelBinary: vi.fn(async () => "/bin/cloudflared"),
-    startTunnel: vi.fn(async () => ({ url: "https://abc.trycloudflare.com", stop: vi.fn() })),
-    waitForTunnel: vi.fn(async () => undefined),
+    startTunnel: vi.fn(async () => ({
+      url: "https://abc.trycloudflare.com",
+      stop: vi.fn(),
+    })),
+    waitForTunnel: vi.fn(async () => true),
     cloudOrigin: `${cloud}/`,
     ...overrides,
   };
@@ -200,7 +205,10 @@ describe("hosted server", () => {
   it("stays off when a server dies after sharing stopped", async () => {
     const { service } = make();
     // A loopback server, started by a bridge request, survives stopSharing.
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}")),
+    );
     await service.request({
       origin: localHostOrigin,
       path: "/api/health",
@@ -285,10 +293,17 @@ describe("internet sharing", () => {
     const env = (deps.spawnServer as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(env.LATEXDO_COLLAB_HOST).toBe("127.0.0.1");
     const messages = statuses.map((s) => s.message);
-    expect(messages).toContain("Downloading the secure connection helper (one time)… 0%");
-    expect(messages).toContain("Downloading the secure connection helper (one time)… 50%");
+    expect(messages).toContain(
+      "Downloading the secure connection helper (one time)… 0%",
+    );
+    expect(messages).toContain(
+      "Downloading the secure connection helper (one time)… 50%",
+    );
     expect(messages.filter((m) => m?.endsWith("… 0%"))).toHaveLength(1);
-    expect(deps.waitForTunnel).toHaveBeenCalledWith("abc.trycloudflare.com", expect.anything());
+    expect(deps.waitForTunnel).toHaveBeenCalledWith(
+      "abc.trycloudflare.com",
+      expect.anything(),
+    );
   });
 
   it("uses the bundled tunnel helpers by default", async () => {
@@ -338,9 +353,9 @@ describe("internet sharing", () => {
       await first;
       await stopping;
       expect(service.status().phase).toBe("off");
-      expect(statuses.some((s) => s.message === "Preparing a secure internet link…")).toBe(
-        false,
-      );
+      expect(
+        statuses.some((s) => s.message === "Preparing a secure internet link…"),
+      ).toBe(false);
     }
     // During the helper download, including progress.
     {
@@ -353,7 +368,9 @@ describe("internet sharing", () => {
             release = () => resolve("/bin/x");
           }),
       );
-      const { service, deps } = make({ ensureTunnelBinary: ensureTunnelBinary as never });
+      const { service, deps } = make({
+        ensureTunnelBinary: ensureTunnelBinary as never,
+      });
       const first = service.startSharing("internet");
       await vi.waitFor(() => expect(ensureTunnelBinary).toHaveBeenCalled());
       await service.stopSharing();
@@ -403,7 +420,9 @@ describe("internet sharing", () => {
         throw "no";
       }) as never,
     });
-    expect((await service.startSharing("internet")).message).toBe("Sharing could not start.");
+    expect((await service.startSharing("internet")).message).toBe(
+      "Sharing could not start.",
+    );
 
     let reject!: (e: Error) => void;
     const second = make({
@@ -437,18 +456,34 @@ describe("cloud invites", () => {
   });
 
   it("routes the encryption layer's traffic to the cloud server", async () => {
-    const fetchRemote = vi.fn(async () => new Response("ok", { status: 201, statusText: "Created" }));
+    const fetchRemote = vi.fn(
+      async () => new Response("ok", { status: 201, statusText: "Created" }),
+    );
     const { service } = make({ fetchRemote: fetchRemote as never });
     e2ee.inviteKey.mockResolvedValueOnce(null);
     await service.cloudInvite(token);
-    const response = await e2ee.transport!.request("/api/projects", "POST", {}, "{}", 1000);
+    const response = await e2ee.transport!.request(
+      "/api/projects",
+      "POST",
+      {},
+      "{}",
+      1000,
+    );
     expect(response).toEqual({ status: 201, statusText: "Created", text: "ok" });
-    expect(fetchRemote).toHaveBeenCalledWith(`${cloud}/api/projects`, expect.anything());
+    expect(fetchRemote).toHaveBeenCalledWith(
+      `${cloud}/api/projects`,
+      expect.anything(),
+    );
 
     const sockets: FakeWebSocket[] = [];
     vi.stubGlobal("WebSocket", fakeWebSocketClass(sockets));
-    await e2ee.transport!.openSocket("/api/projects/x/files/collaborate?a=1", handlers());
-    expect(sockets[0].url.toString()).toBe(`wss://collab.example/api/projects/x/files/collaborate?a=1`);
+    await e2ee.transport!.openSocket(
+      "/api/projects/x/files/collaborate?a=1",
+      handlers(),
+    );
+    expect(sockets[0].url.toString()).toBe(
+      `wss://collab.example/api/projects/x/files/collaborate?a=1`,
+    );
   });
 });
 
@@ -458,7 +493,9 @@ describe("invites from other computers", () => {
 
   it("rejects invalid invites", async () => {
     const { service } = make();
-    await expect(service.resolveInvite("nonsense")).rejects.toThrow(/not a valid invite/);
+    await expect(service.resolveInvite("nonsense")).rejects.toThrow(
+      /not a valid invite/,
+    );
   });
 
   it("joins the first host that answers and remembers it", async () => {
@@ -492,7 +529,10 @@ describe("invites from other computers", () => {
 
   it("keeps only the most recent peers", async () => {
     await mkdir(path.join(root, "data-dir"), { recursive: true });
-    const many = Array.from({ length: 200 }, (_, i) => `http://10.1.${Math.floor(i / 250)}.${i}:1`);
+    const many = Array.from(
+      { length: 200 },
+      (_, i) => `http://10.1.${Math.floor(i / 250)}.${i}:1`,
+    );
     await writeFile(
       path.join(root, "data-dir", "peers.json"),
       JSON.stringify([...many, "not a url"]),
@@ -535,7 +575,9 @@ describe("invites from other computers", () => {
       return new Response("x".repeat(5000));
     });
     const { service } = make({ fetchRemote: fetchRemote as never });
-    const local = service.resolveInvite(invite(["http://down.local:1", "http://sick.local:2"]));
+    const local = service.resolveInvite(
+      invite(["http://down.local:1", "http://sick.local:2"]),
+    );
     const localCheck = expect(local).rejects.toThrow(/same network/);
     await vi.advanceTimersByTimeAsync(2_000);
     await localCheck;
@@ -551,7 +593,13 @@ describe("invites from other computers", () => {
 });
 
 describe("network bridge", () => {
-  const base = { origin: localHostOrigin, path: "/api/health", method: "GET", headers: {}, timeoutMs: 10 };
+  const base = {
+    origin: localHostOrigin,
+    path: "/api/health",
+    method: "GET",
+    headers: {},
+    timeoutMs: 10,
+  };
 
   it("rejects invalid requests", async () => {
     const { service } = make();
@@ -566,7 +614,11 @@ describe("network bridge", () => {
       );
     }
     await expect(
-      service.request({ ...base, method: "POST", body: "a".repeat(96 * 1024 * 1024 + 1) }),
+      service.request({
+        ...base,
+        method: "POST",
+        body: "a".repeat(96 * 1024 * 1024 + 1),
+      }),
     ).rejects.toThrow("The collaboration request is too large.");
   });
 
@@ -603,7 +655,9 @@ describe("network bridge", () => {
 
     // GET never carries a body.
     await service.request({ ...base, body: "ignored" });
-    expect((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body).toBeUndefined();
+    expect(
+      (fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body,
+    ).toBeUndefined();
 
     fetchMock.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     await expect(service.request(base)).rejects.toThrow(
@@ -614,7 +668,9 @@ describe("network bridge", () => {
   it("explains failures reaching another computer", async () => {
     const fetchRemote = vi.fn(async () => healthy());
     const { service } = make({ fetchRemote: fetchRemote as never });
-    await service.resolveInvite(encodePeerInvite({ token, addresses: ["http://10.0.0.7:7"] }));
+    await service.resolveInvite(
+      encodePeerInvite({ token, addresses: ["http://10.0.0.7:7"] }),
+    );
     const request = { ...base, origin: "http://10.0.0.7:7" };
     const timeout = new Error("slow");
     timeout.name = "TimeoutError";
@@ -626,9 +682,9 @@ describe("network bridge", () => {
 
   it("refuses hosts that were never joined", async () => {
     const { service } = make();
-    await expect(service.request({ ...base, origin: "http://10.0.0.8:8" })).rejects.toThrow(
-      /has not been joined/,
-    );
+    await expect(
+      service.request({ ...base, origin: "http://10.0.0.8:8" }),
+    ).rejects.toThrow(/has not been joined/);
     await expect(service.request({ ...base, origin: "ftp://x" })).rejects.toThrow(
       /has not been joined/,
     );
@@ -637,16 +693,28 @@ describe("network bridge", () => {
   it("sends cloud traffic through the encryption layer", async () => {
     const { service } = make();
     e2ee.request.mockResolvedValue({ status: 200, statusText: "OK", text: "{}" });
-    expect(await service.request({ ...base, origin: cloud, timeoutMs: 999_999 })).toEqual({
+    expect(
+      await service.request({ ...base, origin: cloud, timeoutMs: 999_999 }),
+    ).toEqual({
       status: 200,
       statusText: "OK",
       text: "{}",
     });
-    expect(e2ee.request).toHaveBeenCalledWith("/api/health", "GET", {}, undefined, 120_000);
+    expect(e2ee.request).toHaveBeenCalledWith(
+      "/api/health",
+      "GET",
+      {},
+      undefined,
+      120_000,
+    );
 
     e2ee.openSocket.mockResolvedValue("sealed-socket");
     expect(
-      await service.openSocket(cloud, "/api/projects/p/files/collaborate?x=1", handlers()),
+      await service.openSocket(
+        cloud,
+        "/api/projects/p/files/collaborate?x=1",
+        handlers(),
+      ),
     ).toBe("sealed-socket");
   });
 });
@@ -699,9 +767,9 @@ describe("collaboration sockets", () => {
       `/api/projects/p/files/collaborate?${"a".repeat(4100)}`,
       "/api/projects/p/files/collaborate?a b",
     ]) {
-      await expect(service.openSocket(localHostOrigin, bad, handlers())).rejects.toThrow(
-        "Invalid collaboration socket request.",
-      );
+      await expect(
+        service.openSocket(localHostOrigin, bad, handlers()),
+      ).rejects.toThrow("Invalid collaboration socket request.");
     }
   });
 
@@ -716,7 +784,9 @@ describe("collaboration sockets", () => {
       events,
     );
     const raw = sockets[0];
-    expect(raw.url.toString()).toBe("ws://127.0.0.1:4001/api/projects/p/files/collaborate?path=a");
+    expect(raw.url.toString()).toBe(
+      "ws://127.0.0.1:4001/api/projects/p/files/collaborate?path=a",
+    );
     expect(raw.binaryType).toBe("arraybuffer");
 
     raw.emit("open");
@@ -763,19 +833,27 @@ describe("hosted projects", () => {
     await expect(service.registerHostedProject("nope", "/x", "n")).rejects.toThrow(
       "Invalid hosted project.",
     );
-    await expect(service.registerHostedProject(projectId, "relative", "n")).rejects.toThrow(
+    await expect(
+      service.registerHostedProject(projectId, "relative", "n"),
+    ).rejects.toThrow("Invalid hosted project.");
+    await expect(service.forgetHostedProject("nope")).rejects.toThrow(
       "Invalid hosted project.",
     );
-    await expect(service.forgetHostedProject("nope")).rejects.toThrow("Invalid hosted project.");
 
     const folder = path.join(root, "paper");
     await service.registerHostedProject(projectId, folder, "Paper");
-    expect(await service.hostedProject(projectId)).toEqual({ localRoot: folder, name: "Paper" });
+    expect(await service.hostedProject(projectId)).toEqual({
+      localRoot: folder,
+      name: "Paper",
+    });
     expect(await service.hostedProject("toString")).toBeNull();
 
     // A fresh service reads it back from disk.
     const again = make().service;
-    expect(await again.hostedProject(projectId)).toEqual({ localRoot: folder, name: "Paper" });
+    expect(await again.hostedProject(projectId)).toEqual({
+      localRoot: folder,
+      name: "Paper",
+    });
 
     const copy = path.join(root, "data-dir", "data", "projects", projectId);
     await mkdir(copy, { recursive: true });
@@ -800,7 +878,10 @@ describe("hosted projects", () => {
       }),
     );
     const { service } = make();
-    expect(await service.hostedProject(projectId)).toEqual({ localRoot: "/abs", name: "" });
+    expect(await service.hostedProject(projectId)).toEqual({
+      localRoot: "/abs",
+      name: "",
+    });
     expect(await service.hostedProject(`project_${"c".repeat(32)}`)).toBeNull();
     expect(await service.hostedProject(`project_${"d".repeat(32)}`)).toBeNull();
   });
@@ -813,7 +894,9 @@ describe("hosted projects", () => {
 
   it("refuses to save projects that were not shared from a folder", async () => {
     const { service } = make();
-    await expect(service.saveHostedProject(projectId)).rejects.toThrow(/not shared from a folder/);
+    await expect(service.saveHostedProject(projectId)).rejects.toThrow(
+      /not shared from a folder/,
+    );
     await expect(service.saveFilesToHostedFolder(projectId, [])).rejects.toThrow(
       /not shared from a folder/,
     );
@@ -831,7 +914,9 @@ describe("hosted projects", () => {
     // Links in the shared copy are skipped.
     await symlink(path.join(files, "main.tex"), path.join(files, "link.tex"));
     expect(await service.saveHostedProject(projectId)).toEqual({ folder, written: 2 });
-    expect(await readFile(path.join(folder, "chapters", "deep", "a.tex"), "utf8")).toBe("a");
+    expect(await readFile(path.join(folder, "chapters", "deep", "a.tex"), "utf8")).toBe(
+      "a",
+    );
     // Unchanged files are not rewritten.
     expect((await service.saveHostedProject(projectId)).written).toBe(0);
   });

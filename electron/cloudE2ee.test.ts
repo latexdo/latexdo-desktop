@@ -56,7 +56,7 @@ interface FakeServer {
   handlers: E2eeSocketHandlers;
   path: string;
   sent: Uint8Array[];
-  close: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn<() => void>>;
 }
 
 function setup(handler: Handler, keys = memoryKeys()) {
@@ -138,9 +138,9 @@ describe("HTTP requests", () => {
     expect(JSON.parse(response.text)).toEqual({ id: projectId, name: "Thesis" });
     const key = keys.map.get(projectId)!;
     expect(isEncryptedString(sentBody.folderName)).toBe(true);
-    expect(await decryptString(key, "", "name", sentHeaders["x-latexdo-client-name"])).toBe(
-      "Ada",
-    );
+    expect(
+      await decryptString(key, "", "name", sentHeaders["x-latexdo-client-name"]),
+    ).toBe("Ada");
   });
 
   it("uses name, then a default, when creating projects", async () => {
@@ -161,9 +161,9 @@ describe("HTTP requests", () => {
 
   it("passes failed creates through and rejects unexpected answers", async () => {
     const failing = setup(() => ok({ error: "no" }, 500));
-    expect((await failing.e2ee.request("/api/projects", "POST", {}, "{}", 1)).status).toBe(
-      500,
-    );
+    expect(
+      (await failing.e2ee.request("/api/projects", "POST", {}, "{}", 1)).status,
+    ).toBe(500);
     const odd = setup(() => ok({ id: "weird" }));
     const response = await odd.e2ee.request("/api/projects", "POST", {}, "{}", 1);
     expect(response.status).toBe(502);
@@ -195,14 +195,22 @@ describe("HTTP requests", () => {
 
   it("passes failed listings through", async () => {
     const { e2ee } = setup(() => ok({}, 401));
-    expect((await e2ee.request("/api/projects", "GET", {}, undefined, 1)).status).toBe(401);
+    expect((await e2ee.request("/api/projects", "GET", {}, undefined, 1)).status).toBe(
+      401,
+    );
   });
 
   it("forwards non-project paths untouched", async () => {
     const { e2ee, request } = setup(() => ok({ hi: 1 }));
     await e2ee.request("/api/health", "GET", { a: "b" }, undefined, 5);
     await e2ee.request("/api/projects/not-a-project/files", "GET", {}, undefined, 5);
-    expect(request).toHaveBeenCalledWith("/api/health", "GET", { a: "b" }, undefined, 5);
+    expect(request).toHaveBeenCalledWith(
+      "/api/health",
+      "GET",
+      { a: "b" },
+      undefined,
+      5,
+    );
     expect(request).toHaveBeenCalledWith(
       "/api/projects/not-a-project/files",
       "GET",
@@ -223,9 +231,9 @@ describe("HTTP requests", () => {
     const { e2ee } = setup(() => {
       throw new Error("network down");
     });
-    await expect(e2ee.request("/api/projects", "GET", {}, undefined, 1)).rejects.toThrow(
-      "network down",
-    );
+    await expect(
+      e2ee.request("/api/projects", "GET", {}, undefined, 1),
+    ).rejects.toThrow("network down");
   });
 
   it("reads text files by merging the encrypted log and ignoring foreign entries", async () => {
@@ -330,31 +338,64 @@ describe("HTTP requests", () => {
 
   it("falls through for other methods on binary paths", async () => {
     const key = newProjectKey();
-    const { e2ee, request } = setup(() => ok({ deleted: true }), memoryKeys({ [projectId]: key }));
-    const response = await e2ee.request(`${base}/files/binary?path=a`, "DELETE", {}, undefined, 1);
+    const { e2ee, request } = setup(
+      () => ok({ deleted: true }),
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await e2ee.request(
+      `${base}/files/binary?path=a`,
+      "DELETE",
+      {},
+      undefined,
+      1,
+    );
     expect(JSON.parse(response.text)).toEqual({ deleted: true });
     expect(request.mock.calls[0][1]).toBe("DELETE");
   });
 
   it("falls through for other methods on content paths", async () => {
     const key = newProjectKey();
-    const { e2ee } = setup(() => ({ status: 204, statusText: "", text: "" }), memoryKeys({ [projectId]: key }));
-    const response = await e2ee.request(`${base}/files/content?path=a`, "DELETE", {}, undefined, 1);
+    const { e2ee } = setup(
+      () => ({ status: 204, statusText: "", text: "" }),
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await e2ee.request(
+      `${base}/files/content?path=a`,
+      "DELETE",
+      {},
+      undefined,
+      1,
+    );
     expect(response.status).toBe(204);
   });
 
   it("decrypts binary files and reports undecryptable ones", async () => {
     const key = newProjectKey();
     const plain = new Uint8Array([1, 2, 3]);
-    const good = Buffer.from(await encryptBytes(key, projectId, "file", plain)).toString(
-      "base64",
-    );
+    const good = Buffer.from(
+      await encryptBytes(key, projectId, "file", plain),
+    ).toString("base64");
     let next = good;
-    const { e2ee } = setup(() => ok({ base64: next }), memoryKeys({ [projectId]: key }));
-    const response = await e2ee.request(`${base}/files/binary?path=a.png`, "GET", {}, undefined, 1);
+    const { e2ee } = setup(
+      () => ok({ base64: next }),
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await e2ee.request(
+      `${base}/files/binary?path=a.png`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(JSON.parse(response.text)).toEqual({ base64: "AQID" });
     next = Buffer.from("garbage-garbage-garbage-garbage-garbage").toString("base64");
-    const bad = await e2ee.request(`${base}/files/binary?path=a.png`, "GET", {}, undefined, 1);
+    const bad = await e2ee.request(
+      `${base}/files/binary?path=a.png`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(bad.status).toBe(422);
   });
 
@@ -365,24 +406,46 @@ describe("HTTP requests", () => {
       (path) => (path.includes("/files/binary") ? ok({}, 400) : ok({ entries })),
       memoryKeys({ [projectId]: key }),
     );
-    const response = await e2ee.request(`${base}/files/binary?path=f.svg`, "GET", {}, undefined, 1);
-    expect(Buffer.from(JSON.parse(response.text).base64, "base64").toString()).toBe("<svg/>");
+    const response = await e2ee.request(
+      `${base}/files/binary?path=f.svg`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
+    expect(Buffer.from(JSON.parse(response.text).base64, "base64").toString()).toBe(
+      "<svg/>",
+    );
   });
 
   it("passes binary failures through, including a failed text fallback", async () => {
     const key = newProjectKey();
     const notFound = setup(() => ok({}, 404), memoryKeys({ [projectId]: key }));
     expect(
-      (await notFound.e2ee.request(`${base}/files/binary?path=a`, "GET", {}, undefined, 1))
-        .status,
+      (
+        await notFound.e2ee.request(
+          `${base}/files/binary?path=a`,
+          "GET",
+          {},
+          undefined,
+          1,
+        )
+      ).status,
     ).toBe(404);
     const fallbackFails = setup(
       (path) => (path.includes("/files/binary") ? ok({}, 400) : ok({}, 500)),
       memoryKeys({ [projectId]: key }),
     );
     expect(
-      (await fallbackFails.e2ee.request(`${base}/files/binary?path=a`, "GET", {}, undefined, 1))
-        .status,
+      (
+        await fallbackFails.e2ee.request(
+          `${base}/files/binary?path=a`,
+          "GET",
+          {},
+          undefined,
+          1,
+        )
+      ).status,
     ).toBe(500);
   });
 
@@ -411,7 +474,13 @@ describe("HTTP requests", () => {
     );
     expect([...plain]).toEqual([1, 2, 3]);
     for (const body of [JSON.stringify({}), undefined]) {
-      const response = await e2ee.request(`${base}/files/binary?path=a`, "PUT", {}, body, 1);
+      const response = await e2ee.request(
+        `${base}/files/binary?path=a`,
+        "PUT",
+        {},
+        body,
+        1,
+      );
       expect(response.status).toBe(400);
     }
   });
@@ -426,7 +495,10 @@ describe("HTTP requests", () => {
         ok({
           revision: 7,
           files: [
-            { relativePath: "main.tex", entries: [await sealUpdate(key, textUpdate("T"))] },
+            {
+              relativePath: "main.tex",
+              entries: [await sealUpdate(key, textUpdate("T"))],
+            },
             { relativePath: "a.bin", base64: binary },
             { relativePath: "bad.bin", base64: "AAAA" },
             { relativePath: "dir/" },
@@ -434,7 +506,13 @@ describe("HTTP requests", () => {
         }),
       memoryKeys({ [projectId]: key }),
     );
-    const response = await e2ee.request(`${base}/files/bundle`, "GET", {}, undefined, 1);
+    const response = await e2ee.request(
+      `${base}/files/bundle`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(JSON.parse(response.text)).toEqual({
       revision: 7,
       files: [
@@ -447,14 +525,18 @@ describe("HTTP requests", () => {
   it("passes failed bundles through", async () => {
     const key = newProjectKey();
     const { e2ee } = setup(() => ok({}, 503), memoryKeys({ [projectId]: key }));
-    expect((await e2ee.request(`${base}/files/bundle`, "GET", {}, undefined, 1)).status).toBe(503);
+    expect(
+      (await e2ee.request(`${base}/files/bundle`, "GET", {}, undefined, 1)).status,
+    ).toBe(503);
   });
 
   it("decrypts names in other project responses and keeps odd bodies intact", async () => {
     const key = newProjectKey();
     const sealed = await encryptString(key, "", "name", "Bob");
     const damaged = await encryptString(newProjectKey(), "", "name", "x");
-    let next: E2eeResponse = ok({ members: [{ name: sealed }, { projectName: damaged }] });
+    let next: E2eeResponse = ok({
+      members: [{ name: sealed }, { projectName: damaged }],
+    });
     const { e2ee } = setup(() => next, memoryKeys({ [projectId]: key }));
     const response = await e2ee.request(`${base}/members`, "GET", {}, undefined, 1);
     expect(JSON.parse(response.text)).toEqual({
@@ -465,9 +547,13 @@ describe("HTTP requests", () => {
       "not json",
     );
     next = { status: 204, statusText: "", text: "x" };
-    expect((await e2ee.request(`${base}/members`, "GET", {}, undefined, 1)).text).toBe("x");
+    expect((await e2ee.request(`${base}/members`, "GET", {}, undefined, 1)).text).toBe(
+      "x",
+    );
     next = { status: 200, statusText: "", text: "" };
-    expect((await e2ee.request(`${base}/members`, "GET", {}, undefined, 1)).text).toBe("");
+    expect((await e2ee.request(`${base}/members`, "GET", {}, undefined, 1)).text).toBe(
+      "",
+    );
   });
 
   it("resolves projects from share-token paths and seals an already-sealed name once", async () => {
@@ -489,13 +575,31 @@ describe("HTTP requests", () => {
       1,
     );
     expect(seen[0]["x-latexdo-client-name"]).toBe(sealedName);
-    await e2ee.request(`${base}/x`, "GET", { "x-latexdo-client-name": "Al" }, undefined, 1);
-    await e2ee.request(`${base}/x`, "GET", { "x-latexdo-client-name": "Al" }, undefined, 1);
+    await e2ee.request(
+      `${base}/x`,
+      "GET",
+      { "x-latexdo-client-name": "Al" },
+      undefined,
+      1,
+    );
+    await e2ee.request(
+      `${base}/x`,
+      "GET",
+      { "x-latexdo-client-name": "Al" },
+      undefined,
+      1,
+    );
     // The same ciphertext is reused for a name.
     expect(seen[1]["x-latexdo-client-name"]).toBe(seen[2]["x-latexdo-client-name"]);
     const bad = setup(() => ok({}));
     await bad.e2ee.request("/api/shares/bogus/info", "GET", {}, undefined, 1);
-    expect(bad.request).toHaveBeenCalledWith("/api/shares/bogus/info", "GET", {}, undefined, 1);
+    expect(bad.request).toHaveBeenCalledWith(
+      "/api/shares/bogus/info",
+      "GET",
+      {},
+      undefined,
+      1,
+    );
   });
 });
 
@@ -550,16 +654,24 @@ async function openLive(role?: string, entries: Uint8Array[] = []) {
   );
   const server = env.sockets[0];
   const sealed = [];
-  for (const update of entries) sealed.push(await encryptBytes(key, projectId, "text", update));
+  for (const update of entries)
+    sealed.push(await encryptBytes(key, projectId, "text", update));
   return { ...env, key, handlers, socket, server, sealed, role };
 }
 
 describe("live sockets", () => {
   it("rejects invalid socket requests and missing keys", async () => {
     const { e2ee } = setup(() => ok({}));
-    const handlers = { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+    const handlers = {
+      onOpen: vi.fn(),
+      onMessage: vi.fn(),
+      onClose: vi.fn(),
+      onError: vi.fn(),
+    };
     await expect(e2ee.openSocket("/api/other", handlers)).rejects.toThrow(/Invalid/);
-    await expect(e2ee.openSocket(`${base}/socket`, handlers)).rejects.toThrow(/Invalid/);
+    await expect(e2ee.openSocket(`${base}/socket`, handlers)).rejects.toThrow(
+      /Invalid/,
+    );
     await expect(e2ee.openSocket(`${base}/socket?path=a`, handlers)).rejects.toThrow(
       /encryption key/,
     );
@@ -575,7 +687,9 @@ describe("live sockets", () => {
       `${base}/socket?path=b.tex&name=${encodeURIComponent(sealed)}`,
       live.handlers,
     );
-    expect(new URLSearchParams(live.sockets[1].path.split("?")[1]).get("name")).toBe(sealed);
+    expect(new URLSearchParams(live.sockets[1].path.split("?")[1]).get("name")).toBe(
+      sealed,
+    );
   });
 
   it("delivers the decrypted log to the editor on connect, then live updates", async () => {
@@ -600,7 +714,12 @@ describe("live sockets", () => {
     Y.applyUpdate(doc, update);
     const before = Y.encodeStateVector(doc);
     doc.getText("content").insert(5, "!");
-    const diff = await encryptBytes(live.key, projectId, "text", Y.encodeStateAsUpdate(doc, before));
+    const diff = await encryptBytes(
+      live.key,
+      projectId,
+      "text",
+      Y.encodeStateAsUpdate(doc, before),
+    );
     live.server.handlers.onMessage(
       frame((e) => {
         encoding.writeVarUint(e, 10);
@@ -676,10 +795,12 @@ describe("live sockets", () => {
     );
     expect(live.handlers.onMessage).toHaveBeenCalledTimes(1);
     // A malformed sync message is dropped.
-    live.socket.send(frame((e) => {
-      encoding.writeVarUint(e, 0);
-      encoding.writeVarUint(e, 77);
-    }));
+    live.socket.send(
+      frame((e) => {
+        encoding.writeVarUint(e, 0);
+        encoding.writeVarUint(e, 77);
+      }),
+    );
     live.socket.send(new Uint8Array([]));
   });
 
@@ -695,14 +816,29 @@ describe("live sockets", () => {
     await vi.waitFor(() => expect(live.handlers.onOpen).toHaveBeenCalledTimes(2));
     // ...and neither is the same path in another project.
     live.keys.map.set(otherId, newProjectKey());
-    await live.e2ee.openSocket(`/api/projects/${otherId}/socket?path=main.tex`, live.handlers);
+    await live.e2ee.openSocket(
+      `/api/projects/${otherId}/socket?path=main.tex`,
+      live.handlers,
+    );
     live.sockets[2].handlers.onMessage(logFrame(0, [], "editor"));
     await vi.waitFor(() => expect(live.handlers.onOpen).toHaveBeenCalledTimes(3));
-    const read = await live.e2ee.request(`${base}/files/content?path=main.tex`, "GET", {}, undefined, 1);
+    const read = await live.e2ee.request(
+      `${base}/files/content?path=main.tex`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(JSON.parse(read.text)).toEqual({ content: "live" });
     // A file that is not open still goes to the server.
     live.request.mockImplementationOnce(async () => ok({}, 404));
-    const closedFile = await live.e2ee.request(`${base}/files/content?path=none.tex`, "GET", {}, undefined, 1);
+    const closedFile = await live.e2ee.request(
+      `${base}/files/content?path=none.tex`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(closedFile.status).toBe(404);
     live.handlers.onMessage.mockClear();
     const write = await live.e2ee.request(
@@ -732,7 +868,13 @@ describe("live sockets", () => {
     live.request.mockImplementation(async () =>
       ok({ files: [{ relativePath: "main.tex", entries: [] }] }),
     );
-    const bundle = await live.e2ee.request(`${base}/files/bundle`, "GET", {}, undefined, 1);
+    const bundle = await live.e2ee.request(
+      `${base}/files/bundle`,
+      "GET",
+      {},
+      undefined,
+      1,
+    );
     expect(JSON.parse(bundle.text).files[0].content).toBe("saved");
   });
 
@@ -754,7 +896,9 @@ describe("live sockets", () => {
     );
     expect(live.handlers.onMessage).toHaveBeenCalledTimes(1);
     expect(
-      editorDocFrom(live.handlers.onMessage.mock.calls.map((c) => c[0])).getText("content").toString(),
+      editorDocFrom(live.handlers.onMessage.mock.calls.map((c) => c[0]))
+        .getText("content")
+        .toString(),
     ).toBe("doc");
     // Their edits are never forwarded.
     const editor = new Y.Doc();
@@ -766,10 +910,12 @@ describe("live sockets", () => {
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(editor));
       }),
     );
-    live.socket.send(frame((e) => {
-      encoding.writeVarUint(e, 0);
-      encoding.writeVarUint(e, 77);
-    }));
+    live.socket.send(
+      frame((e) => {
+        encoding.writeVarUint(e, 0);
+        encoding.writeVarUint(e, 77);
+      }),
+    );
     // A save while viewing is dropped rather than sent.
     await live.e2ee.request(
       `${base}/files/content?path=main.tex`,
@@ -789,7 +935,9 @@ describe("live sockets", () => {
     for (let i = 0; i < 41; i += 1) {
       const doc = new Y.Doc();
       doc.getText("content").insert(0, String(i % 10));
-      sealed.push(await encryptBytes(live.key, projectId, "text", Y.encodeStateAsUpdate(doc)));
+      sealed.push(
+        await encryptBytes(live.key, projectId, "text", Y.encodeStateAsUpdate(doc)),
+      );
     }
     live.request.mockClear();
     await live.e2ee.openSocket(
@@ -825,9 +973,9 @@ describe("live sockets", () => {
     const decoder = decoding.createDecoder(live.server.sent[0]);
     expect(decoding.readVarUint(decoder)).toBe(12);
     const sealedCursor = decoding.readVarUint8Array(decoder);
-    expect([...(await decryptBytes(live.key, projectId, "cursor", sealedCursor))]).toEqual([
-      1, 5, 6,
-    ]);
+    expect([
+      ...(await decryptBytes(live.key, projectId, "cursor", sealedCursor)),
+    ]).toEqual([1, 5, 6]);
     // Unknown editor messages are ignored.
     live.socket.send(new Uint8Array([9]));
 
@@ -838,7 +986,9 @@ describe("live sockets", () => {
       });
     live.server.handlers.onMessage(cursorFrame(sealedCursor));
     live.server.handlers.onMessage(
-      cursorFrame(await encryptBytes(live.key, projectId, "cursor", new Uint8Array([2, 1]))),
+      cursorFrame(
+        await encryptBytes(live.key, projectId, "cursor", new Uint8Array([2, 1])),
+      ),
     );
     live.server.handlers.onMessage(cursorFrame(new Uint8Array([0])));
     await vi.waitFor(() => expect(live.handlers.onMessage).toHaveBeenCalled());
@@ -856,7 +1006,9 @@ describe("live sockets", () => {
         encoding.writeVarString(e, text);
       });
     // Queued until the log arrives.
-    live.server.handlers.onMessage(jsonFrame(4, JSON.stringify([{ name: sealedName }])));
+    live.server.handlers.onMessage(
+      jsonFrame(4, JSON.stringify([{ name: sealedName }])),
+    );
     await flushAsync();
     expect(live.handlers.onMessage).not.toHaveBeenCalled();
     live.server.handlers.onMessage(logFrame(0, [], "viewer"));
@@ -911,8 +1063,15 @@ describe("live sockets", () => {
     // The live session is gone: reads go back to the server.
     live.request.mockImplementation(async () => ok({}, 404));
     expect(
-      (await live.e2ee.request(`${base}/files/content?path=main.tex`, "GET", {}, undefined, 1))
-        .status,
+      (
+        await live.e2ee.request(
+          `${base}/files/content?path=main.tex`,
+          "GET",
+          {},
+          undefined,
+          1,
+        )
+      ).status,
     ).toBe(404);
   });
 
@@ -925,4 +1084,3 @@ describe("live sockets", () => {
     expect(live.handlers.onClose).toHaveBeenCalledTimes(1);
   });
 });
-

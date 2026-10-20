@@ -35,29 +35,29 @@ export interface MainHarness {
   loadURL: ((window: any, url: string) => Promise<void>) | undefined;
   executeJavaScript: Fn;
   crashRenderer: ((contents: any) => void) | undefined;
-  open: ReturnType<typeof vi.fn>;
-  save: ReturnType<typeof vi.fn>;
-  message: ReturnType<typeof vi.fn>;
-  errorBox: ReturnType<typeof vi.fn>;
-  external: ReturnType<typeof vi.fn>;
-  showItemInFolder: ReturnType<typeof vi.fn>;
-  trashItem: ReturnType<typeof vi.fn>;
-  quit: ReturnType<typeof vi.fn>;
-  exit: ReturnType<typeof vi.fn>;
-  setPath: ReturnType<typeof vi.fn>;
-  dockSetIcon: ReturnType<typeof vi.fn>;
-  menu: ReturnType<typeof vi.fn>;
-  setApplicationMenu: ReturnType<typeof vi.fn>;
-  protocol: ReturnType<typeof vi.fn>;
-  compile: ReturnType<typeof vi.fn>;
-  asymptote: ReturnType<typeof vi.fn>;
-  registerTerminalIpc: ReturnType<typeof vi.fn>;
-  sharedProjectSourceFolder: ReturnType<typeof vi.fn>;
-  docxImport: ReturnType<typeof vi.fn>;
-  pdfImport: ReturnType<typeof vi.fn>;
-  forwardSyncTex: ReturnType<typeof vi.fn>;
-  backwardSyncTex: ReturnType<typeof vi.fn>;
-  fetchOrcidProfile: ReturnType<typeof vi.fn>;
+  open: ReturnType<typeof vi.fn<Fn>>;
+  save: ReturnType<typeof vi.fn<Fn>>;
+  message: ReturnType<typeof vi.fn<Fn>>;
+  errorBox: ReturnType<typeof vi.fn<Fn>>;
+  external: ReturnType<typeof vi.fn<Fn>>;
+  showItemInFolder: ReturnType<typeof vi.fn<Fn>>;
+  trashItem: ReturnType<typeof vi.fn<Fn>>;
+  quit: ReturnType<typeof vi.fn<Fn>>;
+  exit: ReturnType<typeof vi.fn<Fn>>;
+  setPath: ReturnType<typeof vi.fn<Fn>>;
+  dockSetIcon: ReturnType<typeof vi.fn<Fn>>;
+  menu: ReturnType<typeof vi.fn<Fn>>;
+  setApplicationMenu: ReturnType<typeof vi.fn<Fn>>;
+  protocol: ReturnType<typeof vi.fn<Fn>>;
+  compile: ReturnType<typeof vi.fn<Fn>>;
+  asymptote: ReturnType<typeof vi.fn<Fn>>;
+  registerTerminalIpc: ReturnType<typeof vi.fn<Fn>>;
+  sharedProjectSourceFolder: ReturnType<typeof vi.fn<Fn>>;
+  docxImport: ReturnType<typeof vi.fn<Fn>>;
+  pdfImport: ReturnType<typeof vi.fn<Fn>>;
+  forwardSyncTex: ReturnType<typeof vi.fn<Fn>>;
+  backwardSyncTex: ReturnType<typeof vi.fn<Fn>>;
+  fetchOrcidProfile: ReturnType<typeof vi.fn<Fn>>;
   buildInfo: unknown;
   spawn: Fn | undefined;
   watch: Fn | undefined;
@@ -65,7 +65,7 @@ export interface MainHarness {
   fsHooks: Partial<Record<"stat" | "lstat" | "readFile" | "access", Fn>>;
   diagnosticsFail: { record?: boolean; recordSync?: boolean; logPath?: boolean };
   overrides: Record<string, Fn | undefined>;
-  fetch: ReturnType<typeof vi.fn>;
+  fetch: ReturnType<typeof vi.fn<Fn>>;
 }
 
 const globalKey = "__latexdoMainHarness";
@@ -340,7 +340,7 @@ export async function teardownMain(): Promise<void> {
   await cleanup?.();
 }
 
-const listenerTargets = () =>
+const listenerTargets = (): ReadonlyArray<readonly [EventEmitter, string]> =>
   [
     [process, "uncaughtException"],
     [process, "unhandledRejection"],
@@ -422,15 +422,27 @@ export async function bootMain(options: BootOptions = {}): Promise<MainBoot> {
   H.external.mockResolvedValue(undefined);
   H.sharedProjectSourceFolder.mockResolvedValue(null);
   H.compile.mockResolvedValue({ ok: true, output: "", diagnostics: [], durationMs: 1 });
-  H.asymptote.mockResolvedValue({ ok: true, output: "", diagnostics: [], durationMs: 1 });
+  H.asymptote.mockResolvedValue({
+    ok: true,
+    output: "",
+    diagnostics: [],
+    durationMs: 1,
+  });
   H.fetch.mockRejectedValue(new Error("offline"));
   resetReady(H);
 
   const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
   const originalArch = Object.getOwnPropertyDescriptor(process, "arch")!;
-  const originalResourcesPath = Object.getOwnPropertyDescriptor(process, "resourcesPath");
+  const originalResourcesPath = Object.getOwnPropertyDescriptor(
+    process,
+    "resourcesPath",
+  );
   const originalArgv = process.argv;
-  const originalConsole = { log: console.log, warn: console.warn, error: console.error };
+  const originalConsole = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+  };
   const envBefore = new Map<string, string | undefined>();
   const managedEnv = {
     VITE_DEV_SERVER_URL: undefined,
@@ -494,7 +506,9 @@ export async function bootMain(options: BootOptions = {}): Promise<MainBoot> {
   vi.resetModules();
   await import("../main.js");
   const added = listenerTargets().map(([emitter, event], index) =>
-    emitter.listeners(event).filter((listener) => !listenersBefore[index][2].includes(listener as never)),
+    emitter
+      .listeners(event)
+      .filter((listener) => !listenersBefore[index][2].includes(listener as never)),
   );
   if (options.ready !== false) H.resolveReady();
   if (options.ready !== false && options.waitForWindow !== false) {
@@ -516,7 +530,8 @@ export async function bootMain(options: BootOptions = {}): Promise<MainBoot> {
     uncaughtException: added[0][0] as Fn,
     unhandledRejection: added[1][0] as Fn,
     streamErrorHandlers: [...added[2], ...added[3]] as Fn[],
-    call: (channel, ...args) => callFrom(H.createdWindows[0].webContents, channel, ...args),
+    call: (channel, ...args) =>
+      callFrom(H.createdWindows[0].webContents, channel, ...args),
     callFrom,
     appEvent: (name, ...args) => {
       const listener = H.appEvents.get(name);

@@ -26,6 +26,7 @@ const native = vi.hoisted(() => ({
   save: vi.fn(),
   message: vi.fn(),
   external: vi.fn(),
+  trash: vi.fn(),
   quit: vi.fn(),
   exit: vi.fn(),
   menu: vi.fn(),
@@ -119,6 +120,7 @@ vi.mock("electron", async () => {
     protocol: { registerSchemesAsPrivileged: vi.fn(), handle: native.protocol },
     shell: {
       openExternal: native.external,
+      trashItem: native.trash,
       showItemInFolder: vi.fn(),
       openPath: vi.fn(),
     },
@@ -1498,5 +1500,66 @@ describe("desktop recovery and hosted compilation", () => {
       { reason: "crashed", type: "GPU", exitCode: 1, serviceName: "gpu", name: "GPU" },
     );
     expect(native.quit).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("desktop copy, trash and shared-space export", () => {
+  it("copies files and directories without overwriting or recursive self-copy", async () => {
+    await call("folder:create", project.id, "copy-tests");
+    await call("file:write", project.id, "copy-tests/source.tex", "original");
+    expect(await call("entry:copy", project.id, "copy-tests/source.tex", "copy-tests/copy.tex")).toBe("copy-tests/copy.tex");
+    expect(await call("file:read", project.id, "copy-tests/copy.tex")).toBe("original");
+    await expect(call("entry:copy", project.id, "copy-tests/source.tex", "copy-tests/copy.tex")).rejects.toThrow("already exists");
+    await expect(call("entry:copy", project.id, "missing.tex", "copy-tests/missing.tex")).rejects.toThrow("no longer exists");
+    await expect(call("entry:copy", project.id, "copy-tests", "copy-tests/inside")).rejects.toThrow("into itself");
+    await call("entry:copy", project.id, "copy-tests", "copied-folder");
+    expect(await call("file:read", project.id, "copied-folder/source.tex")).toBe("original");
+    await expect(call("entry:copy", project.id, "copy-tests/source.tex", "../escape.tex")).rejects.toThrow();
+  });
+  it("delegates trash to the OS only for existing project entries", async () => {
+    await call("file:write", project.id, "trash-test.tex", "recoverable");
+    await call("entry:trash", project.id, "trash-test.tex");
+    expect(native.trash).toHaveBeenCalledWith(path.join(project.rootPath, "trash-test.tex"));
+    await expect(call("entry:trash", project.id, "missing-trash.tex")).rejects.toThrow("no longer exists");
+    await expect(call("entry:trash", project.id, ".")).rejects.toThrow();
+    // The mock never touches the real OS Trash.
+    expect(await call("file:read", project.id, "trash-test.tex")).toBe("recoverable");
+  });
+  it("exports shared text and binary files into a fresh Research Space", async () => {
+    const destination = path.join(root, "shared-export.latexdo-space");
+    native.save.mockResolvedValueOnce({canceled: false, filePath: destination});
+    const exported = await call("research-space:save-as-cloud", "Shared paper", [
+      {relativePath: "main.tex", content: "source"},
+      {relativePath: "image.png", base64: Buffer.from([0, 1, 255]).toString("base64")},
+      {relativePath: "empty.txt"},
+    ]);
+    expect(exported.rootPath).toBe(destination);
+    const folders = exported.researchSpace.folders;
+    expect(folders).toHaveLength(1);
+    expect(await call("file:read", exported.id, `${folders[0].name}/main.tex`)).toBe("source");
+    expect(Buffer.from(await call("asset:read", exported.id, `${folders[0].name}/image.png`))).toEqual(Buffer.from([0, 1, 255]));
+    expect(await call("file:read", exported.id, `${folders[0].name}/empty.txt`)).toBe("");
+    expect(await call("research-space:save-as-cloud", "Cancelled", [])).toBeNull();
+    for (const [name, files] of [[null, []], ["name", null], ["name", [null]], ["name", [{relativePath: "../escape"}]]])
+      await expect(call("research-space:save-as-cloud", name, files)).rejects.toThrow();
+    for (const channel of ["git:repository-info", "git:diff-for-message"])
+      await expect(call(channel, exported.id)).rejects.toThrow();
+    await expect(call("git:action", exported.id, {kind: "init"})).rejects.toThrow();
+  });
+  it("initializes and queries a repository using the general Git action route", async () => {
+    const parent = path.join(root, "action-repo"); await mkdir(parent);
+    native.open.mockResolvedValueOnce({canceled: false, filePaths: [parent]});
+    const repo = await call("project:create");
+    const git = (...args: string[]) => runGitText(repo.rootPath, args);
+    await call("git:action", repo.id, {kind: "init"});
+    await git("config", "user.name", "Test"); await git("config", "user.email", "test@example.invalid"); await git("config", "commit.gpgsign", "false");
+    await call("git:action", repo.id, {kind: "commit", all: true, message: "Initial"});
+    const details = await call("git:repository-info", repo.id);
+    expect(details.branches.some((branch: {current: boolean}) => branch.current)).toBe(true);
+    await call("file:write", repo.id, "main.tex", "new text");
+    expect(await call("git:diff-for-message", repo.id)).toContain("+new text");
+    expect((await call("git:graph", repo.id, {limit: 1, refs: "all"})).commits).toHaveLength(1);
+    await expect(call("git:action", repo.id, {kind: "invalid"})).rejects.toThrow();
   });
 });

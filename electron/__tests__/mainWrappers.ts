@@ -14,9 +14,10 @@ export function overridable<T extends Record<string, any>>(
   const wrapped: Record<string, unknown> = { ...original };
   for (const name of names) {
     wrapped[name] = (...args: unknown[]) =>
-      ((state()?.overrides[`${prefix}.${name}`] as Fn | undefined) ?? original[name])(
-        ...args,
-      );
+      (
+        (state()?.overrides[`${prefix}.${name}`] as Fn | undefined) ??
+        (original[name] as Fn)
+      )(...args);
   }
   return wrapped as T;
 }
