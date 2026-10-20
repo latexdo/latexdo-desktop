@@ -120,6 +120,97 @@ describe("TerminalPanel", () => {
     };
   });
 
+  it("edits and submits fallback-shell input, including local commands and cancellation", async () => {
+    vi.mocked(window.terminalApi.create).mockResolvedValue({ id: 7, mode: "pipe" });
+    const commandService = { execute: vi.fn().mockResolvedValue({ ok: true, message: "Done" }), complete: vi.fn(() => []), help: vi.fn() };
+    render(<TerminalPanel projectId="p" active commandService={commandService} />);
+    await screen.findByTitle(/Fallback shell ready/);
+    const terminal = xtermMocks.terminalInstances[0];
+    act(() => terminal.emitData("\u007fechx\u007fo\t hi\rdiscard\u0003latexdo help\n"));
+    expect(window.terminalApi.write).toHaveBeenCalledWith(7, "echo hi\n");
+    expect(window.terminalApi.write).toHaveBeenCalledWith(7, "\u0003");
+    expect(commandService.execute).toHaveBeenCalledWith("latexdo help");
+    expect(terminal.write).toHaveBeenCalledWith("\b \b");
+    expect(terminal.write).toHaveBeenCalledWith("^C\r\n");
+    await waitFor(() => expect(terminal.write).toHaveBeenCalledWith("Done\r\n"));
+  });
+
+  it("preserves PTY editing controls while intercepting local commands", async () => {
+    const commandService = { execute: vi.fn().mockRejectedValue(new Error("Unavailable")), complete: vi.fn(() => []), help: vi.fn() };
+    render(<TerminalPanel projectId="p" active commandService={commandService} />);
+    await screen.findByTitle(/PTY shell ready/);
+    const terminal = xtermMocks.terminalInstances[0];
+    act(() => terminal.emitData("lat\u007f\r"));
+    expect(window.terminalApi.write).toHaveBeenLastCalledWith(7, "la\n");
+    act(() => terminal.emitData("lat\tfoo\r"));
+    expect(window.terminalApi.write).toHaveBeenLastCalledWith(7, "lat\tfoo\r");
+    act(() => terminal.emitData("\u007f\r"));
+    expect(window.terminalApi.write).toHaveBeenLastCalledWith(7, "\u007f\r");
+    act(() => terminal.emitData("latexdo helpx\u007f\u0003"));
+    expect(terminal.write).toHaveBeenCalledWith("\b \b");
+    expect(terminal.write).toHaveBeenCalledWith("^C\r\n");
+    expect(commandService.execute).not.toHaveBeenCalled();
+    act(() => terminal.emitData("latexdo help\r"));
+    await screen.findByTitle(/Command failed/);
+    expect(terminal.write.mock.calls.flat().join("")).toContain("Unavailable");
+  });
+
+  it("handles clipboard failures, toolbar actions and clear shortcuts", async () => {
+    render(<TerminalPanel projectId="p" active />);
+    await screen.findByTitle(/PTY shell ready/);
+    const terminal = xtermMocks.terminalInstances[0];
+    fireEvent.click(screen.getByLabelText("Paste"));
+    await waitFor(() => expect(terminal.paste).toHaveBeenCalledWith("pasted command"));
+    vi.mocked(navigator.clipboard.readText).mockRejectedValue(new Error("denied"));
+    fireEvent.click(screen.getByLabelText("Paste"));
+    await screen.findByTitle(/Could not read clipboard/);
+    act(() => terminal.emitSelection("text"));
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error("denied"));
+    fireEvent.click(screen.getByLabelText("Copy selection"));
+    await screen.findByTitle(/Could not copy selection/);
+    fireEvent.click(screen.getByLabelText("Clear terminal"));
+    expect(terminal.clear).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("Focus terminal"));
+    expect(terminal.focus).toHaveBeenCalled();
+    const handler = terminal.attachCustomKeyEventHandler.mock.calls[0][0];
+    expect(handler({ ctrlKey: true, key: "K", type: "keydown" })).toBe(false);
+    expect(terminal.clear).toHaveBeenCalledTimes(2);
+    expect(handler({ metaKey: true, key: "k", type: "keyup" })).toBe(false);
+    expect(handler({ key: "a", type: "keydown" })).toBe(true);
+  });
+
+  it("closes active and inactive tabs and resets sessions when switching projects", async () => {
+    const h = render(<TerminalPanel projectId="p" workspacePath="/p" active />);
+    await screen.findByTitle(/PTY shell ready/);
+    fireEvent.click(screen.getByLabelText("New terminal"));
+    fireEvent.click(screen.getByLabelText("New terminal"));
+    await waitFor(() => expect(window.terminalApi.create).toHaveBeenCalledTimes(3));
+    fireEvent.click(screen.getByLabelText("Close zsh 2"));
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    fireEvent.click(screen.getByLabelText("Close zsh 3"));
+    expect(screen.getByRole("tab")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByLabelText("New terminal"));
+    h.rerender(<TerminalPanel projectId="q" workspacePath="/q" active />);
+    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(1));
+    expect(window.terminalApi.create).toHaveBeenLastCalledWith({ projectId: "q" });
+  });
+
+  it("shows startup failures and disposes a shell that starts after unmount", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(window.terminalApi.create).mockRejectedValueOnce(new Error("no shell"));
+    const h = render(<TerminalPanel projectId="p" active />);
+    await screen.findByTitle(/Failed to start/);
+    expect(xtermMocks.terminalInstances[0].writeln).toHaveBeenCalledWith("no shell");
+    h.unmount();
+    let resolve!: (value: { id: number; mode: "pty" }) => void;
+    vi.mocked(window.terminalApi.create).mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    const pending = render(<TerminalPanel projectId="q" active />);
+    pending.unmount();
+    await act(async () => resolve({ id: 42, mode: "pty" }));
+    expect(window.terminalApi.dispose).toHaveBeenCalledWith(42);
+    error.mockRestore();
+  });
+
   it("reports when a typed command has finished printing (#226)", async () => {
     const onCommandSettled = vi.fn();
     render(
