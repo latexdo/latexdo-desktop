@@ -87,6 +87,12 @@ export default defineConfig({
         // Production modules changed in 1ed42dc: enforce the target for each
         // module, so a well-covered file cannot conceal another's regression.
         ...recentCoverageThresholds,
+        "src/app/useAppCitationSearch.tsx": {
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100,
+        },
         // Baseline for all source, including previously unmeasured files.
         lines: 43,
         functions: 45,

@@ -416,6 +416,9 @@ describe("renderer windows", () => {
 
   it("forces a hung window closed but leaves a responsive one alone", async () => {
     const boot = await bootMain();
+    // Window creation precedes the asynchronous privacy-consent check.
+    // Wait for startup to finish before destroying and reactivating windows.
+    await vi.waitFor(() => expect(H.appEvents.has("activate")).toBe(true));
     const window = boot.window;
     window.emit("unresponsive");
     expect(window.destroy).not.toHaveBeenCalled();
