@@ -34,7 +34,9 @@ function signFeed(unsigned) {
     signature: {
       algorithm: "ed25519",
       keyId,
-      value: sign(null, Buffer.from(canonical(unsigned)), privateKey).toString("base64"),
+      value: sign(null, Buffer.from(canonical(unsigned)), privateKey).toString(
+        "base64",
+      ),
     },
   };
 }
@@ -99,7 +101,11 @@ function deployment() {
       product: "LatexDo",
       releases: [
         null,
-        { tag: "v0.3.0", downloadsPage: release, manifestUrl: `${release}manifest.json` },
+        {
+          tag: "v0.3.0",
+          downloadsPage: release,
+          manifestUrl: `${release}manifest.json`,
+        },
       ],
     },
     "/downloads/SHA256SUMS.txt": checksums(),
@@ -124,7 +130,7 @@ const fetchMock = vi.fn(async (input, options) => {
 async function run(...args) {
   vi.resetModules();
   process.argv = [process.execPath, script, ...args];
-  await import(/* @vite-ignore */ `${script}?run=${Math.random()}`);
+  await import("./verify-deployed-downloads.mjs");
 }
 
 beforeEach(async () => {
@@ -135,7 +141,10 @@ beforeEach(async () => {
     .update(pair.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex")
     .slice(0, 16);
-  await writeFile(path.join(root, "package.json"), JSON.stringify({ version: "0.3.0" }));
+  await writeFile(
+    path.join(root, "package.json"),
+    JSON.stringify({ version: "0.3.0" }),
+  );
   await mkdir(path.join(root, "build"));
   await writeFile(
     path.join(root, "build/update-public-key.pem"),
@@ -174,8 +183,12 @@ describe("verify-deployed-downloads", () => {
   it("accepts a complete deployment, with or without content lengths", async () => {
     headSizes[files()[0].url] = 0;
     await expect(run(downloads)).resolves.toBeUndefined();
-    expect(console.log).toHaveBeenCalledWith(`Verified deployed downloads at ${downloads}`);
-    const busted = new URL(fetchMock.mock.calls[0][0]).searchParams.get("deploy_verify");
+    expect(console.log).toHaveBeenCalledWith(
+      `Verified deployed downloads at ${downloads}`,
+    );
+    const busted = new URL(fetchMock.mock.calls[0][0]).searchParams.get(
+      "deploy_verify",
+    );
     expect(busted).toMatch(new RegExp(`^${commit}-\\d+-1$`));
     expect(fetchMock.mock.calls[0][1].headers["user-agent"]).toBe(
       "latexdo-deploy-verifier/0.3.0",
@@ -244,11 +257,18 @@ describe("verify-deployed-downloads", () => {
     ["repository", (m) => ({ ...m, repository: "x/y" }), "repository does not match"],
     ["commit", (m) => ({ ...m, commit: "b".repeat(40) }), "Manifest commit"],
     ["files", (m) => ({ ...m, files: {} }), "files must be an array"],
-    ["downloadsPage", (m) => ({ ...m, downloadsPage: "x" }), "downloadsPage must point"],
+    [
+      "downloadsPage",
+      (m) => ({ ...m, downloadsPage: "x" }),
+      "downloadsPage must point",
+    ],
     ["missing id", (m) => ({ ...m, files: m.files.slice(1) }), "missing macos-arm64"],
     [
       "url",
-      (m) => ({ ...m, files: [{ ...m.files[0], url: "https://evil/x" }, ...m.files.slice(1)] }),
+      (m) => ({
+        ...m,
+        files: [{ ...m.files[0], url: "https://evil/x" }, ...m.files.slice(1)],
+      }),
       "Invalid URL for macos-arm64",
     ],
     [
@@ -277,10 +297,13 @@ describe("verify-deployed-downloads", () => {
       "Invalid SHA-256",
     ],
   ];
-  it.each(manifestCases)("rejects a manifest with a bad %s", async (_name, mutate, message) => {
-    site["/downloads/manifest.json"] = mutate(manifest());
-    await expect(run(downloads)).rejects.toThrow(message);
-  });
+  it.each(manifestCases)(
+    "rejects a manifest with a bad %s",
+    async (_name, mutate, message) => {
+      site["/downloads/manifest.json"] = mutate(manifest());
+      await expect(run(downloads)).rejects.toThrow(message);
+    },
+  );
 
   it("checks the release manifest too", async () => {
     site["/downloads/v0.3.0/manifest.json"] = { ...manifest(), product: "Other" };
@@ -294,7 +317,11 @@ describe("verify-deployed-downloads", () => {
     ["channel", (f) => ({ ...f, channel: "beta" }), "channel must be stable"],
     ["release", (f) => ({ ...f, release: "v1" }), "release does not match"],
     ["version", (f) => ({ ...f, version: "1" }), "Update feed version 1"],
-    ["missing version", (f) => ({ ...f, version: undefined }), "Update feed version <missing>"],
+    [
+      "missing version",
+      (f) => ({ ...f, version: undefined }),
+      "Update feed version <missing>",
+    ],
     ["publishedAt type", (f) => ({ ...f, publishedAt: 1 }), "freshness window"],
     ["expiresAt type", (f) => ({ ...f, expiresAt: 1 }), "freshness window"],
     ["publishedAt", (f) => ({ ...f, publishedAt: "nope" }), "freshness window"],
@@ -319,9 +346,17 @@ describe("verify-deployed-downloads", () => {
       "freshness window",
     ],
     ["commit", (f) => ({ ...f, commit: "c".repeat(40) }), "Update feed commit"],
-    ["missing commit", (f) => ({ ...f, commit: undefined }), "Update feed commit <missing>"],
+    [
+      "missing commit",
+      (f) => ({ ...f, commit: undefined }),
+      "Update feed commit <missing>",
+    ],
     ["releaseUrl", (f) => ({ ...f, releaseUrl: "x" }), "releaseUrl does not match"],
-    ["downloadsPage", (f) => ({ ...f, downloadsPage: "x" }), "Update feed downloadsPage"],
+    [
+      "downloadsPage",
+      (f) => ({ ...f, downloadsPage: "x" }),
+      "Update feed downloadsPage",
+    ],
     ["manifestUrl", (f) => ({ ...f, manifestUrl: "x" }), "manifestUrl does not match"],
     ["files", (f) => ({ ...f, files: null }), "Update feed files must be an array"],
     [
@@ -335,11 +370,14 @@ describe("verify-deployed-downloads", () => {
       "macos-arm64 size does not match",
     ],
   ];
-  it.each(feedCases)("rejects an update feed with a bad %s", async (_name, mutate, message) => {
-    const mutated = mutate(unsignedFeed());
-    site["/updates/latest.json"] = mutated && signFeed(mutated);
-    await expect(run(downloads)).rejects.toThrow(message);
-  });
+  it.each(feedCases)(
+    "rejects an update feed with a bad %s",
+    async (_name, mutate, message) => {
+      const mutated = mutate(unsignedFeed());
+      site["/updates/latest.json"] = mutated && signFeed(mutated);
+      await expect(run(downloads)).rejects.toThrow(message);
+    },
+  );
 
   it("checks the versioned feed too", async () => {
     site["/updates/v0.3.0.json"] = signFeed({ ...unsignedFeed(), channel: "beta" });
@@ -354,10 +392,13 @@ describe("verify-deployed-downloads", () => {
     ["value type", (f) => ({ ...f, signature: { ...f.signature, value: 5 } })],
     ["value format", (f) => ({ ...f, signature: { ...f.signature, value: "abc" } })],
   ];
-  it.each(signatureCases)("rejects a signature with a bad %s", async (_name, mutate) => {
-    site["/updates/latest.json"] = mutate(signFeed(unsignedFeed()));
-    await expect(run(downloads)).rejects.toThrow("signature metadata is invalid");
-  });
+  it.each(signatureCases)(
+    "rejects a signature with a bad %s",
+    async (_name, mutate) => {
+      site["/updates/latest.json"] = mutate(signFeed(unsignedFeed()));
+      await expect(run(downloads)).rejects.toThrow("signature metadata is invalid");
+    },
+  );
 
   it("rejects a forged signature", async () => {
     const signed = signFeed(unsignedFeed());
@@ -381,7 +422,11 @@ describe("verify-deployed-downloads", () => {
   });
 
   it("accepts booleans and nulls in a signed feed", async () => {
-    site["/updates/latest.json"] = signFeed({ ...unsignedFeed(), beta: false, notes: null });
+    site["/updates/latest.json"] = signFeed({
+      ...unsignedFeed(),
+      beta: false,
+      notes: null,
+    });
     await expect(run(downloads)).resolves.toBeUndefined();
   });
 
@@ -402,10 +447,15 @@ describe("verify-deployed-downloads", () => {
       "Release index manifestUrl",
     ],
   ];
-  it.each(indexCases)("rejects a release index with a bad %s", async (_name, mutate, message) => {
-    site["/downloads/releases.json"] = mutate(deployment()["/downloads/releases.json"]);
-    await expect(run(downloads)).rejects.toThrow(message);
-  });
+  it.each(indexCases)(
+    "rejects a release index with a bad %s",
+    async (_name, mutate, message) => {
+      site["/downloads/releases.json"] = mutate(
+        deployment()["/downloads/releases.json"],
+      );
+      await expect(run(downloads)).rejects.toThrow(message);
+    },
+  );
 
   it.each([
     ["/downloads/SHA256SUMS.txt", "Latest checksums file does not include"],

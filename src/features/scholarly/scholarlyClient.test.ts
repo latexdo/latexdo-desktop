@@ -38,6 +38,16 @@ afterEach(() => {
 });
 
 describe("small helpers", () => {
+  it.each([
+    "\t HTTPS://DOI.ORG/10.1234/Example \n",
+    "\n http://dx.doi.org/10.1234/Example\t",
+    "  DOI: 10.1234/Example  ",
+    "  10.1234/Example  ",
+  ])("normalizes pasted DOI %j before building its link", (input) => {
+    expect(normalizeDoi(input)).toBe("10.1234/example");
+    expect(doiToUrl(input)).toBe("https://doi.org/10.1234/example");
+  });
+
   it("normalises DOIs and titles", () => {
     expect(normalizeDoi(" https://dx.doi.org/10.1/AB ")).toBe("10.1/ab");
     expect(normalizeDoi("doi:10.2/x")).toBe("10.2/x");

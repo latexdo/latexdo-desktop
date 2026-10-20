@@ -25,6 +25,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:recent": "vitest run electron/pdfImport/bibliography.test.ts src/features/scholarly/scholarlyClient.test.ts src/latex/__tests__/citationCompletion.test.ts src/latex/__tests__/citationCompletion.scoring.test.ts --coverage --coverage.include=electron/pdfImport/bibliography.ts --coverage.include=src/features/scholarly/scholarlyClient.ts --coverage.include=src/latex/citationCompletion.ts --coverage.reportsDirectory=coverage/recent",
     "posttest:coverage": "node scripts/update-coverage-badge.mjs",
     "test:diagnostics": "node --experimental-strip-types scripts/test-latex-diagnostics.ts",
     "test:supply-chain": "node scripts/verify-supply-chain.mjs && node scripts/test-supply-chain-runtime.mjs",

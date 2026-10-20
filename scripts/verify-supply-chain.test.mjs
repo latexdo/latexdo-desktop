@@ -4,6 +4,10 @@ import * as realFs from "node:fs/promises";
 
 // The real repository inputs, which the script accepts; each case breaks one.
 const real = {
+  ".github/workflows/auto-merge.yml": await realFs.readFile(
+    ".github/workflows/auto-merge.yml",
+    "utf8",
+  ),
   "package.json": await realFs.readFile("package.json", "utf8"),
   "electron/main.ts": await realFs.readFile("electron/main.ts", "utf8"),
   ".github/workflows/ci.yml": await realFs.readFile(".github/workflows/ci.yml", "utf8"),
@@ -49,16 +53,51 @@ describe("verify-supply-chain", () => {
     );
   });
 
+  it("accepts the merge-only workflow with tested-commit protections", async () => {
+    await verify({ workflows: ["ci.yml", "auto-merge.yml"] });
+  });
+
+  it.each([
+    "workflows: [latexdo-ci]",
+    "github.event.workflow_run.event == 'pull_request'",
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.head_repository.full_name == github.repository",
+    "admin|maintain|write)",
+    'select(.name == "no-auto-merge")',
+    ".[0].isDraft",
+    '--match-head-commit "$HEAD_SHA"',
+  ])("rejects missing auto-merge protection %s", async (control) => {
+    await expect(
+      verify({
+        workflows: ["ci.yml", "auto-merge.yml"],
+        files: without(".github/workflows/auto-merge.yml", control),
+      }),
+    ).rejects.toThrow(`Auto-merge protection is missing: ${control}`);
+  });
+
+  it("rejects code execution added to the merge workflow", async () => {
+    await expect(
+      verify({
+        workflows: ["ci.yml", "auto-merge.yml"],
+        files: {
+          ".github/workflows/auto-merge.yml":
+            real[".github/workflows/auto-merge.yml"] +
+            "\n      - uses: actions/checkout@v4",
+        },
+      }),
+    ).rejects.toThrow("Auto-merge must not check out");
+  });
+
   it.each([
     [
       "a second workflow",
       { workflows: ["ci.yml", "deploy.yaml"] },
-      "GitHub Actions must expose one workflow only: ci.yml, deploy.yaml",
+      "GitHub Actions may expose only ci.yml and auto-merge.yml: ci.yml, deploy.yaml",
     ],
     [
       "a renamed workflow",
       { workflows: ["main.yml"] },
-      "GitHub Actions must expose one workflow only: main.yml",
+      "GitHub Actions may expose only ci.yml and auto-merge.yml: main.yml",
     ],
     [
       "no build config",
@@ -101,7 +140,9 @@ describe("verify-supply-chain", () => {
     ],
     [
       "a missing renewal protection",
-      { files: without("scripts/renew-update-feed.mjs", "immutableFeed(existingFeed)") },
+      {
+        files: without("scripts/renew-update-feed.mjs", "immutableFeed(existingFeed)"),
+      },
       "Update-feed renewal protection is missing: immutableFeed(existingFeed)",
     ],
     [

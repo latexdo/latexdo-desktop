@@ -263,7 +263,7 @@ describe("buildAiSuggestions edge cases", () => {
         diagnostics: [
           diag({ isCascade: true, file: "", message: "Cascade" }),
           diag({ isCascade: true, file: "C:\\p\\a.tex", line: 0, message: "Other" }),
-          diag({ source: "chktex", message: "lint" }),
+          diag({ source: "proofread", message: "lint" }),
         ],
       },
     });

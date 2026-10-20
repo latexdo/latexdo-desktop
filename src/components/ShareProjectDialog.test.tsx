@@ -31,7 +31,7 @@ const liveHost: CollaborationState = {
   hosted: true,
   users: [],
   inviteCode: "plain-invite",
-  host: { active: true, mode: "local", phase: "ready" },
+  host: { addresses: [], active: true, mode: "local", phase: "ready" },
 };
 
 describe("ShareProjectDialog", () => {
@@ -58,7 +58,7 @@ describe("ShareProjectDialog", () => {
             enabled: false,
             hosted: true,
             users: [],
-            host: { active: false, mode: "internet", phase: "starting" },
+            host: { addresses: [], active: false, mode: "internet", phase: "starting" },
           },
         })}
       />,
@@ -147,7 +147,7 @@ describe("ShareProjectDialog", () => {
           state: {
             enabled: false,
             users: [],
-            host: { active: false, mode: null, phase: "failed", message: "Port blocked" },
+            host: { addresses: [], active: false, mode: null, phase: "failed", message: "Port blocked" },
           },
         })}
       />,

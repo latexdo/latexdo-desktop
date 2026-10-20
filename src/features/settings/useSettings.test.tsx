@@ -83,11 +83,11 @@ describe("useSettings", () => {
     expect(result.current.extensionCatalogError).toBe("");
     expect(result.current.extensionCatalog).toBe(remoteCatalog);
 
-    act(() => result.current.updateSetting("fontSize", 21));
-    expect(result.current.settings.fontSize).toBe(21);
-    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey)!).fontSize).toBe(21);
-    act(() => result.current.resetSetting("fontSize"));
-    expect(result.current.settings.fontSize).toBe(defaultSettings.fontSize);
+    act(() => result.current.updateSetting("editorFontSize", 21));
+    expect(result.current.settings.editorFontSize).toBe(21);
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey)!).editorFontSize).toBe(21);
+    act(() => result.current.resetSetting("editorFontSize"));
+    expect(result.current.settings.editorFontSize).toBe(defaultSettings.editorFontSize);
 
     act(() => {
       result.current.setSettingsOpen(true);

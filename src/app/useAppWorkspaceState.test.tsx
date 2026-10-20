@@ -120,8 +120,8 @@ describe("workspace basics", () => {
 
   it("toggles AI access flags and opens AI settings", async () => {
     const { result } = await renderState();
-    act(() => result.current.setAiAccess("currentFile" as never, false));
-    expect((result.current.aiConfig.access as Record<string, boolean>).currentFile).toBe(false);
+    act(() => result.current.setAiAccess("currentEditor", false));
+    expect(result.current.aiConfig.access.currentEditor).toBe(false);
     act(() => result.current.openAiSettings());
     expect(result.current.settingsOpen).toBe(true);
     expect(result.current.settingsTab).toBe("ai");

@@ -170,6 +170,7 @@ describe("useVoiceDictation state machine edges", () => {
     const late = mount({
       transcriptMode: "clean",
       cleanup: {
+        id: "test",
         cleanup: () =>
           new Promise<string>((resolve) => {
             finishCleanup = resolve;
@@ -190,7 +191,7 @@ describe("useVoiceDictation state machine edges", () => {
     expect(late.onTranscript).not.toHaveBeenCalled();
     expect(late.result.current.status).toBe("idle");
 
-    const empty = mount({ transcriptMode: "clean", cleanup: { cleanup: async () => "   " } });
+    const empty = mount({ transcriptMode: "clean", cleanup: { id: "test", cleanup: async () => "   " } });
     await act(() => empty.result.current.start());
     await act(() => empty.result.current.stop());
     expect(empty.result.current.error?.code).toBe("empty-recording");

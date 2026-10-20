@@ -97,6 +97,7 @@ describe("TikZ output details", () => {
   it("names basic colours, writes others as RGB and styles lines", () => {
     const tikz = tikzFromTrace(
       {
+        background: "#ffffff",
         boxes: [
           { x: 0, y: 0, w: 50, h: 50, color: "#FF0000", filled: false },
           { x: 0, y: 0, w: 50, h: 50, color: "#000000", filled: false },
@@ -122,9 +123,9 @@ describe("TikZ output details", () => {
   it("summarises single and plural shapes", () => {
     const box = { x: 0, y: 0, w: 1, h: 1, color: "#000000", filled: false };
     const line = { x1: 0, y1: 0, x2: 1, y2: 1, color: "#000000" };
-    expect(traceSummary({ boxes: [box], lines: [line] })).toBe("Traced 1 box and 1 line.");
-    expect(traceSummary({ boxes: [box, box], lines: [] })).toBe("Traced 2 boxes.");
-    expect(traceSummary({ boxes: [], lines: [line, line] })).toBe("Traced 2 lines.");
+    expect(traceSummary({ background: "#ffffff", boxes: [box], lines: [line] })).toBe("Traced 1 box and 1 line.");
+    expect(traceSummary({ background: "#ffffff", boxes: [box, box], lines: [] })).toBe("Traced 2 boxes.");
+    expect(traceSummary({ background: "#ffffff", boxes: [], lines: [line, line] })).toBe("Traced 2 lines.");
   });
 
   it("makes safe figure paths and defaults the image name", () => {

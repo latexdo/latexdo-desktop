@@ -42,12 +42,18 @@ import {
 } from "./sourceControlAndToolbarView";
 
 /** A context whose unspecified members are spies. */
-function makeCtx(values: Record<string, unknown> = {}): AppCtx & Record<string, ReturnType<typeof vi.fn>> {
+function makeCtx(
+  values: Record<string, unknown> = {},
+): AppCtx & Record<string, ReturnType<typeof vi.fn>> {
   const spies = new Map<string, ReturnType<typeof vi.fn>>();
   return new Proxy(values, {
     get(target, key: string) {
       if (key in target) return target[key];
-      if (!spies.has(key)) spies.set(key, vi.fn(async () => undefined));
+      if (!spies.has(key))
+        spies.set(
+          key,
+          vi.fn(async () => undefined),
+        );
       return spies.get(key);
     },
     has: () => true,
@@ -75,13 +81,15 @@ describe("renderScmContextMenu", () => {
     const menu = screen.getByRole("menu", { name: "Actions for chapters/a.tex" });
     expect(menu.style.left).toBe("10px");
     expect(screen.queryByText("Unstage Changes")).toBeNull();
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(label) }));
+    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(`${label}$`) }));
     expect(ctx.setGitContextMenu).toHaveBeenCalledWith(null);
     expect(ctx[method]).toHaveBeenCalledWith(...args);
   });
 
   it("offers unstaging for staged files and keeps the menu on screen", () => {
-    const ctx = makeCtx({ gitContextMenu: { entry, area: "staged", x: 99999, y: 99999 } });
+    const ctx = makeCtx({
+      gitContextMenu: { entry, area: "staged", x: 99999, y: 99999 },
+    });
     render(renderScmContextMenu(ctx));
     const menu = screen.getByRole("menu");
     expect(menu.style.left).toBe(`${window.innerWidth - 210}px`);
@@ -152,7 +160,12 @@ describe("renderSidebarPanel", () => {
       ["onDiscardAll", "discardAllGitEntries", [], []],
       ["onOpenDiff", "openGitDiffEditor", [entry, "staged"], [entry, "staged"]],
       ["onOpenFile", "openGitFile", ["a"], ["a"]],
-      ["onContextMenu", "setGitContextMenu", [entry, "changes", 1, 2], [{ entry, area: "changes", x: 1, y: 2 }]],
+      [
+        "onContextMenu",
+        "setGitContextMenu",
+        [entry, "changes", 1, 2],
+        [{ entry, area: "changes", x: 1, y: 2 }],
+      ],
       ["onSuggestMessage", "suggestCommitMessage", [], []],
     ];
     for (const [prop, method, args, expected] of calls) {
@@ -161,7 +174,10 @@ describe("renderSidebarPanel", () => {
     }
     expect(props.onMessageChange).toBe(ctx.setGitCommitMessage);
 
-    const graph = props.graph as unknown as Record<string, (...args: unknown[]) => unknown>;
+    const graph = props.graph as unknown as Record<
+      string,
+      (...args: unknown[]) => unknown
+    >;
     graph.onToggle(commit);
     expect(ctx.toggleCommit).toHaveBeenCalledWith(commit);
     graph.onOpenFile(commit, { path: "f.tex" });
@@ -259,7 +275,9 @@ describe("renderSourceToolbar", () => {
     const [root, outline] = screen.getAllByRole("combobox") as HTMLSelectElement[];
     fireEvent.change(root, { target: { value: "chapters/b.tex" } });
     expect(ctx.setRootFile).toHaveBeenCalledWith("chapters/b.tex");
-    expect(screen.getByRole("option", { name: /§§ Deep/ }).textContent).toBe("  §§ Deep");
+    expect(screen.getByRole("option", { name: /§§ Deep/ }).textContent).toBe(
+      "  §§ Deep",
+    );
     fireEvent.change(outline, { target: { value: "s2" } });
     expect(ctx.revealOutlineLine).toHaveBeenCalledWith(9, 2);
     expect(outline.value).toBe("");
@@ -281,7 +299,7 @@ describe("renderSourceToolbar", () => {
     expect(screen.getByTitle("Code editor")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTitle("Code editor"));
     fireEvent.click(screen.getByTitle("Visual editor"));
-    expect(ctx.setLatexEditorView.mock.calls).toEqual([["code"], ["visual"]]);
+    expect(vi.mocked(ctx.setLatexEditorView).mock.calls).toEqual([["code"], ["visual"]]);
     const share = screen.getByRole("button", { name: "Share project" });
     expect(share).toHaveClass("active");
     fireEvent.click(share);
@@ -354,8 +372,12 @@ describe("renderSourceToolbar", () => {
       compiling: true,
       compileProgress: 40,
     });
-    expect(screen.queryByRole("button", { name: "Review this paper with AI" })).toBeNull();
-    expect(screen.getByTitle("Start another background compile")).toHaveTextContent("40%");
+    expect(
+      screen.queryByRole("button", { name: "Review this paper with AI" }),
+    ).toBeNull();
+    expect(screen.getByTitle("Start another background compile")).toHaveTextContent(
+      "40%",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cancel compile" }));
     expect(ctx.cancelCompile).toHaveBeenCalled();
   });
@@ -385,7 +407,9 @@ describe("renderKnowledgeGraphTab", () => {
       knowledgeGraph: { nodes: [] },
     });
     render(renderKnowledgeGraphTab(ctx));
-    expect(screen.getByRole("tabpanel", { name: "Knowledge Graph" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tabpanel", { name: "Knowledge Graph" }),
+    ).toBeInTheDocument();
     expect(captured.graph!.bibFiles).toEqual(["refs.bib"]);
     expect(captured.graph!.graph).toEqual({ nodes: [] });
     expect(captured.graph!.onInsertCitation).toBe(ctx.insertCitationKey);

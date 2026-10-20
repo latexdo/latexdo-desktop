@@ -247,6 +247,23 @@ describe("parseReference", () => {
     expect(ref.authorSurnames).toEqual(["Tolkien", "Lewis", "others"]);
   });
 
+  it.each(["Smith et al.", "Smith, et al.", "Smith ET AL", "Smith, J., et al."])(
+    "preserves BibTeX's others author when importing %s",
+    (authors) => {
+      const ref = parseReference(
+        [textLine(`${authors} (2020). A useful paper. |Journal of Science|.`)],
+        new Set(),
+      );
+      const expected = authors.startsWith("Smith, J.")
+        ? "Smith, J and others"
+        : "Smith and others";
+      expect(ref.fields.author).toBe(expected);
+      expect(ref.authorSurnames).toEqual(["Smith", "others"]);
+      expect(ref.parsed).toBe(true);
+      expect(renderBibFile([ref])).toContain(`author = {${expected}}`);
+    },
+  );
+
   it("falls back to initials as surnames and escapes special characters", () => {
     const ref = parseReference(
       [textLine("A. B. 2010. 100% of $cost & more_stuff #1 {x}~^\\")],

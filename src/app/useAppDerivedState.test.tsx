@@ -365,9 +365,9 @@ describe("provider selection", () => {
   });
 
   it("gates on legal acceptance unless the wizard is open", () => {
-    expect(derive({ legalAcceptanceRequired: true }).state.showLegalAcceptanceGate).toBe(
-      true,
-    );
+    expect(
+      derive({ legalAcceptanceRequired: true }).state.showLegalAcceptanceGate,
+    ).toBe(true);
     expect(
       derive({ legalAcceptanceRequired: true, aiWizardOpen: true }).state
         .showLegalAcceptanceGate,
@@ -385,10 +385,17 @@ describe("workspace tabs", () => {
         modifiedLabel: "Working",
       },
       documents: [
-        { path: "/p/main.tex", name: "main.tex", kind: "text", content: "a", savedContent: "b" },
+        {
+          path: "/p/main.tex",
+          name: "main.tex",
+          kind: "text",
+          content: "a",
+          savedContent: "b",
+        },
         { path: "/p/fig.png", name: "fig.png", kind: "asset" },
       ],
       activePath: toolTabIds.tikzCanvas,
+      toolTabActive: true,
       knowledgeGraphOpen: true,
       toolTabOpen: { tikzCanvas: true, extensionDetails: true },
     });

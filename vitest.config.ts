@@ -13,6 +13,17 @@ src/rendererDiagnostics.ts,
 src/utils/*.ts
 }`.replace(/\s/g, "");
 
+const recentCoverageThresholds = Object.fromEntries(
+  [
+    "electron/pdfImport/bibliography.ts",
+    "src/features/scholarly/scholarlyClient.ts",
+    "src/latex/citationCompletion.ts",
+  ].map((file) => [
+    file,
+    { lines: 95, functions: 95, branches: 95, statements: 95 },
+  ]),
+);
+
 export default defineConfig({
   plugins: [
     react(),
@@ -73,6 +84,9 @@ export default defineConfig({
         "collaborations/cloudflare/**",
       ],
       thresholds: {
+        // Production modules changed in 1ed42dc: enforce the target for each
+        // module, so a well-covered file cannot conceal another's regression.
+        ...recentCoverageThresholds,
         // Baseline for all source, including previously unmeasured files.
         lines: 43,
         functions: 45,

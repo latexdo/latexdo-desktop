@@ -58,7 +58,10 @@ describe("generateStep (cloud)", () => {
       vi.fn(),
     );
     expect(mocks.loadCloudCredential).toHaveBeenCalledWith("cred");
-    expect(mocks.generateStepCloud.mock.calls[0][0].options.cloudApiKey).toBe("vault-key");
+    expect(mocks.generateStepCloud).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ cloudApiKey: "vault-key" }) }),
+      expect.any(Function), expect.any(Function),
+    );
   });
 
   it("reports a missing key when the vault has none or no key is configured", async () => {

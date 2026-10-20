@@ -42,8 +42,8 @@ function Harness({
 function changedKeys(before: Settings, after: Settings): string[] {
   return Object.keys({ ...before, ...after }).filter(
     (key) =>
-      JSON.stringify((before as Record<string, unknown>)[key]) !==
-      JSON.stringify((after as Record<string, unknown>)[key]),
+      JSON.stringify((before as unknown as Record<string, unknown>)[key]) !==
+      JSON.stringify((after as unknown as Record<string, unknown>)[key]),
   );
 }
 
@@ -57,7 +57,7 @@ function exerciseCheckboxes() {
     fireEvent.click(box);
     const changed = changedKeys(before, current);
     expect(changed).toHaveLength(1);
-    expect((current as Record<string, unknown>)[changed[0]]).toBe(!wasChecked);
+    expect((current as unknown as Record<string, unknown>)[changed[0]]).toBe(!wasChecked);
     expect((screen.getAllByRole("checkbox")[index] as HTMLInputElement).checked).toBe(
       !wasChecked,
     );

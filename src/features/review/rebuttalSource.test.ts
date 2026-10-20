@@ -62,12 +62,12 @@ describe("rebuttalSource", () => {
   it("falls back to the modification and empty fields when parts are missing", () => {
     const sparse: RebuttalItem = {
       ...item,
-      originalText: undefined,
+      originalText: "",
       revisedText: undefined,
       modificationMade: "Changed.",
     };
     expect(rebuttalMacro(sparse)).toBe("\\rebuttal{}{}{}{Changed.}");
-    const bare: RebuttalItem = { ...sparse, modificationMade: undefined };
+    const bare: RebuttalItem = { ...sparse, modificationMade: "" };
     expect(rebuttalMacro(bare)).toBe("\\rebuttal{}{}{}{}");
     expect(removeRebuttalMacro(`X ${rebuttalMacro(bare)} Y`, bare)).toBe("X  Y");
   });
@@ -75,9 +75,9 @@ describe("rebuttalSource", () => {
   it("removes a legacy unescaped block with missing optional fields", () => {
     const legacy: RebuttalItem = {
       ...item,
-      originalText: undefined,
+      originalText: "",
       revisedText: undefined,
-      modificationMade: undefined,
+      modificationMade: "",
       reviewerComment: "50% done",
     };
     expect(removeRebuttalMacro("A \\rebuttal{}{50% done}{}{} B", legacy)).toBe("A  B");

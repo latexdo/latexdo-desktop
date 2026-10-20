@@ -67,7 +67,7 @@ describe("latexCompletionSource", () => {
     const labels = result!.options.map((o) => o.label);
     expect(labels[0]).toBe("lamport94");
     const opt = result!.options[0];
-    expect(opt.apply).toBe("lamport94");
+    expect("apply" in opt ? opt.apply : undefined).toBe("lamport94");
     expect(opt.type).toBe("reference");
     expect(typeof opt.detail).toBe("string");
   });

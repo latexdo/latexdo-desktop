@@ -6,7 +6,7 @@ import type { GraphNode, KnowledgeGraph } from "./knowledgeGraph";
 const client = vi.hoisted(() => ({
   searchOpenAlex: vi.fn(),
   searchCrossref: vi.fn(),
-  providerOnCooldown: vi.fn(() => false),
+  providerOnCooldown: vi.fn((_provider: string) => false),
   scholarlyFetcher: vi.fn((fetcher?: typeof fetch) => fetcher ?? (vi.fn() as never)),
 }));
 

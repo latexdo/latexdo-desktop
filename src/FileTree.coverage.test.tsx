@@ -44,7 +44,9 @@ describe("FileTree coverage", () => {
         onOpen={vi.fn()}
       />,
     );
-    expect(screen.getByText("… 200 more files").closest(".tree-limit-row")).toBeTruthy();
+    expect(
+      screen.getByText("… 200 more files").closest(".tree-limit-row"),
+    ).toBeTruthy();
   });
 
   it("picks icons for code, image and other files", () => {
@@ -63,7 +65,9 @@ describe("FileTree coverage", () => {
   it("renames a folder with F2, commits on blur and ignores unchanged names", () => {
     const onRenameEntry = vi.fn();
     const folder = dir("sections");
-    render(<FileTree entries={[folder]} onOpen={vi.fn()} onRenameEntry={onRenameEntry} />);
+    render(
+      <FileTree entries={[folder]} onOpen={vi.fn()} onRenameEntry={onRenameEntry} />,
+    );
     fireEvent.keyDown(row("sections"), { key: "Enter" });
     expect(screen.queryByLabelText("Rename sections")).toBeNull();
     fireEvent.keyDown(row("sections"), { key: "F2" });
@@ -71,7 +75,7 @@ describe("FileTree coverage", () => {
     expect(input.selectionEnd).toBe("sections".length);
     // Clicking the input neither toggles the folder nor closes the editor.
     fireEvent.click(input);
-    fireEvent.click(row("sections"));
+    fireEvent.click(input.closest(".tree-row")!);
     expect(screen.getByLabelText("Rename sections")).toBeTruthy();
     fireEvent.blur(input, { target: { value: "  sections " } });
     expect(onRenameEntry).not.toHaveBeenCalled();
@@ -93,12 +97,14 @@ describe("FileTree coverage", () => {
 
   it("selects a file name without its extension when renaming", () => {
     const onOpen = vi.fn();
-    render(<FileTree entries={[file(".env")]} onOpen={onOpen} onRenameEntry={vi.fn()} />);
+    render(
+      <FileTree entries={[file(".env")]} onOpen={onOpen} onRenameEntry={vi.fn()} />,
+    );
     fireEvent.contextMenu(row(".env"));
     fireEvent.click(screen.getByRole("button", { name: "Rename…" }));
     const input = screen.getByLabelText("Rename .env") as HTMLInputElement;
     expect(input.selectionEnd).toBe(4);
-    fireEvent.click(row(".env"));
+    fireEvent.click(input.closest(".tree-row")!);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
@@ -142,10 +148,11 @@ describe("FileTree coverage", () => {
     fireEvent.dragOver(row("target"), { dataTransfer: data });
     expect(row("target")).toHaveClass("drop-target");
     // Leaving into a child keeps the highlight.
-    fireEvent.dragLeave(row("target"), {
-      dataTransfer: data,
+    const leave = new MouseEvent("dragleave", {
+      bubbles: true,
       relatedTarget: row("target").firstChild,
     });
+    fireEvent(row("target"), leave);
     expect(row("target")).toHaveClass("drop-target");
     act(() => vi.advanceTimersByTime(450));
     expect(screen.getByText("inside.tex")).toBeTruthy();
@@ -178,7 +185,9 @@ describe("FileTree coverage", () => {
     // At the root: a drop without a source path is ignored as well.
     fireEvent.dragStart(row("intro.tex"), { dataTransfer: data });
     const root = view.container.querySelector(".file-tree-drop-surface")!;
-    expect(screen.getByText("Drop in this space to move to the project root")).toBeTruthy();
+    expect(
+      screen.getByText("Drop in this space to move to the project root"),
+    ).toBeTruthy();
     fireEvent.drop(root, { dataTransfer: empty });
     expect(onMoveEntry).not.toHaveBeenCalled();
   });
@@ -249,7 +258,11 @@ describe("FileTree reveal label", () => {
     vi.stubGlobal("navigator", { ...navigator, platform });
     const { default: FreshTree } = await import("./FileTree");
     render(
-      <FreshTree entries={[file("main.tex")]} onOpen={vi.fn()} onRevealFile={vi.fn()} />,
+      <FreshTree
+        entries={[file("main.tex")]}
+        onOpen={vi.fn()}
+        onRevealFile={vi.fn()}
+      />,
     );
     fireEvent.contextMenu(row("main.tex"));
     expect(screen.getByRole("button", { name: label })).toBeTruthy();
