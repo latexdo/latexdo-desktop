@@ -272,3 +272,40 @@ describe("browser capabilities are explicit", () => {
     expect(exit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("browser file duplication and removal", () => {
+  it("copies an entire nested folder independently and deletes its subtree", async () => {
+    const { id } = (await api.openProject())!;
+    await api.createFolder(id, "source");
+    await api.createFolder(id, "source/nested");
+    await api.writeFile(id, "source/nested/a.tex", "original");
+    await api.writeFile(id, "source/b.tex", "second");
+    expect(await api.copyEntry(id, "source", "copy")).toBe("copy");
+    expect(await api.readFile(id, "copy/nested/a.tex")).toBe("original");
+    await api.writeFile(id, "copy/nested/a.tex", "edited");
+    expect(await api.readFile(id, "source/nested/a.tex")).toBe("original");
+    await api.trashEntry(id, "copy");
+    expect(await api.fileExists(id, "copy")).toBe(false);
+    expect(await api.fileExists(id, "copy/nested/a.tex")).toBe(false);
+    expect(await api.readFile(id, "source/b.tex")).toBe("second");
+  });
+  it("copies files and refuses missing sources, collisions and recursive destinations", async () => {
+    const { id } = (await api.openProject())!;
+    await api.createFolder(id, "folder");
+    await api.writeFile(id, "folder/a.tex", "source");
+    await api.copyEntry(id, "folder/a.tex", "duplicate.tex");
+    expect(await api.readFile(id, "duplicate.tex")).toBe("source");
+    await expect(api.copyEntry(id, "folder/a.tex", "duplicate.tex")).rejects.toThrow(
+      "already exists",
+    );
+    await expect(api.copyEntry(id, "missing", "target")).rejects.toThrow(
+      "does not exist",
+    );
+    await expect(api.copyEntry(id, "folder", "folder/nested")).rejects.toThrow(
+      "into itself",
+    );
+    await api.trashEntry(id, "duplicate.tex");
+    expect(await api.fileExists(id, "duplicate.tex")).toBe(false);
+    await expect(api.trashEntry(id, "missing")).rejects.toThrow("does not exist");
+  });
+});

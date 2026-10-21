@@ -644,3 +644,117 @@ describe("real collaboration HTTP service", () => {
     sockets.delete(socket);
   });
 });
+
+async function connectDocument(id, identity = owner) {
+  const url = new URL(`/api/projects/${id}/files/collaborate`, origin);
+  url.protocol = "ws:";
+  url.search = new URLSearchParams({
+    session: identity.session,
+    clientId: identity.client,
+    path: "main.tex",
+  }).toString();
+  const socket = new WebSocket(url);
+  socket.binaryType = "arraybuffer";
+  sockets.add(socket);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
+  return socket;
+}
+function awarenessFrame(id, clock, state) {
+  const update = encoding.createEncoder();
+  encoding.writeVarUint(update, 1);
+  encoding.writeVarUint(update, id);
+  encoding.writeVarUint(update, clock);
+  encoding.writeVarString(update, JSON.stringify(state));
+  const frame = encoding.createEncoder();
+  encoding.writeVarUint(frame, 1);
+  encoding.writeVarUint8Array(frame, encoding.toUint8Array(update));
+  return encoding.toUint8Array(frame);
+}
+function closedSocket(socket) {
+  return new Promise((resolve) =>
+    socket.addEventListener("close", resolve, { once: true }),
+  );
+}
+describe("live collaboration room lifecycle", () => {
+  it("broadcasts awareness and rejects another connection claiming its identity", async () => {
+    const { id } = await create();
+    const first = await connectDocument(id);
+    const second = await connectDocument(id);
+    const messages = [];
+    second.addEventListener("message", (event) =>
+      messages.push(new Uint8Array(event.data)),
+    );
+    first.send(awarenessFrame(98765, 1, { user: { name: "Ada" } }));
+    await vi.waitFor(() =>
+      expect(
+        messages.some(
+          (bytes) => decoding.readVarUint(decoding.createDecoder(bytes)) === 1,
+        ),
+      ).toBe(true),
+    );
+    const closed = closedSocket(second);
+    second.send(awarenessFrame(98765, 2, { user: { name: "Imposter" } }));
+    expect((await closed).code).toBe(1008);
+    first.send(awarenessFrame(98765, 2, null));
+    first.close();
+  });
+  it("rejects malformed awareness without taking down the room", async () => {
+    const { id } = await create();
+    const socket = await connectDocument(id);
+    const closed = closedSocket(socket);
+    socket.send(new Uint8Array([1, 1, 255]));
+    expect((await closed).reason).toBe("Awareness update rejected");
+    expect((await request(`/api/projects/${id}/files`)).status).toBe(200);
+  });
+  it.each(["move", "delete", "project-delete"])(
+    "preserves live HTTP edits and closes rooms during %s",
+    async (action) => {
+      const { id } = await create();
+      const socket = await connectDocument(id);
+      const base = `/api/projects/${id}`;
+      expect(
+        (
+          await request(base + "/files/content?path=main.tex", owner, "PUT", {
+            content: "Live replacement",
+          })
+        ).status,
+      ).toBe(204);
+      const bundle = await (await request(base + "/files/bundle")).json();
+      expect(bundle.files).toContainEqual({
+        relativePath: "main.tex",
+        content: "Live replacement",
+      });
+      const closed = closedSocket(socket);
+      const response =
+        action === "move"
+          ? await request(base + "/files/move", owner, "POST", {
+              fromRelativePath: "main.tex",
+              toRelativePath: "renamed.tex",
+            })
+          : action === "delete"
+            ? await request(base + "/files?path=main.tex", owner, "DELETE")
+            : await request(base, owner, "DELETE");
+      expect(response.ok).toBe(true);
+      expect((await closed).code).toBe(1012);
+      if (action === "move")
+        expect(
+          await (await request(base + "/files/content?path=renamed.tex")).json(),
+        ).toEqual({ content: "Live replacement" });
+    },
+  );
+  it("disconnects guests when sharing stops while leaving the owner's connection usable", async () => {
+    const { id, token } = await shared();
+    await approveGuest(token);
+    await request(`/api/shares/${token}/open`, guest, "POST", {});
+    const own = await connectDocument(id);
+    const visitor = await connectDocument(id, guest);
+    const closed = closedSocket(visitor);
+    await request(`/api/projects/${id}/share`, owner, "DELETE");
+    expect((await closed).code).toBe(1008);
+    expect(own.readyState).toBe(WebSocket.OPEN);
+    own.close();
+  });
+});
