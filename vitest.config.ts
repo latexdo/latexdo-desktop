@@ -93,8 +93,8 @@ export default defineConfig({
           branches: 100,
           statements: 100,
         },
-        // Baseline for all source, including previously unmeasured files.
-        lines: 43,
+        // Keep full-codebase line coverage at the requested 95% target.
+        lines: 95,
         functions: 45,
         branches: 38,
         statements: 42,

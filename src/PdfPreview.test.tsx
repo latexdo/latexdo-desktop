@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PdfPreview from "./PdfPreview";
 
 const pdfjsMock = vi.hoisted(() => {
@@ -88,11 +88,110 @@ function renderPreview(data: Uint8Array) {
 }
 
 describe("PdfPreview", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
   beforeEach(() => {
     pdfjsMock.tasks.splice(0);
     pdfjsMock.getDocument.mockClear();
   });
 
+  it("highlights a matched word and retains page-local annotation overlays", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const data = new Uint8Array([1]);
+    const props = { data, scale: 100, target: null };
+    const h = render(<PdfPreview {...props} />);
+    const documentProxy = pdfjsMock.createDocument("highlight", 2);
+    pdfjsMock.tasks[0].resolve(documentProxy);
+    await screen.findByText("2");
+    await act(async () => {});
+    const page = h.container.querySelector(".pdf-page")!;
+    const layer = page.querySelector(".textLayer")!;
+    layer.innerHTML = "<span>before hyphen-</span><span>ated after</span><span></span>";
+    const bounds = {
+      x: 10,
+      y: 20,
+      left: 10,
+      top: 20,
+      right: 60,
+      bottom: 32,
+      width: 50,
+      height: 12,
+      toJSON: () => ({}),
+    };
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => bounds,
+    });
+    const target = {
+      page: 1,
+      x: 10,
+      y: 32,
+      h: 10,
+      v: 32,
+      width: 50,
+      height: 12,
+      word: "hyphenated",
+      before: ["before"],
+      after: ["after"],
+      boxes: [{ h: 10, v: 32, width: 50, height: 12 }],
+    };
+    h.rerender(
+      <PdfPreview
+        {...props}
+        target={target}
+        overlays={[
+          {
+            id: "note",
+            pageNumber: 2,
+            title: "Review note",
+            rects: [{ x: 5, y: 10, width: 20, height: 30 }],
+          },
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(h.container.querySelector(".pdf-sync-highlight")).toHaveStyle({
+        left: "10px",
+        top: "20px",
+        width: "50px",
+      }),
+    );
+    expect(screen.getByTitle("Review note")).toBeVisible();
+    h.rerender(
+      <PdfPreview {...props} target={{ ...target, page: 2, word: "absent" }} />,
+    );
+    await waitFor(() =>
+      expect(h.container.querySelectorAll(".pdf-sync-highlight")).toHaveLength(1),
+    );
+    expect(page.querySelector(".pdf-sync-highlight")).toBeNull();
+  });
+  it.each([new Error("Broken PDF"), "unknown"])(
+    "reports loading errors",
+    async (error) => {
+      renderPreview(new Uint8Array([1]));
+      pdfjsMock.tasks[0].reject(error);
+      expect(
+        await screen.findByText(
+          error instanceof Error ? error.message : "Could not load PDF",
+        ),
+      ).toBeVisible();
+    },
+  );
+  it("destroys late-loading documents after unmount", async () => {
+    const h = renderPreview(new Uint8Array([1]));
+    const task = pdfjsMock.tasks[0];
+    h.unmount();
+    expect(task.destroy).toHaveBeenCalledOnce();
+    const late = pdfjsMock.createDocument("late");
+    await act(async () => task.resolve(late));
+    expect(late.destroy).toHaveBeenCalledOnce();
+  });
   it("navigates to the clicked word on a single click without hijacking text selection", async () => {
     const onNavigate = vi.fn();
     render(

@@ -145,6 +145,16 @@ describe("KnowledgeGraphView", () => {
     vi.unstubAllGlobals();
   });
 
+  it("reports discovery planning failures and clears them when discovery is disabled", async () => {
+    const planner = vi.fn().mockRejectedValue(new Error("Planning unavailable"));
+    renderGraph({ onPlanDiscoveryWithAi: planner });
+    fireEvent.click(screen.getByLabelText(/search online/i));
+    expect((await screen.findAllByText("Planning unavailable"))[0]).toBeVisible();
+    expect(planner).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByLabelText(/search online/i));
+    expect(screen.queryByText("Planning unavailable")).toBeNull();
+  });
+
   it("shows graph stats, search highlighting, cited filtering, and AI recommendations", () => {
     const onRecommendForSelection = vi.fn();
     const { container } = renderGraph({ onRecommendForSelection });

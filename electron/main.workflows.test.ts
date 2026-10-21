@@ -277,3 +277,38 @@ it("prefixes Research Space import assets and SyncTeX results to the correct fol
     await boot.call("synctex:backward", project.id, `${prefix}/main.pdf`, 1, 10, 20),
   ).toMatchObject({ file: `${prefix}/main.tex`, line: 4 });
 });
+
+it("routes native File and Help menu actions to the focused window or approved website", async () => {
+  const boot = await bootMain();
+  const template = H.menu.mock.calls.find(([items]) =>
+    items.some((item: any) => item.label === "File"),
+  )![0];
+  const all = (items: any[]): any[] =>
+    items.flatMap((item) => [item, ...all(item.submenu ?? [])]);
+  const items = all(template);
+  for (const [label, channel] of [
+    ["New File...", "file:create-dialog"],
+    ["New Folder...", "folder:create-dialog"],
+    ["Open Folder or Research Space...", "file:open-project"],
+    ["Word Document (DOCX)...", "file:import-docx"],
+    ["Markdown...", "file:import-markdown"],
+    ["PDF...", "file:import-pdf"],
+    ["Close Tab", "file:close-tab"],
+    ["Spell Checker...", "tools:open-spellchecker"],
+    ["What's New", "app:open-whats-new"],
+  ]) {
+    items.find((item) => item.label === label).click();
+    expect(boot.window.webContents.send).toHaveBeenCalledWith(channel);
+  }
+  for (const label of [
+    "Check for Updates",
+    "Report an Issue",
+    "Support LatexDo ♥",
+    "LatexDo Downloads",
+  ])
+    items.find((item) => item.label === label).click();
+  expect(H.external).toHaveBeenCalledTimes(4);
+  expect(H.external).toHaveBeenCalledWith(
+    "https://github.com/latexdo/latexdo-desktop/issues/new",
+  );
+});

@@ -115,19 +115,40 @@ function modelChoiceButton(name: string): HTMLButtonElement {
 
 describe("SetupWizard", () => {
   function customSetup(isDesktop = true, onImportedModel = vi.fn()) {
-    render(<SetupWizard initialConfig={makeConfig()} isDesktop={isDesktop} legalAccepted onApplyTheme={vi.fn()} onComplete={vi.fn()} onImportedModel={onImportedModel} systemCapabilities={highRamCapabilities} />);
+    render(
+      <SetupWizard
+        initialConfig={makeConfig()}
+        isDesktop={isDesktop}
+        legalAccepted
+        onApplyTheme={vi.fn()}
+        onComplete={vi.fn()}
+        onImportedModel={onImportedModel}
+        systemCapabilities={highRamCapabilities}
+      />,
+    );
     advanceToModelStep();
     openMoreOptions();
-    fireEvent.click(screen.getByRole("radio", { name: "Choose Ollama or a model file" }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Choose Ollama or a model file" }),
+    );
   }
 
   it("refreshes Ollama models and reports unreachable and empty servers", async () => {
-    aiClientMock.detectOllama.mockResolvedValueOnce({ available: false, models: [] }).mockResolvedValueOnce({ available: true, models: [] }).mockResolvedValueOnce({ available: true, models: ["qwen:4b"] });
+    aiClientMock.detectOllama
+      .mockResolvedValueOnce({ available: false, models: [] })
+      .mockResolvedValueOnce({ available: true, models: [] })
+      .mockResolvedValueOnce({ available: true, models: ["qwen:4b"] });
     customSetup();
-    fireEvent.change(screen.getByLabelText("Server URL"), { target: { value: "http://localhost:11435" } });
+    fireEvent.change(screen.getByLabelText("Server URL"), {
+      target: { value: "http://localhost:11435" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
-    expect(await screen.findByText("Ollama is not reachable at this base URL.")).toBeVisible();
-    expect(aiClientMock.detectOllama).toHaveBeenLastCalledWith("http://localhost:11435");
+    expect(
+      await screen.findByText("Ollama is not reachable at this base URL."),
+    ).toBeVisible();
+    expect(aiClientMock.detectOllama).toHaveBeenLastCalledWith(
+      "http://localhost:11435",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
     expect(await screen.findByText("No models found.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
@@ -137,13 +158,21 @@ describe("SetupWizard", () => {
   });
 
   it("imports a local GGUF, preserves selection when switching providers, and handles cancellation and errors", async () => {
-    const manifest = { fileName: "my_model.gguf", compatibility: { state: "compatible" } };
+    const manifest = {
+      fileName: "my_model.gguf",
+      compatibility: { state: "compatible" },
+    };
     const onImportedModel = vi.fn();
-    aiClientMock.importModel.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("Invalid model")).mockResolvedValueOnce(manifest);
+    aiClientMock.importModel
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("Invalid model"))
+      .mockResolvedValueOnce(manifest);
     customSetup(true, onImportedModel);
     fireEvent.click(screen.getByRole("button", { name: "Model file (.gguf)" }));
     fireEvent.click(screen.getByRole("button", { name: "Import .gguf" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Import .gguf" })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Import .gguf" })).toBeEnabled(),
+    );
     expect(onImportedModel).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Import .gguf" }));
     expect(await screen.findByText("Invalid model")).toBeVisible();
@@ -155,6 +184,91 @@ describe("SetupWizard", () => {
     expect(screen.getByText("my model")).toBeVisible();
   });
 
+  it.each(["speech", "tex"])(
+    "retries a failed %s runtime installation",
+    async (kind) => {
+      aiClientMock.getTexRuntimeStatus.mockResolvedValue({
+        installed: false,
+        supported: true,
+        downloadBytes: 200,
+      });
+      const install =
+        kind === "speech"
+          ? aiClientMock.installSpeechRuntime
+          : aiClientMock.installTexRuntime;
+      install.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true });
+      render(
+        <SetupWizard
+          initialConfig={makeConfig({ provider: "off" })}
+          isDesktop
+          onApplyTheme={vi.fn()}
+          onComplete={vi.fn()}
+        />,
+      );
+      advanceToModelStep();
+      startSelectedInstall();
+      fireEvent.click(await screen.findByRole("button", { name: /Retry install/i }));
+      expect(await screen.findByText("LatexDo is ready")).toBeVisible();
+      expect(install).toHaveBeenCalledTimes(2);
+    },
+  );
+  it("describes speech stages without provider messages and shows PDF download progress", async () => {
+    let finishSpeech!: (value: { ok: boolean }) => void;
+    let finishTex!: (value: { ok: boolean }) => void;
+    aiClientMock.installSpeechRuntime.mockReturnValue(
+      new Promise((resolve) => {
+        finishSpeech = resolve;
+      }),
+    );
+    aiClientMock.installTexRuntime.mockReturnValue(
+      new Promise((resolve) => {
+        finishTex = resolve;
+      }),
+    );
+    aiClientMock.getTexRuntimeStatus.mockResolvedValue({
+      installed: false,
+      supported: true,
+      downloadBytes: 200,
+    });
+    render(
+      <SetupWizard
+        initialConfig={makeConfig({ provider: "off" })}
+        isDesktop
+        onApplyTheme={vi.fn()}
+        onComplete={vi.fn()}
+      />,
+    );
+    advanceToModelStep();
+    startSelectedInstall();
+    await waitFor(() => expect(aiClientMock.subscribeSpeechInstall).toHaveBeenCalled());
+    const progress = aiClientMock.subscribeSpeechInstall.mock.calls[0][0];
+    for (const [stage, message] of [
+      ["checking", "Checking local speech support"],
+      ["downloading-runtime", "Downloading local speech runtime"],
+      ["downloading-model", "Downloading speech model"],
+      ["verifying", "Verifying speech support"],
+      ["installing", "Installing local speech support"],
+      ["ready", "Local speech support is ready"],
+      ["idle", "Preparing local speech support"],
+    ]) {
+      act(() => progress({ stage, receivedBytes: 50, totalBytes: 100, done: false }));
+      expect(screen.getByText(message)).toBeVisible();
+    }
+    await act(async () => finishSpeech({ ok: true }));
+    await waitFor(() => expect(aiClientMock.subscribeTexInstall).toHaveBeenCalled());
+    act(() =>
+      aiClientMock.subscribeTexInstall.mock.calls[0][0]({
+        stage: "downloading",
+        receivedBytes: 100,
+        totalBytes: 200,
+        message: "Downloading TeX",
+        done: false,
+      }),
+    );
+    expect(screen.getByText("Downloading TeX")).toBeVisible();
+    await act(async () => finishTex({ ok: true }));
+    expect(screen.getByText("LatexDo is ready")).toBeVisible();
+  });
   beforeEach(() => {
     aiClientMock.downloadModel.mockReset();
     aiClientMock.installSpeechRuntime.mockReset();

@@ -585,3 +585,152 @@ describe("listCloudModels", () => {
     ).resolves.toEqual([]);
   });
 });
+
+describe("provider recovery and tool replay", () => {
+  it.each([
+    [403, "cannot use"],
+    [404, "not found"],
+    [429, "rate-limiting"],
+    [500, "overloaded"],
+    [400, "Claude API"],
+  ])("explains Claude HTTP %s", async (status, expected) => {
+    stubFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            type: "error",
+            error: { type: "api_error", message: "failed" },
+          }),
+          { status: Number(status), headers: { "content-type": "application/json" } },
+        ),
+    );
+    expect(
+      await generateStepCloud(
+        req({
+          cloudVendor: "anthropic",
+          cloudApiKey: "key",
+          cloudModel: "claude-opus-5-5",
+        }),
+        () => {},
+      ),
+    ).toMatchObject({
+      type: "error",
+      content: expect.stringContaining(String(expected)),
+    });
+  });
+  it("lists Claude models through the authenticated SDK and tolerates discovery failures", async () => {
+    const fetch = stubFetch(() =>
+      Response.json({
+        data: [
+          {
+            id: "claude-test",
+            type: "model",
+            display_name: "Test",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        has_more: false,
+        first_id: "claude-test",
+        last_id: "claude-test",
+      }),
+    );
+    expect(
+      await listCloudModels({ vendor: "anthropic", baseUrl: "", apiKey: "key" }),
+    ).toEqual(["claude-test"]);
+    expect(sentHeaders(fetch).get("x-api-key")).toBe("key");
+    fetch.mockRejectedValue(new Error("offline"));
+    expect(
+      await listCloudModels({ vendor: "anthropic", baseUrl: "", apiKey: "key" }),
+    ).toEqual([]);
+    expect(
+      await listCloudModels({ vendor: "openai", baseUrl: "", apiKey: "key" }),
+    ).toEqual([]);
+  });
+  it("replays completed tool calls and parses nonstreaming tool replies", async () => {
+    const fetch = stubFetch(() =>
+      Response.json({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  id: "next",
+                  type: "function",
+                  function: { name: "read_file", arguments: '{"path":"b.tex"}' },
+                },
+              ],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      }),
+    );
+    const step = await generateStepCloud(
+      req({ cloudVendor: "openai", cloudApiKey: "key" }, [
+        { role: "user", content: "read" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "old", name: "read_file", args: { path: "a.tex" } }],
+        },
+        { role: "tool", toolCallId: "old", content: "source" },
+      ]),
+      () => {},
+    );
+    expect(step.type).toBe("tool_calls");
+    expect(sentBody(fetch).messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "tool",
+          tool_call_id: "old",
+          content: "source",
+        }),
+        expect.objectContaining({
+          role: "assistant",
+          tool_calls: [
+            {
+              id: "old",
+              type: "function",
+              function: { name: "read_file", arguments: '{"path":"a.tex"}' },
+            },
+          ],
+        }),
+      ]),
+    );
+  });
+  it("ignores keepalives and explains filtered replies", async () => {
+    stubFetch(
+      () =>
+        new Response(
+          'data: keepalive\n\ndata: {"choices":[{"finish_reason":"content_filter"}]}\n\ndata: [DONE]\n',
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    expect(
+      await generateStepCloud(req({ cloudVendor: "openai" }), () => {}),
+    ).toMatchObject({
+      type: "error",
+      content: expect.stringContaining("content filter"),
+    });
+  });
+  it("reports connection failures and interrupted response bodies", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(
+      await generateStepCloud(req({ cloudVendor: "openai" }), () => {}),
+    ).toMatchObject({ type: "error", content: expect.stringContaining("offline") });
+    stubFetch(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("disconnected"));
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    expect(
+      await generateStepCloud(req({ cloudVendor: "openai" }), () => {}),
+    ).toMatchObject({ type: "error", content: expect.stringContaining("interrupted") });
+  });
+});
