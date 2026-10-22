@@ -274,9 +274,9 @@ describe("profile normalisation edge cases", () => {
         projectFetchUrl: undefined,
       },
     ]);
-    expect(normalizeResearcherProfile({ externalProviders: {} }).externalProviders).toEqual(
-      [],
-    );
+    expect(
+      normalizeResearcherProfile({ externalProviders: {} }).externalProviders,
+    ).toEqual([]);
     vi.restoreAllMocks();
   });
 
@@ -292,7 +292,11 @@ describe("profile normalisation edge cases", () => {
 
   it("titles provider names and falls back to the username", () => {
     expect(
-      providerDisplayNameWithTitle({ title: "Prof", displayName: "  ", username: " ada " }),
+      providerDisplayNameWithTitle({
+        title: "Prof",
+        displayName: "  ",
+        username: " ada ",
+      }),
     ).toBe("Prof ada");
     expect(
       providerDisplayNameWithTitle({ title: "", displayName: "Ada", username: "ada" }),
@@ -312,10 +316,12 @@ describe("profile normalisation edge cases", () => {
   it("omits empty context and lists ORCID and bare papers", () => {
     const base = normalizeResearcherProfile({ token: "sch-a-b-C" });
     expect(buildResearchContext(base)).toBeNull();
-    expect(buildResearchContext({ ...base, displayName: "Ada", includeInContext: false })).toBeNull();
     expect(
-      buildResearchContext({ ...base, mode: "orcid", orcidId: "0000-0001" }),
-    ).toBe("About the person you are assisting:\nORCID: 0000-0001");
+      buildResearchContext({ ...base, displayName: "Ada", includeInContext: false }),
+    ).toBeNull();
+    expect(buildResearchContext({ ...base, mode: "orcid", orcidId: "0000-0001" })).toBe(
+      "About the person you are assisting:\nORCID: 0000-0001",
+    );
     expect(
       buildResearchContext({
         ...base,
@@ -324,4 +330,3 @@ describe("profile normalisation edge cases", () => {
     ).toContain("- Untitled draft\n- Dated (2021)");
   });
 });
-

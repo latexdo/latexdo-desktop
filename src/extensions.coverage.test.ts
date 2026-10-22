@@ -45,9 +45,15 @@ function catalogOf(...extensions: unknown[]) {
 describe("extension helpers", () => {
   it("labels every category", () => {
     expect(
-      ["bibliography", "checking", "graphics", "templates", "workflow", "writing", "other"].map(
-        (category) => categoryLabel(category as never),
-      ),
+      [
+        "bibliography",
+        "checking",
+        "graphics",
+        "templates",
+        "workflow",
+        "writing",
+        "other",
+      ].map((category) => categoryLabel(category as never)),
     ).toEqual([
       "Bibliography",
       "Checking",
@@ -123,7 +129,12 @@ describe("validateExtensionCatalog", () => {
           contributes: {
             featureFlags: { suggestFixes: true, explainErrors: "yes", bogus: true },
             snippets: [
-              { label: " claim ", insertText: "x", detail: " d ", documentation: " doc " },
+              {
+                label: " claim ",
+                insertText: "x",
+                detail: " d ",
+                documentation: " doc ",
+              },
               { label: "plain", insertText: "y", detail: "", documentation: 3 },
               { label: "x", insertText: "too short label" },
               "nope",
@@ -154,7 +165,10 @@ describe("validateExtensionCatalog", () => {
       ],
     });
     expect(pack.tags).toEqual(["ok", "a", "b", "c", "d", "e", "f", "g"]);
-    expect(pack.contributes.featureFlags).toEqual({ suggestFixes: true, explainErrors: false });
+    expect(pack.contributes.featureFlags).toEqual({
+      suggestFixes: true,
+      explainErrors: false,
+    });
     expect(pack.contributes.snippets).toEqual([
       { label: "claim", insertText: "x", detail: "d", documentation: "doc" },
       { label: "plain", insertText: "y" },
@@ -208,7 +222,9 @@ describe("fetchExtensionCatalog default loader", () => {
   });
 
   it("asks the desktop runtime for the store catalog and merges it with the bundled one", async () => {
-    const runtimeFetch = vi.fn().mockResolvedValue(catalogOf(manifest({ name: "Aaa Pack" })));
+    const runtimeFetch = vi
+      .fn()
+      .mockResolvedValue(catalogOf(manifest({ name: "Aaa Pack" })));
     Object.defineProperty(window, "latexdo", {
       configurable: true,
       value: { fetchExtensionCatalog: runtimeFetch },
@@ -223,20 +239,28 @@ describe("fetchExtensionCatalog default loader", () => {
   });
 
   it("fetches other catalog URLs over HTTP", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(catalogOf(manifest())), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(catalogOf(manifest())), { status: 200 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     const result = await fetchExtensionCatalog("https://store.example/catalog.json");
     expect(fetchMock).toHaveBeenCalledWith(
       "https://store.example/catalog.json",
-      expect.objectContaining({ cache: "no-store", headers: { Accept: "application/json" } }),
+      expect.objectContaining({
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      }),
     );
     expect(result.source).toBe("remote");
   });
 
   it("uses HTTP for the store URL when the runtime has no catalog bridge", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 503 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("{}", { status: 503 })),
+    );
     const result = await fetchExtensionCatalog(extensionStoreCatalogUrl);
     expect(result).toMatchObject({
       source: "fallback",
@@ -245,13 +269,20 @@ describe("fetchExtensionCatalog default loader", () => {
   });
 
   it("reports an invalid catalog body", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("[]", { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("[]", { status: 200 })),
+    );
     const result = await fetchExtensionCatalog("https://store.example/c.json");
-    expect(result.error).toBe("Store catalog is not a valid LatexDo extension catalog.");
+    expect(result.error).toBe(
+      "Store catalog is not a valid LatexDo extension catalog.",
+    );
   });
 
   it("uses a generic message for non-Error failures", async () => {
-    const result = await fetchExtensionCatalog("https://x", () => Promise.reject("nope"));
+    const result = await fetchExtensionCatalog("https://x", () =>
+      Promise.reject("nope"),
+    );
     expect(result.error).toBe("Could not load the LatexDo extension catalog.");
   });
 
@@ -269,7 +300,10 @@ describe("fetchExtensionCatalog default loader", () => {
     );
     const pending = fetchExtensionCatalog("https://slow.example/c.json");
     await vi.advanceTimersByTimeAsync(4500);
-    await expect(pending).resolves.toMatchObject({ source: "fallback", error: "aborted" });
+    await expect(pending).resolves.toMatchObject({
+      source: "fallback",
+      error: "aborted",
+    });
     expect(signal?.aborted).toBe(true);
   });
 });

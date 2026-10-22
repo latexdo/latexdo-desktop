@@ -28,7 +28,10 @@ describe("WhatsNewModal", () => {
   });
 });
 
-function release(version: string, extra: Partial<ReleaseNotesDocument> = {}): ReleaseNotesDocument {
+function release(
+  version: string,
+  extra: Partial<ReleaseNotesDocument> = {},
+): ReleaseNotesDocument {
   return {
     schemaVersion: 1,
     version,
@@ -72,7 +75,9 @@ describe("WhatsNewModal release notes", () => {
         release("1.1.0", { fixes: [] }),
       ],
     });
-    expect(screen.getByText("You've updated from 1.0.0. Here's what changed.")).toBeVisible();
+    expect(
+      screen.getByText("You've updated from 1.0.0. Here's what changed."),
+    ).toBeVisible();
     const current = screen.getByRole("region", { name: "Release 1.2.0" });
     expect(within(current).getByRole("heading").className).toContain("--current");
     expect(within(current).getByText("Faster builds")).toBeVisible();
@@ -86,7 +91,9 @@ describe("WhatsNewModal release notes", () => {
   });
 
   it("uses a short subtitle for a single release and none without a previous version", () => {
-    const { rerender, onClose, onViewFullNotes } = renderModal({ releases: [release("1.2.0")] });
+    const { rerender, onClose, onViewFullNotes } = renderModal({
+      releases: [release("1.2.0")],
+    });
     expect(screen.getByText("You've updated from 1.0.0.")).toBeVisible();
     rerender(
       <WhatsNewModal
@@ -101,7 +108,9 @@ describe("WhatsNewModal release notes", () => {
     expect(screen.queryByText(/You've updated from/)).toBeNull();
     expect(screen.getByText("Release notes aren’t available right now.")).toBeVisible();
     expect(screen.queryByText(/successfully updated/)).toBeNull();
-    expect(screen.getByRole("button", { name: "View full release notes" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "View full release notes" }),
+    ).toBeDisabled();
   });
 
   it("falls back when notes are unavailable even if releases exist", () => {
@@ -185,7 +194,9 @@ describe("WhatsNewModal closing and focus", () => {
     document.body.appendChild(opener);
     opener.focus();
     const { unmount } = renderModal();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Continue" }),
+    );
     unmount();
     expect(document.activeElement).toBe(opener);
     opener.remove();

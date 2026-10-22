@@ -133,8 +133,16 @@ describe("citation analysis edge cases", () => {
 
   it("scores an untyped entry without the type bonus", async () => {
     const { citationQualityScore } = await import("../citationAnalysis");
-    const typed = citationQualityScore({ key: "a", type: "article", title: "T" } as never);
-    const unknown = citationQualityScore({ key: "a", type: "unknown", title: "T" } as never);
+    const typed = citationQualityScore({
+      key: "a",
+      type: "article",
+      title: "T",
+    } as never);
+    const unknown = citationQualityScore({
+      key: "a",
+      type: "unknown",
+      title: "T",
+    } as never);
     const untyped = citationQualityScore({ key: "a", title: "T" } as never);
     expect(typed - unknown).toBe(10);
     expect(untyped).toBe(unknown);

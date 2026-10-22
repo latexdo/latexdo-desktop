@@ -92,7 +92,8 @@ describe("localTranscriptionDetection", () => {
   it("reads model lists in both payload shapes and ignores entries without ids", async () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
-      if (url.includes(":1234")) return modelsResponse({ data: [{ id: 3 }, null, { id: "a" }] });
+      if (url.includes(":1234"))
+        return modelsResponse({ data: [{ id: 3 }, null, { id: "a" }] });
       if (url.includes(":8080"))
         return modelsResponse({ models: [{ id: "distil-whisper" }, { name: "x" }] });
       return modelsResponse({ unexpected: true });

@@ -20,8 +20,13 @@ function canonical(value) {
 }
 
 function signed(payload, overrides = {}) {
-  const value = sign(null, Buffer.from(canonical(payload)), privateKey).toString("base64");
-  return { ...payload, signature: { algorithm: "ed25519", keyId, value, ...overrides } };
+  const value = sign(null, Buffer.from(canonical(payload)), privateKey).toString(
+    "base64",
+  );
+  return {
+    ...payload,
+    signature: { algorithm: "ed25519", keyId, value, ...overrides },
+  };
 }
 
 async function writeNotes(files, directory = notesDir) {
@@ -35,8 +40,7 @@ async function writeNotes(files, directory = notesDir) {
   }
 }
 
-const index = (releases) =>
-  signed({ schemaVersion: 1, product: "LatexDo", releases });
+const index = (releases) => signed({ schemaVersion: 1, product: "LatexDo", releases });
 const document = (version, extra = {}) => signed({ version, title: "Notes", ...extra });
 
 async function run(...args) {
@@ -86,7 +90,9 @@ describe("verify-release-notes", () => {
       "1.3.0.json": document("1.3.0"),
     });
     await run(notesDir, keyPath, "v1.3.0");
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Verified 1 signed"));
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("Verified 1 signed"),
+    );
   });
 
   it("reads the published notes and shipped key from the default locations", async () => {
@@ -101,7 +107,9 @@ describe("verify-release-notes", () => {
       path.join(root, "public-downloads/updates/release-notes"),
     );
     await run();
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Verified 1 signed"));
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("Verified 1 signed"),
+    );
   });
 
   it("rejects a key that is not Ed25519", async () => {
@@ -114,11 +122,38 @@ describe("verify-release-notes", () => {
 
   it.each([
     ["no signature", (payload) => ({ ...payload, signature: undefined })],
-    ["another algorithm", (payload) => ({ ...payload, signature: { ...payload.signature, algorithm: "rsa" } })],
-    ["a malformed key ID", (payload) => ({ ...payload, signature: { ...payload.signature, keyId: "XYZ" } })],
-    ["a missing key ID", (payload) => ({ ...payload, signature: { ...payload.signature, keyId: undefined } })],
-    ["a malformed value", (payload) => ({ ...payload, signature: { ...payload.signature, value: "short" } })],
-    ["a missing value", (payload) => ({ ...payload, signature: { ...payload.signature, value: undefined } })],
+    [
+      "another algorithm",
+      (payload) => ({
+        ...payload,
+        signature: { ...payload.signature, algorithm: "rsa" },
+      }),
+    ],
+    [
+      "a malformed key ID",
+      (payload) => ({ ...payload, signature: { ...payload.signature, keyId: "XYZ" } }),
+    ],
+    [
+      "a missing key ID",
+      (payload) => ({
+        ...payload,
+        signature: { ...payload.signature, keyId: undefined },
+      }),
+    ],
+    [
+      "a malformed value",
+      (payload) => ({
+        ...payload,
+        signature: { ...payload.signature, value: "short" },
+      }),
+    ],
+    [
+      "a missing value",
+      (payload) => ({
+        ...payload,
+        signature: { ...payload.signature, value: undefined },
+      }),
+    ],
   ])("rejects an index with %s", async (_label, tamper) => {
     await writeNotes({ "index.json": tamper(index([{ version: "1.0.0" }])) });
     await expect(run(notesDir, keyPath)).rejects.toThrow(
@@ -150,12 +185,15 @@ describe("verify-release-notes", () => {
     );
   });
 
-  it.each([[{ version: "latest" }], [{}]])("rejects an invalid version %j", async (entry) => {
-    await writeNotes({ "index.json": index([entry]) });
-    await expect(run(notesDir, keyPath)).rejects.toThrow(
-      "Release notes index contains an invalid version.",
-    );
-  });
+  it.each([[{ version: "latest" }], [{}]])(
+    "rejects an invalid version %j",
+    async (entry) => {
+      await writeNotes({ "index.json": index([entry]) });
+      await expect(run(notesDir, keyPath)).rejects.toThrow(
+        "Release notes index contains an invalid version.",
+      );
+    },
+  );
 
   it("rejects a document for another version", async () => {
     await writeNotes({
@@ -180,7 +218,10 @@ describe("verify-release-notes", () => {
   it("rejects non-finite numbers before checking the signature", async () => {
     const payload = index([{ version: "1.0.0" }]);
     await writeNotes({
-      "index.json": JSON.stringify(payload).replace('"schemaVersion":1', '"schemaVersion":1e999'),
+      "index.json": JSON.stringify(payload).replace(
+        '"schemaVersion":1',
+        '"schemaVersion":1e999',
+      ),
     });
     await expect(run(notesDir, keyPath)).rejects.toThrow(
       "Release notes contain a non-finite number.",

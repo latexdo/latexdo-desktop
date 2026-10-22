@@ -1,4 +1,12 @@
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -179,7 +187,9 @@ describe("credential vault edge cases", () => {
     async () => {
       await chmod(storage.directory, 0o500);
       try {
-        await expect(setCredential("provider", "secret")).rejects.toThrow(/EACCES|EPERM/);
+        await expect(setCredential("provider", "secret")).rejects.toThrow(
+          /EACCES|EPERM/,
+        );
       } finally {
         await chmod(storage.directory, 0o700);
       }

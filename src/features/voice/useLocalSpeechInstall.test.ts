@@ -42,11 +42,15 @@ describe("useLocalSpeechInstall", () => {
     await act(async () => {
       expect(await result.current.refresh()).toEqual({ phase: "unavailable" });
     });
-    vi.mocked(getSpeechRuntimeStatus).mockResolvedValueOnce({ installed: true } as never);
+    vi.mocked(getSpeechRuntimeStatus).mockResolvedValueOnce({
+      installed: true,
+    } as never);
     await act(() => result.current.refresh());
     expect(result.current.state).toEqual({ phase: "installed" });
 
-    vi.mocked(getSpeechRuntimeStatus).mockResolvedValueOnce({ installed: false } as never);
+    vi.mocked(getSpeechRuntimeStatus).mockResolvedValueOnce({
+      installed: false,
+    } as never);
     await act(() => result.current.refresh());
     expect(result.current.state).toEqual({ phase: "missing", downloadBytes: null });
 
@@ -55,7 +59,10 @@ describe("useLocalSpeechInstall", () => {
       downloadBytes: 5_000_000,
     } as never);
     await act(() => result.current.refresh());
-    expect(result.current.state).toEqual({ phase: "missing", downloadBytes: 5_000_000 });
+    expect(result.current.state).toEqual({
+      phase: "missing",
+      downloadBytes: 5_000_000,
+    });
 
     vi.mocked(getSpeechRuntimeStatus).mockRejectedValueOnce(new Error("ipc"));
     await act(() => result.current.refresh());
@@ -81,14 +88,19 @@ describe("useLocalSpeechInstall", () => {
       message: "Starting download…",
     });
 
-    act(() => emit({ receivedBytes: 50, totalBytes: 200, message: "Downloading model" }));
+    act(() =>
+      emit({ receivedBytes: 50, totalBytes: 200, message: "Downloading model" }),
+    );
     expect(result.current.state).toEqual({
       phase: "installing",
       percent: 25,
       message: "Downloading model",
     });
     act(() => emit({ receivedBytes: 300, totalBytes: 200 }));
-    expect(result.current.state).toMatchObject({ percent: 100, message: "Installing local speech…" });
+    expect(result.current.state).toMatchObject({
+      percent: 100,
+      message: "Installing local speech…",
+    });
     act(() => emit({ receivedBytes: 0, totalBytes: 0 }));
     expect(result.current.state).toMatchObject({ percent: null });
     act(() => emit({ error: "ignored" }));
@@ -114,15 +126,24 @@ describe("useLocalSpeechInstall", () => {
     const { result } = renderHook(() => useLocalSpeechInstall());
     await act(() => result.current.refresh());
 
-    vi.mocked(installSpeechRuntime).mockResolvedValueOnce({ ok: false, error: "disk full" } as never);
+    vi.mocked(installSpeechRuntime).mockResolvedValueOnce({
+      ok: false,
+      error: "disk full",
+    } as never);
     await act(async () => {
       expect(await result.current.install()).toBe(false);
     });
-    expect(result.current.state).toEqual({ phase: "failed", error: "disk full", downloadBytes: 9 });
+    expect(result.current.state).toEqual({
+      phase: "failed",
+      error: "disk full",
+      downloadBytes: 9,
+    });
 
     vi.mocked(installSpeechRuntime).mockResolvedValueOnce({ ok: false } as never);
     await act(() => result.current.install());
-    expect(result.current.state).toMatchObject({ error: "Speech support install failed." });
+    expect(result.current.state).toMatchObject({
+      error: "Speech support install failed.",
+    });
 
     vi.mocked(installSpeechRuntime).mockRejectedValueOnce("offline");
     await act(() => result.current.install());

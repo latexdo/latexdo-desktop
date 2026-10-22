@@ -147,9 +147,11 @@ describe("retryWhileRepositoryIsLocked default wait", () => {
     try {
       const run = vi
         .fn<() => Promise<string>>()
-        .mockRejectedValueOnce(Object.assign(new Error("locked"), {
-          gitErrorCode: "RepositoryIsLocked",
-        }))
+        .mockRejectedValueOnce(
+          Object.assign(new Error("locked"), {
+            gitErrorCode: "RepositoryIsLocked",
+          }),
+        )
         .mockResolvedValue("done");
       const result = retryWhileRepositoryIsLocked(run);
       await vi.advanceTimersByTimeAsync(49);

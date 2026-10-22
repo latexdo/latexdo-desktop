@@ -502,7 +502,10 @@ describe("NextEditController lifecycle and guards", () => {
 
   it("debounces pattern searches while typing", () => {
     vi.useFakeTimers();
-    const controller = new NextEditController({ now: () => 300, patternDebounceMs: 50 });
+    const controller = new NextEditController({
+      now: () => 300,
+      patternDebounceMs: 50,
+    });
     controller.onDocumentChanged(snapshot(afterFirst, 2));
     controller.observeEdit(firstEdit);
     controller.onDocumentChanged(snapshot(afterSecond, 3));
@@ -550,7 +553,10 @@ describe("NextEditController lifecycle and guards", () => {
 
   it("skips a pending pattern search when disposed before it runs", () => {
     vi.useFakeTimers();
-    const controller = new NextEditController({ now: () => 300, patternDebounceMs: 50 });
+    const controller = new NextEditController({
+      now: () => 300,
+      patternDebounceMs: 50,
+    });
     controller.onDocumentChanged(snapshot(afterFirst, 2));
     controller.observeEdit(firstEdit);
     const timer = (controller as unknown as { patternTimer: unknown }).patternTimer;

@@ -33,7 +33,10 @@ function memoryFs(
         throw new Error(`ENOENT ${directory}`);
       const prefix = directory + path.sep;
       return Object.keys(nodes)
-        .filter((key) => key.startsWith(prefix) && !key.slice(prefix.length).includes(path.sep))
+        .filter(
+          (key) =>
+            key.startsWith(prefix) && !key.slice(prefix.length).includes(path.sep),
+        )
         .map((key) => key.slice(prefix.length));
     },
     async readFile(filePath) {
@@ -127,7 +130,8 @@ describe("collectProjectGarbage with an injected filesystem", () => {
       [job("job-f")]: { dir: true, mtimeMs: now - 6000 },
     };
     // 70 files so the walk yields at least once.
-    for (let i = 0; i < 70; i += 1) nodes[path.join(job("job-f"), `f${i}`)] = { size: 100 };
+    for (let i = 0; i < 70; i += 1)
+      nodes[path.join(job("job-f"), `f${i}`)] = { size: 100 };
     nodes[path.join(job("job-b"), "small")] = { size: 50 };
     nodes[path.join(job("job-f"), "negative")] = { size: -5 };
     nodes[path.join(job("job-f"), "unknown")] = {};
@@ -170,8 +174,10 @@ describe("pure selection defaults", () => {
 
   it("stops walking build sizes after too many files", async () => {
     const nodes: Record<string, Node> = { [build]: { dir: true } };
-    for (const name of ["job-1", "job-2"]) nodes[job(name)] = { dir: true, mtimeMs: now };
-    for (let i = 0; i < 20_001; i += 1) nodes[path.join(job("job-1"), `f${i}`)] = { size: 1 };
+    for (const name of ["job-1", "job-2"])
+      nodes[job(name)] = { dir: true, mtimeMs: now };
+    for (let i = 0; i < 20_001; i += 1)
+      nodes[path.join(job("job-1"), `f${i}`)] = { size: 1 };
     nodes[path.join(job("job-1"), "zz")] = { dir: true };
     nodes[path.join(job("job-1"), "zz", "skipped")] = { size: 1_000 };
     const fs = memoryFs(nodes);
@@ -187,11 +193,13 @@ describe("pure selection defaults", () => {
 
 describe("history index parsing", () => {
   it("ignores null entries and non-snapshot objects", () => {
-    expect(
-      [...parseHistoryIndexReferencedPaths(
-        JSON.stringify({ snapshots: [null, 3, { contentPath: " " }, { contentPath: "a.txt" }] }),
-      )],
-    ).toEqual(["a.txt"]);
+    expect([
+      ...parseHistoryIndexReferencedPaths(
+        JSON.stringify({
+          snapshots: [null, 3, { contentPath: " " }, { contentPath: "a.txt" }],
+        }),
+      ),
+    ]).toEqual(["a.txt"]);
     expect(parseHistoryIndexReferencedPaths("null").size).toBe(0);
   });
 });

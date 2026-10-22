@@ -244,7 +244,8 @@ describe("suggestion usage", () => {
 
 describe("buildAiSuggestions edge cases", () => {
   const ids = (result: { id: string }[]) => result.map((r) => r.id);
-  const all = (overrides: Partial<AiSuggestionSignals>) => buildAiSuggestions(signals(overrides), 50);
+  const all = (overrides: Partial<AiSuggestionSignals>) =>
+    buildAiSuggestions(signals(overrides), 50);
 
   it("describes a failed build without diagnostics", () => {
     const result = all({ compile: { ok: false, diagnostics: [] } });
@@ -279,7 +280,9 @@ describe("buildAiSuggestions edge cases", () => {
     const refs = all({
       compile: {
         ok: true,
-        diagnostics: [diag({ severity: "warning", message: "Reference `fig:a' undefined" })],
+        diagnostics: [
+          diag({ severity: "warning", message: "Reference `fig:a' undefined" }),
+        ],
       },
     });
     expect(refs.find((r) => r.id === "fix-undefined-refs")!.label).toBe(
@@ -291,7 +294,11 @@ describe("buildAiSuggestions edge cases", () => {
         diagnostics: [
           diag({ severity: "warning", message: "Citation `x' undefined" }),
           diag({ severity: "warning", message: "Reference `y' undefined" }),
-          diag({ severity: "warning", message: "Overfull \\hbox (3pt too wide)", file: "" }),
+          diag({
+            severity: "warning",
+            message: "Overfull \\hbox (3pt too wide)",
+            file: "",
+          }),
           diag({ severity: "warning", message: "Overfull \\hbox (1pt too wide)" }),
         ],
       },
@@ -303,7 +310,10 @@ describe("buildAiSuggestions edge cases", () => {
     expect(boxes.label).toBe("Fix 2 overfull lines");
     expect(boxes.reason).toBe("Overfull \\hbox (3pt too wide)");
     const located = all({
-      compile: { ok: true, diagnostics: [diag({ severity: "warning", message: "Overfull \\vbox" })] },
+      compile: {
+        ok: true,
+        diagnostics: [diag({ severity: "warning", message: "Overfull \\vbox" })],
+      },
     });
     expect(located.find((r) => r.id === "fix-overfull")!.reason).toBe(
       "Overfull \\vbox · main.tex:42",
@@ -317,9 +327,9 @@ describe("buildAiSuggestions edge cases", () => {
     const rewrite = long.find((r) => r.id === "rewrite-selection")!;
     expect(rewrite.reason.endsWith("…”")).toBe(true);
     expect(ids(long)).toContain("cite-selection");
-    expect(ids(all({ selectionText: "\\cite{a} " + "word ".repeat(20) }))).not.toContain(
-      "cite-selection",
-    );
+    expect(
+      ids(all({ selectionText: "\\cite{a} " + "word ".repeat(20) })),
+    ).not.toContain("cite-selection");
   });
 
   it("offers bibliography cleanup for .bib files and nothing for other files", () => {
@@ -331,13 +341,17 @@ describe("buildAiSuggestions edge cases", () => {
 
   it("describes drafts by word count, TODOs, abstracts and summaries", () => {
     const draft = all({ documentText: "word ".repeat(50) + " TODO" });
-    expect(draft.find((r) => r.id === "draft-outline")!.reason).toBe("main.tex has 51 words so far");
+    expect(draft.find((r) => r.id === "draft-outline")!.reason).toBe(
+      "main.tex has 51 words so far",
+    );
     expect(draft.find((r) => r.id === "work-todos")!.label).toBe("Resolve the TODO");
 
     const noAbstract = `\\documentclass{article}\n\\begin{document}\n\\section{A}\n${"w ".repeat(300)}\\section{B}\n${"w ".repeat(300)}\\end{document}`;
     const result = all({ documentText: noAbstract });
     expect(ids(result)).toContain("write-abstract");
-    expect(result.find((r) => r.id === "summarize")!.reason).toBe("2 sections in main.tex");
+    expect(result.find((r) => r.id === "summarize")!.reason).toBe(
+      "2 sections in main.tex",
+    );
 
     const flat = all({ documentText: "w ".repeat(200) });
     expect(flat.find((r) => r.id === "summarize")!.reason).toBe("main.tex");
@@ -380,11 +394,18 @@ describe("buildAiSuggestions edge cases", () => {
 
   it("caps a single group at two cards even with a high limit", () => {
     const result = all({ selectionText: "$$ \\frac{a}{b} $$ " + "word ".repeat(15) });
-    expect(result.filter((r) => ["explain-math", "rewrite-selection", "cite-selection"].includes(r.id))).toHaveLength(2);
+    expect(
+      result.filter((r) =>
+        ["explain-math", "rewrite-selection", "cite-selection"].includes(r.id),
+      ),
+    ).toHaveLength(2);
   });
 
   it("handles bare file names and documents without \\end{document}", () => {
-    const result = all({ activeFile: "main.tex", documentText: "\\begin{document} TODO TODO" });
+    const result = all({
+      activeFile: "main.tex",
+      documentText: "\\begin{document} TODO TODO",
+    });
     expect(result.find((r) => r.id === "work-todos")).toMatchObject({
       label: "Work through 2 TODOs",
       reason: "2 markers in main.tex",
@@ -396,4 +417,3 @@ describe("buildAiSuggestions edge cases", () => {
     expect(classifyTypedRequest("hello there")).toBeNull();
   });
 });
-

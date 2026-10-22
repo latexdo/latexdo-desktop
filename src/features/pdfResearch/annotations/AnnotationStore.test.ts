@@ -90,4 +90,3 @@ describe("AnnotationStore", () => {
     expect(loadPdfAnnotations(selection.documentId)).toEqual([]);
   });
 });
-

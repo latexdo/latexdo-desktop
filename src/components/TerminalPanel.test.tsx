@@ -122,7 +122,11 @@ describe("TerminalPanel", () => {
 
   it("edits and submits fallback-shell input, including local commands and cancellation", async () => {
     vi.mocked(window.terminalApi.create).mockResolvedValue({ id: 7, mode: "pipe" });
-    const commandService = { execute: vi.fn().mockResolvedValue({ ok: true, message: "Done" }), complete: vi.fn(() => []), help: vi.fn() };
+    const commandService = {
+      execute: vi.fn().mockResolvedValue({ ok: true, message: "Done" }),
+      complete: vi.fn(() => []),
+      help: vi.fn(),
+    };
     render(<TerminalPanel projectId="p" active commandService={commandService} />);
     await screen.findByTitle(/Fallback shell ready/);
     const terminal = xtermMocks.terminalInstances[0];
@@ -136,7 +140,11 @@ describe("TerminalPanel", () => {
   });
 
   it("preserves PTY editing controls while intercepting local commands", async () => {
-    const commandService = { execute: vi.fn().mockRejectedValue(new Error("Unavailable")), complete: vi.fn(() => []), help: vi.fn() };
+    const commandService = {
+      execute: vi.fn().mockRejectedValue(new Error("Unavailable")),
+      complete: vi.fn(() => []),
+      help: vi.fn(),
+    };
     render(<TerminalPanel projectId="p" active commandService={commandService} />);
     await screen.findByTitle(/PTY shell ready/);
     const terminal = xtermMocks.terminalInstances[0];
@@ -203,7 +211,12 @@ describe("TerminalPanel", () => {
     expect(xtermMocks.terminalInstances[0].writeln).toHaveBeenCalledWith("no shell");
     h.unmount();
     let resolve!: (value: { id: number; mode: "pty" }) => void;
-    vi.mocked(window.terminalApi.create).mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    vi.mocked(window.terminalApi.create).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
     const pending = render(<TerminalPanel projectId="q" active />);
     pending.unmount();
     await act(async () => resolve({ id: 42, mode: "pty" }));

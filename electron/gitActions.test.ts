@@ -54,7 +54,9 @@ describe("readGitRepositoryInfo", () => {
         ["refs/heads/main", "main", "*", "origin/main", "abc1234", "Init"].join(sep),
         "",
         ["refs/remotes/origin/HEAD", "origin", "", "", "abc1234", "Init"].join(sep),
-        ["refs/remotes/origin/main", "origin/main", "", "", "abc1234", "Init"].join(sep),
+        ["refs/remotes/origin/main", "origin/main", "", "", "abc1234", "Init"].join(
+          sep,
+        ),
       ].join("\n"),
     );
     respond("stash list", "stash@{0}\nstash@{1}\n");
@@ -126,7 +128,9 @@ describe("runGitAction", () => {
   it("pushes to the upstream", async () => {
     respond(head, "main\n");
     respond(upstream, "origin/main\n");
-    expect((await runGitAction("/repo", { kind: "push" })).message).toBe("Pushed main.");
+    expect((await runGitAction("/repo", { kind: "push" })).message).toBe(
+      "Pushed main.",
+    );
     expect(ran("push")).toBe(true);
   });
 
@@ -162,7 +166,9 @@ describe("runGitAction", () => {
   it("syncs by pulling then pushing, or only pushing without upstream", async () => {
     respond(head, "main");
     respond(upstream, "origin/main");
-    expect((await runGitAction("/repo", { kind: "sync" })).message).toBe("Synced main.");
+    expect((await runGitAction("/repo", { kind: "sync" })).message).toBe(
+      "Synced main.",
+    );
     expect(ran("pull --no-rebase --no-edit")).toBe(true);
 
     git.calls = [];
@@ -204,11 +210,12 @@ describe("runGitAction", () => {
 
   it("checks out local branches, remote branches with a local copy, and tracks new ones", async () => {
     respond("branch --format=%(refname:short)", "main\ndraft\n");
-    expect((await runGitAction("/repo", { kind: "checkout", branch: "draft" })).message).toBe(
-      "Switched to draft.",
-    );
     expect(
-      (await runGitAction("/repo", { kind: "checkout", branch: "origin/draft" })).message,
+      (await runGitAction("/repo", { kind: "checkout", branch: "draft" })).message,
+    ).toBe("Switched to draft.");
+    expect(
+      (await runGitAction("/repo", { kind: "checkout", branch: "origin/draft" }))
+        .message,
     ).toBe("Switched to draft.");
     expect(
       (await runGitAction("/repo", { kind: "checkout", branch: "origin/new" })).message,
@@ -218,19 +225,24 @@ describe("runGitAction", () => {
 
   it("creates, deletes, renames and merges branches", async () => {
     respond(head, "main");
-    expect((await runGitAction("/repo", { kind: "create-branch", branch: "x" })).message).toBe(
-      "Created and switched to x.",
-    );
-    expect((await runGitAction("/repo", { kind: "delete-branch", branch: "x" })).message).toBe(
-      "Deleted x.",
-    );
     expect(
-      (await runGitAction("/repo", { kind: "rename-branch", branch: "a", newName: "b" }))
-        .message,
+      (await runGitAction("/repo", { kind: "create-branch", branch: "x" })).message,
+    ).toBe("Created and switched to x.");
+    expect(
+      (await runGitAction("/repo", { kind: "delete-branch", branch: "x" })).message,
+    ).toBe("Deleted x.");
+    expect(
+      (
+        await runGitAction("/repo", {
+          kind: "rename-branch",
+          branch: "a",
+          newName: "b",
+        })
+      ).message,
     ).toBe("Renamed a to b.");
-    expect((await runGitAction("/repo", { kind: "merge-branch", branch: "b" })).message).toBe(
-      "Merged b into main.",
-    );
+    expect(
+      (await runGitAction("/repo", { kind: "merge-branch", branch: "b" })).message,
+    ).toBe("Merged b into main.");
     expect(ran("merge --no-edit b")).toBe(true);
     await expect(
       runGitAction("/repo", { kind: "create-branch", branch: "-evil" }),
@@ -239,9 +251,9 @@ describe("runGitAction", () => {
 
   it("commits, optionally staging everything in the project and pushing", async () => {
     git.prefix = "paper";
-    expect((await runGitAction("/repo", { kind: "commit", message: " Fix " })).message).toBe(
-      "Committed.",
-    );
+    expect(
+      (await runGitAction("/repo", { kind: "commit", message: " Fix " })).message,
+    ).toBe("Committed.");
     expect(ran("commit -m Fix")).toBe(true);
 
     respond(head, "main");
@@ -264,9 +276,9 @@ describe("runGitAction", () => {
     await runGitAction("/repo", { kind: "commit", message: "All", all: true });
     expect(ran("add --all -- .")).toBe(true);
 
-    await expect(runGitAction("/repo", { kind: "commit", message: "  " })).rejects.toThrow(
-      "Enter a commit message.",
-    );
+    await expect(
+      runGitAction("/repo", { kind: "commit", message: "  " }),
+    ).rejects.toThrow("Enter a commit message.");
   });
 
   it("undoes the last commit, keeping its message", async () => {
@@ -289,9 +301,9 @@ describe("runGitAction", () => {
     respond("status --porcelain", " M main.tex\n");
     await runGitAction("/repo", { kind: "stash", message: " wip " });
     expect(ran("stash push --include-untracked -m wip")).toBe(true);
-    expect((await runGitAction("/repo", { kind: "stash", message: "  " })).message).toBe(
-      "Stashed your changes.",
-    );
+    expect(
+      (await runGitAction("/repo", { kind: "stash", message: "  " })).message,
+    ).toBe("Stashed your changes.");
     expect(ran("stash push --include-untracked")).toBe(true);
     expect((await runGitAction("/repo", { kind: "stash-pop" })).message).toBe(
       "Restored the latest stash.",
@@ -301,20 +313,21 @@ describe("runGitAction", () => {
   it("runs commit-level actions on validated hashes", async () => {
     const commit = "abcdef1234";
     expect(
-      (await runGitAction("/repo", { kind: "branch-at", branch: "fix", commit })).message,
+      (await runGitAction("/repo", { kind: "branch-at", branch: "fix", commit }))
+        .message,
     ).toBe("Created fix at abcdef1.");
-    expect((await runGitAction("/repo", { kind: "tag", tag: "v1", commit })).message).toBe(
-      "Tagged abcdef1 as v1.",
-    );
+    expect(
+      (await runGitAction("/repo", { kind: "tag", tag: "v1", commit })).message,
+    ).toBe("Tagged abcdef1 as v1.");
     expect((await runGitAction("/repo", { kind: "cherry-pick", commit })).message).toBe(
       "Applied abcdef1 on this branch.",
     );
     expect((await runGitAction("/repo", { kind: "revert", commit })).message).toBe(
       "Reverted abcdef1 in a new commit.",
     );
-    expect((await runGitAction("/repo", { kind: "checkout-commit", commit })).message).toContain(
-      "detached HEAD",
-    );
+    expect(
+      (await runGitAction("/repo", { kind: "checkout-commit", commit })).message,
+    ).toContain("detached HEAD");
     await expect(
       runGitAction("/repo", { kind: "revert", commit: "HEAD~1" }),
     ).rejects.toThrow("Invalid commit.");
@@ -375,9 +388,9 @@ describe("parseGitAction", () => {
       kind: "publish",
       remoteUrl: undefined,
     });
-    expect(() => parseGitAction({ kind: "publish", remoteUrl: "x".repeat(2049) })).toThrow(
-      "Invalid Git action field: remoteUrl",
-    );
+    expect(() =>
+      parseGitAction({ kind: "publish", remoteUrl: "x".repeat(2049) }),
+    ).toThrow("Invalid Git action field: remoteUrl");
     expect(() => parseGitAction({ kind: "publish", remoteUrl: 5 })).toThrow(
       "Invalid Git action field: remoteUrl",
     );
@@ -395,7 +408,9 @@ describe("parseGitAction", () => {
   );
 
   it("validates both names when renaming", () => {
-    expect(parseGitAction({ kind: "rename-branch", branch: "a", newName: "b" })).toEqual({
+    expect(
+      parseGitAction({ kind: "rename-branch", branch: "a", newName: "b" }),
+    ).toEqual({
       kind: "rename-branch",
       branch: "a",
       newName: "b",
@@ -405,7 +420,9 @@ describe("parseGitAction", () => {
   });
 
   it("parses commit flags strictly", () => {
-    expect(parseGitAction({ kind: "commit", message: "m", amend: true, all: "yes" })).toEqual({
+    expect(
+      parseGitAction({ kind: "commit", message: "m", amend: true, all: "yes" }),
+    ).toEqual({
       kind: "commit",
       message: "m",
       amend: true,
@@ -424,7 +441,9 @@ describe("parseGitAction", () => {
   });
 
   it("validates branch-at and tag", () => {
-    expect(parseGitAction({ kind: "branch-at", branch: "b", commit: "abcdef1" })).toEqual({
+    expect(
+      parseGitAction({ kind: "branch-at", branch: "b", commit: "abcdef1" }),
+    ).toEqual({
       kind: "branch-at",
       branch: "b",
       commit: "abcdef1",
@@ -435,13 +454,21 @@ describe("parseGitAction", () => {
       commit: "abcdef1",
     });
     expect(() => parseGitAction({ kind: "branch-at", commit: "abcdef1" })).toThrow();
-    expect(() => parseGitAction({ kind: "branch-at", branch: "b" })).toThrow("Invalid commit.");
+    expect(() => parseGitAction({ kind: "branch-at", branch: "b" })).toThrow(
+      "Invalid commit.",
+    );
     expect(() => parseGitAction({ kind: "tag", commit: "abcdef1" })).toThrow();
     expect(() => parseGitAction({ kind: "tag", tag: "v1" })).toThrow("Invalid commit.");
   });
 
-  it.each(["cherry-pick", "revert", "checkout-commit"])("validates the commit for %s", (kind) => {
-    expect(parseGitAction({ kind, commit: "abcdef1" })).toEqual({ kind, commit: "abcdef1" });
-    expect(() => parseGitAction({ kind })).toThrow("Invalid commit.");
-  });
+  it.each(["cherry-pick", "revert", "checkout-commit"])(
+    "validates the commit for %s",
+    (kind) => {
+      expect(parseGitAction({ kind, commit: "abcdef1" })).toEqual({
+        kind,
+        commit: "abcdef1",
+      });
+      expect(() => parseGitAction({ kind })).toThrow("Invalid commit.");
+    },
+  );
 });

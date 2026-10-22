@@ -161,7 +161,12 @@ describe("SettingsShell navigation details", () => {
 
   it("renders nothing to browse when there are no pages", () => {
     render(
-      <SettingsShell pages={[]} activePage="x" onSelectPage={vi.fn()} onClose={vi.fn()} />,
+      <SettingsShell
+        pages={[]}
+        activePage="x"
+        onSelectPage={vi.fn()}
+        onClose={vi.fn()}
+      />,
     );
     expect(document.querySelectorAll("[data-settings-page]")).toHaveLength(0);
     fireEvent.scroll(document.querySelector(".settings-list")!);
@@ -172,7 +177,9 @@ describe("SettingsShell navigation details", () => {
   it("scrolls to a page's results when its category is chosen while searching", () => {
     const { onSelectPage } = renderShell();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "updates" } });
-    const page = document.querySelector<HTMLElement>('[data-settings-page="application"]')!;
+    const page = document.querySelector<HTMLElement>(
+      '[data-settings-page="application"]',
+    )!;
     const scrollIntoView = vi.fn();
     page.scrollIntoView = scrollIntoView;
     fireEvent.click(screen.getByRole("button", { name: /Updates/ }));
@@ -196,15 +203,17 @@ describe("SettingsShell navigation details", () => {
   it("highlights the sub-section scrolled into view", () => {
     renderShell();
     const list = document.querySelector<HTMLElement>(".settings-list")!;
-    const headings = document.querySelectorAll<HTMLElement>(".settings-section-heading");
+    const headings = document.querySelectorAll<HTMLElement>(
+      ".settings-section-heading",
+    );
     list.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
     headings[0].getBoundingClientRect = () => ({ top: -100 }) as DOMRect;
     headings[1].getBoundingClientRect = () => ({ top: 20 }) as DOMRect;
     fireEvent.scroll(list);
     const sections = screen.getByRole("group", { name: "General sections" });
-    expect(within(sections).getByRole("button", { name: "Editor and compiler" })).toHaveClass(
-      "active",
-    );
+    expect(
+      within(sections).getByRole("button", { name: "Editor and compiler" }),
+    ).toHaveClass("active");
     headings[1].getBoundingClientRect = () => ({ top: 500 }) as DOMRect;
     fireEvent.scroll(list);
     expect(within(sections).getByRole("button", { name: "Appearance" })).toHaveClass(

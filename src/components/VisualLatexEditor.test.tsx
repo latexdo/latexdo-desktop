@@ -110,28 +110,99 @@ describe("VisualLatexEditor", () => {
   });
 });
 
-describe("visual source preservation",()=>{
- it.each(["equation","equation*","align","align*","gather","gather*"])("round-trips and edits %s math",environment=>{
-  const onChange=vi.fn();const source=`\\begin{${environment}}\nx^2\n\\end{${environment}}`;
-  expect(serializeVisualLatexBlocks(parseLatexToVisualBlocks(source))).toBe(source);render(<VisualLatexEditor content={source} onChange={onChange}/>);fireEvent.change(screen.getByLabelText("Equation"),{target:{value:"y^2\nz^2"}});expect(onChange).toHaveBeenLastCalledWith(`\\begin{${environment}}\ny^2\nz^2\n\\end{${environment}}`);
- });
- it.each(["\\begin{itemize}\n  \\item Unclosed","\\begin{equation}\nx^2","\\[\nx^2"])("preserves incomplete environments as raw source: %s",source=>{
-  const blocks=parseLatexToVisualBlocks(source);expect(blocks[0].type).toBe("raw");expect(serializeVisualLatexBlocks(blocks)).toBe(source);render(<VisualLatexEditor content={source} onChange={vi.fn()}/>);expect(screen.getByLabelText("Advanced LaTeX preserved in source")).toBeVisible();
- });
- it("normalizes line endings, empty input, multiline lists and display math",()=>{
-  expect(parseLatexToVisualBlocks("")).toEqual([{type:"paragraph",text:""}]);const source="\\paragraph*{Note}\r\n\\[\r\nx+y\r\n\\]\r\n\\begin{enumerate}\r\n  \\item First\r\n  continued\r\n  \\item Second\r\n\\end{enumerate}";expect(serializeVisualLatexBlocks(parseLatexToVisualBlocks(source))).toBe(source.replaceAll("\r\n","\n"));expect(parseLatexToVisualBlocks("\\begin{itemize}\n\\end{itemize}")).toEqual([{type:"list",environment:"itemize",items:[""]}]);
- });
- it("preserves inline tokens when serializing DOM edits",()=>{
-  const onChange=vi.fn();const source="\\LaTeX \\LaTeX{} \\ref{sec:a} \\eqref{} \\label{x} \\label{} \\href{https://example.org}{Website} \\url{https://example.org} \\cite{} \\textbf{bold} \\textit{italic} \\emph{emphasis} \\texttt{code} \\textsuperscript{up} \\textsubscript{down} \\%";
-  render(<VisualLatexEditor content={source} onChange={onChange}/>);const paragraph=screen.getByLabelText("Paragraph");fireEvent.input(paragraph);expect(onChange).toHaveBeenLastCalledWith(source);expect(screen.getByText("Website")).toBeVisible();expect(screen.getByText("bold").tagName).toBe("STRONG");
- });
- it("serializes multiline pasted DOM, escaping literal special characters",()=>{
-  const onChange=vi.fn();render(<VisualLatexEditor content="text" onChange={onChange}/>);const paragraph=screen.getByLabelText("Paragraph");paragraph.innerHTML="a<br><div>b</div><p></p><span>c</span><!-- ignored -->";paragraph.append(document.createTextNode("\\%&#_$"));fireEvent.input(paragraph);expect(onChange).toHaveBeenLastCalledWith("a\n\nb\nc\\textbackslash{}\\%\\&\\#\\_\\$");
- });
- it("updates external source and pastes only plain text at the selection",()=>{
-  const onChange=vi.fn();const h=render(<VisualLatexEditor content="before" onChange={onChange}/>);h.rerender(<VisualLatexEditor content="after" onChange={onChange}/>);const paragraph=screen.getByLabelText("Paragraph");expect(paragraph.textContent).toBe("after");const range=document.createRange();range.selectNodeContents(paragraph);const selection=window.getSelection()!;selection.removeAllRanges();selection.addRange(range);fireEvent.paste(paragraph,{clipboardData:{getData:()=>"<b>literal</b>"}});expect(paragraph.textContent).toBe("<b>literal</b>");expect(paragraph.querySelector("b")).toBeNull();selection.removeAllRanges();fireEvent.paste(paragraph,{clipboardData:{getData:()=>"ignored"}});expect(paragraph.textContent).toBe("<b>literal</b>");
- });
- it("renders ordered lists and read-only fields",()=>{
-  render(<VisualLatexEditor content={"\\section{Title}\n\\begin{enumerate}\n  \\item One\n  \\item Two\n\\end{enumerate}"} readOnly onChange={vi.fn()}/>);expect(screen.getByLabelText("section title")).toHaveAttribute("readonly");expect(screen.getAllByLabelText("List item")[0]).toHaveAttribute("contenteditable","false");expect(document.querySelector("ol")).not.toBeNull();
- });
+describe("visual source preservation", () => {
+  it.each(["equation", "equation*", "align", "align*", "gather", "gather*"])(
+    "round-trips and edits %s math",
+    (environment) => {
+      const onChange = vi.fn();
+      const source = `\\begin{${environment}}\nx^2\n\\end{${environment}}`;
+      expect(serializeVisualLatexBlocks(parseLatexToVisualBlocks(source))).toBe(source);
+      render(<VisualLatexEditor content={source} onChange={onChange} />);
+      fireEvent.change(screen.getByLabelText("Equation"), {
+        target: { value: "y^2\nz^2" },
+      });
+      expect(onChange).toHaveBeenLastCalledWith(
+        `\\begin{${environment}}\ny^2\nz^2\n\\end{${environment}}`,
+      );
+    },
+  );
+  it.each([
+    "\\begin{itemize}\n  \\item Unclosed",
+    "\\begin{equation}\nx^2",
+    "\\[\nx^2",
+  ])("preserves incomplete environments as raw source: %s", (source) => {
+    const blocks = parseLatexToVisualBlocks(source);
+    expect(blocks[0].type).toBe("raw");
+    expect(serializeVisualLatexBlocks(blocks)).toBe(source);
+    render(<VisualLatexEditor content={source} onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Advanced LaTeX preserved in source")).toBeVisible();
+  });
+  it("normalizes line endings, empty input, multiline lists and display math", () => {
+    expect(parseLatexToVisualBlocks("")).toEqual([{ type: "paragraph", text: "" }]);
+    const source =
+      "\\paragraph*{Note}\r\n\\[\r\nx+y\r\n\\]\r\n\\begin{enumerate}\r\n  \\item First\r\n  continued\r\n  \\item Second\r\n\\end{enumerate}";
+    expect(serializeVisualLatexBlocks(parseLatexToVisualBlocks(source))).toBe(
+      source.replaceAll("\r\n", "\n"),
+    );
+    expect(parseLatexToVisualBlocks("\\begin{itemize}\n\\end{itemize}")).toEqual([
+      { type: "list", environment: "itemize", items: [""] },
+    ]);
+  });
+  it("preserves inline tokens when serializing DOM edits", () => {
+    const onChange = vi.fn();
+    const source =
+      "\\LaTeX \\LaTeX{} \\ref{sec:a} \\eqref{} \\label{x} \\label{} \\href{https://example.org}{Website} \\url{https://example.org} \\cite{} \\textbf{bold} \\textit{italic} \\emph{emphasis} \\texttt{code} \\textsuperscript{up} \\textsubscript{down} \\%";
+    render(<VisualLatexEditor content={source} onChange={onChange} />);
+    const paragraph = screen.getByLabelText("Paragraph");
+    fireEvent.input(paragraph);
+    expect(onChange).toHaveBeenLastCalledWith(source);
+    expect(screen.getByText("Website")).toBeVisible();
+    expect(screen.getByText("bold").tagName).toBe("STRONG");
+  });
+  it("serializes multiline pasted DOM, escaping literal special characters", () => {
+    const onChange = vi.fn();
+    render(<VisualLatexEditor content="text" onChange={onChange} />);
+    const paragraph = screen.getByLabelText("Paragraph");
+    paragraph.innerHTML = "a<br><div>b</div><p></p><span>c</span><!-- ignored -->";
+    paragraph.append(document.createTextNode("\\%&#_$"));
+    fireEvent.input(paragraph);
+    expect(onChange).toHaveBeenLastCalledWith(
+      "a\n\nb\nc\\textbackslash{}\\%\\&\\#\\_\\$",
+    );
+  });
+  it("updates external source and pastes only plain text at the selection", () => {
+    const onChange = vi.fn();
+    const h = render(<VisualLatexEditor content="before" onChange={onChange} />);
+    h.rerender(<VisualLatexEditor content="after" onChange={onChange} />);
+    const paragraph = screen.getByLabelText("Paragraph");
+    expect(paragraph.textContent).toBe("after");
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent.paste(paragraph, { clipboardData: { getData: () => "<b>literal</b>" } });
+    expect(paragraph.textContent).toBe("<b>literal</b>");
+    expect(paragraph.querySelector("b")).toBeNull();
+    selection.removeAllRanges();
+    fireEvent.paste(paragraph, { clipboardData: { getData: () => "ignored" } });
+    expect(paragraph.textContent).toBe("<b>literal</b>");
+  });
+  it("renders ordered lists and read-only fields", () => {
+    render(
+      <VisualLatexEditor
+        content={
+          "\\section{Title}\n\\begin{enumerate}\n  \\item One\n  \\item Two\n\\end{enumerate}"
+        }
+        readOnly
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("section title")).toHaveAttribute("readonly");
+    expect(screen.getAllByLabelText("List item")[0]).toHaveAttribute(
+      "contenteditable",
+      "false",
+    );
+    expect(document.querySelector("ol")).not.toBeNull();
+  });
 });

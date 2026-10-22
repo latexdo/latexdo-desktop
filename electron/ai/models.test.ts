@@ -140,22 +140,30 @@ describe("model download edge cases", () => {
   const url = "https://example.test/model";
 
   it("fails on HTTP errors and empty bodies", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("no", { status: 404 })));
-    await expect(downloadModelFile(url, "m.gguf", { onProgress: vi.fn() })).rejects.toThrow(
-      "Download failed: HTTP 404",
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("no", { status: 404 })),
     );
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
-    await expect(downloadModelFile(url, "m.gguf", { onProgress: vi.fn() })).rejects.toThrow(
-      "HTTP 200",
+    await expect(
+      downloadModelFile(url, "m.gguf", { onProgress: vi.fn() }),
+    ).rejects.toThrow("Download failed: HTTP 404");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
     );
+    await expect(
+      downloadModelFile(url, "m.gguf", { onProgress: vi.fn() }),
+    ).rejects.toThrow("HTTP 200");
   });
 
   it("reports progress against the advertised size and stage changes", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response("data", { headers: { "content-length": "4" } }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response("data", { headers: { "content-length": "4" } }),
+        ),
     );
     const onProgress = vi.fn();
     const onStage = vi.fn();
@@ -165,9 +173,11 @@ describe("model download edge cases", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response("data", { headers: { "content-length": "lots" } }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response("data", { headers: { "content-length": "lots" } }),
+        ),
     );
     const unknownTotal = vi.fn();
     await downloadModelFile(url, "n.gguf", { onProgress: unknownTotal });
@@ -176,7 +186,10 @@ describe("model download edge cases", () => {
 
   it("accepts a matching checksum and one-sided size bounds", async () => {
     const { createHash } = await import("node:crypto");
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("data"))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response("data"))),
+    );
     await downloadModelFile(
       url,
       "sum.gguf",
@@ -227,7 +240,10 @@ describe("model download edge cases", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(
-      downloadModelFile(url, "m.gguf", { onProgress: vi.fn(), signal: controller.signal }),
+      downloadModelFile(url, "m.gguf", {
+        onProgress: vi.fn(),
+        signal: controller.signal,
+      }),
     ).rejects.toThrow("Model download cancelled.");
     expect(await readdir(modelsDir())).toEqual([]);
   });

@@ -167,14 +167,22 @@ describe("paper review prompt", () => {
   it("describes failed builds without messages and successful builds", () => {
     expect(
       buildPaperReviewPrompt(
-        context({ engine: undefined, lastBuild: { ok: false, errors: [], warningCount: 0 } }),
+        context({
+          engine: undefined,
+          lastBuild: { ok: false, errors: [], warningCount: 0 },
+        }),
       ),
     ).toContain("failed with some error(s). The PDF may not match the source.");
     expect(
-      buildPaperReviewPrompt(context({ lastBuild: { ok: true, errors: [], warningCount: 0 } })),
+      buildPaperReviewPrompt(
+        context({ lastBuild: { ok: true, errors: [], warningCount: 0 } }),
+      ),
     ).toContain("The last build succeeded without warnings.");
     const warned = buildPaperReviewPrompt(
-      context({ engine: undefined, lastBuild: { ok: true, errors: [], warningCount: 2 } }),
+      context({
+        engine: undefined,
+        lastBuild: { ok: true, errors: [], warningCount: 2 },
+      }),
     );
     expect(warned).toContain("The last build succeeded with 2 warning(s).");
     expect(warned).toContain("root file `main.tex`. Start from the root file.");

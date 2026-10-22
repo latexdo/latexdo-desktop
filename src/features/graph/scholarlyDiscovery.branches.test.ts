@@ -88,9 +88,9 @@ describe("formatDiscoveredPaperAuthors", () => {
   it("handles none, a few and many authors", () => {
     expect(formatDiscoveredPaperAuthors(base)).toBe("Unknown authors");
     expect(formatDiscoveredPaperAuthors({ ...base, authors: ["A", "B"] })).toBe("A, B");
-    expect(formatDiscoveredPaperAuthors({ ...base, authors: ["A", "B", "C", "D"] })).toBe(
-      "A, B, C et al.",
-    );
+    expect(
+      formatDiscoveredPaperAuthors({ ...base, authors: ["A", "B", "C", "D"] }),
+    ).toBe("A, B, C et al.");
   });
 });
 
@@ -123,9 +123,9 @@ describe("bibtexForPaper", () => {
   });
 
   it("uses article for unknown provider types", () => {
-    expect(bibtexForPaper(paper({ title: "Thing", sourceType: "poster" }), []).bibtex).toMatch(
-      /^@article/,
-    );
+    expect(
+      bibtexForPaper(paper({ title: "Thing", sourceType: "poster" }), []).bibtex,
+    ).toMatch(/^@article/);
   });
 });
 
@@ -154,7 +154,12 @@ describe("discoverRelatedPapers", () => {
       ...options,
       aiQueries: ["short", "https://example.test/long-url"],
     });
-    expect(result).toEqual({ papers: [], queries: [], providerErrors: [], aiQueriesUsed: [] });
+    expect(result).toEqual({
+      papers: [],
+      queries: [],
+      providerErrors: [],
+      aiQueriesUsed: [],
+    });
     expect(client.searchOpenAlex).not.toHaveBeenCalled();
   });
 
@@ -201,7 +206,9 @@ describe("discoverRelatedPapers", () => {
       ]),
     );
     expect(result.papers[0].id).toBe("doi:10.1/new");
-    const hardware = result.papers.find((p) => p.title === "Annealing quantum hardware")!;
+    const hardware = result.papers.find(
+      (p) => p.title === "Annealing quantum hardware",
+    )!;
     expect(hardware.id).toMatch(/^title:.*:2020$/);
     // Equal scores fall back to the citation count.
     const old = result.papers.find((p) => p.title === "Hardware annealing quantum")!;
@@ -234,7 +241,9 @@ describe("discoverRelatedPapers", () => {
   });
 
   it("reports provider failures and rethrows aborts", async () => {
-    client.searchOpenAlex.mockRejectedValue(new ScholarlyHttpError("unavailable", true, 503));
+    client.searchOpenAlex.mockRejectedValue(
+      new ScholarlyHttpError("unavailable", true, 503),
+    );
     client.searchCrossref.mockRejectedValue(new Error("offline"));
     const result = await discoverRelatedPapers(quantumGraph, entries, options);
     expect(result.providerErrors.length).toBeGreaterThan(1);
@@ -253,7 +262,10 @@ describe("discoverRelatedPapers", () => {
       return [];
     });
     await expect(
-      discoverRelatedPapers(quantumGraph, entries, { ...options, signal: controller.signal }),
+      discoverRelatedPapers(quantumGraph, entries, {
+        ...options,
+        signal: controller.signal,
+      }),
     ).rejects.toThrow("Discovery aborted");
 
     const second = new AbortController();
@@ -263,7 +275,10 @@ describe("discoverRelatedPapers", () => {
       return [];
     });
     await expect(
-      discoverRelatedPapers(quantumGraph, entries, { ...options, signal: second.signal }),
+      discoverRelatedPapers(quantumGraph, entries, {
+        ...options,
+        signal: second.signal,
+      }),
     ).rejects.toThrow("Discovery aborted");
   });
 
@@ -284,7 +299,9 @@ describe("discoverRelatedPapers", () => {
   });
 
   it("uses default year and retry settings and title identities without a year", async () => {
-    client.searchOpenAlex.mockResolvedValue([paper({ title: "Quantum annealing undated" })]);
+    client.searchOpenAlex.mockResolvedValue([
+      paper({ title: "Quantum annealing undated" }),
+    ]);
     const result = await discoverRelatedPapers(
       graph([
         node({ key: "a", title: "Quantum annealing", degree: 1 }),

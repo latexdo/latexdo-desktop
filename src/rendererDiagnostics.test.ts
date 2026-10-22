@@ -192,9 +192,15 @@ describe("serializeRendererError shapes", () => {
   });
 
   it("serializes primitives, null and arrays as NonError", () => {
-    expect(serializeRendererError("plain")).toEqual({ name: "NonError", message: "plain" });
+    expect(serializeRendererError("plain")).toEqual({
+      name: "NonError",
+      message: "plain",
+    });
     expect(serializeRendererError(null)).toEqual({ name: "NonError", message: "null" });
-    expect(serializeRendererError([1, 2])).toEqual({ name: "NonError", message: "1,2" });
+    expect(serializeRendererError([1, 2])).toEqual({
+      name: "NonError",
+      message: "1,2",
+    });
   });
 });
 
@@ -266,7 +272,9 @@ describe("freeze watcher defaults", () => {
       <div class="monaco-editor"><textarea class="inputarea monaco-mouse"></textarea></div>`;
     document.querySelector("textarea")!.focus();
     watchForFreezes();
-    callback!({ getEntries: () => [{ startTime: 0, duration: 512.4 } as PerformanceEntry] });
+    callback!({
+      getEntries: () => [{ startTime: 0, duration: 512.4 } as PerformanceEntry],
+    });
     expect(mock).toHaveBeenCalledWith({
       kind: "renderer-freeze",
       error: expect.objectContaining({
@@ -285,15 +293,23 @@ describe("freeze watcher defaults", () => {
     svg.setAttribute("tabindex", "0");
     document.body.appendChild(svg);
     svg.focus();
-    callback!({ getEntries: () => [{ startTime: 60_000, duration: 300 } as PerformanceEntry] });
+    callback!({
+      getEntries: () => [{ startTime: 60_000, duration: 300 } as PerformanceEntry],
+    });
     expect(mock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         context: expect.objectContaining({ activeTab: undefined }),
       }),
     );
 
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, "activeElement")!;
-    Object.defineProperty(document, "activeElement", { configurable: true, get: () => null });
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      "activeElement",
+    )!;
+    Object.defineProperty(document, "activeElement", {
+      configurable: true,
+      get: () => null,
+    });
     try {
       callback!({
         getEntries: () => [{ startTime: 120_000, duration: 300 } as PerformanceEntry],

@@ -1,5 +1,13 @@
 // @vitest-environment node
-import { mkdir, mkdtemp, readFile, rm, stat, truncate, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  truncate,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -64,7 +72,10 @@ function setTarget(platform: string, arch: string) {
 
 type ZipEntry = { name: string; data: Buffer; method?: number; extra?: Buffer };
 
-function buildZip(entries: ZipEntry[], options: { brokenCentral?: boolean } = {}): Buffer {
+function buildZip(
+  entries: ZipEntry[],
+  options: { brokenCentral?: boolean } = {},
+): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
@@ -209,7 +220,10 @@ describe("speech runtime installation", () => {
       "installing",
       "ready",
     ]);
-    expect(events.at(-1)).toMatchObject({ done: true, receivedBytes: linuxRuntime.size + modelSize });
+    expect(events.at(-1)).toMatchObject({
+      done: true,
+      receivedBytes: linuxRuntime.size + modelSize,
+    });
     const model = events.filter((event) => event.stage === "downloading-model");
     expect(model.at(-1)!.receivedBytes).toBe(linuxRuntime.size + modelSize);
     // A completed install is recognised once the real-size model is present.
@@ -266,7 +280,11 @@ describe("speech runtime installation", () => {
   });
 
   it.each([
-    ["is not a ZIP", Buffer.from("plain bytes that are long enough to scan here"), "not a ZIP file"],
+    [
+      "is not a ZIP",
+      Buffer.from("plain bytes that are long enough to scan here"),
+      "not a ZIP file",
+    ],
     [
       "has a broken central directory",
       buildZip([{ name: "whisper-server", data: server }], { brokenCentral: true }),
@@ -285,7 +303,9 @@ describe("speech runtime installation", () => {
   ])("rejects a runtime archive that %s", async (_label, zip, message) => {
     stubDownloads(zip);
     runtime.digests = [linuxRuntime.sha, modelSha];
-    await expect(installSpeechRuntime({ onProgress: vi.fn() })).rejects.toThrow(message);
+    await expect(installSpeechRuntime({ onProgress: vi.fn() })).rejects.toThrow(
+      message,
+    );
     await expect(stat(path.join(installedSpeechRoot(), ".install"))).rejects.toThrow();
   });
 

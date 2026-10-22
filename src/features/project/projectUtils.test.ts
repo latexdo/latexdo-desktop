@@ -59,7 +59,12 @@ describe("entry and offset helpers", () => {
   it("flattens nested entries and maps offsets to line/column", async () => {
     const { flattenEntries, lineColumnAtOffset } = await import("./projectUtils");
     const tree = [
-      { name: "a", path: "a", type: "directory", children: [{ name: "b", path: "a/b", type: "file" }] },
+      {
+        name: "a",
+        path: "a",
+        type: "directory",
+        children: [{ name: "b", path: "a/b", type: "file" }],
+      },
       { name: "c", path: "c", type: "file" },
     ] as never;
     expect(flattenEntries(tree).map((e) => e.path)).toEqual(["a", "a/b", "c"]);

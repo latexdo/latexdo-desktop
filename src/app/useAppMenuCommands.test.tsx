@@ -132,7 +132,9 @@ describe("useAppMenuCommands", () => {
 
     ctx.editorRef.current = null as never;
     await send("editor:anything");
-    expect(ctx.setStatusMessage).toHaveBeenCalledWith("Open a file in the editor first.");
+    expect(ctx.setStatusMessage).toHaveBeenCalledWith(
+      "Open a file in the editor first.",
+    );
   });
 
   it.each([
@@ -222,7 +224,9 @@ describe("useAppMenuCommands", () => {
     await send("app.settings");
     expect(ctx.setSettingsOpen).toHaveBeenCalledWith(true);
     await send("file.reloadFromDisk");
-    expect(ctx.reloadOpenDocumentsFromDisk).toHaveBeenCalledWith({ includeUnsaved: true });
+    expect(ctx.reloadOpenDocumentsFromDisk).toHaveBeenCalledWith({
+      includeUnsaved: true,
+    });
     expect(hook.result.current.shortcutsOpen).toBe(false);
     await send("help.shortcuts");
     expect(hook.result.current.shortcutsOpen).toBe(true);
@@ -254,12 +258,19 @@ describe("useAppMenuCommands", () => {
     });
     mount(ctx);
     await send("file.saveAll");
-    await waitFor(() => expect(ctx.setStatusMessage).toHaveBeenCalledWith("Saved 2 files"));
-    expect(ctx.saveDocument.mock.calls.map(([d]) => d)).toEqual([dirty, dirtyDefaultKind]);
+    await waitFor(() =>
+      expect(ctx.setStatusMessage).toHaveBeenCalledWith("Saved 2 files"),
+    );
+    expect(ctx.saveDocument.mock.calls.map(([d]) => d)).toEqual([
+      dirty,
+      dirtyDefaultKind,
+    ]);
 
     ctx.documentsRef.current = [dirty];
     await send("file.saveAll");
-    await waitFor(() => expect(ctx.setStatusMessage).toHaveBeenCalledWith("Saved 1 file"));
+    await waitFor(() =>
+      expect(ctx.setStatusMessage).toHaveBeenCalledWith("Saved 1 file"),
+    );
     ctx.documentsRef.current = [clean];
     await send("file.saveAll");
     await waitFor(() =>
@@ -319,8 +330,18 @@ describe("useAppMenuCommands", () => {
   });
 
   it("goes to a project file through the quick pick", async () => {
-    const main = { type: "file", path: "/p/main.tex", name: "main.tex", relativePath: "main.tex" };
-    const sub = { type: "file", path: "/p/s/a.tex", name: "a.tex", relativePath: "s/a.tex" };
+    const main = {
+      type: "file",
+      path: "/p/main.tex",
+      name: "main.tex",
+      relativePath: "main.tex",
+    };
+    const sub = {
+      type: "file",
+      path: "/p/s/a.tex",
+      name: "a.tex",
+      relativePath: "s/a.tex",
+    };
     const folder = { type: "directory", path: "/p/s", name: "s", children: [sub] };
     const askQuickPick = vi.fn().mockResolvedValue({ item: { id: sub.path } });
     const { ctx } = makeCtx({ projectEntries: [main, folder], askQuickPick });
@@ -329,7 +350,10 @@ describe("useAppMenuCommands", () => {
     await waitFor(() => expect(ctx.openDocument).toHaveBeenCalledWith(sub));
     const request = askQuickPick.mock.calls[0][0];
     expect(request.title).toBe("Go to File");
-    expect(request.items.map((item: { id: string }) => item.id)).toEqual([main.path, sub.path]);
+    expect(request.items.map((item: { id: string }) => item.id)).toEqual([
+      main.path,
+      sub.path,
+    ]);
 
     askQuickPick.mockResolvedValue(null);
     await send("go.file");
@@ -344,14 +368,19 @@ describe("useAppMenuCommands", () => {
     });
     mount(ctx);
     await send("go.file");
-    expect(ctx.setStatusMessage).toHaveBeenCalledWith("Open a project to go to its files.");
+    expect(ctx.setStatusMessage).toHaveBeenCalledWith(
+      "Open a project to go to its files.",
+    );
     expect(ctx.askQuickPick).not.toHaveBeenCalled();
   });
 
   it("steps through tabs in both directions, wrapping around", async () => {
     const select = [vi.fn(), vi.fn(), vi.fn()];
     const { ctx } = makeCtx({
-      workspaceTabs: select.map((onSelect, index) => ({ active: index === 0, onSelect })),
+      workspaceTabs: select.map((onSelect, index) => ({
+        active: index === 0,
+        onSelect,
+      })),
     });
     mount(ctx);
     await send("go.nextTab");
@@ -375,10 +404,14 @@ describe("useAppMenuCommands", () => {
     });
     mount(ctx);
     await send("build.compile");
-    await waitFor(() => expect(ctx.setStatusMessage).toHaveBeenCalledWith("TeX missing"));
+    await waitFor(() =>
+      expect(ctx.setStatusMessage).toHaveBeenCalledWith("TeX missing"),
+    );
     await send("build.downloadPdf");
     await waitFor(() =>
-      expect(ctx.setStatusMessage).toHaveBeenCalledWith("That command did not complete."),
+      expect(ctx.setStatusMessage).toHaveBeenCalledWith(
+        "That command did not complete.",
+      ),
     );
   });
 });

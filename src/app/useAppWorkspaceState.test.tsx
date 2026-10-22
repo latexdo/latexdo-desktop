@@ -79,7 +79,9 @@ afterEach(() => {
 
 async function renderState() {
   const hook = renderHook(() => useAppWorkspaceState());
-  await waitFor(() => expect(hook.result.current.aiSystemCapabilitiesState).not.toBe("loading"));
+  await waitFor(() =>
+    expect(hook.result.current.aiSystemCapabilitiesState).not.toBe("loading"),
+  );
   return hook;
 }
 
@@ -156,10 +158,18 @@ describe("workspace basics", () => {
 
 describe("installed tools", () => {
   it("offers the TikZ converter once its extension is installed and enabled", async () => {
-    localStorage.setItem("latexdo.extensions.installed.v1", JSON.stringify(["latexdo.figure-to-tikz"]));
+    localStorage.setItem(
+      "latexdo.extensions.installed.v1",
+      JSON.stringify(["latexdo.figure-to-tikz"]),
+    );
     const { result } = await renderState();
     expect(result.current.extensionToolInstallation.tikzConverter).toBe(true);
-    act(() => result.current.setSettings((current) => ({ ...current, tikzConverterEnabled: true })));
+    act(() =>
+      result.current.setSettings((current) => ({
+        ...current,
+        tikzConverterEnabled: true,
+      })),
+    );
     expect(result.current.extensionToolAvailability.tikzConverter).toBe(true);
     act(() => result.current.setTikzConverterOpen(true));
     expect(result.current.tikzConverterOpen).toBe(true);
@@ -176,7 +186,9 @@ describe("external links", () => {
     const openExternal = vi.fn().mockResolvedValue(undefined);
     (window as { latexdo?: unknown }).latexdo = { openExternalUrl, openExternal };
     act(() => result.current.openExternalLink("https://a.example"));
-    await waitFor(() => expect(openExternalUrl).toHaveBeenCalledWith("https://a.example"));
+    await waitFor(() =>
+      expect(openExternalUrl).toHaveBeenCalledWith("https://a.example"),
+    );
     expect(openExternal).not.toHaveBeenCalled();
 
     openExternalUrl.mockRejectedValueOnce(new Error("no"));
@@ -188,7 +200,11 @@ describe("external links", () => {
     openExternal.mockRejectedValueOnce(new Error("no"));
     act(() => result.current.openExternalLink("https://c.example"));
     await waitFor(() =>
-      expect(open).toHaveBeenCalledWith("https://c.example", "_blank", "noopener,noreferrer"),
+      expect(open).toHaveBeenCalledWith(
+        "https://c.example",
+        "_blank",
+        "noopener,noreferrer",
+      ),
     );
 
     delete (window as { latexdo?: unknown }).latexdo;
@@ -234,7 +250,10 @@ describe("system capabilities and local models", () => {
   it("refuses a tier without a download URL", async () => {
     ai.getSystemCapabilities.mockResolvedValue(null);
     const { result } = await renderState();
-    const tier = { ...latexDoAiTiers[0], runtime: { ...latexDoAiTiers[0].runtime, downloadUrl: "" } };
+    const tier = {
+      ...latexDoAiTiers[0],
+      runtime: { ...latexDoAiTiers[0].runtime, downloadUrl: "" },
+    };
     await act(() => result.current.downloadLatexDoAiModel(tier));
     expect(ai.getSystemCapabilities).toHaveBeenCalledTimes(2);
     expect(result.current.latexDoAiModelMessage).toBe(
@@ -246,7 +265,9 @@ describe("system capabilities and local models", () => {
     const tier = latexDoAiTiers[0];
     const { result } = await renderState();
     let finish!: (value: { ok: boolean; error?: string }) => void;
-    ai.downloadModel.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    ai.downloadModel.mockImplementation(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
     let downloading!: Promise<void>;
     act(() => {
       downloading = result.current.downloadLatexDoAiModel(tier);
@@ -258,7 +279,11 @@ describe("system capabilities and local models", () => {
       totalBytes: null,
     });
     act(() => {
-      progressListener!({ modelId: "other", receivedBytes: 1, totalBytes: 2 } as DownloadProgress);
+      progressListener!({
+        modelId: "other",
+        receivedBytes: 1,
+        totalBytes: 2,
+      } as DownloadProgress);
       progressListener!({
         modelId: tier.runtime.modelId,
         receivedBytes: 5,
@@ -295,7 +320,9 @@ describe("system capabilities and local models", () => {
 
     ai.downloadModel.mockResolvedValueOnce({ ok: true });
     await act(() => result.current.downloadLatexDoAiModel(tier));
-    expect(result.current.latexDoAiModelMessage).toBe(`${tier.name} is ready on this machine.`);
+    expect(result.current.latexDoAiModelMessage).toBe(
+      `${tier.name} is ready on this machine.`,
+    );
     expect(result.current.aiConfig).toMatchObject({
       provider: "local",
       modelId: tier.runtime.modelId,
@@ -328,12 +355,15 @@ describe("system capabilities and local models", () => {
     expect([...result.current.downloadedLatexDoAiModelFiles].sort()).toEqual(
       [known.fileName, "custom-model.gguf"].sort(),
     );
-    expect(result.current.customLatexDoAiModels.map((model) => model.fileName)).toContain(
-      "custom-model.gguf",
-    );
+    expect(
+      result.current.customLatexDoAiModels.map((model) => model.fileName),
+    ).toContain("custom-model.gguf");
     // An unknown model or another provider leaves the config alone.
     act(() =>
-      result.current.setAiConfig((current) => ({ ...current, modelId: "missing-model" })),
+      result.current.setAiConfig((current) => ({
+        ...current,
+        modelId: "missing-model",
+      })),
     );
     const calls = ai.listModels.mock.calls.length;
     act(() => result.current.setSettingsOpen(false));
@@ -351,13 +381,17 @@ describe("system capabilities and local models", () => {
 
     ai.importModel.mockResolvedValueOnce({ fileName: "mine.gguf", sizeBytes: 9 });
     await act(() => result.current.importLatexDoAiModel());
-    expect(result.current.latexDoAiModelMessage).toMatch(/was imported as a GGUF model/);
+    expect(result.current.latexDoAiModelMessage).toMatch(
+      /was imported as a GGUF model/,
+    );
     expect(result.current.localAiProviderMode).toBe("local-model");
     expect(result.current.aiConfig.selection).toMatchObject({
       mode: "custom",
       custom: { kind: "gguf" },
     });
-    expect(result.current.customLatexDoAiModels.map((m) => m.fileName)).toContain("mine.gguf");
+    expect(result.current.customLatexDoAiModels.map((m) => m.fileName)).toContain(
+      "mine.gguf",
+    );
 
     ai.importModel.mockRejectedValueOnce(new Error("bad file"));
     await act(() => result.current.importLatexDoAiModel());
@@ -377,9 +411,14 @@ describe("system capabilities and local models", () => {
       } as never);
     });
     act(() => {
-      result.current.rememberImportedLatexDoAiModel({ fileName: "dup.gguf", sizeBytes: 7 } as never);
+      result.current.rememberImportedLatexDoAiModel({
+        fileName: "dup.gguf",
+        sizeBytes: 7,
+      } as never);
     });
-    const dups = result.current.customLatexDoAiModels.filter((m) => m.fileName === "dup.gguf");
+    const dups = result.current.customLatexDoAiModels.filter(
+      (m) => m.fileName === "dup.gguf",
+    );
     expect(dups).toHaveLength(1);
     expect(dups[0].sizeBytes).toBe(7);
   });
@@ -419,9 +458,15 @@ describe("cloud providers", () => {
     expect(result.current.aiConfig.selection.mode).toBe("latexdo");
     act(() => result.current.selectCloudAiProvider(cloudProviders[0].id));
     act(() => result.current.patchCloudConfig({ model: "m2" }));
-    expect(result.current.aiConfig.selection).toMatchObject({ custom: { model: "m2" } });
+    expect(result.current.aiConfig.selection).toMatchObject({
+      custom: { model: "m2" },
+    });
     act(() =>
-      result.current.patchCloudConfig({ providerId: "p", baseUrl: "https://x", model: "m3" }),
+      result.current.patchCloudConfig({
+        providerId: "p",
+        baseUrl: "https://x",
+        model: "m3",
+      }),
     );
     expect(result.current.aiConfig.selection).toMatchObject({
       custom: { providerId: "p", baseUrl: "https://x", model: "m3" },
@@ -440,10 +485,12 @@ describe("cloud providers", () => {
     expect(result.current.cloudConnectionMessage).toMatch(/No API key stored/);
 
     ai.loadCloudCredential.mockResolvedValue("key");
-    ai.generateStepCloud.mockImplementationOnce(async (_request: unknown, onToken: () => void) => {
-      onToken();
-      return { type: "error", content: "401" };
-    });
+    ai.generateStepCloud.mockImplementationOnce(
+      async (_request: unknown, onToken: () => void) => {
+        onToken();
+        return { type: "error", content: "401" };
+      },
+    );
     await act(() => result.current.testCloudConnection());
     expect(result.current.cloudConnectionState).toBe("error");
     expect(result.current.cloudConnectionMessage).toBe("401");
@@ -468,7 +515,10 @@ describe("cloud providers", () => {
     expect(result.current.settingsCloudKey).toBe("  secret ");
     ai.saveCloudCredential.mockResolvedValueOnce(true);
     await act(() => result.current.saveSettingsCloudKey());
-    expect(ai.saveCloudCredential).toHaveBeenLastCalledWith(expect.any(String), "secret");
+    expect(ai.saveCloudCredential).toHaveBeenLastCalledWith(
+      expect.any(String),
+      "secret",
+    );
     expect(result.current.settingsCloudKey).toBe("");
     expect(result.current.aiConfig.cloud.credentialConfigured).toBe(true);
     await act(() => result.current.clearSettingsCloudKey());
@@ -486,7 +536,9 @@ describe("Ollama", () => {
     expect(result.current.ollamaModelFetchMessage).toMatch(/not reachable/);
     ai.detectOllama.mockResolvedValueOnce({ available: true, models: [] });
     await act(() => result.current.refreshOllamaModels());
-    expect(result.current.ollamaModelFetchMessage).toBe("No installed Ollama models were returned.");
+    expect(result.current.ollamaModelFetchMessage).toBe(
+      "No installed Ollama models were returned.",
+    );
     ai.detectOllama.mockResolvedValueOnce({ available: true, models: ["a"] });
     await act(() => result.current.refreshOllamaModels());
     expect(result.current.ollamaModelFetchMessage).toBe("Found 1 installed model.");

@@ -92,7 +92,10 @@ describe("renderInline", () => {
   });
 
   it("reconstructs unshifted logo letters as ordinary maths", () => {
-    const tex = renderInline([textLine(glyphs("TEX", 50, 100, { font: math }))], context());
+    const tex = renderInline(
+      [textLine(glyphs("TEX", 50, 100, { font: math }))],
+      context(),
+    );
     expect(tex.latex).not.toContain("\\TeX");
     expect(tex.mathSpans).toBe(1);
 
@@ -114,7 +117,10 @@ describe("renderInline", () => {
 
   it("joins a word hyphenated across lines", () => {
     const result = renderInline(
-      [textLine(glyphs("exam-", 50)), textLine(glyphs("ple", 50, 112), { baseline: 112 })],
+      [
+        textLine(glyphs("exam-", 50)),
+        textLine(glyphs("ple", 50, 112), { baseline: 112 }),
+      ],
       context(),
     );
     expect(result.text).toBe("example");
@@ -141,7 +147,9 @@ describe("renderInline", () => {
     const result = renderInline(
       [
         textLine(
-          [0, 1, 2, 3].map((i) => glyph("ˆ", 50 + i * 20, 100, { font: math, width: 3 })),
+          [0, 1, 2, 3].map((i) =>
+            glyph("ˆ", 50 + i * 20, 100, { font: math, width: 3 }),
+          ),
         ),
       ],
       context(),

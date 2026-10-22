@@ -12,7 +12,13 @@ describe("CollaboratorsList", () => {
     const { container } = render(
       <CollaboratorsList
         users={[
-          { clientId: "1", name: "ada", currentFile: "chapters/intro.tex", lastSeen: 0, role: "admin" },
+          {
+            clientId: "1",
+            name: "ada",
+            currentFile: "chapters/intro.tex",
+            lastSeen: 0,
+            role: "admin",
+          },
           { clientId: "2", name: "bob", currentFile: null, lastSeen: 0 },
           {
             clientId: "3",

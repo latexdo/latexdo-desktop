@@ -3,7 +3,9 @@ import type { LocalModelInfo } from "../aiModels";
 
 // The tier table is built from the generated model catalog when the module
 // loads; these tests feed it broken catalogs to check that it refuses them.
-async function loadTiersWith(patch: (model: LocalModelInfo) => LocalModelInfo | undefined) {
+async function loadTiersWith(
+  patch: (model: LocalModelInfo) => LocalModelInfo | undefined,
+) {
   vi.resetModules();
   const actual = await vi.importActual<typeof import("../aiModels")>("../aiModels");
   vi.doMock("../aiModels", () => ({

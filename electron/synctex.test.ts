@@ -114,8 +114,11 @@ describe("SyncTeX process integration", () => {
   });
 
   it("compares real paths and falls back to the given paths when they cannot be resolved", async () => {
-    runtime.output = "SyncTeX result begin\nInput:/paper/chapters/intro.tex\nLine:7\nColumn:-1\nSyncTeX result end";
-    vi.mocked(realpath).mockRejectedValueOnce(new Error("gone")).mockRejectedValueOnce(new Error("gone"));
+    runtime.output =
+      "SyncTeX result begin\nInput:/paper/chapters/intro.tex\nLine:7\nColumn:-1\nSyncTeX result end";
+    vi.mocked(realpath)
+      .mockRejectedValueOnce(new Error("gone"))
+      .mockRejectedValueOnce(new Error("gone"));
     expect(await backwardSyncTex("/paper", "paper.pdf", 1, 2, 3)).toEqual({
       file: "chapters/intro.tex",
       line: 7,
@@ -127,7 +130,10 @@ describe("SyncTeX process integration", () => {
 describe("finding synctex", () => {
   const realPlatform = process.platform;
   afterEach(() => {
-    Object.defineProperty(process, "platform", { value: realPlatform, configurable: true });
+    Object.defineProperty(process, "platform", {
+      value: realPlatform,
+      configurable: true,
+    });
     vi.resetModules();
   });
 
@@ -135,7 +141,8 @@ describe("finding synctex", () => {
     Object.defineProperty(process, "platform", { value: platform, configurable: true });
     vi.resetModules();
     const fresh = await import("./synctex.js");
-    runtime.output = "SyncTeX result begin\nOutput:paper.pdf\nPage:1\nx:1\ny:1\nSyncTeX result end";
+    runtime.output =
+      "SyncTeX result begin\nOutput:paper.pdf\nPage:1\nx:1\ny:1\nSyncTeX result end";
     return fresh.forwardSyncTex("/paper", "paper.pdf", "main.tex", 1, 1);
   }
 

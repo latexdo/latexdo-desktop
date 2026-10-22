@@ -250,11 +250,19 @@ describe("interactive onboarding tour", () => {
         <div data-testid="scroller" style={{ overflowX: "auto", overflowY: "auto" }}>
           <button data-tour-id="compile">Clipped target</button>
         </div>
-        <TourOverlay tour={tour} launchNonce={1} onPrepare={vi.fn()} onRestore={vi.fn()} />
+        <TourOverlay
+          tour={tour}
+          launchNonce={1}
+          onPrepare={vi.fn()}
+          onRestore={vi.fn()}
+        />
       </>,
     );
     act(() => vi.advanceTimersByTime(650));
-    vi.spyOn(screen.getByText("Clipped target"), "getBoundingClientRect").mockReturnValue({
+    vi.spyOn(
+      screen.getByText("Clipped target"),
+      "getBoundingClientRect",
+    ).mockReturnValue({
       top: 20,
       left: 30,
       width: 100,
@@ -280,7 +288,12 @@ describe("interactive onboarding tour", () => {
   it("shows a tour without steps without a spotlight", () => {
     const empty: TourDefinition = { ...tour, id: "empty-tour", steps: [] };
     const view = render(
-      <TourOverlay tour={empty} launchNonce={1} onPrepare={vi.fn()} onRestore={vi.fn()} />,
+      <TourOverlay
+        tour={empty}
+        launchNonce={1}
+        onPrepare={vi.fn()}
+        onRestore={vi.fn()}
+      />,
     );
     act(() => vi.advanceTimersByTime(650));
     start();
@@ -289,4 +302,3 @@ describe("interactive onboarding tour", () => {
     expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
   });
 });
-

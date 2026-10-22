@@ -82,10 +82,14 @@ describe("GitGraph", () => {
     expect(first).toHaveAttribute("tabindex", "0");
     expect(second).toHaveAttribute("tabindex", "-1");
     fireEvent.keyDown(first, { key: "End" });
-    expect(onSelectCommit).toHaveBeenLastCalledWith(expect.objectContaining({ hash: commits[1].hash }));
+    expect(onSelectCommit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hash: commits[1].hash }),
+    );
     expect(document.activeElement).toBe(second);
     fireEvent.keyDown(second, { key: "Home" });
-    expect(onSelectCommit).toHaveBeenLastCalledWith(expect.objectContaining({ hash: commits[0].hash }));
+    expect(onSelectCommit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hash: commits[0].hash }),
+    );
     fireEvent.keyDown(second, { key: "ArrowUp" });
     fireEvent.keyDown(first, { key: "Enter" });
     expect(onSelectCommit).toHaveBeenCalledTimes(3);
@@ -97,12 +101,22 @@ describe("GitGraph", () => {
     const { rerender, container } = render(
       <GitGraph commits={commits} onSelectCommit={vi.fn()} loading className="extra" />,
     );
-    expect(screen.getByText("Loading commit graph...")).toHaveClass("git-graph-state", "extra");
+    expect(screen.getByText("Loading commit graph...")).toHaveClass(
+      "git-graph-state",
+      "extra",
+    );
     rerender(<GitGraph commits={[]} onSelectCommit={vi.fn()} />);
     expect(screen.getByText("No commits available.").className).toBe(
       "git-graph-empty git-graph-state",
     );
-    rerender(<GitGraph commits={[]} onSelectCommit={vi.fn()} emptyMessage="Nothing here" className="x" />);
+    rerender(
+      <GitGraph
+        commits={[]}
+        onSelectCommit={vi.fn()}
+        emptyMessage="Nothing here"
+        className="x"
+      />,
+    );
     expect(screen.getByText("Nothing here")).toHaveClass("x");
     rerender(<GitGraph commits={commits} onSelectCommit={vi.fn()} className="wide" />);
     expect(container.querySelector(".git-graph")).toHaveClass("wide");
@@ -114,7 +128,12 @@ describe("GitGraph", () => {
       { hash: 5 },
       {
         hash: "cccccccccccccccccccccccccccccccccccccccc",
-        refs: [null, { name: 3 }, { name: "feature", kind: "weird" }, { name: "origin/x", kind: "remote-branch" }],
+        refs: [
+          null,
+          { name: 3 },
+          { name: "feature", kind: "weird" },
+          { name: "origin/x", kind: "remote-branch" },
+        ],
         lane: Number.NaN,
         parents: ["p1", 7],
         segments: [
@@ -138,14 +157,25 @@ describe("GitGraph", () => {
         parents: "nope",
       },
     ] as unknown as GitGraphCommit[];
-    render(<GitGraph commits={messy} onSelectCommit={vi.fn()} formatTimestamp={(v) => `t:${v}`} />);
+    render(
+      <GitGraph
+        commits={messy}
+        onSelectCommit={vi.fn()}
+        formatTimestamp={(v) => `t:${v}`}
+      />,
+    );
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(2);
     expect(options[0]).toHaveAttribute("title", "cccccccc - Untitled commit");
     expect(screen.getAllByText("Unknown")).toHaveLength(2);
     expect(screen.getByText("feature")).toHaveAttribute("data-kind", "local-branch");
-    expect(screen.getByText("origin/x")).toHaveAttribute("title", "remote branch: origin/x");
-    const segments = [...options[0].querySelectorAll(".git-graph-segment")].map((p) => p.getAttribute("class"));
+    expect(screen.getByText("origin/x")).toHaveAttribute(
+      "title",
+      "remote branch: origin/x",
+    );
+    const segments = [...options[0].querySelectorAll(".git-graph-segment")].map((p) =>
+      p.getAttribute("class"),
+    );
     expect(segments).toEqual([
       "git-graph-segment vertical",
       "git-graph-segment merge-left",
@@ -160,7 +190,12 @@ describe("GitGraph", () => {
   it("highlights the commit carrying the current ref even without isHead", () => {
     render(
       <GitGraph
-        commits={[{ ...commits[1], refs: [{ name: "dev", kind: "local-branch", current: true }] }]}
+        commits={[
+          {
+            ...commits[1],
+            refs: [{ name: "dev", kind: "local-branch", current: true }],
+          },
+        ]}
         onSelectCommit={vi.fn()}
       />,
     );
@@ -183,7 +218,9 @@ describe("GitGraph relative timestamps", () => {
     ["not a date", /^not a date$/],
   ])("formats %s", (authoredAt, expected) => {
     vi.useFakeTimers({ now: new Date("2026-07-10T12:00:00.000Z") });
-    render(<GitGraph commits={[{ ...commits[0], authoredAt }]} onSelectCommit={vi.fn()} />);
+    render(
+      <GitGraph commits={[{ ...commits[0], authoredAt }]} onSelectCommit={vi.fn()} />,
+    );
     expect(document.querySelector("time")?.textContent).toMatch(expected);
   });
 });

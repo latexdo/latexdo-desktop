@@ -221,9 +221,9 @@ describe("ProjectSearchPanel navigation and filters", () => {
       target: { value: "hit" },
     });
     expect(await screen.findByText(/1 matches in 1 files/)).toBeVisible();
-    const contextLines = [...document.querySelectorAll(".project-search-context-line")].map(
-      (node) => node.textContent,
-    );
+    const contextLines = [
+      ...document.querySelectorAll(".project-search-context-line"),
+    ].map((node) => node.textContent);
     expect(contextLines).toEqual(["2:  ", "4:  "]);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Find" }), {
@@ -234,7 +234,12 @@ describe("ProjectSearchPanel navigation and filters", () => {
 
   it("shows the error passed by the caller and a scanning state", () => {
     render(
-      <ProjectSearchPanel files={files} onOpenMatch={vi.fn()} loading error="Disk gone" />,
+      <ProjectSearchPanel
+        files={files}
+        onOpenMatch={vi.fn()}
+        loading
+        error="Disk gone"
+      />,
     );
     expect(screen.getByText("Disk gone")).toBeVisible();
     expect(screen.getByText("Searching...")).toBeVisible();
@@ -245,7 +250,9 @@ describe("ProjectSearchPanel navigation and filters", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const { writeText } = installClipboardMock();
-      render(<ProjectSearchPanel files={files} onOpenMatch={vi.fn()} initialQuery="cite" />);
+      render(
+        <ProjectSearchPanel files={files} onOpenMatch={vi.fn()} initialQuery="cite" />,
+      );
       const copy = await screen.findByRole("button", { name: /copy/i });
       fireEvent.click(copy);
       expect(await screen.findByText("Copied")).toBeVisible();
@@ -255,7 +262,10 @@ describe("ProjectSearchPanel navigation and filters", () => {
       });
       expect(await screen.findByRole("button", { name: /^copy$/i })).toBeVisible();
 
-      Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: undefined,
+      });
       fireEvent.click(screen.getByRole("button", { name: /copy/i }));
       await vi.advanceTimersByTimeAsync(10);
       expect(screen.queryByText("Copied")).not.toBeInTheDocument();

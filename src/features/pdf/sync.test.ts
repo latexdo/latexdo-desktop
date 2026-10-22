@@ -50,16 +50,26 @@ describe("PDF sync helper edge cases", () => {
 
   it("uses the middle of the first range or nothing", () => {
     expect(visibleEditorLineForSync([], 3)).toBeNull();
-    expect(visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], null)).toBe(15);
-    expect(visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], undefined)).toBe(15);
-    expect(visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], 99)).toBe(15);
+    expect(
+      visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], null),
+    ).toBe(15);
+    expect(
+      visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], undefined),
+    ).toBe(15);
+    expect(
+      visibleEditorLineForSync([{ startLineNumber: 10, endLineNumber: 20 }], 99),
+    ).toBe(15);
   });
 
   it("returns no PDF point without pages or with a bad scale", () => {
     const container = { left: 0, top: 0, width: 100, height: 100 };
     expect(visiblePdfPointForSync(container, [], 1)).toBeNull();
     expect(
-      visiblePdfPointForSync(container, [{ page: 1, left: 0, top: 0, width: 10, height: 10 }], 0),
+      visiblePdfPointForSync(
+        container,
+        [{ page: 1, left: 0, top: 0, width: 10, height: 10 }],
+        0,
+      ),
     ).toBeNull();
   });
 
@@ -69,7 +79,11 @@ describe("PDF sync helper edge cases", () => {
       { page: 1, left: 0, top: 500, width: 100, height: 100 },
       { page: 2, left: 0, top: 300, width: 100, height: 100 },
     ];
-    expect(visiblePdfPointForSync(container, pages, 2)).toEqual({ page: 2, x: 25, y: 0 });
+    expect(visiblePdfPointForSync(container, pages, 2)).toEqual({
+      page: 2,
+      x: 25,
+      y: 0,
+    });
     const visible = [
       { page: 1, left: 0, top: -80, width: 100, height: 100 },
       { page: 2, left: 0, top: 30, width: 100, height: 100 },
@@ -85,6 +99,10 @@ describe("PDF sync page choice", () => {
       { page: 1, left: 0, top: 0, width: 100, height: 100 },
       { page: 2, left: 0, top: 90, width: 100, height: 100 },
     ];
-    expect(visiblePdfPointForSync(container, pages, 1)).toEqual({ page: 1, x: 50, y: 50 });
+    expect(visiblePdfPointForSync(container, pages, 1)).toEqual({
+      page: 1,
+      x: 50,
+      y: 50,
+    });
   });
 });

@@ -43,7 +43,9 @@ describe("share tokens", () => {
     rememberShareToken("p1", "local-token");
     rememberShareToken("p1", "remote-token", "https://collab.example.com/api/x");
     expect(shareTokenForProject("p1")).toBe("local-token");
-    expect(shareTokenForProject("p1", "https://collab.example.com")).toBe("remote-token");
+    expect(shareTokenForProject("p1", "https://collab.example.com")).toBe(
+      "remote-token",
+    );
     expect(shareTokenForProject("p2")).toBeUndefined();
   });
 

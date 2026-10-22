@@ -187,7 +187,13 @@ describe("extension preview variants", () => {
       <ExtensionPreview
         extension={manifest({
           templates: [
-            { id: "t", name: "Bare", summary: "", files: "", mainTex: "\\documentclass{article}" },
+            {
+              id: "t",
+              name: "Bare",
+              summary: "",
+              files: "",
+              mainTex: "\\documentclass{article}",
+            },
           ],
         })}
       />,

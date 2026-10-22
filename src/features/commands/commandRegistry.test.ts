@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { LatexDoCommandDefinition } from "./commandTypes";
-import { createDefaultCommandRegistry, LatexDoCommandRegistry } from "./commandRegistry";
+import {
+  createDefaultCommandRegistry,
+  LatexDoCommandRegistry,
+} from "./commandRegistry";
 
 function command(path: string[]): LatexDoCommandDefinition {
   return {

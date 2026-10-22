@@ -46,7 +46,9 @@ describe("locateReviewSelection", () => {
   });
 
   it("gives up on an empty passage", () => {
-    expect(locateReviewSelection("some claim here", { ...selection, text: "" })).toBeNull();
+    expect(
+      locateReviewSelection("some claim here", { ...selection, text: "" }),
+    ).toBeNull();
   });
 
   it("searches from the start when the recorded position is invalid", () => {

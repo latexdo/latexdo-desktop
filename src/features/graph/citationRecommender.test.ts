@@ -135,17 +135,14 @@ describe("recommendCitations edge cases", () => {
   });
 
   it("matches surnames written as 'First Last' and ignores too-short names", () => {
-    const results = recommendCitations(
-      "Results by Hinton were extended later.",
-      [
-        entry({
-          key: "h",
-          author: "{Geoffrey} Hinton and {} and X",
-          title: "Other topic",
-          doi: "10.1/x",
-        }),
-      ],
-    );
+    const results = recommendCitations("Results by Hinton were extended later.", [
+      entry({
+        key: "h",
+        author: "{Geoffrey} Hinton and {} and X",
+        title: "Other topic",
+        doi: "10.1/x",
+      }),
+    ]);
     expect(results[0].reasons).toEqual(["Author mentioned: Hinton"]);
   });
 });
@@ -154,7 +151,13 @@ describe("formatRecommendations fallbacks", () => {
   it("labels untitled, cited entries without reasons", () => {
     expect(
       formatRecommendations([
-        { key: "k", score: 0.5, reasons: [], alreadyCited: true, entry: entry({ key: "k" }) },
+        {
+          key: "k",
+          score: 0.5,
+          reasons: [],
+          alreadyCited: true,
+          entry: entry({ key: "k" }),
+        },
       ]),
     ).toBe("1. key=k (score 0.5) [already cited]\n   (untitled)");
   });

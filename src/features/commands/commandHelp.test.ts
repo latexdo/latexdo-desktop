@@ -81,7 +81,11 @@ describe("registerHelpCommands", () => {
 
   it("version reports the app version or a development fallback", () => {
     expect(
-      version.execute([], { getVersion: () => "1.2.3" } as LatexDoCommandContext, scope),
+      version.execute(
+        [],
+        { getVersion: () => "1.2.3" } as LatexDoCommandContext,
+        scope,
+      ),
     ).toEqual({ ok: true, message: "LatexDo 1.2.3" });
     expect(version.execute([], {} as LatexDoCommandContext, scope)).toEqual({
       ok: true,

@@ -208,13 +208,20 @@ describe("EnterpriseDashboard state cycles and fallbacks", () => {
     expect(okta().status).toBe("not-configured");
 
     fireEvent.click(screen.getByRole("button", { name: /SCIM user provisioning/i }));
-    expect(getState().identity.scim).toMatchObject({ enabled: true, status: "healthy" });
+    expect(getState().identity.scim).toMatchObject({
+      enabled: true,
+      status: "healthy",
+    });
     expect(getState().collaboration.auditTrail[0].action).toBe(
       "Enabled SCIM provisioning",
     );
 
-    fireEvent.change(screen.getByLabelText("Domain"), { target: { value: "globex.example" } });
-    fireEvent.change(screen.getByLabelText("Brand color"), { target: { value: "#123456" } });
+    fireEvent.change(screen.getByLabelText("Domain"), {
+      target: { value: "globex.example" },
+    });
+    fireEvent.change(screen.getByLabelText("Brand color"), {
+      target: { value: "#123456" },
+    });
     expect(getState().organization).toMatchObject({
       domain: "globex.example",
       brandColor: "#123456",
@@ -293,7 +300,9 @@ describe("EnterpriseDashboard state cycles and fallbacks", () => {
     expect(screen.getByText("Backups disabled")).toBeVisible();
 
     fireEvent.click(screen.getByRole("tab", { name: "AI" }));
-    expect(screen.getAllByText(/advisory/).length).toBe(state.aiBusiness.styleGuides.length);
+    expect(screen.getAllByText(/advisory/).length).toBe(
+      state.aiBusiness.styleGuides.length,
+    );
     expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: "Publish" }));

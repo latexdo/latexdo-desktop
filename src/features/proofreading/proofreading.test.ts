@@ -40,8 +40,14 @@ describe("findProofreadingChunkRange", () => {
 
   it("clamps targets outside the document", () => {
     const content = "y".repeat(30);
-    expect(findProofreadingChunkRange(content, -5, 10)).toMatchObject({ start: 0, end: 10 });
-    expect(findProofreadingChunkRange(content, 99, 10)).toMatchObject({ start: 20, end: 30 });
+    expect(findProofreadingChunkRange(content, -5, 10)).toMatchObject({
+      start: 0,
+      end: 10,
+    });
+    expect(findProofreadingChunkRange(content, 99, 10)).toMatchObject({
+      start: 20,
+      end: 30,
+    });
   });
 
   it("falls back to a raw window when the chunk is only whitespace", () => {

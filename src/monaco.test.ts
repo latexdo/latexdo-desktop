@@ -8,8 +8,8 @@ describe("monaco loader setup", () => {
   it("points the React loader at the bundled monaco instance", async () => {
     const mod = await import("./monaco");
     expect(config).toHaveBeenCalledWith({ monaco: mod.monaco });
-    expect((mod.monaco as unknown as { editor: { marker: string } }).editor.marker).toBe(
-      "monaco",
-    );
+    expect(
+      (mod.monaco as unknown as { editor: { marker: string } }).editor.marker,
+    ).toBe("monaco");
   });
 });

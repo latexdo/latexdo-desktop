@@ -66,7 +66,9 @@ describe("small helpers", () => {
 
   it("recognises abort errors", () => {
     expect(isAbortError(abortError())).toBe(true);
-    expect(isAbortError(Object.assign(new Error("x"), { name: "AbortError" }))).toBe(true);
+    expect(isAbortError(Object.assign(new Error("x"), { name: "AbortError" }))).toBe(
+      true,
+    );
     expect(isAbortError(new Error("x"))).toBe(false);
     expect(isAbortError("AbortError")).toBe(false);
   });
@@ -105,7 +107,12 @@ describe("desktopScholarlyFetcher", () => {
     const bridge = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: { a: 1 } })
-      .mockResolvedValueOnce({ ok: false, status: 429, retryAfterMs: 50, error: "slow" })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        retryAfterMs: 50,
+        error: "slow",
+      })
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({ plain: true });
     (window as unknown as Win).latexdo = { fetchScholarlyJson: bridge };
@@ -218,17 +225,17 @@ describe("fetchJson", () => {
 
   it("wraps non-Error failures", async () => {
     const fetcher = vi.fn().mockRejectedValue("bad");
-    await expect(fetchJson("https://x.test", { fetcher, retryDelayMs: 0 })).rejects.toThrow(
-      "Scholarly metadata request failed",
-    );
+    await expect(
+      fetchJson("https://x.test", { fetcher, retryDelayMs: 0 }),
+    ).rejects.toThrow("Scholarly metadata request failed");
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("rethrows aborts immediately and aborts during the retry wait", async () => {
     const abortingFetcher = vi.fn().mockRejectedValue(abortError());
-    await expect(fetchJson("https://x.test", { fetcher: abortingFetcher })).rejects.toThrow(
-      "aborted",
-    );
+    await expect(
+      fetchJson("https://x.test", { fetcher: abortingFetcher }),
+    ).rejects.toThrow("aborted");
     expect(abortingFetcher).toHaveBeenCalledTimes(1);
 
     const outer = new AbortController();
@@ -327,7 +334,10 @@ describe("OpenAlex", () => {
     const primary = paperFromOpenAlex({
       display_name: "T",
       doi: "https://doi.org/10.9/z",
-      primary_location: { landing_page_url: "https://p.test", pdf_url: "https://p.pdf" },
+      primary_location: {
+        landing_page_url: "https://p.test",
+        pdf_url: "https://p.pdf",
+      },
     });
     expect(primary).toMatchObject({
       url: "https://doi.org/10.9/z",
@@ -338,8 +348,10 @@ describe("OpenAlex", () => {
       authors: [],
     });
     expect(
-      paperFromOpenAlex({ display_name: "T", primary_location: { landing_page_url: "https://p.test" } })
-        ?.url,
+      paperFromOpenAlex({
+        display_name: "T",
+        primary_location: { landing_page_url: "https://p.test" },
+      })?.url,
     ).toBe("https://p.test");
   });
 
@@ -354,7 +366,9 @@ describe("OpenAlex", () => {
     expect((await searchOpenAlex("graphs", { fetcher })).map((p) => p.title)).toEqual([
       "One",
     ]);
-    expect(await lookupOpenAlexByDoi("https://doi.org/10.1/A", { fetcher })).toEqual([]);
+    expect(await lookupOpenAlexByDoi("https://doi.org/10.1/A", { fetcher })).toEqual(
+      [],
+    );
     expect(new URL(urls[0]).searchParams.get("per-page")).toBe("5");
     expect(new URL(urls[1]).searchParams.get("filter")).toBe("doi:10.1/a");
   });
@@ -417,7 +431,9 @@ describe("Crossref", () => {
       urls.push(url);
       return responses.shift()!;
     }) as unknown as typeof fetch;
-    expect(await searchCrossref("graphs", { fetcher, perProviderLimit: 3 })).toHaveLength(1);
+    expect(
+      await searchCrossref("graphs", { fetcher, perProviderLimit: 3 }),
+    ).toHaveLength(1);
     expect(await lookupCrossrefByDoi("10.1/B", { fetcher })).toEqual([]);
     expect(await searchCrossref("x", { fetcher })).toEqual([]);
     expect(new URL(urls[0]).searchParams.get("rows")).toBe("3");

@@ -216,7 +216,12 @@ describe("safeFigureOffset", () => {
 });
 
 describe("tikzSnippet edge cases", () => {
-  const none = { packages: [], libraries: [], pgfplotsLibraries: [], pgfplotsCompat: false };
+  const none = {
+    packages: [],
+    libraries: [],
+    pgfplotsLibraries: [],
+    pgfplotsCompat: false,
+  };
 
   it("keeps the rest of a standalone file that never ends its document", () => {
     const prepared = prepareTikzSnippet(
@@ -227,8 +232,13 @@ describe("tikzSnippet edge cases", () => {
   });
 
   it("does not join lines of a preamble command whose braces are balanced", () => {
-    const prepared = prepareTikzSnippet("\\usepackage[x]{pgfplots}\n\\usetikzlibrary{calc}\nbody");
-    expect(prepared.preambleLines).toEqual(["\\usepackage[x]{pgfplots}", "\\usetikzlibrary{calc}"]);
+    const prepared = prepareTikzSnippet(
+      "\\usepackage[x]{pgfplots}\n\\usetikzlibrary{calc}\nbody",
+    );
+    expect(prepared.preambleLines).toEqual([
+      "\\usepackage[x]{pgfplots}",
+      "\\usetikzlibrary{calc}",
+    ]);
     // An unclosed option list stops at the last line.
     expect(prepareTikzSnippet("\\pgfplotsset{compat=1.18,").preambleLines).toEqual([
       "\\pgfplotsset{compat=1.18,",
@@ -236,7 +246,9 @@ describe("tikzSnippet edge cases", () => {
   });
 
   it("detects tikz-cd, circuitikz and pgfplots libraries", () => {
-    expect(tikzRequirements("\\begin{tikzcd} A \\end{tikzcd}").packages).toEqual(["tikz-cd"]);
+    expect(tikzRequirements("\\begin{tikzcd} A \\end{tikzcd}").packages).toEqual([
+      "tikz-cd",
+    ]);
     expect(tikzRequirements("\\begin{circuitikz}\\end{circuitikz}").packages).toEqual([
       "circuitikz",
     ]);
@@ -258,7 +270,10 @@ describe("tikzSnippet edge cases", () => {
         requirements,
         ["\\usepgfplotslibrary{polar,dateplot}"],
       ),
-    ).toEqual(["\\usepgfplotslibrary{fillbetween,dateplot}", "\\pgfplotsset{compat=newest}"]);
+    ).toEqual([
+      "\\usepgfplotslibrary{fillbetween,dateplot}",
+      "\\pgfplotsset{compat=newest}",
+    ]);
     expect(
       missingPreambleLines(
         "\\usepackage{pgfplots}\n\\usepgfplotslibrary{fillbetween}\n\\pgfplotsset{compat=1.18}",
@@ -274,15 +289,20 @@ describe("tikzSnippet edge cases", () => {
         "\\usepackage[dvipsnames]{xcolor}",
       ]),
     ).toEqual(["\\usepackage{amsmath}"]);
-    expect(missingPreambleLines("", none, ["\\usepackage[dvipsnames]{xcolor}"])).toEqual([
-      "\\usepackage[dvipsnames]{xcolor}",
-    ]);
+    expect(
+      missingPreambleLines("", none, ["\\usepackage[dvipsnames]{xcolor}"]),
+    ).toEqual(["\\usepackage[dvipsnames]{xcolor}"]);
   });
 
   it("returns no edit for a document without a usable class or with nothing missing", () => {
-    expect(preambleEditFor("\\documentclass{article", { ...none, packages: ["tikz"] })).toBeNull();
     expect(
-      preambleEditFor("\\documentclass{art\\}icle}\n\\begin{document}\\end{document}", none),
+      preambleEditFor("\\documentclass{article", { ...none, packages: ["tikz"] }),
+    ).toBeNull();
+    expect(
+      preambleEditFor(
+        "\\documentclass{art\\}icle}\n\\begin{document}\\end{document}",
+        none,
+      ),
     ).toEqual({ offset: "\\documentclass{art\\}icle}".length, text: "", lines: [] });
     expect(withPreambleEdit("doc", null)).toBe("doc");
     expect(withPreambleEdit("doc", { offset: 0, text: "", lines: [] })).toBe("doc");
@@ -290,7 +310,11 @@ describe("tikzSnippet edge cases", () => {
 
   it("reads nested braces in the class and brace-less loader lines", () => {
     const doc = "\\documentclass{a{b}c}";
-    expect(preambleEditFor(doc, none)).toEqual({ offset: doc.length, text: "", lines: [] });
+    expect(preambleEditFor(doc, none)).toEqual({
+      offset: doc.length,
+      text: "",
+      lines: [],
+    });
     expect(prepareTikzSnippet("\\usetikzlibrary\nbody").preambleLines).toEqual([
       "\\usetikzlibrary",
     ]);
@@ -299,8 +323,14 @@ describe("tikzSnippet edge cases", () => {
   it("appends after the class when there is no body or loader line", () => {
     const doc = "\\documentclass{article}";
     const edit = preambleEditFor(doc, { ...none, packages: ["tikz"] });
-    expect(edit).toEqual({ offset: doc.length, text: "\n\\usepackage{tikz}", lines: ["\\usepackage{tikz}"] });
-    expect(withPreambleEdit(doc, edit)).toBe("\\documentclass{article}\n\\usepackage{tikz}");
+    expect(edit).toEqual({
+      offset: doc.length,
+      text: "\n\\usepackage{tikz}",
+      lines: ["\\usepackage{tikz}"],
+    });
+    expect(withPreambleEdit(doc, edit)).toBe(
+      "\\documentclass{article}\n\\usepackage{tikz}",
+    );
   });
 
   it("skips commented loader lines and loaders before the class", () => {

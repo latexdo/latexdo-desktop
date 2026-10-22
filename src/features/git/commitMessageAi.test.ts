@@ -66,7 +66,9 @@ describe("generateCommitMessage", () => {
       fileName: "tier.gguf",
     });
     mocks.generateStep.mockResolvedValue({ type: "text", content: '"Fix intro."' });
-    await expect(generateCommitMessage(config, "diff --git")).resolves.toBe("Fix intro");
+    await expect(generateCommitMessage(config, "diff --git")).resolves.toBe(
+      "Fix intro",
+    );
     const [request, onToken] = mocks.generateStep.mock.calls[0];
     expect(request.requestId).toMatch(/^commit_/);
     expect(request.provider).toBe("local");
@@ -122,7 +124,10 @@ describe("generateCommitMessage", () => {
 
   it("surfaces model errors and empty replies", async () => {
     mocks.resolveAiRuntime.mockReturnValue({ provider: "local", modelId: "m" });
-    mocks.generateStep.mockResolvedValueOnce({ type: "error", content: "model offline" });
+    mocks.generateStep.mockResolvedValueOnce({
+      type: "error",
+      content: "model offline",
+    });
     await expect(generateCommitMessage(config, "d")).rejects.toThrow("model offline");
     mocks.generateStep.mockResolvedValueOnce({ type: "text", content: "  ``  " });
     await expect(generateCommitMessage(config, "d")).rejects.toThrow(

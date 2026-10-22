@@ -341,12 +341,16 @@ describe("update experience state validation and edge cases", () => {
     const directory = await temporaryDirectory();
     const { mkdir, writeFile, readdir } = await import("node:fs/promises");
     // A non-empty directory where the file belongs makes rename fail.
-    await mkdir(path.join(directory, "update-state.json", "occupied"), { recursive: true });
+    await mkdir(path.join(directory, "update-state.json", "occupied"), {
+      recursive: true,
+    });
     await writeFile(path.join(directory, "update-state.json", "occupied", "x"), "x");
     await expect(
       saveUpdateExperienceState(directory, emptyUpdateExperienceState()),
     ).rejects.toThrow();
-    expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+    expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual(
+      [],
+    );
   });
 
   it("returns the stored state untouched when the same build relaunches", async () => {
@@ -357,7 +361,9 @@ describe("update experience state validation and edge cases", () => {
       commit: "a",
     });
     expect(state.lastRunCommit).toBe("a");
-    expect(await readFile(path.join(directory, "update-state.json"), "utf8")).toBe(before);
+    expect(await readFile(path.join(directory, "update-state.json"), "utf8")).toBe(
+      before,
+    );
   });
 
   it("does not treat a same-version build without history as an update", async () => {

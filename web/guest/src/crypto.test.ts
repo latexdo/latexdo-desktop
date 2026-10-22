@@ -88,11 +88,16 @@ describe("browser encryption input checks", () => {
     await expect(
       web.decryptBytes(key, projectId, "text", new Uint8Array(10)),
     ).rejects.toThrow("Not an encrypted LatexDo payload.");
-    const wrongVersion = await web.encryptBytes(key, projectId, "text", new Uint8Array([1]));
-    wrongVersion[0] = 2;
-    await expect(web.decryptBytes(key, projectId, "text", wrongVersion)).rejects.toThrow(
-      "Not an encrypted LatexDo payload.",
+    const wrongVersion = await web.encryptBytes(
+      key,
+      projectId,
+      "text",
+      new Uint8Array([1]),
     );
+    wrongVersion[0] = 2;
+    await expect(
+      web.decryptBytes(key, projectId, "text", wrongVersion),
+    ).rejects.toThrow("Not an encrypted LatexDo payload.");
     await expect(web.decryptString(key, "", "name", "plain")).rejects.toThrow(
       "Not an encrypted LatexDo string.",
     );

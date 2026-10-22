@@ -299,7 +299,10 @@ describe("renderSourceToolbar", () => {
     expect(screen.getByTitle("Code editor")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTitle("Code editor"));
     fireEvent.click(screen.getByTitle("Visual editor"));
-    expect(vi.mocked(ctx.setLatexEditorView).mock.calls).toEqual([["code"], ["visual"]]);
+    expect(vi.mocked(ctx.setLatexEditorView).mock.calls).toEqual([
+      ["code"],
+      ["visual"],
+    ]);
     const share = screen.getByRole("button", { name: "Share project" });
     expect(share).toHaveClass("active");
     fireEvent.click(share);

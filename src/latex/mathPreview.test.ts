@@ -67,7 +67,10 @@ describe("parseMathAtPosition edge cases", () => {
 
   it("prefers the innermost of nested math ranges", () => {
     const text = "\\[ a + \\text{$x$} \\]";
-    expect(parseMathAtPosition(text, 1, 15)).toMatchObject({ tex: "x", display: false });
+    expect(parseMathAtPosition(text, 1, 15)).toMatchObject({
+      tex: "x",
+      display: false,
+    });
   });
 
   it("clamps a line past the end of the text", () => {

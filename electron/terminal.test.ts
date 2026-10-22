@@ -29,7 +29,9 @@ vi.mock("./trustedIpc.js", () => ({
 vi.mock("electron", () => ({ app: { getPath: () => os.tmpdir() } }));
 vi.mock("node-pty", () => ({ default: { spawn: mocks.pty } }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
-const fsMocks = vi.hoisted(() => ({ allow: null as null | ((file: string) => boolean) }));
+const fsMocks = vi.hoisted(() => ({
+  allow: null as null | ((file: string) => boolean),
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
@@ -356,4 +358,3 @@ describe("terminal shell selection", () => {
     expect(sender.send).toHaveBeenCalledWith("terminal:exit", { id, exitCode: 0 });
   });
 });
-

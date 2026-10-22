@@ -15,7 +15,9 @@ function only(output: string, settings: ErrorDoctorSettings = all) {
 
 describe("errorDoctor auto-fixes", () => {
   it("escapes an underscore found near a Missing $ error", () => {
-    const result = only("! Missing $ inserted.\n<inserted text>\nl.12 the model_name here");
+    const result = only(
+      "! Missing $ inserted.\n<inserted text>\nl.12 the model_name here",
+    );
     expect(result.fixes).toEqual([
       { line: 12, find: "model_name", replace: "model\\_name" },
     ]);
@@ -48,7 +50,10 @@ describe("errorDoctor auto-fixes", () => {
   });
 
   it("skips the fix when auto-fixing is disabled", () => {
-    const result = only("! Missing $ inserted.\nmodel_name", { ...all, autoFixCommon: false });
+    const result = only("! Missing $ inserted.\nmodel_name", {
+      ...all,
+      autoFixCommon: false,
+    });
     expect(result.fixes).toEqual([]);
     expect(result.diagnostics).toHaveLength(1);
   });
@@ -64,7 +69,8 @@ describe("errorDoctor auto-fixes", () => {
 });
 
 describe("errorDoctor suggestions", () => {
-  const suggestionFor = (output: string) => only(output).diagnostics[0]?.suggestion ?? "";
+  const suggestionFor = (output: string) =>
+    only(output).diagnostics[0]?.suggestion ?? "";
 
   it("defaults to line 1 when the log has no line marker", () => {
     expect(only("! TeX capacity exceeded, sorry").diagnostics[0].line).toBe(1);
@@ -73,12 +79,18 @@ describe("errorDoctor suggestions", () => {
   it.each([
     ["! Missing number, treated as zero.", "empty length arguments"],
     ["! Paragraph ended before \\caption was complete.", "fixes for \\caption:"],
-    ["! LaTeX Error: Environment foo undefined. Undefined environment 'alignx'", 'environment "alignx"'],
+    [
+      "! LaTeX Error: Environment foo undefined. Undefined environment 'alignx'",
+      'environment "alignx"',
+    ],
     ["Undefined environment theorem", 'environment "theorem"'],
     ["! LaTeX Error: Option clash for package xcolor.", 'package "xcolor"'],
     ["! LaTeX Error: Option clash for package", 'package "(unknown)"'],
     ["! Extra \\right.", "\\right)"],
-    ["! TeX capacity exceeded, sorry [main memory size=5000000].", "recursive definitions"],
+    [
+      "! TeX capacity exceeded, sorry [main memory size=5000000].",
+      "recursive definitions",
+    ],
     ["! LaTeX Error: Too many unprocessed floats.", "[htbp]"],
     ["! LaTeX Error: Unknown package \\usepackage{foo}", 'package "foo"'],
     ["! LaTeX Error: Missing package", 'package "(unknown)"'],

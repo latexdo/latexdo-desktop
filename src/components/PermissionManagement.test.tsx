@@ -20,7 +20,9 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function setup(overrides: Partial<React.ComponentProps<typeof PermissionManagement>> = {}) {
+function setup(
+  overrides: Partial<React.ComponentProps<typeof PermissionManagement>> = {},
+) {
   const props = {
     permissions: people,
     isAdmin: true,
@@ -55,7 +57,12 @@ describe("PermissionManagement", () => {
   it("lists people with their presence and lets the admin manage others only", () => {
     setup({
       presence: [
-        { clientId: "c1", name: "grace", currentFile: "chapters/intro.tex", lastSeen: 1 },
+        {
+          clientId: "c1",
+          name: "grace",
+          currentFile: "chapters/intro.tex",
+          lastSeen: 1,
+        },
         { clientId: "c2", name: "linus", currentFile: null, lastSeen: 1 },
       ],
     });
@@ -66,13 +73,15 @@ describe("PermissionManagement", () => {
     expect(within(me).queryByTitle("Remove collaborator")).toBeNull();
 
     const grace = row("grace");
-    expect(within(grace).getByTitle("chapters/intro.tex").textContent).toBe("intro.tex");
+    expect(within(grace).getByTitle("chapters/intro.tex").textContent).toBe(
+      "intro.tex",
+    );
     expect(within(grace).getByRole("combobox")).toHaveValue("editor");
-    expect(within(grace).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Admin",
-      "Editor",
-      "Viewer",
-    ]);
+    expect(
+      within(grace)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Admin", "Editor", "Viewer"]);
     expect(within(row("linus")).getByText("Online")).toBeVisible();
     expect(screen.getByText("G")).toBeInTheDocument();
   });
@@ -82,7 +91,10 @@ describe("PermissionManagement", () => {
     const props = setup({ onUpdatePermission: vi.fn(() => pending.promise) });
     const select = within(row("grace")).getByRole("combobox");
     fireEvent.change(select, { target: { value: "viewer" } });
-    expect(props.onUpdatePermission).toHaveBeenCalledWith({ clientId: "c1", role: "viewer" });
+    expect(props.onUpdatePermission).toHaveBeenCalledWith({
+      clientId: "c1",
+      role: "viewer",
+    });
     expect(select).toBeDisabled();
     expect(within(row("linus")).getByRole("combobox")).not.toBeDisabled();
     await act(async () => pending.resolve());
@@ -94,7 +106,9 @@ describe("PermissionManagement", () => {
     [new Error("Server said no"), "Server said no"],
     ["boom", "Failed to update permission"],
   ])("reports a failed role change (%s)", async (failure, message) => {
-    const props = setup({ onUpdatePermission: vi.fn(async () => Promise.reject(failure)) });
+    const props = setup({
+      onUpdatePermission: vi.fn(async () => Promise.reject(failure)),
+    });
     await act(async () => {
       fireEvent.change(within(row("grace")).getByRole("combobox"), {
         target: { value: "admin" },

@@ -291,7 +291,7 @@ describe("build-release-notes", () => {
 
   it("rejects a non-Ed25519 signing key and a mismatched public key", async () => {
     await setupNotes();
-    const { privateKey: rsa } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { privateKey: rsa } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     vi.stubEnv(
       "LATEXDO_UPDATE_SIGNING_KEY",
       Buffer.from(rsa.export({ format: "pem", type: "pkcs8" })).toString("base64"),

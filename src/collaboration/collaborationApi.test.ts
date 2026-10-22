@@ -103,7 +103,9 @@ describe("collaboration authentication and WebSocket URLs", () => {
     const usesCollaborationBridge = vi.fn(() => true);
     vi.stubGlobal("latexdo", { usesCollaborationBridge });
     const url = new URL(
-      await collaborationWebSocketUrl(roomOptions({ apiBaseUrl: "peer:abc", clientName: "" })),
+      await collaborationWebSocketUrl(
+        roomOptions({ apiBaseUrl: "peer:abc", clientName: "" }),
+      ),
     );
     expect(usesCollaborationBridge).toHaveBeenCalledWith("peer:abc");
     expect(url.host).toBe("peer.invalid");
@@ -116,9 +118,9 @@ describe("collaboration authentication and WebSocket URLs", () => {
     rememberShareToken("project 1", "remembered", "https://collab.example.org");
     const url = new URL(await collaborationWebSocketUrl(roomOptions()));
     expect(url.searchParams.get("share")).toBe("remembered");
-    expect(projectShareToken("project 1", "explicit", "https://collab.example.org")).toBe(
-      "explicit",
-    );
+    expect(
+      projectShareToken("project 1", "explicit", "https://collab.example.org"),
+    ).toBe("explicit");
   });
 });
 
@@ -151,6 +153,10 @@ describe("collaboration server configuration", () => {
   it("carries the HTTP status on API errors", () => {
     const error = new CollaborationApiError(403, "Forbidden");
     expect(error).toBeInstanceOf(Error);
-    expect(error).toMatchObject({ name: "CollaborationApiError", status: 403, message: "Forbidden" });
+    expect(error).toMatchObject({
+      name: "CollaborationApiError",
+      status: 403,
+      message: "Forbidden",
+    });
   });
 });

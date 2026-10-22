@@ -10,7 +10,9 @@ vi.mock("./aiCloud", () => ({
   abortCloudGeneration: mocks.abortCloudGeneration,
   generateStepCloud: mocks.generateStepCloud,
 }));
-vi.mock("./cloudCredentials", () => ({ loadCloudCredential: mocks.loadCloudCredential }));
+vi.mock("./cloudCredentials", () => ({
+  loadCloudCredential: mocks.loadCloudCredential,
+}));
 
 import * as client from "./aiClient";
 import type { AiBridge } from "./aiClient";
@@ -40,13 +42,18 @@ describe("generateStep (cloud)", () => {
   it("uses an inline API key without touching the vault", async () => {
     const onToken = vi.fn();
     const result = await client.generateStep(
-      request({ provider: "cloud", options: { cloudApiKey: "inline", cloudCredentialId: "id" } }),
+      request({
+        provider: "cloud",
+        options: { cloudApiKey: "inline", cloudCredentialId: "id" },
+      }),
       onToken,
     );
     expect(result).toEqual({ type: "final", content: "cloud" });
     expect(mocks.loadCloudCredential).not.toHaveBeenCalled();
     expect(mocks.generateStepCloud).toHaveBeenCalledWith(
-      expect.objectContaining({ options: expect.objectContaining({ cloudApiKey: "inline" }) }),
+      expect.objectContaining({
+        options: expect.objectContaining({ cloudApiKey: "inline" }),
+      }),
       onToken,
       expect.any(Function),
     );
@@ -59,8 +66,11 @@ describe("generateStep (cloud)", () => {
     );
     expect(mocks.loadCloudCredential).toHaveBeenCalledWith("cred");
     expect(mocks.generateStepCloud).toHaveBeenCalledWith(
-      expect.objectContaining({ options: expect.objectContaining({ cloudApiKey: "vault-key" }) }),
-      expect.any(Function), expect.any(Function),
+      expect.objectContaining({
+        options: expect.objectContaining({ cloudApiKey: "vault-key" }),
+      }),
+      expect.any(Function),
+      expect.any(Function),
     );
   });
 
@@ -161,9 +171,14 @@ describe("browser fallbacks", () => {
       error: "PDF builder install requires the desktop app.",
     });
     expect(client.subscribeTexInstall(vi.fn())()).toBeUndefined();
-    expect(await client.detectOllama("http://x")).toEqual({ available: false, models: [] });
+    expect(await client.detectOllama("http://x")).toEqual({
+      available: false,
+      models: [],
+    });
     expect(await client.getSystemCapabilities()).toBeNull();
-    expect((await client.getTierAvailability("fast" as never)).state).toBe("unsupported");
+    expect((await client.getTierAvailability("fast" as never)).state).toBe(
+      "unsupported",
+    );
     expect(await client.importModel()).toBeNull();
     expect(await client.inspectLocalModel("m.gguf")).toBeNull();
   });
@@ -210,10 +225,15 @@ describe("desktop bridge delegation", () => {
     expect(await client.getTexRuntimeStatus()).toBe(status);
     expect(await client.installTexRuntime()).toEqual({ ok: true });
     expect(client.subscribeTexInstall(vi.fn())).toBe(unsub);
-    expect(await client.detectOllama("http://o")).toEqual({ available: true, models: ["llama"] });
+    expect(await client.detectOllama("http://o")).toEqual({
+      available: true,
+      models: ["llama"],
+    });
     expect(bridge.detectOllama).toHaveBeenCalledWith("http://o");
     expect(await client.getSystemCapabilities()).toEqual({ cpuCount: 4 });
-    expect(await client.getTierAvailability("t" as never)).toEqual({ state: "available" });
+    expect(await client.getTierAvailability("t" as never)).toEqual({
+      state: "available",
+    });
     expect(await client.importModel()).toEqual({ fileName: "i" });
     expect(await client.inspectLocalModel("j")).toEqual({ fileName: "j" });
     expect(bridge.inspectLocalModel).toHaveBeenCalledWith("j");

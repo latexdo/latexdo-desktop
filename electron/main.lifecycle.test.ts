@@ -5,7 +5,13 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { bootMain, fakeChild, fastTimers, H, teardownMain } from "./__tests__/mainHarness.js";
+import {
+  bootMain,
+  fakeChild,
+  fastTimers,
+  H,
+  teardownMain,
+} from "./__tests__/mainHarness.js";
 
 vi.mock("electron", async () =>
   (await import("./__tests__/mainHarness.js")).electronModule(),
@@ -19,21 +25,31 @@ vi.mock("./peerCollabIpc.js", async () =>
 vi.mock("./buildInfo.js", async () =>
   (await import("./__tests__/mainMocks.js")).buildInfoMock(),
 );
-vi.mock("./ai/aiIpc.js", async () => (await import("./__tests__/mainMocks.js")).aiIpcMock());
-vi.mock("./voiceStt.js", async () => (await import("./__tests__/mainMocks.js")).voiceMock());
+vi.mock("./ai/aiIpc.js", async () =>
+  (await import("./__tests__/mainMocks.js")).aiIpcMock(),
+);
+vi.mock("./voiceStt.js", async () =>
+  (await import("./__tests__/mainMocks.js")).voiceMock(),
+);
 vi.mock("./compiler.js", async (importOriginal) =>
   (await import("./__tests__/mainMocks.js")).compilerMock(await importOriginal()),
 );
-vi.mock("./docxImport.js", async () => (await import("./__tests__/mainMocks.js")).docxMock());
+vi.mock("./docxImport.js", async () =>
+  (await import("./__tests__/mainMocks.js")).docxMock(),
+);
 vi.mock("./pdfImport/index.js", async () =>
   (await import("./__tests__/mainMocks.js")).pdfImportMock(),
 );
-vi.mock("./synctex.js", async () => (await import("./__tests__/mainMocks.js")).synctexMock());
+vi.mock("./synctex.js", async () =>
+  (await import("./__tests__/mainMocks.js")).synctexMock(),
+);
 vi.mock("./orcid.js", async (importOriginal) =>
   (await import("./__tests__/mainMocks.js")).orcidMock(await importOriginal()),
 );
 vi.mock("node:child_process", async (importOriginal) =>
-  (await import("./__tests__/mainWrappers.js")).wrapChildProcess(await importOriginal()),
+  (await import("./__tests__/mainWrappers.js")).wrapChildProcess(
+    await importOriginal(),
+  ),
 );
 vi.mock("node:fs", async (importOriginal) =>
   (await import("./__tests__/mainWrappers.js")).wrapFs(await importOriginal()),
@@ -92,7 +108,9 @@ describe("main process startup", () => {
     expect(H.external).toHaveBeenCalledWith("https://www.latexdo.org/privacy");
     await vi.waitFor(async () =>
       expect(
-        JSON.parse(await readFile(path.join(boot.profile, "privacy-consent.json"), "utf8")),
+        JSON.parse(
+          await readFile(path.join(boot.profile, "privacy-consent.json"), "utf8"),
+        ),
       ).toMatchObject({ schemaVersion: 1, appVersion: "0.3.0" }),
     );
     expect(boot.window.options.webPreferences).toMatchObject({ sandbox: true });
@@ -234,21 +252,27 @@ describe("pending updates at startup", () => {
   it.each([
     ["an error", new Error("disk full")],
     ["a non-error value", "disk full"],
-  ])("keeps starting when recording the confirmed update throws %s", async (_, thrown) => {
-    await bootMain({
-      before: () => {
-        H.overrides["pending.resolvePendingUpdate"] = async () => ({
-          ...confirmed,
-          completedAt: undefined,
-        });
-        H.overrides["experience.recordConfirmedUpdate"] = async (_dir: string, value: any) => {
-          expect(value.confirmedAt).toEqual(expect.any(String));
-          throw thrown;
-        };
-      },
-    });
-    await vi.waitFor(() => expect(H.handlers.has("latex:compile")).toBe(true));
-  });
+  ])(
+    "keeps starting when recording the confirmed update throws %s",
+    async (_, thrown) => {
+      await bootMain({
+        before: () => {
+          H.overrides["pending.resolvePendingUpdate"] = async () => ({
+            ...confirmed,
+            completedAt: undefined,
+          });
+          H.overrides["experience.recordConfirmedUpdate"] = async (
+            _dir: string,
+            value: any,
+          ) => {
+            expect(value.confirmedAt).toEqual(expect.any(String));
+            throw thrown;
+          };
+        },
+      });
+      await vi.waitFor(() => expect(H.handlers.has("latex:compile")).toBe(true));
+    },
+  );
 
   it("skips recording a confirmation without a source version and logs failures", async () => {
     const record = vi.fn();
@@ -347,7 +371,9 @@ describe("fatal failures", () => {
     expect(() => console.log("rethrown")).toThrow("other");
     failure = null;
     const [stdoutError] = boot.streamErrorHandlers;
-    expect(() => stdoutError(Object.assign(new Error("pipe"), { code: "EPIPE" }))).not.toThrow();
+    expect(() =>
+      stdoutError(Object.assign(new Error("pipe"), { code: "EPIPE" })),
+    ).not.toThrow();
     expect(() => stdoutError(new Error("disk"))).toThrow("disk");
     expect(() => stdoutError(null)).toThrow();
   });
@@ -366,11 +392,15 @@ describe("renderer windows", () => {
     });
     await vi.waitFor(() =>
       expect(
-        boot.window.loadURL.mock.calls.filter(([url]: [string]) => url.startsWith("latexdo:")),
+        boot.window.loadURL.mock.calls.filter(([url]: [string]) =>
+          url.startsWith("latexdo:"),
+        ),
       ).toHaveLength(2),
     );
     expect(
-      boot.window.loadURL.mock.calls.some(([url]: [string]) => url.startsWith("data:text/html")),
+      boot.window.loadURL.mock.calls.some(([url]: [string]) =>
+        url.startsWith("data:text/html"),
+      ),
     ).toBe(true);
 
     // A failure page that cannot be shown is recorded; the user then quits.
@@ -381,32 +411,70 @@ describe("renderer windows", () => {
     H.diagnosticsFail.recordSync = true;
     let answer: (value: unknown) => void = () => undefined;
     H.message.mockClear();
-    H.message.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
-    boot.window.webContents.emit("did-fail-load", {}, -2, "failed", "latexdo://app/", true);
+    H.message.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    boot.window.webContents.emit(
+      "did-fail-load",
+      {},
+      -2,
+      "failed",
+      "latexdo://app/",
+      true,
+    );
     await vi.waitFor(() => expect(H.message).toHaveBeenCalledTimes(1));
     // While that failure is open a second one is ignored.
-    boot.window.webContents.emit("did-fail-load", {}, -2, "failed", "latexdo://app/", true);
+    boot.window.webContents.emit(
+      "did-fail-load",
+      {},
+      -2,
+      "failed",
+      "latexdo://app/",
+      true,
+    );
     answer({ response: 1 });
     await vi.waitFor(() => expect(H.quit).toHaveBeenCalledOnce());
     expect(H.message).toHaveBeenCalledTimes(1);
 
     boot.window.destroy();
-    boot.window.webContents.emit("did-fail-load", {}, -2, "failed", "latexdo://app/", true);
+    boot.window.webContents.emit(
+      "did-fail-load",
+      {},
+      -2,
+      "failed",
+      "latexdo://app/",
+      true,
+    );
     expect(H.message).toHaveBeenCalledTimes(1);
   });
 
   it("quits after a renderer crash when asked and ignores clean exits while quitting", async () => {
     const boot = await bootMain();
     H.message.mockResolvedValueOnce({ response: 1 });
-    boot.appEvent("render-process-gone", {}, boot.window.webContents, crashed("crashed"));
+    boot.appEvent(
+      "render-process-gone",
+      {},
+      boot.window.webContents,
+      crashed("crashed"),
+    );
     await vi.waitFor(() => expect(H.quit).toHaveBeenCalledOnce());
 
     // A crash of a web contents without a window is only recorded.
     boot.appEvent("render-process-gone", {}, { getURL: () => "x" }, crashed("crashed"));
     boot.appEvent("before-quit");
     boot.window.loadURL.mockClear();
-    boot.appEvent("render-process-gone", {}, boot.window.webContents, crashed("clean-exit", 0));
-    boot.appEvent("render-process-gone", {}, boot.window.webContents, crashed("killed"));
+    boot.appEvent(
+      "render-process-gone",
+      {},
+      boot.window.webContents,
+      crashed("clean-exit", 0),
+    );
+    boot.appEvent(
+      "render-process-gone",
+      {},
+      boot.window.webContents,
+      crashed("killed"),
+    );
     await vi.waitFor(() => expect(boot.window.loadURL).toHaveBeenCalled());
     expect(boot.window.loadURL.mock.calls[0][0]).toMatch(/^data:text\/html/);
     // Closing the last window finishes the quit.
@@ -465,21 +533,27 @@ describe("renderer windows", () => {
     boot.window.webContents.emit("did-finish-load");
     const contextMenu = (params: Record<string, unknown>) => {
       H.menu.mockClear();
-      boot.window.webContents.emit("context-menu", {}, {
-        dictionarySuggestions: [],
-        misspelledWord: "",
-        isEditable: false,
-        selectionText: "",
-        ...params,
-      });
+      boot.window.webContents.emit(
+        "context-menu",
+        {},
+        {
+          dictionarySuggestions: [],
+          misspelledWord: "",
+          isEditable: false,
+          selectionText: "",
+          ...params,
+        },
+      );
       return H.menu.mock.calls[0]?.[0];
     };
     expect(contextMenu({})).toBeUndefined();
-    expect(contextMenu({ dictionarySuggestions: ["one"], selectionText: "x" })).toEqual([
-      expect.objectContaining({ label: "one" }),
-      { type: "separator" },
-      { role: "copy" },
-    ]);
+    expect(contextMenu({ dictionarySuggestions: ["one"], selectionText: "x" })).toEqual(
+      [
+        expect.objectContaining({ label: "one" }),
+        { type: "separator" },
+        { role: "copy" },
+      ],
+    );
     const editable = contextMenu({ misspelledWord: "teh", isEditable: true });
     expect(editable[0].label).toBe('Add "teh" to Dictionary');
     expect(editable[1]).toEqual({ type: "separator" });
@@ -488,7 +562,12 @@ describe("renderer windows", () => {
 });
 
 describe("automated release checks", () => {
-  const goodPage = { title: "LatexDo", rootChildCount: 2, hasProductText: true, origin: "latexdo://app" };
+  const goodPage = {
+    title: "LatexDo",
+    rootChildCount: 2,
+    hasProductText: true,
+    origin: "latexdo://app",
+  };
 
   it("passes the startup smoke test once the renderer has loaded", async () => {
     const boot = await bootMain({
@@ -527,7 +606,8 @@ describe("automated release checks", () => {
     await vi.waitFor(() =>
       expect(boot.window.webContents.listenerCount("did-fail-load")).toBe(2),
     );
-    if (failLoad) boot.window.webContents.emit("did-fail-load", {}, -6, "gone", "latexdo://app/");
+    if (failLoad)
+      boot.window.webContents.emit("did-fail-load", {}, -6, "gone", "latexdo://app/");
     else boot.window.webContents.emit("did-finish-load");
     await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1));
     expect(H.exit).not.toHaveBeenCalledWith(0);
@@ -549,7 +629,7 @@ describe("automated release checks", () => {
   });
 
   it("exits instead of prompting when the renderer fails during automation", async () => {
-    let boot = await bootMain({
+    await bootMain({
       argv: ["--smoke-test"],
       before: () => {
         H.loadURL = async () => {
@@ -561,13 +641,18 @@ describe("automated release checks", () => {
     await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1));
     expect(H.message).not.toHaveBeenCalled();
 
-    boot = await bootMain({
+    const boot = await bootMain({
       argv: ["--smoke-test"],
       before: () => {
         H.executeJavaScript = () => new Promise(() => undefined);
       },
     });
-    boot.appEvent("render-process-gone", {}, boot.window.webContents, crashed("crashed"));
+    boot.appEvent(
+      "render-process-gone",
+      {},
+      boot.window.webContents,
+      crashed("crashed"),
+    );
     await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1));
     H.exit.mockClear();
     boot.appEvent("render-process-gone", {}, { getURL: () => "x" }, crashed("crashed"));
@@ -601,7 +686,12 @@ describe("automated release checks", () => {
             ? (contents) =>
                 setTimeout(
                   () =>
-                    current.appEvent("render-process-gone", {}, contents, crashed("killed", 0)),
+                    current.appEvent(
+                      "render-process-gone",
+                      {},
+                      contents,
+                      crashed("killed", 0),
+                    ),
                   40,
                 )
             : (contents) => options.crash!(contents, () => current);
@@ -657,7 +747,9 @@ describe("automated release checks", () => {
         },
       });
       await promise;
-      await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(0), { timeout: 10_000 });
+      await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(0), {
+        timeout: 10_000,
+      });
       expect(children[0].kill).toHaveBeenCalled();
     } finally {
       restore();
@@ -688,7 +780,12 @@ describe("automated release checks", () => {
     const { promise } = e2eBoot({ crash: () => undefined });
     const boot = await promise;
     H.executeJavaScript = () => new Promise(() => undefined);
-    boot.appEvent("render-process-gone", {}, boot.window.webContents, crashed("killed"));
+    boot.appEvent(
+      "render-process-gone",
+      {},
+      boot.window.webContents,
+      crashed("killed"),
+    );
     await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1));
   });
 });
@@ -737,7 +834,9 @@ describe("opening folders and Research Spaces from the system", () => {
 
     boot.appEvent("open-file", { preventDefault }, spaceFile);
     H.message.mockResolvedValueOnce({ response: 0, checkboxChecked: false });
-    expect((await boot.call("project:open-requested")).researchSpace.name).toBe("Study");
+    expect((await boot.call("project:open-requested")).researchSpace.name).toBe(
+      "Study",
+    );
     // The folder holding the space file is trusted, which covers its folders.
     boot.appEvent("open-file", { preventDefault }, spaceFile);
     H.message.mockClear();
@@ -772,7 +871,10 @@ describe("opening folders and Research Spaces from the system", () => {
     expect(first.restore).toHaveBeenCalledOnce();
     expect(first.focus).toHaveBeenCalledTimes(2);
 
-    boot.appEvent("second-instance", {}, ["latexdo", path.join(boot.root, "x.latexdo-space")]);
+    boot.appEvent("second-instance", {}, [
+      "latexdo",
+      path.join(boot.root, "x.latexdo-space"),
+    ]);
     expect(first.webContents.send).toHaveBeenCalledWith("project:open-requested");
 
     first.emit("unresponsive");
@@ -852,9 +954,9 @@ describe("platform differences", () => {
       customWords: [],
     });
     expect(saved.languages).toEqual(["fr"]);
-    expect(boot.window.webContents.session.setSpellCheckerLanguages).toHaveBeenCalledWith([
-      "fr",
-    ]);
+    expect(
+      boot.window.webContents.session.setSpellCheckerLanguages,
+    ).toHaveBeenCalledWith(["fr"]);
     H.windows.splice(0);
     expect(
       (await boot.call("spellchecker:update-settings", saved)).availableLanguages,

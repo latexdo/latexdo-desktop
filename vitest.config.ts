@@ -18,10 +18,7 @@ const recentCoverageThresholds = Object.fromEntries(
     "electron/pdfImport/bibliography.ts",
     "src/features/scholarly/scholarlyClient.ts",
     "src/latex/citationCompletion.ts",
-  ].map((file) => [
-    file,
-    { lines: 95, functions: 95, branches: 95, statements: 95 },
-  ]),
+  ].map((file) => [file, { lines: 95, functions: 95, branches: 95, statements: 95 }]),
 );
 
 export default defineConfig({

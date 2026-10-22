@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { EventEmitter } from "node:events";
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +32,10 @@ vi.mock("node:crypto", async (importOriginal) => {
 });
 
 vi.mock("node:stream/promises", () => ({
-  pipeline: async (body: EventEmitter, output: { end(): void; once(e: string, f: () => void): void }) => {
+  pipeline: async (
+    body: EventEmitter,
+    output: { end(): void; once(e: string, f: () => void): void },
+  ) => {
     body.emit("data", { length: runtime.receivedLength });
     await new Promise<void>((resolve) => {
       output.once("close", resolve);
@@ -215,7 +226,9 @@ describe("installing the TeX runtime", () => {
     runtime.receivedLength = 247_389_422;
     vi.stubGlobal("fetch", okFetch());
     await installTexRuntime({ onProgress: vi.fn() });
-    expect(runtime.spawnCalls[0].command).toBe(path.join("D:\\Win", "System32", "tar.exe"));
+    expect(runtime.spawnCalls[0].command).toBe(
+      path.join("D:\\Win", "System32", "tar.exe"),
+    );
     expect(runtime.spawnCalls[0].args[0]).toBe("-xf");
     expect(await findBundledTexBinDirectory()).toContain("x86_64");
   });
@@ -233,7 +246,10 @@ describe("installing the TeX runtime", () => {
   });
 
   it.each([404, 503])("fails and cleans up after HTTP %i", async (status) => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("no", { status })),
+    );
     await expect(installTexRuntime({ onProgress: vi.fn() })).rejects.toThrow(
       `HTTP ${status}`,
     );
@@ -241,7 +257,10 @@ describe("installing the TeX runtime", () => {
   });
 
   it("fails when the response has no body", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200 })),
+    );
     await expect(installTexRuntime({ onProgress: vi.fn() })).rejects.toThrow(
       "HTTP 200",
     );

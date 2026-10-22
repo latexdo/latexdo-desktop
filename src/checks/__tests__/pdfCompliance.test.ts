@@ -197,7 +197,10 @@ describe("runPdfComplianceChecks", () => {
 
     it("counts words of an \\abstract{...} command and reports its line", () => {
       const words = Array(12).fill("word").join(" ");
-      const doc = "\\documentclass{article}\n\\abstract{" + words + "}\n\\begin{document}\\end{document}";
+      const doc =
+        "\\documentclass{article}\n\\abstract{" +
+        words +
+        "}\n\\begin{document}\\end{document}";
       const result = runPdfComplianceChecks(doc, "", {
         ...defaultSettings,
         maxAbstractWords: 10,

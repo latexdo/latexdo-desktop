@@ -131,7 +131,12 @@ describe("enterprise state normalization", () => {
       collaboration: { tasks: [] },
       admin: {
         usage: { activeUsers: 3 },
-        storage: { quotaGb: 0, usedGb: 5, largestWorkspaceId: "w", archiveAfterDays: 7 },
+        storage: {
+          quotaGb: 0,
+          usedGb: 5,
+          largestWorkspaceId: "w",
+          archiveAfterDays: 7,
+        },
         securityPolicies: [
           { id: "p", name: "Policy", enabled: false, severity: "recommended" },
           null,
@@ -159,11 +164,13 @@ describe("enterprise state normalization", () => {
     expect(state.organization).toEqual({ ...base.organization, name: "Initech" });
     expect(state.workspaces).toEqual([]);
     const [first, second, third, fourth] = state.identity.providers;
-    expect(first).toMatchObject({ status: "enforced", domainHint: "x.org", enforcedGroups: ["a"] });
+    expect(first).toMatchObject({
+      status: "enforced",
+      domainHint: "x.org",
+      enforcedGroups: ["a"],
+    });
     expect(second.status).toBe("not-configured");
-    expect(second.enforcedGroups).toEqual(
-      base.identity.providers[1].enforcedGroups,
-    );
+    expect(second.enforcedGroups).toEqual(base.identity.providers[1].enforcedGroups);
     expect(third.status).toBe(base.identity.providers[2].status);
     expect(fourth).toBe(base.identity.providers[base.identity.providers.length - 1]);
     expect(state.identity.scim).toEqual({
@@ -212,7 +219,10 @@ describe("enterprise state normalization", () => {
     expect(report.markdown).not.toContain("Active document");
     expect(report.markdown).toContain("- Legal hold: enabled");
     expect(report.riskItems).toEqual(
-      expect.arrayContaining(["SCIM provisioning is disabled.", "Backups are disabled."]),
+      expect.arrayContaining([
+        "SCIM provisioning is disabled.",
+        "Backups are disabled.",
+      ]),
     );
 
     expect(
@@ -229,13 +239,20 @@ describe("enterprise state normalization", () => {
       admin: { ...base.admin, storage: { ...base.admin.storage, usedGb: 9_999 } },
     };
     expect(enterpriseStoragePercent(risky)).toBe(100);
-    expect(enterpriseRiskItems(risky)).toContain("Storage usage is above 85% of quota.");
+    expect(enterpriseRiskItems(risky)).toContain(
+      "Storage usage is above 85% of quota.",
+    );
     const unenforced = {
       ...base,
       admin: {
         ...base.admin,
         securityPolicies: [
-          { id: "sso", name: "Require SSO", enabled: false, severity: "required" as const },
+          {
+            id: "sso",
+            name: "Require SSO",
+            enabled: false,
+            severity: "required" as const,
+          },
         ],
       },
     };
@@ -290,7 +307,10 @@ describe("enterprise state normalization", () => {
       Object.defineProperty(globalThis, "localStorage", descriptor);
     }
 
-    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: undefined });
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: undefined,
+    });
     try {
       expect(loadEnterpriseState()).toBe(base);
     } finally {

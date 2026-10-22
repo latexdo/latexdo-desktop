@@ -100,9 +100,9 @@ describe("bibBlocks", () => {
     const blocks = bibBlocks(
       [
         "Email me at someone@example.org.",
-        "@misc(paren, title = {A {nested} \\} title}, note = \"x\")",
+        '@misc(paren, title = {A {nested} \\} title}, note = "x")',
         "@comment{ignored}",
-        "@preamble{\"\\newcommand{\\x}{y}\"}",
+        '@preamble{"\\newcommand{\\x}{y}"}',
         "@article{open, title = {never closed",
       ].join("\n"),
     );
@@ -123,7 +123,10 @@ describe("mergeBibliographies edge cases", () => {
   it("drops @comment blocks, writes repeated macros once and lists every conflicting file", () => {
     const merged = mergeBibliographies(
       [
-        { path: "a.bib", content: "@comment{x}\n@string{k = {v}}\n@book{key, title = {A}}" },
+        {
+          path: "a.bib",
+          content: "@comment{x}\n@string{k = {v}}\n@book{key, title = {A}}",
+        },
         { path: "b.bib", content: "@string{k =   {v}}\n@book{key, title = {B}}" },
         { path: "c.bib", content: "@book{key, title = {C}}" },
       ],
@@ -151,8 +154,11 @@ describe("retargetBibliographyCommands edge cases", () => {
 
   it("does not list the merged file twice in \\bibliography", () => {
     expect(
-      retargetBibliographyCommands("\\bibliography{merged,old}", ["old.bib"], "merged.bib"),
+      retargetBibliographyCommands(
+        "\\bibliography{merged,old}",
+        ["old.bib"],
+        "merged.bib",
+      ),
     ).toBe("\\bibliography{merged}");
   });
 });
-

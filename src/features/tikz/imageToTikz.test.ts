@@ -123,9 +123,15 @@ describe("TikZ output details", () => {
   it("summarises single and plural shapes", () => {
     const box = { x: 0, y: 0, w: 1, h: 1, color: "#000000", filled: false };
     const line = { x1: 0, y1: 0, x2: 1, y2: 1, color: "#000000" };
-    expect(traceSummary({ background: "#ffffff", boxes: [box], lines: [line] })).toBe("Traced 1 box and 1 line.");
-    expect(traceSummary({ background: "#ffffff", boxes: [box, box], lines: [] })).toBe("Traced 2 boxes.");
-    expect(traceSummary({ background: "#ffffff", boxes: [], lines: [line, line] })).toBe("Traced 2 lines.");
+    expect(traceSummary({ background: "#ffffff", boxes: [box], lines: [line] })).toBe(
+      "Traced 1 box and 1 line.",
+    );
+    expect(traceSummary({ background: "#ffffff", boxes: [box, box], lines: [] })).toBe(
+      "Traced 2 boxes.",
+    );
+    expect(
+      traceSummary({ background: "#ffffff", boxes: [], lines: [line, line] }),
+    ).toBe("Traced 2 lines.");
   });
 
   it("makes safe figure paths and defaults the image name", () => {
@@ -138,7 +144,8 @@ describe("TikZ output details", () => {
     const height = 120;
     const data = new Uint8ClampedArray(width * height * 4);
     for (let y = 20; y <= 80; y += 1)
-      for (let x = 20; x <= 90; x += 1) data.set([200, 30, 30, 255], (y * width + x) * 4);
+      for (let x = 20; x <= 90; x += 1)
+        data.set([200, 30, 30, 255], (y * width + x) * 4);
     const trace = traceImage(data, width, height);
     expect(trace.boxes).toEqual([
       expect.objectContaining({ x: 20, y: 20, filled: true }),

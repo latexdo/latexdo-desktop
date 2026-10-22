@@ -70,7 +70,10 @@ describe("useSettings", () => {
   beforeEach(() => {
     window.localStorage.clear();
     fetchExtensionCatalog.mockReset();
-    fetchExtensionCatalog.mockResolvedValue({ catalog: remoteCatalog, source: "remote" });
+    fetchExtensionCatalog.mockResolvedValue({
+      catalog: remoteCatalog,
+      source: "remote",
+    });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -85,7 +88,9 @@ describe("useSettings", () => {
 
     act(() => result.current.updateSetting("editorFontSize", 21));
     expect(result.current.settings.editorFontSize).toBe(21);
-    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey)!).editorFontSize).toBe(21);
+    expect(
+      JSON.parse(window.localStorage.getItem(settingsStorageKey)!).editorFontSize,
+    ).toBe(21);
     act(() => result.current.resetSetting("editorFontSize"));
     expect(result.current.settings.editorFontSize).toBe(defaultSettings.editorFontSize);
 
@@ -122,7 +127,10 @@ describe("useSettings", () => {
     await waitFor(() => expect(result.current.extensionCatalogSource).toBe("remote"));
     expect(result.current.filteredExtensions).toHaveLength(4);
     act(() => result.current.setExtensionCategoryFilter("graphics"));
-    expect(result.current.filteredExtensions.map((e) => e.id)).toEqual(["tikz", "tikz-too"]);
+    expect(result.current.filteredExtensions.map((e) => e.id)).toEqual([
+      "tikz",
+      "tikz-too",
+    ]);
     act(() => {
       result.current.setExtensionCategoryFilter("all");
       result.current.setExtensionQuery("plain writer");
@@ -143,7 +151,10 @@ describe("useSettings", () => {
     act(() => result.current.installExtension(plain));
     expect(onStatus).toHaveBeenCalledWith("Installed Ext tikz");
     expect(onStatus).toHaveBeenCalledWith("Installed Plain Writer");
-    expect(result.current.installedExtensions.map((e) => e.id)).toEqual(["tikz", "plain"]);
+    expect(result.current.installedExtensions.map((e) => e.id)).toEqual([
+      "tikz",
+      "plain",
+    ]);
     expect(result.current.installedExtensionIdSet.has("tikz")).toBe(true);
     expect(result.current.settings.autoFixCommon).toBe(true);
     expect(result.current.installedExtensionSnippets).toEqual([
@@ -156,10 +167,9 @@ describe("useSettings", () => {
       id: "tikz:t1",
       name: "Template One",
     });
-    expect(JSON.parse(window.localStorage.getItem(installedExtensionsStorageKey)!)).toEqual([
-      "tikz",
-      "plain",
-    ]);
+    expect(
+      JSON.parse(window.localStorage.getItem(installedExtensionsStorageKey)!),
+    ).toEqual(["tikz", "plain"]);
   });
 
   it("disables only the flags no other installed extension still provides", async () => {

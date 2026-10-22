@@ -36,7 +36,9 @@ describe("theme command", () => {
 
   it.each([[[]], [["list"]]])("lists the themes for %j", async (args) => {
     const ctx = context();
-    const result = await command().execute(args, ctx, { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute(args, ctx, {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result.ok).toBe(true);
     expect(result.message).toBe("Available LatexDo themes:");
     expect(result.details).toHaveLength(colorThemeOptions.length);
@@ -47,21 +49,29 @@ describe("theme command", () => {
   it("changes the theme and reports its display name", async () => {
     const ctx = context();
     const theme = colorThemeOptions[1];
-    const result = await command().execute([theme.id], ctx, { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute([theme.id], ctx, {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(ctx.updateSetting).toHaveBeenCalledWith("colorTheme", theme.id);
     expect(result).toEqual({ ok: true, message: `✓ Theme changed to ${theme.name}.` });
-    expect(ctx.setStatusMessage).toHaveBeenCalledWith(`Theme changed to ${theme.name}.`);
+    expect(ctx.setStatusMessage).toHaveBeenCalledWith(
+      `Theme changed to ${theme.name}.`,
+    );
   });
 
   it("works without a status message sink", async () => {
     const ctx = { updateSetting: vi.fn() } as unknown as LatexDoCommandContext;
-    const result = await command().execute([colorThemeOptions[0].id], ctx, { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute([colorThemeOptions[0].id], ctx, {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result.ok).toBe(true);
   });
 
   it("rejects an unknown theme without changing settings", async () => {
     const ctx = context();
-    const result = await command().execute(["not-a-theme"], ctx, { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute(["not-a-theme"], ctx, {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result.ok).toBe(false);
     expect(result.message).toBeTruthy();
     expect(ctx.updateSetting).not.toHaveBeenCalled();
@@ -72,7 +82,9 @@ describe("theme command", () => {
       ok: false,
       details: ["x"],
     } as never);
-    const result = await command().execute(["graphite"], context(), { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute(["graphite"], context(), {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result).toEqual({ ok: false, message: "Invalid theme.", details: ["x"] });
   });
 
@@ -82,14 +94,18 @@ describe("theme command", () => {
       ...real,
       valueLabel: undefined,
     });
-    const result = await command().execute(["graphite"], context(), { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute(["graphite"], context(), {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result.message).toBe("✓ Theme changed to graphite.");
   });
 
   it("reports when the theme setting is unavailable", async () => {
     vi.spyOn(settingsCommands, "findSettingDefinition").mockReturnValue(null);
     const ctx = context();
-    const result = await command().execute(["graphite"], ctx, { registry: { commands: () => [], find: () => null } });
+    const result = await command().execute(["graphite"], ctx, {
+      registry: { commands: () => [], find: () => null },
+    });
     expect(result).toEqual({ ok: false, message: "Theme setting is unavailable." });
     expect(ctx.updateSetting).not.toHaveBeenCalled();
   });

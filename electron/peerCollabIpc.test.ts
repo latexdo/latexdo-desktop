@@ -197,7 +197,9 @@ describe("peerCollabIpc", () => {
 
   it("fetches remote resources through net.fetch, stringifying URLs", async () => {
     mocks.netFetch.mockResolvedValue("response");
-    await mocks.serviceOptions.fetchRemote(new URL("https://a.test/x"), { method: "GET" });
+    await mocks.serviceOptions.fetchRemote(new URL("https://a.test/x"), {
+      method: "GET",
+    });
     expect(mocks.netFetch).toHaveBeenCalledWith("https://a.test/x", { method: "GET" });
     await mocks.serviceOptions.fetchRemote("https://b.test/");
     expect(mocks.netFetch).toHaveBeenLastCalledWith("https://b.test/", undefined);
@@ -374,9 +376,9 @@ describe("peerCollabIpc", () => {
       await expect(invokeFrom(sender, "peer:socket-open", 1, "o")).rejects.toThrow(
         "Invalid IPC input for peer:socket-open.",
       );
-      await expect(invokeFrom(sender, "peer:socket-open", "1", "o", "/")).rejects.toThrow(
-        "Invalid IPC input",
-      );
+      await expect(
+        invokeFrom(sender, "peer:socket-open", "1", "o", "/"),
+      ).rejects.toThrow("Invalid IPC input");
       for (let id = 0; id < 8; id++) {
         await invokeFrom(sender, "peer:socket-open", id, "o", "/");
       }
@@ -387,9 +389,9 @@ describe("peerCollabIpc", () => {
         "Invalid IPC input",
       );
       // Another window has its own budget.
-      await expect(invokeFrom(makeSender(), "peer:socket-open", 0, "o", "/")).resolves.toBe(
-        undefined,
-      );
+      await expect(
+        invokeFrom(makeSender(), "peer:socket-open", 0, "o", "/"),
+      ).resolves.toBe(undefined);
     });
 
     it("dispose closes every open socket and the service", async () => {
@@ -438,9 +440,9 @@ describe("peerCollabIpc", () => {
       ["peer:host-open-folder", []],
       ["peer:host-save-project", []],
     ])("%s rejects invalid input %#", async (channel, args) => {
-      await expect(Promise.resolve().then(() => invoke(channel, ...args))).rejects.toThrow(
-        `Invalid IPC input for ${channel}.`,
-      );
+      await expect(
+        Promise.resolve().then(() => invoke(channel, ...args)),
+      ).rejects.toThrow(`Invalid IPC input for ${channel}.`);
     });
 
     it("invites, resolves invites and cloud-invites", async () => {
@@ -482,7 +484,9 @@ describe("peerCollabIpc", () => {
 
     it("cloud-save refuses projects not shared from this computer", async () => {
       await expect(
-        invoke("peer:cloud-save-project", "p", [{ relativePath: "a.tex", content: "x" }]),
+        invoke("peer:cloud-save-project", "p", [
+          { relativePath: "a.tex", content: "x" },
+        ]),
       ).rejects.toThrow("not shared from a folder");
     });
 

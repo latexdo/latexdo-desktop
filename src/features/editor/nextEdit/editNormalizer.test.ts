@@ -252,10 +252,19 @@ describe("isLearnableEdit guards", () => {
     ["no-op", { newText: "foo" }, {}],
     ["long old text", { oldText: "x".repeat(513) }, {}],
     ["long new text", { newText: "x".repeat(513) }, {}],
-    ["oversized context", { beforeContext: "b".repeat(200), afterContext: "a".repeat(200) }, {}],
+    [
+      "oversized context",
+      { beforeContext: "b".repeat(200), afterContext: "a".repeat(200) },
+      {},
+    ],
     [
       "whole document rewrite",
-      { startOffsetBefore: 0, beforeContext: "", afterContext: "", newText: "y".repeat(300) },
+      {
+        startOffsetBefore: 0,
+        beforeContext: "",
+        afterContext: "",
+        newText: "y".repeat(300),
+      },
       {},
     ],
   ])("rejects %s", (_name, patch, options) => {
@@ -289,4 +298,3 @@ describe("isLearnableEdit guards", () => {
     expect(typeof edit.timestamp).toBe("number");
   });
 });
-

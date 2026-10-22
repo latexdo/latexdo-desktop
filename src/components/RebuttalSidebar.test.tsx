@@ -182,7 +182,9 @@ describe("RebuttalSidebar fallbacks", () => {
     const reviewer = screen.getByLabelText("Reviewer") as HTMLInputElement;
     expect(reviewer.value).toBe(reviewer.placeholder);
     expect(reviewer.value).not.toBe("");
-    expect((screen.getByLabelText(/Original text/) as HTMLTextAreaElement).value).toBe("");
+    expect((screen.getByLabelText(/Original text/) as HTMLTextAreaElement).value).toBe(
+      "",
+    );
     expect((screen.getByLabelText(/Revised text/) as HTMLTextAreaElement).value).toBe(
       "Legacy change.",
     );

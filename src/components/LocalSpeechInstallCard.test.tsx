@@ -53,7 +53,9 @@ describe("LocalSpeechInstallCard", () => {
       />,
     );
     expect(screen.getByRole("alert").textContent).toContain("not installed yet");
-    fireEvent.click(screen.getByRole("button", { name: /Install local speech \(150 MB\)/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Install local speech \(150 MB\)/ }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Use OpenAI instead" }));
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(onInstall).toHaveBeenCalledTimes(1);

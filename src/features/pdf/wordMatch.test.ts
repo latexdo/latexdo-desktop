@@ -203,7 +203,9 @@ describe("matching fallbacks", () => {
   });
 
   it("findSourceWord gives up on a word with no letters", () => {
-    expect(findSourceWord("some text", 1, { word: "", before: [], after: [] })).toBeNull();
+    expect(
+      findSourceWord("some text", 1, { word: "", before: [], after: [] }),
+    ).toBeNull();
   });
 
   it("sourceContextAt only looks at the requested line", () => {

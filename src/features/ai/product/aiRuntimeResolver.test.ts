@@ -75,7 +75,11 @@ describe("resolveAiRuntime", () => {
     expect(resolved).toMatchObject({ provider: "local", modelId: known.id });
     expect((resolved as { fileName?: string }).fileName).toBeTruthy();
     expect(
-      resolveAiRuntime({ ...defaultAiConfig, modelId: "nope", selection: ollamaSelection }),
+      resolveAiRuntime({
+        ...defaultAiConfig,
+        modelId: "nope",
+        selection: ollamaSelection,
+      }),
     ).toEqual({ provider: "local", modelId: "nope", fileName: undefined });
   });
 

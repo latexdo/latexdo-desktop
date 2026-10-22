@@ -9,7 +9,8 @@ export const terminalMock = () => ({
 export const peerCollabMock = () => ({
   registerPeerCollabIpc: () => undefined,
   disposePeerCollab: () => undefined,
-  sharedProjectSourceFolder: (...args: unknown[]) => H.sharedProjectSourceFolder(...args),
+  sharedProjectSourceFolder: (...args: unknown[]) =>
+    H.sharedProjectSourceFolder(...args),
 });
 
 export const buildInfoMock = () => ({ readBuildInfo: () => H.buildInfo });

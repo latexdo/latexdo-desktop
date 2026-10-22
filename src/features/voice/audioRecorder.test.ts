@@ -327,7 +327,9 @@ describe("audioRecorder edge cases", () => {
 
   it("refuses to start where capture is unsupported and ignores a second start", async () => {
     vi.stubGlobal("MediaRecorder", undefined);
-    await expect(new AudioRecorder().start()).rejects.toMatchObject({ code: "unsupported" });
+    await expect(new AudioRecorder().start()).rejects.toMatchObject({
+      code: "unsupported",
+    });
     installMediaRecorder();
     const recorder = new AudioRecorder();
     await recorder.start();

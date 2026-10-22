@@ -176,8 +176,20 @@ describe("tidyLatex block edge cases", () => {
 
   it("closes outer environments from an aligned block's closing line", () => {
     expect(
-      tidy(["\\begin{center}", "\\begin{equation}", "", "\\end{equation}\\end{center}", "after"]),
-    ).toEqual(["\\begin{center}", "    \\begin{equation}", "", "    \\end{equation}\\end{center}", "after"]);
+      tidy([
+        "\\begin{center}",
+        "\\begin{equation}",
+        "",
+        "\\end{equation}\\end{center}",
+        "after",
+      ]),
+    ).toEqual([
+      "\\begin{center}",
+      "    \\begin{equation}",
+      "",
+      "    \\end{equation}\\end{center}",
+      "after",
+    ]);
   });
 
   it("indents an unclosed verbatim block like ordinary text", () => {
@@ -190,8 +202,20 @@ describe("tidyLatex block edge cases", () => {
   it("leaves one-line blocks, nested same-family blocks and stray ends sensible", () => {
     expect(tidyLatex("\\begin{equation} x \\end{equation}\ny")).toBeNull();
     expect(
-      tidy(["\\begin{equation}", "\\begin{split}", "a", "\\end{split}", "\\end{equation}"]),
-    ).toEqual(["\\begin{equation}", "    \\begin{split}", "    a", "    \\end{split}", "\\end{equation}"]);
+      tidy([
+        "\\begin{equation}",
+        "\\begin{split}",
+        "a",
+        "\\end{split}",
+        "\\end{equation}",
+      ]),
+    ).toEqual([
+      "\\begin{equation}",
+      "    \\begin{split}",
+      "    a",
+      "    \\end{split}",
+      "\\end{equation}",
+    ]);
     expect(tidy(["\\begin{center}", "text \\end{center}", "\\end{foo}", "z"])).toEqual([
       "\\begin{center}",
       "    text \\end{center}",

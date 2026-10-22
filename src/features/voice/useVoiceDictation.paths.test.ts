@@ -21,7 +21,9 @@ vi.mock("./audioRecorder", async (importOriginal) => {
   class AudioRecorder {
     start = vi.fn(() => (recorder.start ? recorder.start() : Promise.resolve()));
     stop = vi.fn(() =>
-      recorder.stop ? recorder.stop() : Promise.resolve(new Blob(["audio"], { type: "audio/webm" })),
+      recorder.stop
+        ? recorder.stop()
+        : Promise.resolve(new Blob(["audio"], { type: "audio/webm" })),
     );
     cancel = vi.fn();
     constructor(public options: (typeof recorder.instances)[number]["options"]) {
@@ -85,7 +87,9 @@ describe("useVoiceDictation state machine edges", () => {
         for (let i = 0; i < voiceLevelHistory + 5; i += 1) onLevel(i / 100);
       });
       expect(view.result.current.levels).toHaveLength(voiceLevelHistory);
-      expect(view.result.current.levels.at(-1)).toBeCloseTo((voiceLevelHistory + 4) / 100);
+      expect(view.result.current.levels.at(-1)).toBeCloseTo(
+        (voiceLevelHistory + 4) / 100,
+      );
 
       act(() => vi.advanceTimersByTime(1000));
       expect(view.result.current.durationMs).toBeGreaterThanOrEqual(1000);
@@ -147,7 +151,9 @@ describe("useVoiceDictation state machine edges", () => {
     });
     await act(() => generic.result.current.start());
     await act(() => generic.result.current.stop());
-    expect(generic.result.current.error).toMatchObject({ code: "transcription-failed" });
+    expect(generic.result.current.error).toMatchObject({
+      code: "transcription-failed",
+    });
 
     for (const error of [
       new TranscriptionError("cancelled", "stop"),
@@ -191,7 +197,10 @@ describe("useVoiceDictation state machine edges", () => {
     expect(late.onTranscript).not.toHaveBeenCalled();
     expect(late.result.current.status).toBe("idle");
 
-    const empty = mount({ transcriptMode: "clean", cleanup: { id: "test", cleanup: async () => "   " } });
+    const empty = mount({
+      transcriptMode: "clean",
+      cleanup: { id: "test", cleanup: async () => "   " },
+    });
     await act(() => empty.result.current.start());
     await act(() => empty.result.current.stop());
     expect(empty.result.current.error?.code).toBe("empty-recording");

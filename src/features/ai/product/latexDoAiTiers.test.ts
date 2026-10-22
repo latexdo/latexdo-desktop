@@ -157,7 +157,10 @@ describe("tier lookups and availability states", () => {
       reason: "Local AI requires the LatexDo desktop app.",
     });
     expect(
-      fastTierAvailability(plus, { ...capableButLowStorageSystem, localAiAvailable: false }),
+      fastTierAvailability(plus, {
+        ...capableButLowStorageSystem,
+        localAiAvailable: false,
+      }),
     ).toMatchObject({ state: "unsupported" });
   });
 
@@ -181,7 +184,10 @@ describe("tier lookups and availability states", () => {
 
   it("needs a storage reading and enough space to install", () => {
     expect(
-      fastTierAvailability(plus, { ...capableButLowStorageSystem, freeStorageBytes: null }),
+      fastTierAvailability(plus, {
+        ...capableButLowStorageSystem,
+        freeStorageBytes: null,
+      }),
     ).toEqual({
       state: "unsupported",
       reason: "Could not check available storage for local AI models.",

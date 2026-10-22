@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, renderHook } from "@testing-library/react";
 import { latexDoAiTiers } from "../features/ai/product/latexDoAiTiers";
 import { toolTabIds } from "../features/workspace/toolTabs";
 import { installCustomLatexDoAiModels } from "./appShared";
@@ -77,13 +78,16 @@ function context(overrides: Record<string, unknown> = {}) {
   return ctx;
 }
 
-// The hook only derives values (it calls no React hooks), so it can run directly.
 const derive = (overrides: Record<string, unknown> = {}) => {
   const ctx = context(overrides);
-  return { ctx, state: useAppDerivedState(ctx as unknown as AppCtx15) };
+  const { result } = renderHook(() => useAppDerivedState(ctx as unknown as AppCtx15));
+  return { ctx, state: result.current };
 };
 
-afterEach(() => installCustomLatexDoAiModels([]));
+afterEach(() => {
+  cleanup();
+  installCustomLatexDoAiModels([]);
+});
 
 describe("update summaries", () => {
   it("describes an available build with commits and a manual-only install", () => {

@@ -56,7 +56,12 @@ describe("template detection", () => {
 
   it("reads the class from a custom template, falling back to custom", () => {
     expect(
-      messages("checkFontSize", "\\documentclass[12pt]{x}", "custom", "\\documentclass{acmart}"),
+      messages(
+        "checkFontSize",
+        "\\documentclass[12pt]{x}",
+        "custom",
+        "\\documentclass{acmart}",
+      ),
     ).toEqual(["Font size 12pt may not comply with ACM requirements"]);
     expect(messages("checkFontSize", "\\documentclass[12pt]{x}", "custom")).toEqual([]);
   });
@@ -81,7 +86,9 @@ describe("margins", () => {
     expect(messages("checkMargins", "\\documentclass[pdflatex]{sn-jnl}")).toEqual([
       "Springer document class may need [sn-mathphys-num] option",
     ]);
-    expect(messages("checkMargins", "\\documentclass[sn-mathphys]{sn-jnl}")).toEqual([]);
+    expect(messages("checkMargins", "\\documentclass[sn-mathphys]{sn-jnl}")).toEqual(
+      [],
+    );
     expect(messages("checkMargins", "\\documentclass{svjour3}")).toEqual([]);
   });
 
@@ -93,7 +100,13 @@ describe("margins", () => {
     ["\\documentclass{neurips_2024}", "NEURIPS"],
     ["\\documentclass[review]{cvpr}", "CVPR"],
   ])("flags custom geometry margins for %s", (cls, name) => {
-    for (const option of ["margin=1in", "left=1cm", "right=1cm", "top=1cm", "bottom=1cm"]) {
+    for (const option of [
+      "margin=1in",
+      "left=1cm",
+      "right=1cm",
+      "top=1cm",
+      "bottom=1cm",
+    ]) {
       const diagnostics = runConferenceChecks(
         `${cls}\n\\usepackage[${option}]{geometry}`,
         { ...allOff, checkMargins: true },
@@ -108,7 +121,10 @@ describe("margins", () => {
       messages("checkMargins", "\\documentclass{neurips_2024}\n\\usepackage{geometry}"),
     ).toEqual([]);
     expect(
-      messages("checkMargins", "\\documentclass{neurips_2024}\n\\usepackage[a4paper]{geometry}"),
+      messages(
+        "checkMargins",
+        "\\documentclass{neurips_2024}\n\\usepackage[a4paper]{geometry}",
+      ),
     ).toEqual([]);
     expect(messages("checkMargins", "\\usepackage[margin=1in]{geometry}")).toEqual([]);
   });
@@ -145,7 +161,9 @@ describe("font size", () => {
     ["springer", "12pt"],
     ["neurips", "11pt"],
   ] as const)("accepts %s at %s", (template, size) => {
-    expect(messages("checkFontSize", `\\documentclass[${size}]{x}`, template)).toEqual([]);
+    expect(messages("checkFontSize", `\\documentclass[${size}]{x}`, template)).toEqual(
+      [],
+    );
   });
 
   it("asks for an explicit size for IEEE and ACM only", () => {
@@ -155,7 +173,9 @@ describe("font size", () => {
     expect(messages("checkFontSize", "\\documentclass[a4paper]{x}", "acm")).toEqual([
       "No explicit font size specified; ACM typically uses 10pt",
     ]);
-    expect(messages("checkFontSize", "\\documentclass[a4paper]{x}", "cvpr")).toEqual([]);
+    expect(messages("checkFontSize", "\\documentclass[a4paper]{x}", "cvpr")).toEqual(
+      [],
+    );
   });
 
   it("flags non-standard \\fontsize overrides", () => {
@@ -224,10 +244,12 @@ describe("figure and table references", () => {
   });
 
   it("ignores unlabelled figures and flags loose images", () => {
-    expect(messages("checkFigureReferences", "\\begin{figure}\\end{figure}")).toEqual([]);
-    expect(messages("checkFigureReferences", "\\includegraphics[width=1cm]{x.png}")).toEqual([
-      "\\includegraphics{x.png} used outside a figure environment",
-    ]);
+    expect(messages("checkFigureReferences", "\\begin{figure}\\end{figure}")).toEqual(
+      [],
+    );
+    expect(
+      messages("checkFigureReferences", "\\includegraphics[width=1cm]{x.png}"),
+    ).toEqual(["\\includegraphics{x.png} used outside a figure environment"]);
   });
 
   it("flags unreferenced tables and accepts the reference styles", () => {
@@ -246,7 +268,10 @@ describe("figure and table references", () => {
 
   it("flags tabulars outside table environments", () => {
     expect(
-      messages("checkTableReferences", "\\begin{tabular}{c}\\end{tabular}\\begin{tabular}{c}"),
+      messages(
+        "checkTableReferences",
+        "\\begin{tabular}{c}\\end{tabular}\\begin{tabular}{c}",
+      ),
     ).toEqual(["Found 2 tabular environment(s) but no table environments with labels"]);
   });
 });
@@ -261,16 +286,18 @@ describe("bibliography style", () => {
     ["cvpr", "plain", "abbrv", "unsrt"],
     ["custom", "plain", "elsarticle-num", "alpha"],
   ] as const)("%s recommends %s", (template, recommended, ok, bad) => {
-    expect(messages("checkBibliographyStyle", `\\bibliographystyle{${ok}}`, template)).toEqual(
-      [],
-    );
+    expect(
+      messages("checkBibliographyStyle", `\\bibliographystyle{${ok}}`, template),
+    ).toEqual([]);
     const diagnostics = runConferenceChecks(`\\bibliographystyle{${bad}}`, {
       ...allOff,
       template,
       checkBibliographyStyle: true,
     });
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].suggestion).toBe(`Change to \\bibliographystyle{${recommended}}`);
+    expect(diagnostics[0].suggestion).toBe(
+      `Change to \\bibliographystyle{${recommended}}`,
+    );
   });
 
   it("asks for a style unless the template is custom or the style is set elsewhere", () => {
@@ -278,9 +305,15 @@ describe("bibliography style", () => {
       "No \\bibliographystyle{} found",
     ]);
     expect(messages("checkBibliographyStyle", "text", "custom")).toEqual([]);
-    expect(messages("checkBibliographyStyle", "\\usepackage{biblatex}", "ieee")).toEqual([]);
-    expect(messages("checkBibliographyStyle", "\\addbibresource{x}", "ieee")).toEqual([]);
-    expect(messages("checkBibliographyStyle", "\\documentclass[x]{sn-jnl}")).toEqual([]);
+    expect(
+      messages("checkBibliographyStyle", "\\usepackage{biblatex}", "ieee"),
+    ).toEqual([]);
+    expect(messages("checkBibliographyStyle", "\\addbibresource{x}", "ieee")).toEqual(
+      [],
+    );
+    expect(messages("checkBibliographyStyle", "\\documentclass[x]{sn-jnl}")).toEqual(
+      [],
+    );
   });
 });
 
@@ -297,7 +330,9 @@ describe("page limit", () => {
     const atLimit = "\\newpage".repeat(limit - 1);
     const over = atLimit + "\\clearpage";
     expect(messages("checkPageLimit", atLimit, template)).toEqual([]);
-    expect(messages("checkPageLimit", over, template)[0]).toContain(`page limit (${limit})`);
+    expect(messages("checkPageLimit", over, template)[0]).toContain(
+      `page limit (${limit})`,
+    );
   });
 });
 
@@ -307,12 +342,15 @@ describe("author information", () => {
       "Author block missing email address",
       "Author block missing affiliation/institution",
     ]);
-    expect(messages("checkAuthorInfo", "\\author{Ada \\texttt{a} \\institute{U}}")).toEqual(
-      [],
-    );
+    expect(
+      messages("checkAuthorInfo", "\\author{Ada \\texttt{a} \\institute{U}}"),
+    ).toEqual([]);
     expect(messages("checkAuthorInfo", "\\author{Ada a@b.c \\address{U}}")).toEqual([]);
     expect(
-      messages("checkAuthorInfo", "\\author*[1]{Ada \\email{x}}\\author{Bo \\email{y}}\\affil{U}"),
+      messages(
+        "checkAuthorInfo",
+        "\\author*[1]{Ada \\email{x}}\\author{Bo \\email{y}}\\affil{U}",
+      ),
     ).toEqual([]);
   });
 
@@ -324,7 +362,9 @@ describe("author information", () => {
   });
 
   it("asks for authors only in a real paper", () => {
-    expect(messages("checkAuthorInfo", "\\title{T}")).toEqual(["No \\author{} command found"]);
+    expect(messages("checkAuthorInfo", "\\title{T}")).toEqual([
+      "No \\author{} command found",
+    ]);
     expect(messages("checkAuthorInfo", "\\documentclass{x}")).toEqual([
       "No \\author{} command found",
     ]);
@@ -346,19 +386,29 @@ describe("anonymous review", () => {
 
   it("flags full names in author blocks", () => {
     expect(
-      messages("checkAnonymousReview", "\\documentclass{x}\\author{Ada Byron Lovelace}"),
-    ).toEqual(["Author block contains full names that may compromise double-blind review"]);
+      messages(
+        "checkAnonymousReview",
+        "\\documentclass{x}\\author{Ada Byron Lovelace}",
+      ),
+    ).toEqual([
+      "Author block contains full names that may compromise double-blind review",
+    ]);
     expect(messages("checkAnonymousReview", "\\author{Anonymous}")).toEqual([]);
   });
 
-  it.each(["our2020", "myPaper", "thisWork", "currentWork", "prior-our", "my-x", "self20"])(
-    "flags the self-citation key %s",
-    (key) => {
-      expect(messages("checkAnonymousReview", `\\cite{knuth, ${key}, ${key}}`)).toEqual([
-        `Self-citation key "${key}" may reveal author identity`,
-      ]);
-    },
-  );
+  it.each([
+    "our2020",
+    "myPaper",
+    "thisWork",
+    "currentWork",
+    "prior-our",
+    "my-x",
+    "self20",
+  ])("flags the self-citation key %s", (key) => {
+    expect(messages("checkAnonymousReview", `\\cite{knuth, ${key}, ${key}}`)).toEqual([
+      `Self-citation key "${key}" may reveal author identity`,
+    ]);
+  });
 
   it("ignores neutral citation keys", () => {
     expect(messages("checkAnonymousReview", "\\cite{knuth84}")).toEqual([]);
@@ -378,7 +428,9 @@ describe("anonymous review", () => {
   });
 
   it("ignores neutral URLs and asks to anonymise a paper without authors", () => {
-    expect(messages("checkAnonymousReview", "\\url{https://example.org/data}")).toEqual([]);
+    expect(messages("checkAnonymousReview", "\\url{https://example.org/data}")).toEqual(
+      [],
+    );
     expect(messages("checkAnonymousReview", "\\documentclass{x}")).toEqual([
       "Author block not anonymized for double-blind review",
     ]);
@@ -415,7 +467,10 @@ describe("figure resolution", () => {
       "Document uses EPS images but no PDF images; consider modern formats",
     ]);
     expect(
-      messages("checkFigureResolution", "\\includegraphics{a.eps}\n\\includegraphics{b.pdf}"),
+      messages(
+        "checkFigureResolution",
+        "\\includegraphics{a.eps}\n\\includegraphics{b.pdf}",
+      ),
     ).toEqual(['EPS image "a.eps" is a legacy format; PDF is preferred']);
   });
 });

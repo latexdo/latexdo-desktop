@@ -32,7 +32,11 @@ const ref = <T,>(current: T) => ({ current });
 
 /** Context with real refs; every `set*` records calls and applies updater functions. */
 function makeCtx(overrides: Record<string, unknown> = {}) {
-  const state: Record<string, unknown> = { documents: [], compileJobCount: 0, panelHeight: 100 };
+  const state: Record<string, unknown> = {
+    documents: [],
+    compileJobCount: 0,
+    panelHeight: 100,
+  };
   const base: Record<string, unknown> = {
     activeDocument: null,
     activePathRef: ref(""),
@@ -96,7 +100,14 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
       return undefined;
     },
   });
-  return { ctx: ctx as any, setters: new Proxy(setters, { get: (t, k: string) => (ctx as any)[k] }) as Record<string, Setter>, state };
+  return {
+    ctx: ctx as any,
+    setters: new Proxy(setters, { get: (t, k: string) => (ctx as any)[k] }) as Record<
+      string,
+      Setter
+    >,
+    state,
+  };
 }
 
 function mount(ctx: unknown) {
@@ -122,7 +133,14 @@ function stubLatexdo(api: Record<string, unknown> = {}) {
 }
 
 const okResult = (extra: Partial<CompileResult> = {}): CompileResult =>
-  ({ ok: true, pdfPath: "/build/main.pdf", durationMs: 1500, output: "", diagnostics: [], ...extra }) as CompileResult;
+  ({
+    ok: true,
+    pdfPath: "/build/main.pdf",
+    durationMs: 1500,
+    output: "",
+    diagnostics: [],
+    ...extra,
+  }) as CompileResult;
 
 let events: string[];
 let unsubscribe: () => void;
@@ -147,14 +165,23 @@ describe("loadProject", () => {
     const api = stubLatexdo({
       listProject: vi.fn(async () => [
         file("intro.tex"),
-        { type: "directory", name: "sub", path: "/p/sub", relativePath: "sub", children: [file("sub/main.tex")] },
+        {
+          type: "directory",
+          name: "sub",
+          path: "/p/sub",
+          relativePath: "sub",
+          children: [file("sub/main.tex")],
+        },
         file("main.tex"),
       ]),
     });
     const { ctx, setters } = makeCtx();
     const { result } = mount(ctx);
     await act(() =>
-      result.current.loadProject({ id: "p1", rootPath: "/home/me/paper", name: "" } as any, true),
+      result.current.loadProject(
+        { id: "p1", rootPath: "/home/me/paper", name: "" } as any,
+        true,
+      ),
     );
     expect(ctx.projectIdRef.current).toBe("p1");
     expect(setters.setProjectDisplayName).toHaveBeenCalledWith("paper");
@@ -162,7 +189,10 @@ describe("loadProject", () => {
     expect(api.listProject).toHaveBeenCalledWith("p1", expect.any(Object));
     expect(ctx.loadReviewData).toHaveBeenCalledWith("p1");
     expect(ctx.rootFileRef.current).toBe("main.tex");
-    expect(ctx.openDocument).toHaveBeenCalledWith(expect.objectContaining({ relativePath: "main.tex" }), "p1");
+    expect(ctx.openDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ relativePath: "main.tex" }),
+      "p1",
+    );
     expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Ready");
   });
 
@@ -171,13 +201,22 @@ describe("loadProject", () => {
       listProject: vi.fn(async () => [
         file("notes.md"),
         file("paper.tex"),
-        { ...file("big"), type: "directory", children: [{ ...file("big/x"), limited: true }] },
+        {
+          ...file("big"),
+          type: "directory",
+          children: [{ ...file("big/x"), limited: true }],
+        },
       ]),
     });
     const { ctx, setters } = makeCtx();
     const { result } = mount(ctx);
     await act(() =>
-      result.current.loadProject({ id: "p", rootPath: "/", name: "", researchSpace: { id: "r" } } as any),
+      result.current.loadProject({
+        id: "p",
+        rootPath: "/",
+        name: "",
+        researchSpace: { id: "r" },
+      } as any),
     );
     expect(setters.setProjectDisplayName).toHaveBeenCalledWith("Project");
     expect(setters.setActiveResearchSpace).toHaveBeenCalledWith({ id: "r" });
@@ -191,7 +230,13 @@ describe("loadProject", () => {
   it("keeps the root file when the project has no TeX source", async () => {
     const { ctx, setters } = makeCtx();
     const { result } = mount(ctx);
-    await act(() => result.current.loadProject({ id: "p", rootPath: "/x/y", name: "Named" } as any, true, true));
+    await act(() =>
+      result.current.loadProject(
+        { id: "p", rootPath: "/x/y", name: "Named" } as any,
+        true,
+        true,
+      ),
+    );
     expect(setters.setProjectDisplayName).toHaveBeenCalledWith("Named");
     expect(setters.setHideProjectEntries).toHaveBeenCalledWith(true);
     expect(setters.setRootFile).not.toHaveBeenCalled();
@@ -220,7 +265,11 @@ describe("automatic project open", () => {
   });
 
   it("on desktop prefers a requested project, then cloud, then the last project", async () => {
-    const reopenLastProject = vi.fn(async () => ({ id: "last", rootPath: "/l", name: "L" }));
+    const reopenLastProject = vi.fn(async () => ({
+      id: "last",
+      rootPath: "/l",
+      name: "L",
+    }));
     stubLatexdo({
       runtime: "desktop",
       openRequestedProject: vi.fn(async () => null),
@@ -255,16 +304,26 @@ describe("automatic project open", () => {
   });
 
   it("reports open failures", async () => {
-    stubLatexdo({ runtime: "browser", openProject: vi.fn(async () => Promise.reject(new Error("nope"))) });
+    stubLatexdo({
+      runtime: "browser",
+      openProject: vi.fn(async () => Promise.reject(new Error("nope"))),
+    });
     const first = makeCtx({ legalAcceptanceRequired: false });
     mount(first.ctx);
-    await waitFor(() => expect(first.setters.setStatusMessage).toHaveBeenCalledWith("nope"));
+    await waitFor(() =>
+      expect(first.setters.setStatusMessage).toHaveBeenCalledWith("nope"),
+    );
 
-    stubLatexdo({ runtime: "browser", openProject: vi.fn(async () => Promise.reject("bad")) });
+    stubLatexdo({
+      runtime: "browser",
+      openProject: vi.fn(async () => Promise.reject("bad")),
+    });
     const second = makeCtx({ legalAcceptanceRequired: false });
     mount(second.ctx);
     await waitFor(() =>
-      expect(second.setters.setStatusMessage).toHaveBeenCalledWith("Could not open the browser workspace."),
+      expect(second.setters.setStatusMessage).toHaveBeenCalledWith(
+        "Could not open the browser workspace.",
+      ),
     );
   });
 });
@@ -292,9 +351,13 @@ describe("saveDocument", () => {
     const { result } = mount(ctx);
     await act(() => result.current.saveDocument(doc("a.tex")));
     ctx.projectIdRef.current = "p";
-    await act(() => result.current.saveDocument(doc("fig.png", "", "", { kind: "image" })));
+    await act(() =>
+      result.current.saveDocument(doc("fig.png", "", "", { kind: "image" })),
+    );
     expect(api.writeFile).not.toHaveBeenCalled();
-    expect(setters.setStatusMessage).toHaveBeenCalledWith("fig.png is a preview and does not need saving.");
+    expect(setters.setStatusMessage).toHaveBeenCalledWith(
+      "fig.png is a preview and does not need saving.",
+    );
   });
 
   it("writes the document and marks only that content as saved", async () => {
@@ -307,7 +370,10 @@ describe("saveDocument", () => {
     const { result } = mount(ctx);
     await act(() => result.current.saveDocument(a));
     expect(api.writeFile).toHaveBeenCalledWith("p", "a.tex", "new");
-    expect((state.documents as OpenDocument[]).map((d) => d.savedContent)).toEqual(["new", "b1"]);
+    expect((state.documents as OpenDocument[]).map((d) => d.savedContent)).toEqual([
+      "new",
+      "b1",
+    ]);
     expect(ctx.documentsRef.current).toBe(state.documents);
     expect(ctx.scheduleGitRefreshRef.current).toHaveBeenCalled();
     expect(setters.setStatusMessage).toHaveBeenCalledWith("Saved a.tex");
@@ -318,21 +384,29 @@ describe("saveDocument", () => {
     const collab = { collaborationState: { enabled: true, token: "t" } };
     const viewer = makeCtx({ ...collab, currentUserRole: "viewer" });
     viewer.ctx.projectIdRef.current = "p";
-    await expect(mount(viewer.ctx).result.current.saveDocument(doc("a.tex"))).rejects.toThrow(
-      "Viewer access cannot save changes.",
-    );
+    await expect(
+      mount(viewer.ctx).result.current.saveDocument(doc("a.tex")),
+    ).rejects.toThrow("Viewer access cannot save changes.");
 
-    const blocked = makeCtx({ ...collab, realtimeBlockedDocumentsRef: ref({ "a.tex": "Locked by X" }) });
+    const blocked = makeCtx({
+      ...collab,
+      realtimeBlockedDocumentsRef: ref({ "a.tex": "Locked by X" }),
+    });
     blocked.ctx.projectIdRef.current = "p";
-    await expect(mount(blocked.ctx).result.current.saveDocument(doc("a.tex"))).rejects.toThrow("Locked by X");
+    await expect(
+      mount(blocked.ctx).result.current.saveDocument(doc("a.tex")),
+    ).rejects.toThrow("Locked by X");
 
     const syncing = makeCtx(collab);
     syncing.ctx.projectIdRef.current = "p";
-    await expect(mount(syncing.ctx).result.current.saveDocument(doc("a.tex"))).rejects.toThrow(
-      "Wait for secure collaboration sync before saving.",
-    );
+    await expect(
+      mount(syncing.ctx).result.current.saveDocument(doc("a.tex")),
+    ).rejects.toThrow("Wait for secure collaboration sync before saving.");
 
-    const ready = makeCtx({ ...collab, realtimeReadyDocumentsRef: ref(new Set(["a.tex"])) });
+    const ready = makeCtx({
+      ...collab,
+      realtimeReadyDocumentsRef: ref(new Set(["a.tex"])),
+    });
     ready.ctx.projectIdRef.current = "p";
     await mount(ready.ctx).result.current.saveDocument(doc("a.tex"));
     expect(api.writeFile).toHaveBeenCalledTimes(1);
@@ -347,7 +421,9 @@ describe("compile", () => {
     ctx.projectIdRef.current = "p";
     ctx.hideProjectEntriesRef.current = true;
     expect(await result.current.compile()).toBeNull();
-    expect(setters.setStatusMessage).toHaveBeenCalledWith("Create or open a project before compiling.");
+    expect(setters.setStatusMessage).toHaveBeenCalledWith(
+      "Create or open a project before compiling.",
+    );
     expect(events).toEqual(["compile:failed", "compile:failed"]);
   });
 
@@ -362,19 +438,29 @@ describe("compile", () => {
     const compiled = await act(() => result.current.compile());
     expect(compiled?.ok).toBe(true);
     expect(ctx.saveDocumentsForCompile).toHaveBeenCalledWith("p", [dirty]);
-    expect(api.compile).toHaveBeenCalledWith({ projectId: "p", rootFile: "main.tex", engine: "pdflatex" });
+    expect(api.compile).toHaveBeenCalledWith({
+      projectId: "p",
+      rootFile: "main.tex",
+      engine: "pdflatex",
+    });
     expect(ctx.lastAutoCompileSignatureRef.current).not.toBe("");
     expect(ctx.pdfPathRef.current).toBe("/build/main.pdf");
     expect(setters.setPdfData).toHaveBeenCalledWith(new Uint8Array([1, 2]));
     expect(setters.setPreviewVisible).toHaveBeenCalledWith(true);
     expect(setters.setCompileProgress).toHaveBeenLastCalledWith(100);
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Built successfully in 1.5 s");
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Built successfully in 1.5 s",
+    );
     expect(state.compileJobCount).toBe(0);
     expect(events).toEqual(["compile:succeeded"]);
   });
 
   it("compiles the active Asymptote file, saving it first when dirty", async () => {
-    const api = stubLatexdo({ compileAsymptote: vi.fn(async () => okResult({ pdfPath: "/b/fig.pdf", durationMs: 20 })) });
+    const api = stubLatexdo({
+      compileAsymptote: vi.fn(async () =>
+        okResult({ pdfPath: "/b/fig.pdf", durationMs: 20 }),
+      ),
+    });
     const asy = doc("fig.asy", "draw()", "old");
     const other = doc("main.tex");
     const { ctx, setters, state } = makeCtx();
@@ -386,9 +472,16 @@ describe("compile", () => {
     await act(() => result.current.compile());
     expect(api.writeFile).toHaveBeenCalledWith("p", "fig.asy", "draw()");
     expect((state.documents as OpenDocument[])[0].savedContent).toBe("draw()");
-    expect(api.compileAsymptote).toHaveBeenCalledWith({ projectId: "p", relativePath: "fig.asy" });
-    expect(setters.setStatusMessage).toHaveBeenCalledWith("Compiling fig.asy with Asymptote...");
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(expect.stringMatching(/^Built fig\.asy in /));
+    expect(api.compileAsymptote).toHaveBeenCalledWith({
+      projectId: "p",
+      relativePath: "fig.asy",
+    });
+    expect(setters.setStatusMessage).toHaveBeenCalledWith(
+      "Compiling fig.asy with Asymptote...",
+    );
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^Built fig\.asy in /),
+    );
 
     api.writeFile.mockClear();
     ctx.documentsRef.current = [doc("fig.asy")];
@@ -399,7 +492,13 @@ describe("compile", () => {
   it("opens the problems or output panel on failure", async () => {
     const failing = vi
       .fn()
-      .mockResolvedValueOnce({ ok: false, durationMs: 1, output: "", diagnostics: [{ code: "missing-latex-toolchain" }], error: "no latexmk" })
+      .mockResolvedValueOnce({
+        ok: false,
+        durationMs: 1,
+        output: "",
+        diagnostics: [{ code: "missing-latex-toolchain" }],
+        error: "no latexmk",
+      })
       .mockResolvedValueOnce({ ok: false, durationMs: 1, output: "", diagnostics: [] })
       .mockResolvedValueOnce({ ok: true, durationMs: 1, output: "", diagnostics: [] });
     stubLatexdo({ compile: failing });
@@ -438,7 +537,9 @@ describe("compile", () => {
     expect(ctx.pdfPathRef.current).toBe("");
 
     let fail!: (result: CompileResult) => void;
-    (window as any).latexdo.compile = vi.fn(() => new Promise((resolve) => (fail = resolve)));
+    (window as any).latexdo.compile = vi.fn(
+      () => new Promise((resolve) => (fail = resolve)),
+    );
     const second = result.current.compile();
     await waitFor(() => expect(fail).toBeDefined());
     ctx.compileRunIdRef.current += 1;
@@ -461,7 +562,9 @@ describe("compile", () => {
     expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Compilation failed");
 
     let reject!: (error: unknown) => void;
-    (window as any).latexdo.compile = vi.fn(() => new Promise((_r, rj) => (reject = rj)));
+    (window as any).latexdo.compile = vi.fn(
+      () => new Promise((_r, rj) => (reject = rj)),
+    );
     setters.setStatusMessage.mockClear();
     const pending = result.current.compile();
     await waitFor(() => expect(reject).toBeDefined());
@@ -488,22 +591,30 @@ describe("cancelCompile", () => {
     const { result } = mount(running.ctx);
     await act(() => result.current.cancelCompile());
     expect(running.ctx.compileRunIdRef.current).toBe(1);
-    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith("Canceling compile...");
+    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Canceling compile...",
+    );
     api.cancelCompile.mockResolvedValueOnce(false);
     await act(() => result.current.cancelCompile());
-    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith("No active compile to cancel.");
+    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "No active compile to cancel.",
+    );
     api.cancelCompile.mockRejectedValueOnce(new Error("ipc down"));
     await act(() => result.current.cancelCompile());
     expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith("ipc down");
     api.cancelCompile.mockRejectedValueOnce(42);
     await act(() => result.current.cancelCompile());
-    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith("Could not cancel compile.");
+    expect(running.setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Could not cancel compile.",
+    );
   });
 });
 
 describe("saveActiveAndCompile", () => {
   it("saves the active document before compiling", async () => {
-    const api = stubLatexdo({ compile: vi.fn(async () => okResult({ pdfPath: undefined })) });
+    const api = stubLatexdo({
+      compile: vi.fn(async () => okResult({ pdfPath: undefined })),
+    });
     const active = doc("main.tex", "n", "o");
     const { ctx } = makeCtx();
     ctx.projectIdRef.current = "p";
@@ -564,7 +675,10 @@ describe("closeActiveTab", () => {
 
   it("asks before closing unsaved documents", () => {
     const dirty = doc("a.tex", "new", "old");
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const confirm = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
     const { ctx } = makeCtx();
     ctx.documentsRef.current = [dirty];
     ctx.activePathRef.current = dirty.path;
@@ -641,11 +755,19 @@ describe("closeActiveTab", () => {
 describe("downloadPdf", () => {
   function captureDownloads() {
     const clicks: Array<{ href: string; download: string }> = [];
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
       clicks.push({ href: this.href, download: this.download });
     });
     const revoke = vi.fn();
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:pdf"), revokeObjectURL: revoke }));
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:pdf"),
+        revokeObjectURL: revoke,
+      }),
+    );
     return { clicks, revoke };
   }
 
@@ -679,7 +801,9 @@ describe("downloadPdf", () => {
   });
 
   it("compiles first when the source is dirty or no PDF exists", async () => {
-    const api = stubLatexdo({ compile: vi.fn(async () => okResult({ pdfPath: "/b/new.pdf" })) });
+    const api = stubLatexdo({
+      compile: vi.fn(async () => okResult({ pdfPath: "/b/new.pdf" })),
+    });
     const { clicks } = captureDownloads();
     const { ctx } = makeCtx();
     ctx.projectIdRef.current = "p";
@@ -696,19 +820,30 @@ describe("downloadPdf", () => {
     stubLatexdo({
       compile: vi
         .fn()
-        .mockResolvedValueOnce({ ok: false, durationMs: 0, output: "", diagnostics: [] })
+        .mockResolvedValueOnce({
+          ok: false,
+          durationMs: 0,
+          output: "",
+          diagnostics: [],
+        })
         .mockResolvedValueOnce(okResult({ pdfPath: undefined })),
     });
     const { ctx, setters } = makeCtx();
     ctx.projectIdRef.current = "p";
     const { result } = mount(ctx);
     await act(() => result.current.downloadPdf());
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Compile successfully before downloading the PDF");
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Compile successfully before downloading the PDF",
+    );
     await act(() => result.current.downloadPdf());
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Compile successfully before downloading the PDF");
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Compile successfully before downloading the PDF",
+    );
     ctx.hideProjectEntriesRef.current = true;
     await act(() => result.current.downloadPdf());
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Compile successfully before downloading the PDF");
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Compile successfully before downloading the PDF",
+    );
   });
 
   it("downloads an active Asymptote figure even without a root file", async () => {
@@ -735,7 +870,9 @@ describe("downloadPdf", () => {
     expect(setters.setStatusMessage).toHaveBeenLastCalledWith("disk");
     api.readPdf.mockRejectedValueOnce("??");
     await result.current.downloadPdf();
-    expect(setters.setStatusMessage).toHaveBeenLastCalledWith("Could not download the PDF");
+    expect(setters.setStatusMessage).toHaveBeenLastCalledWith(
+      "Could not download the PDF",
+    );
   });
 });
 
@@ -746,13 +883,22 @@ describe("compileEntry", () => {
     ctx.projectIdRef.current = "p";
     const { result } = mount(ctx);
     await act(() => result.current.compileEntry(file("notes.md")));
-    await act(() => result.current.compileEntry({ ...file("dir.tex"), type: "directory" } as ProjectEntry));
+    await act(() =>
+      result.current.compileEntry({
+        ...file("dir.tex"),
+        type: "directory",
+      } as ProjectEntry),
+    );
     expect(api.compile).not.toHaveBeenCalled();
     await act(() => result.current.compileEntry(file("ch/other.tex")));
     expect(ctx.rootFileRef.current).toBe("ch/other.tex");
     expect(setters.setWelcomeOpen).toHaveBeenCalledWith(false);
-    expect(setters.setStatusMessage).toHaveBeenCalledWith("Using ch/other.tex as the main file");
-    expect(api.compile).toHaveBeenCalledWith(expect.objectContaining({ rootFile: "ch/other.tex" }));
+    expect(setters.setStatusMessage).toHaveBeenCalledWith(
+      "Using ch/other.tex as the main file",
+    );
+    expect(api.compile).toHaveBeenCalledWith(
+      expect.objectContaining({ rootFile: "ch/other.tex" }),
+    );
   });
 });
 
@@ -767,7 +913,9 @@ describe("live preview", () => {
 
   it("compiles dirty documents after a short delay", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const api = stubLatexdo({ compile: vi.fn(async () => okResult({ pdfPath: undefined })) });
+    const api = stubLatexdo({
+      compile: vi.fn(async () => okResult({ pdfPath: undefined })),
+    });
     const { ctx } = live();
     ctx.projectIdRef.current = "p";
     const { rerender } = mount(ctx);

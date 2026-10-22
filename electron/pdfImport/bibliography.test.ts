@@ -152,7 +152,11 @@ describe("parseReference", () => {
 
   it("detects proceedings and takes the venue from the italic run or the text", () => {
     const italic = parseReference(
-      [textLine("Lee, A. 2020. Fast parsing. In |Proc. of the Workshop on Parsing|. pp. 1-9.")],
+      [
+        textLine(
+          "Lee, A. 2020. Fast parsing. In |Proc. of the Workshop on Parsing|. pp. 1-9.",
+        ),
+      ],
       new Set(),
     );
     expect(italic.entryType).toBe("inproceedings");
@@ -172,7 +176,9 @@ describe("parseReference", () => {
 
   it("recognises theses, reports, preprints and books", () => {
     const parse = (text: string) => parseReference([textLine(text)], new Set());
-    expect(parse("Kim, H. 2018. Typesetting. PhD thesis, MIT.").entryType).toBe("phdthesis");
+    expect(parse("Kim, H. 2018. Typesetting. PhD thesis, MIT.").entryType).toBe(
+      "phdthesis",
+    );
     expect(parse("Kim, H. 2018. Typesetting. Master's thesis, MIT.").entryType).toBe(
       "mastersthesis",
     );
@@ -181,8 +187,13 @@ describe("parseReference", () => {
     );
     const preprint = parse("Kim, H. 2018. Typesetting. arXiv:1801.01234v2.");
     expect(preprint.entryType).toBe("misc");
-    expect(preprint.fields).toMatchObject({ eprint: "1801.01234", archivePrefix: "arXiv" });
-    const book = parse("Knuth, D. 1984. The TeXbook. 2nd edition. Addison-Wesley Publishing.");
+    expect(preprint.fields).toMatchObject({
+      eprint: "1801.01234",
+      archivePrefix: "arXiv",
+    });
+    const book = parse(
+      "Knuth, D. 1984. The TeXbook. 2nd edition. Addison-Wesley Publishing.",
+    );
     expect(book.entryType).toBe("book");
     expect(book.fields.edition).toBe("2");
     expect(parse("Knuth, D. 1984. Something else entirely.").entryType).toBe("misc");
@@ -212,10 +223,18 @@ describe("parseReference", () => {
 
   it("reads volume and number cues and an URL", () => {
     const ref = parseReference(
-      [textLine("Ng, A. Learning things. Some Journal, vol. 4, no. 2. https://example.org/x.")],
+      [
+        textLine(
+          "Ng, A. Learning things. Some Journal, vol. 4, no. 2. https://example.org/x.",
+        ),
+      ],
       new Set(),
     );
-    expect(ref.fields).toMatchObject({ volume: "4", number: "2", url: "https://example.org/x" });
+    expect(ref.fields).toMatchObject({
+      volume: "4",
+      number: "2",
+      url: "https://example.org/x",
+    });
     expect(ref.entryType).toBe("article");
   });
 
@@ -240,7 +259,11 @@ describe("parseReference", () => {
 
   it("handles name-first authors with initials and et al.", () => {
     const ref = parseReference(
-      [textLine("J. R. R. Tolkien & C. S. Lewis et al. Inklings at work. Oxford press, 1950.")],
+      [
+        textLine(
+          "J. R. R. Tolkien & C. S. Lewis et al. Inklings at work. Oxford press, 1950.",
+        ),
+      ],
       new Set(),
     );
     expect(ref.fields.author).toBe("J. R. R. Tolkien and C. S. Lewis and others");
@@ -270,12 +293,19 @@ describe("parseReference", () => {
       new Set(),
     );
     expect(ref.authorSurnames).toEqual(["B"]);
-    expect(ref.fields.title).toContain("100\\% of \\$cost \\& more\\_stuff \\#1 \\{x\\}");
-    expect(ref.fields.title).toContain("\\textasciitilde{}\\textasciicircum{}\\textbackslash{}");
+    expect(ref.fields.title).toContain(
+      "100\\% of \\$cost \\& more\\_stuff \\#1 \\{x\\}",
+    );
+    expect(ref.fields.title).toContain(
+      "\\textasciitilde{}\\textasciicircum{}\\textbackslash{}",
+    );
   });
 
   it("keeps only the raw text when authors cannot be found", () => {
-    const ref = parseReference([textLine("[7] just some words without structure")], new Set());
+    const ref = parseReference(
+      [textLine("[7] just some words without structure")],
+      new Set(),
+    );
     expect(ref.parsed).toBe(false);
     expect(ref.fields.note).toBe("just some words without structure");
     expect(ref.key).toBe("ref-7");
@@ -298,10 +328,16 @@ describe("parseReference", () => {
   });
 
   it("numbers the key when the surname has no letters", () => {
-    const ref = parseReference([textLine("[4] '' and '. Words. More words.")], new Set());
+    const ref = parseReference(
+      [textLine("[4] '' and '. Words. More words.")],
+      new Set(),
+    );
     expect(ref.authorSurnames.length).toBeGreaterThan(0);
     expect(ref.key).toBe("ref4");
-    const unnumbered = parseReference([textLine("'' and '. Words. More.")], new Set(["x"]));
+    const unnumbered = parseReference(
+      [textLine("'' and '. Words. More.")],
+      new Set(["x"]),
+    );
     expect(unnumbered.key).toBe("ref2");
   });
 
@@ -314,12 +350,18 @@ describe("parseReference", () => {
   });
 
   it("drops a surname that cleans to nothing", () => {
-    const ref = parseReference([textLine("12, 34. 2001. A title. |Venue|.")], new Set());
+    const ref = parseReference(
+      [textLine("12, 34. 2001. A title. |Venue|.")],
+      new Set(),
+    );
     expect(ref.authorSurnames).toEqual([]);
   });
 
   it("runs out of key suffixes gracefully", () => {
-    const used = new Set(["smith2000", ...[..."abcdefghijklmnopqrstuvwxyz"].map((c) => `smith2000${c}`)]);
+    const used = new Set([
+      "smith2000",
+      ...[..."abcdefghijklmnopqrstuvwxyz"].map((c) => `smith2000${c}`),
+    ]);
     const ref = parseReference([textLine("Smith, J. (2000). Title. |V|.")], used);
     expect(ref.key).toBe("smith2000");
   });

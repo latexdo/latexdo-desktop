@@ -51,9 +51,8 @@ describe("figure preview edge cases", () => {
   });
 
   it("resolves mime types and inline rendering by extension", async () => {
-    const { figurePreviewMimeType, figureCanRenderInline } = await import(
-      "../figurePreview"
-    );
+    const { figurePreviewMimeType, figureCanRenderInline } =
+      await import("../figurePreview");
     expect(figurePreviewMimeType("a/b.PNG")).toBe("image/png");
     expect(figurePreviewMimeType("plot.")).toBeNull();
     expect(figurePreviewMimeType("plot.tiff")).toBeNull();

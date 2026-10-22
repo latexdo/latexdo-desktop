@@ -119,17 +119,30 @@ describe("textInsertion", () => {
   });
 
   it("adds glue spaces only between word characters", () => {
-    expect(
-      insertAtCurrentCursor("ab", 1, 1, "XY"),
-    ).toEqual({ value: "a XY b", cursor: 4 });
-    expect(insertAtCurrentCursor("a.", 1, 1, "XY")).toEqual({ value: "a XY.", cursor: 4 });
-    expect(insertAtCurrentCursor(".b", 1, 1, "XY")).toEqual({ value: ".XY b", cursor: 3 });
+    expect(insertAtCurrentCursor("ab", 1, 1, "XY")).toEqual({
+      value: "a XY b",
+      cursor: 4,
+    });
+    expect(insertAtCurrentCursor("a.", 1, 1, "XY")).toEqual({
+      value: "a XY.",
+      cursor: 4,
+    });
+    expect(insertAtCurrentCursor(".b", 1, 1, "XY")).toEqual({
+      value: ".XY b",
+      cursor: 3,
+    });
     expect(insertAtCurrentCursor("ab", 1, 1, ",")).toEqual({ value: "a,b", cursor: 2 });
     expect(insertAtCurrentCursor("ab", 1, 1, "")).toEqual({ value: "ab", cursor: 1 });
   });
 
   it("clamps out-of-range and inverted selections", () => {
-    expect(insertAtCurrentCursor("abc", -5, 99, "x")).toEqual({ value: "x", cursor: 1 });
-    expect(insertAtCurrentCursor("abc", 2, 1, "-")).toEqual({ value: "ab-c", cursor: 3 });
+    expect(insertAtCurrentCursor("abc", -5, 99, "x")).toEqual({
+      value: "x",
+      cursor: 1,
+    });
+    expect(insertAtCurrentCursor("abc", 2, 1, "-")).toEqual({
+      value: "ab-c",
+      cursor: 3,
+    });
   });
 });

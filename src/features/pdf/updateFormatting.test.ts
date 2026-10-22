@@ -61,14 +61,21 @@ describe("update formatting", () => {
   });
 
   it("describes download progress", () => {
-    expect(formatUpdateProgress(progress({ status: "verifying" }))).toBe("Preparing update");
-    expect(formatUpdateProgress(progress({ status: "checking", message: "Checking" }))).toBe(
-      "Checking",
+    expect(formatUpdateProgress(progress({ status: "verifying" }))).toBe(
+      "Preparing update",
     );
+    expect(
+      formatUpdateProgress(progress({ status: "checking", message: "Checking" })),
+    ).toBe("Checking");
     expect(formatUpdateProgress(progress({}))).toBe("Preparing update");
     expect(
       formatUpdateProgress(
-        progress({ message: "Downloading", percent: 41.6, transferredBytes: 1024, totalBytes: 2048 }),
+        progress({
+          message: "Downloading",
+          percent: 41.6,
+          transferredBytes: 1024,
+          totalBytes: 2048,
+        }),
       ),
     ).toBe("Downloading (42%, 1 KB of 2 KB)");
     expect(formatUpdateProgress(progress({ transferredBytes: 512 }))).toBe(
@@ -83,7 +90,11 @@ describe("update formatting", () => {
     );
     expect(
       formatUpdateAttempt(
-        attempt({ status: "confirmed", expectedVersion: "1.1.0", fromVersion: "1.0.0" }),
+        attempt({
+          status: "confirmed",
+          expectedVersion: "1.1.0",
+          fromVersion: "1.0.0",
+        }),
       ),
     ).toBe("LatexDo was updated to 1.1.0 from 1.0.0 and verified after restart.");
     expect(formatUpdateAttempt(attempt({ status: "failed" }))).toBe(
@@ -91,7 +102,12 @@ describe("update formatting", () => {
     );
     expect(
       formatUpdateAttempt(
-        attempt({ status: "failed", expectedVersion: "1.1.0", attempts: 2, error: "hash" }),
+        attempt({
+          status: "failed",
+          expectedVersion: "1.1.0",
+          attempts: 2,
+          error: "hash",
+        }),
       ),
     ).toBe(
       "Update failed: the update to 1.1.0 could not be verified. LatexDo is still running 1.0.0. Attempt 2 of 3. Reason: hash",
@@ -107,7 +123,9 @@ describe("update formatting", () => {
   it("identifies updates and labels builds", () => {
     expect(updateIdentity({ latestVersion: null })).toBeNull();
     expect(updateIdentity({ latestVersion: "1.0.0" })).toBe("1.0.0");
-    expect(updateIdentity({ latestVersion: "1.0.0", latestCommit: "abc" })).toBe("1.0.0+abc");
+    expect(updateIdentity({ latestVersion: "1.0.0", latestCommit: "abc" })).toBe(
+      "1.0.0+abc",
+    );
     expect(formatBuildLabel("1.0.0")).toBe("1.0.0");
     expect(formatBuildLabel("1.0.0", "2f55cb3deadbeef")).toBe("1.0.0 (2f55cb3)");
   });

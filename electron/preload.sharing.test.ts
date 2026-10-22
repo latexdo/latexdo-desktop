@@ -87,7 +87,9 @@ describe("storage resilience", () => {
     // A fresh session id is made each time but the request still goes out.
     fetchMock.mockImplementation(async () => json({ content: "x" }));
     expect(await api.readFile("project_a", "a.tex")).toBe("x");
-    expect(fetchMock.mock.calls[0][1].headers["x-latexdo-session"]).toMatch(/^session-/);
+    expect(fetchMock.mock.calls[0][1].headers["x-latexdo-session"]).toMatch(
+      /^session-/,
+    );
     expect(await api.restoreCloudProject()).toBeNull();
     // Deleting forgets the active project through removeItem, which throws.
     fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
@@ -110,7 +112,9 @@ describe("desktop input validation", () => {
   it("validates paths and project ids before reaching the main process", async () => {
     const api = await load();
     for (const bad of ["/abs", "a//b/../c", "./a", "x:\\y"]) {
-      await expect(api.readFile("local", bad)).rejects.toThrow("Invalid desktop API input");
+      await expect(api.readFile("local", bad)).rejects.toThrow(
+        "Invalid desktop API input",
+      );
     }
     await expect(api.readFile("local", 5 as unknown as string)).rejects.toThrow();
     await expect(api.readAsset("local", "noext")).rejects.toThrow();
@@ -150,7 +154,9 @@ describe("remote requests through the main process", () => {
 
     next = reply(undefined, 500, "Server Error");
     next.text = "not json";
-    await expect(api.readFile("project_r", "a.tex")).rejects.toThrow("500 Server Error");
+    await expect(api.readFile("project_r", "a.tex")).rejects.toThrow(
+      "500 Server Error",
+    );
     next = reply({ code: 7 }, 409, "");
     await expect(api.readFile("project_r", "a.tex")).rejects.toThrow("409");
     next = reply(undefined);
@@ -180,7 +186,10 @@ describe("remote requests through the main process", () => {
     await vi.waitFor(() => expect(release).toBeTypeOf("function"));
     expect(await api.cancelCompile("project_r")).toBe(true);
     release(reply({ files: [] }));
-    expect(await compiling).toMatchObject({ ok: false, error: "Cloud request cancelled." });
+    expect(await compiling).toMatchObject({
+      ok: false,
+      error: "Cloud request cancelled.",
+    });
   });
 
   it("refuses a request whose signal is already aborted", async () => {
@@ -188,9 +197,16 @@ describe("remote requests through the main process", () => {
     setOrigins({ project_r: "http://10.0.0.4:5000" });
     routeInvoke({ "peer:request": () => reply({ files: [] }) });
     // Start and cancel before the bundle request resolves.
-    const compiling = api.compile({ projectId: "project_r", rootFile: "m", engine: "pdflatex" } as never);
+    const compiling = api.compile({
+      projectId: "project_r",
+      rootFile: "m",
+      engine: "pdflatex",
+    } as never);
     await api.cancelCompile("project_r");
-    expect(await compiling).toMatchObject({ ok: false, error: "Cloud request cancelled." });
+    expect(await compiling).toMatchObject({
+      ok: false,
+      error: "Cloud request cancelled.",
+    });
   });
 });
 
@@ -211,7 +227,11 @@ describe("a configured collaboration server", () => {
     await vi.advanceTimersByTimeAsync(15_001);
     await expectation;
 
-    const compiling = api.compile({ projectId: "project_a", rootFile: "m", engine: "pdflatex" } as never);
+    const compiling = api.compile({
+      projectId: "project_a",
+      rootFile: "m",
+      engine: "pdflatex",
+    } as never);
     await vi.advanceTimersByTimeAsync(0);
     expect(await api.cancelCompile("project_a")).toBe(true);
     expect(await compiling).toMatchObject({ error: "Cloud request cancelled." });
@@ -223,13 +243,23 @@ describe("a configured collaboration server", () => {
       await api.cancelCompile("project_a");
       throw new Error("network");
     });
-    const result = await api.compile({ projectId: "project_a", rootFile: "m", engine: "pdflatex" } as never);
+    const result = await api.compile({
+      projectId: "project_a",
+      rootFile: "m",
+      engine: "pdflatex",
+    } as never);
     expect(result).toMatchObject({ error: "Cloud request cancelled." });
     fetchMock.mockRejectedValue("string failure");
     expect(
-      await api.compile({ projectId: "project_a", rootFile: "m", engine: "pdflatex" } as never),
+      await api.compile({
+        projectId: "project_a",
+        rootFile: "m",
+        engine: "pdflatex",
+      } as never),
     ).toMatchObject({ error: "Could not compile the shared project locally." });
-    fetchMock.mockImplementation(async () => new Response("<html>", { status: 502, statusText: "Bad" }));
+    fetchMock.mockImplementation(
+      async () => new Response("<html>", { status: 502, statusText: "Bad" }),
+    );
     await expect(api.readFile("project_a", "a")).rejects.toThrow("502 Bad");
     fetchMock.mockImplementation(async () => json({}, 500));
     await expect(api.readFile("project_a", "a")).rejects.toThrow("500");
@@ -249,7 +279,9 @@ describe("a configured collaboration server", () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
     fetchMock.mockImplementation(async () => json({ relativePath: "b.tex" }));
     expect(await api.copyEntry("project_a", "a.tex", "b.tex")).toBe("b.tex");
-    fetchMock.mockImplementation(async () => json([{ type: "file", relativePath: "a.tex" }]));
+    fetchMock.mockImplementation(async () =>
+      json([{ type: "file", relativePath: "a.tex" }]),
+    );
     expect(await api.listProject("project_a")).toHaveLength(1);
     bridge.invoke.mockResolvedValue("copied");
     expect(await api.copyEntry("local", "a", "b")).toBe("copied");
@@ -260,7 +292,7 @@ describe("a configured collaboration server", () => {
 
   it("joins through a share link in the query string or a co-author web link", async () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
-    fetchMock.mockImplementation(async () => 
+    fetchMock.mockImplementation(async () =>
       json({
         project: { id: "project_q", name: "Q" },
         collaboration: { enabled: true, users: [], token: "fresh" },
@@ -275,18 +307,26 @@ describe("a configured collaboration server", () => {
     });
     expect(joined.collaboration.shareUrl).toBe(`${server}/#share=fresh`);
 
-    const nonApproval = new Response(JSON.stringify({ error: "nope" }), { status: 403 });
+    const nonApproval = new Response(JSON.stringify({ error: "nope" }), {
+      status: 403,
+    });
     fetchMock.mockResolvedValueOnce(nonApproval);
     await expect(api.joinCollaboration("raw")).rejects.toThrow("nope");
 
     routeInvoke({
       "peer:resolve-invite": (invite: string) => ({ origin: server, token: invite }),
     });
-    fetchMock.mockImplementation(async () => 
-      json({ project: { id: "project_w", name: "W" }, collaboration: { enabled: true, users: [] } }),
+    fetchMock.mockImplementation(async () =>
+      json({
+        project: { id: "project_w", name: "W" },
+        collaboration: { enabled: true, users: [] },
+      }),
     );
     await api.joinCollaboration("https://latexdo.org/join#abc_DEF-1");
-    expect(bridge.invoke).toHaveBeenCalledWith("peer:resolve-invite", "latexdo-invite:abc_DEF-1");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "peer:resolve-invite",
+      "latexdo-invite:abc_DEF-1",
+    );
   });
 
   it("uses the hosted editor URL for share links and none without one", async () => {
@@ -294,9 +334,13 @@ describe("a configured collaboration server", () => {
       VITE_LATEXDO_API_BASE_URL: server,
       VITE_LATEXDO_HOSTED_EDITOR_URL: "https://editor.example.org/app",
     });
-    fetchMock.mockImplementation(async () => json({ enabled: true, users: [], token: "t1" }));
+    fetchMock.mockImplementation(async () =>
+      json({ enabled: true, users: [], token: "t1" }),
+    );
     const state = await api.getCollaborationState("project_a");
-    expect(String(fetchMock.mock.calls[0][0])).toBe(`${server}/api/projects/project_a/share`);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `${server}/api/projects/project_a/share`,
+    );
     expect(state.shareUrl).toBe("https://editor.example.org/app#share=t1");
   });
 
@@ -368,17 +412,26 @@ describe("a configured collaboration server", () => {
   it("enforces upload limits", async () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
     fetchMock.mockImplementation(async () => json({ id: "project_new", name: "P" }));
-    routeInvoke({ "project:list": () => [{ type: "file", relativePath: "a", limited: true }] });
+    routeInvoke({
+      "project:list": () => [{ type: "file", relativePath: "a", limited: true }],
+    });
     await expect(api.createCollaborationLink("local")).rejects.toThrow("scan limit");
     routeInvoke({
       "project:list": () => [
-        { type: "directory", relativePath: "d", children: [{ type: "file", relativePath: "d/x", limited: true }] },
+        {
+          type: "directory",
+          relativePath: "d",
+          children: [{ type: "file", relativePath: "d/x", limited: true }],
+        },
       ],
     });
     await expect(api.createCollaborationLink("local")).rejects.toThrow("scan limit");
     routeInvoke({
       "project:list": () =>
-        Array.from({ length: 501 }, (_, i) => ({ type: "file", relativePath: `f${i}` })),
+        Array.from({ length: 501 }, (_, i) => ({
+          type: "file",
+          relativePath: `f${i}`,
+        })),
     });
     await expect(api.createCollaborationLink("local")).rejects.toThrow(
       "Cloud projects are limited to 500 files.",
@@ -406,7 +459,9 @@ describe("a configured collaboration server", () => {
     fetchMock
       .mockResolvedValueOnce(json({ error: "missing" }, 404))
       .mockResolvedValueOnce(json({ content: "<svg/>" }));
-    expect(new TextDecoder().decode(await api.readAsset("project_a", "f.svg"))).toBe("<svg/>");
+    expect(new TextDecoder().decode(await api.readAsset("project_a", "f.svg"))).toBe(
+      "<svg/>",
+    );
     fetchMock.mockResolvedValueOnce(json({ error: "forbidden" }, 403));
     await expect(api.readAsset("project_a", "f.svg")).rejects.toThrow("forbidden");
   });
@@ -415,11 +470,12 @@ describe("a configured collaboration server", () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
     localStorage.setItem("latexdo.cloud.activeProject", "project_a");
     setTokens({ project_a: "tok" });
-    fetchMock
-      .mockRejectedValueOnce(new Error("no directory"))
-      .mockResolvedValueOnce(
-        json({ project: { id: "project_a", name: "P" }, collaboration: { enabled: true, users: [] } }),
-      );
+    fetchMock.mockRejectedValueOnce(new Error("no directory")).mockResolvedValueOnce(
+      json({
+        project: { id: "project_a", name: "P" },
+        collaboration: { enabled: true, users: [] },
+      }),
+    );
     expect(await api.restoreCloudProject()).toMatchObject({ id: "project_a" });
     fetchMock
       .mockResolvedValueOnce(json({ projects: [{ id: "project_a", name: 5 }] }))
@@ -429,14 +485,24 @@ describe("a configured collaboration server", () => {
 
   it("saves and adds folders to research spaces, downloading shared copies", async () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
-    fetchMock.mockImplementation(async () => json({ files: [{ relativePath: "a.tex", content: "A" }] }));
+    fetchMock.mockImplementation(async () =>
+      json({ files: [{ relativePath: "a.tex", content: "A" }] }),
+    );
     bridge.invoke.mockResolvedValue({ id: "local2" });
-    expect(await api.saveResearchSpaceAs("project_a", "Paper")).toEqual({ id: "local2" });
-    expect(bridge.invoke).toHaveBeenCalledWith("research-space:save-as-cloud", "Paper", [
-      { relativePath: "a.tex", content: "A" },
-    ]);
+    expect(await api.saveResearchSpaceAs("project_a", "Paper")).toEqual({
+      id: "local2",
+    });
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "research-space:save-as-cloud",
+      "Paper",
+      [{ relativePath: "a.tex", content: "A" }],
+    );
     await api.saveResearchSpaceAs("project_b");
-    expect(bridge.invoke).toHaveBeenLastCalledWith("research-space:save-as-cloud", "", expect.any(Array));
+    expect(bridge.invoke).toHaveBeenLastCalledWith(
+      "research-space:save-as-cloud",
+      "",
+      expect.any(Array),
+    );
     await expect(api.addFolderToResearchSpace("project_a")).rejects.toThrow(
       "Save as Research Space first",
     );
@@ -454,7 +520,9 @@ describe("a configured collaboration server", () => {
     });
     fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
     const imported = await api.chooseImportExternalFiles("project_a", "/");
-    expect(imported).toEqual([{ sourcePath: "/x/a.png", relativePath: "a.png", type: "file" }]);
+    expect(imported).toEqual([
+      { sourcePath: "/x/a.png", relativePath: "a.png", type: "file" },
+    ]);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ base64: "" });
     expect(await api.importDocx()).toBe("docx");
     expect(await api.importMarkdown()).toBe("md");
@@ -464,17 +532,25 @@ describe("a configured collaboration server", () => {
 
   it("approves newcomers and resolves join requests", async () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
-    await expect(api.setCollaborationApproval("project_a", true)).rejects.toThrow("not been shared");
-    await expect(api.resolveCollaborationRequest("project_a", "c", true)).rejects.toThrow(
+    await expect(api.setCollaborationApproval("project_a", true)).rejects.toThrow(
       "not been shared",
     );
-    await expect(api.setCollaborationApproval("local", true)).rejects.toThrow("not been shared");
+    await expect(
+      api.resolveCollaborationRequest("project_a", "c", true),
+    ).rejects.toThrow("not been shared");
+    await expect(api.setCollaborationApproval("local", true)).rejects.toThrow(
+      "not been shared",
+    );
     await expect(api.resolveCollaborationRequest("local", "c", true)).rejects.toThrow(
       "not been shared",
     );
     setTokens({ project_a: "tok" });
-    fetchMock.mockImplementation(async () => json({ enabled: true, users: [], requireApproval: true }));
-    expect((await api.setCollaborationApproval("project_a", true)).requireApproval).toBe(true);
+    fetchMock.mockImplementation(async () =>
+      json({ enabled: true, users: [], requireApproval: true }),
+    );
+    expect(
+      (await api.setCollaborationApproval("project_a", true)).requireApproval,
+    ).toBe(true);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
       method: "PUT",
       body: JSON.stringify({ requireApproval: true }),
@@ -494,9 +570,14 @@ describe("a configured collaboration server", () => {
     setTokens({ project_a: "tok", project_b: "b" });
     fetchMock.mockResolvedValueOnce(json({ error: "gone" }, 404));
     await api.deleteSharedProject("project_a");
-    expect(bridge.invoke).toHaveBeenCalledWith("peer:forget-shared-project", "project_a");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "peer:forget-shared-project",
+      "project_a",
+    );
     expect(localStorage.getItem("latexdo.cloud.activeProject")).toBeNull();
-    expect(JSON.parse(localStorage.getItem("latexdo.cloud.shareTokens")!)).toEqual({ project_b: "b" });
+    expect(JSON.parse(localStorage.getItem("latexdo.cloud.shareTokens")!)).toEqual({
+      project_b: "b",
+    });
     localStorage.setItem("latexdo.cloud.activeProject", "project_c");
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await api.deleteSharedProject("project_b");
@@ -509,11 +590,22 @@ describe("a configured collaboration server", () => {
     const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
     bridge.invoke.mockResolvedValue({ saved: true });
     expect(await api.saveSharedProjectToFolder("project_a")).toEqual({ saved: true });
-    expect(bridge.invoke).toHaveBeenCalledWith("peer:host-save-project", "project_a", true);
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "peer:host-save-project",
+      "project_a",
+      true,
+    );
     await api.saveSharedProjectToFolder("project_a", { ask: false });
-    expect(bridge.invoke).toHaveBeenLastCalledWith("peer:host-save-project", "project_a", false);
+    expect(bridge.invoke).toHaveBeenLastCalledWith(
+      "peer:host-save-project",
+      "project_a",
+      false,
+    );
     await api.openSharedProjectFolder("project_a");
-    expect(bridge.invoke).toHaveBeenLastCalledWith("peer:host-open-folder", "project_a");
+    expect(bridge.invoke).toHaveBeenLastCalledWith(
+      "peer:host-open-folder",
+      "project_a",
+    );
   });
 
   it("rejects Git actions on shared copies and forwards them for folders", async () => {
@@ -552,12 +644,14 @@ describe("sharing from this computer", () => {
     const api = await load();
     routeInvoke({
       "peer:host-start": () => {
-        throw new Error("Error invoking remote method 'peer:host-start': Error: Port busy");
+        throw new Error(
+          "Error invoking remote method 'peer:host-start': Error: Port busy",
+        );
       },
     });
-    await expect(api.createCollaborationLink("local", { mode: "local" })).rejects.toThrow(
-      /^Port busy$/,
-    );
+    await expect(
+      api.createCollaborationLink("local", { mode: "local" }),
+    ).rejects.toThrow(/^Port busy$/);
   });
 
   it("re-shares a hosted project and keeps the host up while another is shared", async () => {
@@ -639,16 +733,19 @@ describe("sharing from this computer", () => {
     const api = await load();
     routeInvoke({
       "project:list": () =>
-        Array.from({ length: 2001 }, (_, i) => ({ type: "file", relativePath: `f${i}` })),
+        Array.from({ length: 2001 }, (_, i) => ({
+          type: "file",
+          relativePath: `f${i}`,
+        })),
       "peer:request": () => reply({ id: "project_x", name: "X" }),
       "peer:host-start": () => status,
     });
     await expect(api.createCollaborationLink("local")).rejects.toThrow(
       "Shared projects are limited to 2000 files.",
     );
-    await expect(api.createCollaborationLink("local", { mode: "local" })).rejects.toThrow(
-      "Shared projects are limited to 2000 files.",
-    );
+    await expect(
+      api.createCollaborationLink("local", { mode: "local" }),
+    ).rejects.toThrow("Shared projects are limited to 2000 files.");
     routeInvoke({
       "project:list": () => [{ type: "file", relativePath: "huge.bin" }],
       "file:read": () => {
@@ -670,9 +767,9 @@ describe("sharing from this computer", () => {
       "peer:request": () => reply({ id: "project_x", name: "X" }),
       "peer:host-start": () => status,
     });
-    await expect(api.createCollaborationLink("local", { mode: "local" })).rejects.toThrow(
-      "larger than 32 MB",
-    );
+    await expect(
+      api.createCollaborationLink("local", { mode: "local" }),
+    ).rejects.toThrow("larger than 32 MB");
   });
 
   it("restores a project on another host without a stored invite as nothing", async () => {
@@ -725,7 +822,10 @@ describe("sharing from this computer", () => {
       },
     });
     await api.deleteSharedProject("project_h");
-    expect(bridge.invoke).toHaveBeenCalledWith("peer:forget-shared-project", "project_h");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "peer:forget-shared-project",
+      "project_h",
+    );
   });
 
   it("routes share-token paths with odd encodings", async () => {
@@ -764,7 +864,12 @@ describe("sharing from this computer", () => {
         return true;
       },
     });
-    const handlers = { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+    const handlers = {
+      onOpen: vi.fn(),
+      onMessage: vi.fn(),
+      onClose: vi.fn(),
+      onError: vi.fn(),
+    };
     const socket = api.connectCollaborationSocket(host, "/x", handlers);
     const emit = bridge.on.mock.calls.find(([c]) => c === "peer:socket-event")![1] as (
       event: unknown,
@@ -786,17 +891,29 @@ describe("sharing from this computer", () => {
     expect(bridge.send).not.toHaveBeenCalled();
 
     failOpen = true;
-    const second = { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+    const second = {
+      onOpen: vi.fn(),
+      onMessage: vi.fn(),
+      onClose: vi.fn(),
+      onError: vi.fn(),
+    };
     const failed = api.connectCollaborationSocket(host, "/y", second);
     await vi.waitFor(() => expect(second.onClose).toHaveBeenCalledWith(1006, ""));
     expect(second.onError).toHaveBeenCalled();
     failed.close();
     await Promise.resolve();
     await Promise.resolve();
-    expect(bridge.send).not.toHaveBeenCalledWith("peer:socket-close", expect.anything(), undefined, undefined);
+    expect(bridge.send).not.toHaveBeenCalledWith(
+      "peer:socket-close",
+      expect.anything(),
+      undefined,
+      undefined,
+    );
     // Only one event listener is ever bound.
     api.connectCollaborationSocket(host, "/z", handlers);
-    expect(bridge.on.mock.calls.filter(([c]) => c === "peer:socket-event")).toHaveLength(1);
+    expect(
+      bridge.on.mock.calls.filter(([c]) => c === "peer:socket-event"),
+    ).toHaveLength(1);
   });
 });
 
@@ -839,7 +956,9 @@ describe("edge cases", () => {
     expect(state.shareUrl).toBeUndefined();
     setTokens({ project_a: "tok" });
     await api.updateCollaborationPresence("project_a");
-    expect(JSON.parse(fetchMock.mock.calls.at(-1)![1].body)).toEqual({ currentFile: null });
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)![1].body)).toEqual({
+      currentFile: null,
+    });
   });
 
   it("hosts on this network without a project name", async () => {
@@ -865,9 +984,15 @@ describe("edge cases", () => {
     const api = await load();
     let rejectOpen!: (error: Error) => void;
     routeInvoke({
-      "peer:socket-open": () => new Promise((_resolve, reject) => (rejectOpen = reject)),
+      "peer:socket-open": () =>
+        new Promise((_resolve, reject) => (rejectOpen = reject)),
     });
-    const handlers = { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() };
+    const handlers = {
+      onOpen: vi.fn(),
+      onMessage: vi.fn(),
+      onClose: vi.fn(),
+      onError: vi.fn(),
+    };
     api.connectCollaborationSocket(host, "/x", handlers);
     const emit = bridge.on.mock.calls.find(([c]) => c === "peer:socket-event")![1] as (
       event: unknown,

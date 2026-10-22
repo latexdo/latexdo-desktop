@@ -182,7 +182,10 @@ describe("serializeError", () => {
 
   it("stringifies primitives", () => {
     expect(serializeError(42)).toEqual({ name: "NonError", message: "42" });
-    expect(serializeError(undefined)).toEqual({ name: "NonError", message: "undefined" });
+    expect(serializeError(undefined)).toEqual({
+      name: "NonError",
+      message: "undefined",
+    });
   });
 });
 

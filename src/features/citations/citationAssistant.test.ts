@@ -189,4 +189,3 @@ describe("citation assistant edge cases", () => {
     ]);
   });
 });
-

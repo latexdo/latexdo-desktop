@@ -93,7 +93,9 @@ describe("bottomPanelView", () => {
     fireEvent.click(screen.getByText("fix"));
     expect(ctx.openDiagnostic).toHaveBeenCalledWith({ message: "x" });
     expect(ctx.applyLatexDiagnosticFix).toHaveBeenCalledWith({ message: "x" }, "fix");
-    expect(screen.getByText("Compile the project to see build output.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Compile the project to see build output."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Ready");
     expect(screen.queryByTestId("terminal")).toBeNull();
   });
@@ -117,7 +119,9 @@ describe("bottomPanelView", () => {
   });
 
   it("hides the terminal pane when another panel is active", () => {
-    render(renderPanelContent(makeCtx({ activePanel: "output", terminalStarted: true })));
+    render(
+      renderPanelContent(makeCtx({ activePanel: "output", terminalStarted: true })),
+    );
     expect(screen.getByTestId("terminal")).toHaveAttribute("data-active", "false");
     expect(screen.getByLabelText("Output")).not.toHaveClass("hidden");
   });

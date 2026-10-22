@@ -49,19 +49,25 @@ describe("memory parsers", () => {
   it("returns null without a page size or reclaimable pages", () => {
     expect(parseDarwinVmStatAvailableBytes("Pages free: 10.")).toBeNull();
     expect(
-      parseDarwinVmStatAvailableBytes("(page size of 4096 bytes)\nPages free: 0.\nnonsense line"),
+      parseDarwinVmStatAvailableBytes(
+        "(page size of 4096 bytes)\nPages free: 0.\nnonsense line",
+      ),
     ).toBeNull();
     expect(
       parseDarwinVmStatAvailableBytes("(page size of 4,096 bytes)\nPages free: 1,000."),
     ).toBeNull();
-    expect(parseDarwinVmStatAvailableBytes("(page size of 4096 bytes)\nPages free: 1,000.")).toBe(
-      4_096_000,
-    );
+    expect(
+      parseDarwinVmStatAvailableBytes("(page size of 4096 bytes)\nPages free: 1,000."),
+    ).toBe(4_096_000);
     expect(parseLinuxMemAvailableBytes("MemTotal: 1 kB")).toBeNull();
     // Counts that overflow to Infinity are ignored rather than trusted.
-    expect(parseLinuxMemAvailableBytes(`MemAvailable: ${"9".repeat(400)} kB`)).toBeNull();
     expect(
-      parseDarwinVmStatAvailableBytes("(page size of 4096 bytes)\nPages speculative: 2."),
+      parseLinuxMemAvailableBytes(`MemAvailable: ${"9".repeat(400)} kB`),
+    ).toBeNull();
+    expect(
+      parseDarwinVmStatAvailableBytes(
+        "(page size of 4096 bytes)\nPages speculative: 2.",
+      ),
     ).toBe(8192);
   });
 });

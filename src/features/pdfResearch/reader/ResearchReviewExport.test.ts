@@ -64,7 +64,13 @@ describe("buildPdfReviewText", () => {
     const text = buildPdfReviewText(
       doc({ metadata: { title: "T" } }),
       [
-        annotation({ id: "1", pageNumber: 2, createdAt: 5, type: "note", comment: "  late  " }),
+        annotation({
+          id: "1",
+          pageNumber: 2,
+          createdAt: 5,
+          type: "note",
+          comment: "  late  ",
+        }),
         annotation({ id: "2", pageNumber: 2, createdAt: 1, comment: "   " }),
         annotation({
           id: "3",

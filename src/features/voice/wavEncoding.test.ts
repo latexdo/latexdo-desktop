@@ -27,7 +27,9 @@ describe("encodeWavPcm16", () => {
       vi.unstubAllGlobals();
     });
 
-    function stubWebAudio(options: { decodeError?: Error; audioContextKey?: string } = {}) {
+    function stubWebAudio(
+      options: { decodeError?: Error; audioContextKey?: string } = {},
+    ) {
       const close = vi.fn(async () => undefined);
       const decoded = { duration: 0.5 };
       const decodeAudioData = vi.fn(async () => {

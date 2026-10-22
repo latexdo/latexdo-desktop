@@ -40,9 +40,13 @@ beforeEach(async () => {
   vi.spyOn(process, "cwd").mockReturnValue(root);
   vi.spyOn(console, "log").mockImplementation(() => {});
   for (const name of envNames) vi.stubEnv(name, undefined);
-  await writeFile(path.join(root, "package.json"), JSON.stringify({ version: "v1.2.3" }));
+  await writeFile(
+    path.join(root, "package.json"),
+    JSON.stringify({ version: "v1.2.3" }),
+  );
   await mkdir(path.join(root, "artifacts"));
-  for (const name of filenames) await writeFile(path.join(root, "artifacts", name), "x");
+  for (const name of filenames)
+    await writeFile(path.join(root, "artifacts", name), "x");
 });
 
 afterEach(async () => {
@@ -56,7 +60,10 @@ describe("build-downloads-page defaults", () => {
   it("uses the default folders, package version and site URL without any settings", async () => {
     await run();
     const manifest = JSON.parse(
-      await readFile(path.join(root, "public-downloads/downloads/manifest.json"), "utf8"),
+      await readFile(
+        path.join(root, "public-downloads/downloads/manifest.json"),
+        "utf8",
+      ),
     );
     expect(manifest.version).toBe("1.2.3");
     expect(manifest.commit).toBe("");
@@ -85,17 +92,24 @@ describe("build-downloads-page defaults", () => {
     vi.stubEnv("LATEXDO_UPDATE_FEED_ENABLED", "");
     await run();
     const manifest = JSON.parse(
-      await readFile(path.join(root, "public-downloads/downloads/manifest.json"), "utf8"),
+      await readFile(
+        path.join(root, "public-downloads/downloads/manifest.json"),
+        "utf8",
+      ),
     );
     expect(manifest.commit).toBe("b".repeat(40));
-    expect(manifest.files[2].url).toBe("https://cdn.example/assets/LatexDo-windows-x64.exe");
+    expect(manifest.files[2].url).toBe(
+      "https://cdn.example/assets/LatexDo-windows-x64.exe",
+    );
   });
 
   it("refuses a signing key that is not Ed25519", async () => {
-    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     vi.stubEnv(
       "LATEXDO_UPDATE_SIGNING_KEY",
-      Buffer.from(privateKey.export({ format: "pem", type: "pkcs8" })).toString("base64"),
+      Buffer.from(privateKey.export({ format: "pem", type: "pkcs8" })).toString(
+        "base64",
+      ),
     );
     await expect(run()).rejects.toThrow("must contain an Ed25519 private key");
   });

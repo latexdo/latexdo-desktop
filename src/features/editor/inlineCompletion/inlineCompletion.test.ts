@@ -334,9 +334,9 @@ describe("registerInlineCompletion edge cases", () => {
 
   it("ignores replies for a closed file or with nothing left after cleaning", async () => {
     const disposedClient = { complete: vi.fn().mockResolvedValue("outperforms them.") };
-    expect((await harness({ client: disposedClient, disposed: true }).request(1)).items).toEqual(
-      [],
-    );
+    expect(
+      (await harness({ client: disposedClient, disposed: true }).request(1)).items,
+    ).toEqual([]);
     const emptyClient = { complete: vi.fn().mockResolvedValue("   ") };
     expect((await harness({ client: emptyClient }).request(1)).items).toEqual([]);
   });
@@ -356,7 +356,10 @@ describe("registerInlineCompletion edge cases", () => {
     };
     const disposables = registerInlineCompletionKeys(editor as never, monaco as never);
     expect(disposables).toHaveLength(2);
-    expect(actions.map((action) => action.keybindings[0])).toEqual([2048 | 17, 512 | 93]);
+    expect(actions.map((action) => action.keybindings[0])).toEqual([
+      2048 | 17,
+      512 | 93,
+    ]);
     actions[0].run();
     actions[1].run();
     expect(editor.trigger).toHaveBeenNthCalledWith(

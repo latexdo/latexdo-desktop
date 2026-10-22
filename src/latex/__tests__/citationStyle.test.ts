@@ -125,4 +125,3 @@ describe("citation command helpers", () => {
     expect(commandFromPackages("\\usepackage{amsmath}")).toBeNull();
   });
 });
-

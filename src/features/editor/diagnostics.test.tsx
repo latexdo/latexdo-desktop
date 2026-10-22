@@ -119,9 +119,9 @@ describe("diagnostic presentation and safe fixes", () => {
 
 describe("diagnostic message variants", () => {
   it("summarises undefined reference and citation warnings", () => {
-    expect(diagnosticHeadline(diagnostic("LaTeX Warning: There were undefined references."))).toBe(
-      "Some references are unresolved",
-    );
+    expect(
+      diagnosticHeadline(diagnostic("LaTeX Warning: There were undefined references.")),
+    ).toBe("Some references are unresolved");
     expect(diagnosticHeadline(diagnostic("There were undefined citations."))).toBe(
       "Some citations are unresolved",
     );
@@ -144,7 +144,9 @@ describe("diagnostic message variants", () => {
     expect(text).toContain("Suggested fix: define it");
     expect(text).toContain("Compiler excerpt:\nl.9 \\foo");
 
-    const minimal = diagnosticMarkerMessage(diagnostic("  ", { reportedLine: 2, reportedColumn: 4 }));
+    const minimal = diagnosticMarkerMessage(
+      diagnostic("  ", { reportedLine: 2, reportedColumn: 4 }),
+    );
     expect(minimal).not.toContain("Problem:");
     expect(minimal).not.toContain("stopped later");
     expect(
@@ -153,18 +155,26 @@ describe("diagnostic message variants", () => {
   });
 
   it("labels accuracy with and without confidence", () => {
-    expect(diagnosticAccuracyLabel(diagnostic("x", { locationAccuracy: "exact" }))).toBe(
-      "Exact origin",
-    );
     expect(
-      diagnosticAccuracyLabel(diagnostic("x", { locationAccuracy: "inferred", locationConfidence: 70 })),
+      diagnosticAccuracyLabel(diagnostic("x", { locationAccuracy: "exact" })),
+    ).toBe("Exact origin");
+    expect(
+      diagnosticAccuracyLabel(
+        diagnostic("x", { locationAccuracy: "inferred", locationConfidence: 70 }),
+      ),
     ).toBe("Likely origin · 70%");
     expect(diagnosticAccuracyLabel(diagnostic("x"))).toBe("Compiler line");
   });
 
   it("highlights with an explicit end column and empty highlighted text", () => {
     const { container } = render(
-      <p>{diagnosticContextContent(diagnostic("x", { column: 2, endColumn: 4 }), "abcdef", true)}</p>,
+      <p>
+        {diagnosticContextContent(
+          diagnostic("x", { column: 2, endColumn: 4 }),
+          "abcdef",
+          true,
+        )}
+      </p>,
     );
     expect(container.querySelector("mark")?.textContent).toBe("bc");
     const { container: empty } = render(
@@ -174,4 +184,3 @@ describe("diagnostic message variants", () => {
     expect(diagnosticContextContent(diagnostic(), "", false)).toBe(" ");
   });
 });
-

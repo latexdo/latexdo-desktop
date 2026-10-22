@@ -88,7 +88,12 @@ describe("FindPanel", () => {
   it("finds nothing in this file without an open document and closes from the button", () => {
     const onClosed = vi.fn();
     render(
-      <FindPanel files={files} activeFile={null} onOpenMatch={vi.fn()} onClosed={onClosed} />,
+      <FindPanel
+        files={files}
+        activeFile={null}
+        onOpenMatch={vi.fn()}
+        onClosed={onClosed}
+      />,
     );
     act(() => requestFind({ query: "method" }));
     expect(screen.queryByText("0 of 2")).not.toBeInTheDocument();

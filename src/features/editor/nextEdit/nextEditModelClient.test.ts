@@ -13,7 +13,11 @@ vi.mock("../../ai/aiClient", () => ({
   abortGeneration: vi.fn(),
 }));
 
-const localReady: AiConfig = { ...defaultAiConfig, provider: "local", modelDownloaded: true };
+const localReady: AiConfig = {
+  ...defaultAiConfig,
+  provider: "local",
+  modelDownloaded: true,
+};
 const messages = [{ role: "user" as const, content: "predict" }];
 
 function client(
@@ -39,7 +43,9 @@ function client(
 
 describe("nextEditModelAvailable", () => {
   it("requires an enabled provider with editor access", () => {
-    expect(nextEditModelAvailable({ ...localReady, provider: "off" }, true)).toBe(false);
+    expect(nextEditModelAvailable({ ...localReady, provider: "off" }, true)).toBe(
+      false,
+    );
     expect(
       nextEditModelAvailable(
         { ...localReady, access: { ...localReady.access, currentEditor: false } },
@@ -64,9 +70,9 @@ describe("nextEditModelAvailable", () => {
     ).toBe(false);
     expect(nextEditModelAvailable(localReady, false)).toBe(false);
     expect(nextEditModelAvailable(localReady, true)).toBe(true);
-    expect(nextEditModelAvailable({ ...localReady, modelDownloaded: false }, true)).toBe(
-      false,
-    );
+    expect(
+      nextEditModelAvailable({ ...localReady, modelDownloaded: false }, true),
+    ).toBe(false);
     const ollama = { ...localReady, provider: "ollama" as const };
     expect(nextEditModelAvailable(ollama, true)).toBe(true);
     expect(nextEditModelAvailable({ ...ollama, ollamaModel: "  " }, true)).toBe(false);
@@ -108,28 +114,50 @@ describe("GenerateStepNextEditModelClient", () => {
       undefined,
       false,
     );
-    await ollama.instance.complete({ requestId: "r", messages }, new AbortController().signal);
+    await ollama.instance.complete(
+      { requestId: "r", messages },
+      new AbortController().signal,
+    );
     expect(ollama.generate.mock.calls[0][0]).toMatchObject({
       provider: "ollama",
       options: { modelId: localReady.modelId },
     });
 
     const unknownModel = client(
-      { ...localReady, provider: "cloud", modelId: "missing", inlineModelId: "missing", cloud: { ...localReady.cloud, credentialConfigured: true } },
+      {
+        ...localReady,
+        provider: "cloud",
+        modelId: "missing",
+        inlineModelId: "missing",
+        cloud: { ...localReady.cloud, credentialConfigured: true },
+      },
       async () => ({ type: "text", content: "x" }),
     );
-    await unknownModel.instance.complete({ requestId: "r", messages }, new AbortController().signal);
+    await unknownModel.instance.complete(
+      { requestId: "r", messages },
+      new AbortController().signal,
+    );
     expect(unknownModel.generate.mock.calls[0][0]).toMatchObject({ provider: "cloud" });
     expect(unknownModel.generate.mock.calls[0][0].options.fileName).toBeUndefined();
   });
 
   it("returns null when unavailable or already aborted", async () => {
-    const off = client({ ...localReady, provider: "off" }, async () => ({ type: "text", content: "x" }));
-    expect(await off.instance.complete({ requestId: "r", messages }, new AbortController().signal)).toBeNull();
+    const off = client({ ...localReady, provider: "off" }, async () => ({
+      type: "text",
+      content: "x",
+    }));
+    expect(
+      await off.instance.complete(
+        { requestId: "r", messages },
+        new AbortController().signal,
+      ),
+    ).toBeNull();
     const controller = new AbortController();
     controller.abort();
     const ready = client(localReady, async () => ({ type: "text", content: "x" }));
-    expect(await ready.instance.complete({ requestId: "r", messages }, controller.signal)).toBeNull();
+    expect(
+      await ready.instance.complete({ requestId: "r", messages }, controller.signal),
+    ).toBeNull();
     expect(off.generate).not.toHaveBeenCalled();
     expect(ready.generate).not.toHaveBeenCalled();
   });
@@ -140,19 +168,31 @@ describe("GenerateStepNextEditModelClient", () => {
       controller.abort();
       return { type: "text", content: "late" };
     });
-    expect(await c.instance.complete({ requestId: "r9", messages }, controller.signal)).toBeNull();
+    expect(
+      await c.instance.complete({ requestId: "r9", messages }, controller.signal),
+    ).toBeNull();
     expect(c.abort).toHaveBeenCalledWith("r9");
   });
 
   it("returns null for error steps and thrown errors, then stops listening", async () => {
-    const errorStep = client(localReady, async () => ({ type: "error", content: "", error: "boom" }) as GenerationStep);
-    expect(await errorStep.instance.complete({ requestId: "r", messages }, new AbortController().signal)).toBeNull();
+    const errorStep = client(
+      localReady,
+      async () => ({ type: "error", content: "", error: "boom" }) as GenerationStep,
+    );
+    expect(
+      await errorStep.instance.complete(
+        { requestId: "r", messages },
+        new AbortController().signal,
+      ),
+    ).toBeNull();
 
     const controller = new AbortController();
     const thrown = client(localReady, async () => {
       throw new Error("network");
     });
-    expect(await thrown.instance.complete({ requestId: "r", messages }, controller.signal)).toBeNull();
+    expect(
+      await thrown.instance.complete({ requestId: "r", messages }, controller.signal),
+    ).toBeNull();
     controller.abort();
     expect(thrown.abort).not.toHaveBeenCalled();
   });
@@ -160,7 +200,16 @@ describe("GenerateStepNextEditModelClient", () => {
   it("defaults to the shared AI client", async () => {
     const { generateStep } = await import("../../ai/aiClient");
     vi.mocked(generateStep).mockResolvedValue({ type: "text", content: "shared" });
-    const instance = new GenerateStepNextEditModelClient(localReady, defaultNextEditConfig, true);
-    expect(await instance.complete({ requestId: "r", messages }, new AbortController().signal)).toBe("shared");
+    const instance = new GenerateStepNextEditModelClient(
+      localReady,
+      defaultNextEditConfig,
+      true,
+    );
+    expect(
+      await instance.complete(
+        { requestId: "r", messages },
+        new AbortController().signal,
+      ),
+    ).toBe("shared");
   });
 });

@@ -72,10 +72,16 @@ describe("Workspace tabs", () => {
   it("moves focus and selection with arrow keys, wrapping around", () => {
     const tabs = fixture();
     render(<WorkspaceTabs tabs={tabs} />);
-    fireEvent.keyDown(screen.getByRole("tab", { name: "main.tex" }), { key: "ArrowLeft" });
+    fireEvent.keyDown(screen.getByRole("tab", { name: "main.tex" }), {
+      key: "ArrowLeft",
+    });
     expect(tabs[2].onSelect).toHaveBeenCalledOnce();
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "chapter.tex" }));
-    fireEvent.keyDown(screen.getByRole("tab", { name: "chapter.tex" }), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "chapter.tex" }),
+    );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "chapter.tex" }), {
+      key: "ArrowRight",
+    });
     expect(tabs[0].onSelect).toHaveBeenCalledOnce();
     fireEvent.keyDown(screen.getByRole("tab", { name: "main.tex" }), { key: "Enter" });
     expect(tabs[1].onSelect).not.toHaveBeenCalled();
@@ -111,7 +117,10 @@ describe("Workspace tabs", () => {
     fireEvent.drop(shell("main.tex"), { dataTransfer: transfer });
 
     fireEvent.dragStart(shell("chapter.tex"), { dataTransfer: transfer });
-    expect(transfer.setData).toHaveBeenCalledWith("application/x-latexdo-tab", "chapter.tex");
+    expect(transfer.setData).toHaveBeenCalledWith(
+      "application/x-latexdo-tab",
+      "chapter.tex",
+    );
     fireEvent.dragOver(shell("main.tex"), { dataTransfer: transfer });
     expect(shell("main.tex").className).toContain("drop-target");
     fireEvent.dragEnd(shell("chapter.tex"));

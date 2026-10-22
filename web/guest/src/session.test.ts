@@ -99,7 +99,10 @@ async function logFrame(
   encoding.writeVarUint(encoder, seq);
   encoding.writeVarUint(encoder, updates.length + extraRaw.length);
   for (const update of updates) {
-    encoding.writeVarUint8Array(encoder, await encryptBytes(key, projectId, "text", update));
+    encoding.writeVarUint8Array(
+      encoder,
+      await encryptBytes(key, projectId, "text", update),
+    );
   }
   for (const raw of extraRaw) encoding.writeVarUint8Array(encoder, raw);
   if (role !== undefined) encoding.writeVarString(encoder, role);
@@ -126,7 +129,9 @@ function readFrame(bytes: Uint8Array) {
 const openFiles: LiveFile[] = [];
 afterEach(async () => {
   vi.useRealTimers();
-  await Promise.all(openFiles.splice(0).map((file) => file.close().catch(() => undefined)));
+  await Promise.all(
+    openFiles.splice(0).map((file) => file.close().catch(() => undefined)),
+  );
 });
 
 describe("GuestSession HTTP", () => {
@@ -204,7 +209,10 @@ describe("GuestSession HTTP", () => {
         200,
         JSON.stringify({
           project: { name },
-          collaboration: { currentUserRole: "editor", users: [{ clientId: "x", name: "X" }] },
+          collaboration: {
+            currentUserRole: "editor",
+            users: [{ clientId: "x", name: "X" }],
+          },
         }),
       ),
     );
@@ -258,7 +266,11 @@ describe("GuestSession HTTP", () => {
     const { session } = setup(() => next);
     expect(await session.join()).toEqual({ status: "pending" });
     next = response(410, '{"error":"Gone","code":"stopped"}');
-    expect(await session.join()).toEqual({ status: "error", message: "Gone", code: "stopped" });
+    expect(await session.join()).toEqual({
+      status: "error",
+      message: "Gone",
+      code: "stopped",
+    });
 
     const broken = new GuestSession(
       "https://c",
@@ -283,7 +295,11 @@ describe("GuestSession HTTP", () => {
         WebSocket: FakeSocket as unknown as typeof WebSocket,
       },
     );
-    expect(await thrown.join()).toEqual({ status: "error", message: "boom", code: undefined });
+    expect(await thrown.join()).toEqual({
+      status: "error",
+      message: "boom",
+      code: undefined,
+    });
   });
 
   it("lists the tree, posts presence and reads binary files", async () => {
@@ -294,13 +310,21 @@ describe("GuestSession HTTP", () => {
     next = response(200, "{}");
     expect(await session.tree()).toEqual([]);
 
-    next = response(200, '{"users":[{"clientId":"z","name":"Zed","currentFile":"b.tex"}]}');
+    next = response(
+      200,
+      '{"users":[{"clientId":"z","name":"Zed","currentFile":"b.tex"}]}',
+    );
     expect(await session.presence("b.tex")).toEqual([
       { clientId: "z", name: "Zed", currentFile: "b.tex" },
     ]);
     expect(calls.at(-1)!.init.body).toBe('{"currentFile":"b.tex"}');
 
-    const sealed = await encryptBytes(key, projectId, "file", new Uint8Array([1, 2, 3]));
+    const sealed = await encryptBytes(
+      key,
+      projectId,
+      "file",
+      new Uint8Array([1, 2, 3]),
+    );
     next = response(200, JSON.stringify({ base64: bytesToBase64(sealed) }));
     expect(await session.readBinary("fig 1.png")).toEqual(new Uint8Array([1, 2, 3]));
     expect(calls.at(-1)!.url).toContain("path=fig%201.png");
@@ -345,7 +369,9 @@ describe("LiveFile", () => {
     // Local edit before the log arrives (offline edit) is sent as a difference.
     file.text.insert(0, "local ");
     const base = remoteUpdate("server");
-    socket.deliver(await logFrame(key, [base], "editor", 3, [new Uint8Array([9, 9, 9])]));
+    socket.deliver(
+      await logFrame(key, [base], "editor", 3, [new Uint8Array([9, 9, 9])]),
+    );
     await vi.waitFor(() => expect(onReady).toHaveBeenCalledWith(true));
     expect(file.ready).toBe(true);
     expect(file.canEdit).toBe(true);
@@ -358,7 +384,12 @@ describe("LiveFile", () => {
       expect(types).toContain(12);
     });
     const updateFrame = socket.sent.find((bytes) => readFrame(bytes).type === 10)!;
-    const sentUpdate = await decryptBytes(key, projectId, "text", readFrame(updateFrame).payload);
+    const sentUpdate = await decryptBytes(
+      key,
+      projectId,
+      "text",
+      readFrame(updateFrame).payload,
+    );
     const check = new Y.Doc();
     Y.applyUpdate(check, base);
     Y.applyUpdate(check, sentUpdate);
@@ -480,10 +511,15 @@ describe("LiveFile", () => {
     // Presence.
     const presence = encoding.createEncoder();
     encoding.writeVarUint(presence, 4);
-    encoding.writeVarString(presence, JSON.stringify({ users: [{ clientId: "p", name: "P" }] }));
+    encoding.writeVarString(
+      presence,
+      JSON.stringify({ users: [{ clientId: "p", name: "P" }] }),
+    );
     socket.deliver(encoding.toUint8Array(presence));
     await vi.waitFor(() =>
-      expect(onPresence).toHaveBeenCalledWith([{ clientId: "p", name: "P", currentFile: null }]),
+      expect(onPresence).toHaveBeenCalledWith([
+        { clientId: "p", name: "P", currentFile: null },
+      ]),
     );
     const badPresence = encoding.createEncoder();
     encoding.writeVarUint(badPresence, 4);
@@ -651,7 +687,9 @@ describe("LiveFile", () => {
       return Y.encodeStateAsUpdate(d);
     });
     socket.deliver(await logFrame(key, updates, "editor"));
-    await vi.waitFor(() => expect(calls.some((c) => c.url.includes("/files/log"))).toBe(true));
+    await vi.waitFor(() =>
+      expect(calls.some((c) => c.url.includes("/files/log"))).toBe(true),
+    );
     expect(file.ready).toBe(true);
   });
 });

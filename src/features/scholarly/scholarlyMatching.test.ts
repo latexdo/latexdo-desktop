@@ -20,7 +20,9 @@ describe("authorSimilarity", () => {
     expect(
       authorSimilarity("Smith, John and Jane Doe", ["J. Smith", "Alice Brown"]),
     ).toBe(0.5);
-    expect(authorSimilarity("Smith, John and Jane Doe", ["Jane Doe", "John Smith"])).toBe(1);
+    expect(
+      authorSimilarity("Smith, John and Jane Doe", ["Jane Doe", "John Smith"]),
+    ).toBe(1);
     expect(authorSimilarity("Smith, John", [])).toBe(0);
   });
 

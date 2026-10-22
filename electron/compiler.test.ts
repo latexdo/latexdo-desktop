@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,13 +54,20 @@ function fakeChild(pid: number | undefined = 4242): FakeChild {
 
 /** Queues a child that writes `chunks` and then closes with `code`. */
 function spawnsChild(
-  options: { chunks?: string[]; stderr?: string[]; code?: number | null; pid?: number } = {},
+  options: {
+    chunks?: string[];
+    stderr?: string[];
+    code?: number | null;
+    pid?: number;
+  } = {},
 ): FakeChild {
   const child = fakeChild(options.pid);
   mocks.spawn.mockImplementationOnce(() => {
     setTimeout(() => {
-      for (const chunk of options.chunks ?? []) child.stdout.emit("data", Buffer.from(chunk));
-      for (const chunk of options.stderr ?? []) child.stderr.emit("data", Buffer.from(chunk));
+      for (const chunk of options.chunks ?? [])
+        child.stdout.emit("data", Buffer.from(chunk));
+      for (const chunk of options.stderr ?? [])
+        child.stderr.emit("data", Buffer.from(chunk));
       if (options.code !== undefined) child.emit("close", options.code);
     }, 0);
     return child;
@@ -281,9 +296,13 @@ describe("parseDiagnostics", () => {
   });
 
   it("falls back to the first explicit problem without a line", () => {
-    expect(parse("\n\nLaTeX Error: File `x.sty' not found.\nl.5 \\usepackage")[0]).toMatchObject(
-      { line: 5, message: "LaTeX Error: File `x.sty' not found.", locationAccuracy: "inferred" },
-    );
+    expect(
+      parse("\n\nLaTeX Error: File `x.sty' not found.\nl.5 \\usepackage")[0],
+    ).toMatchObject({
+      line: 5,
+      message: "LaTeX Error: File `x.sty' not found.",
+      locationAccuracy: "inferred",
+    });
     expect(parse("Runaway argument?\n{text")[0]).toMatchObject({
       line: 1,
       message: "Runaway argument?",
@@ -300,9 +319,10 @@ describe("parseDiagnostics", () => {
   });
 
   it("caps the number of diagnostics", () => {
-    const output = Array.from({ length: 150 }, (_, i) => `main.tex:${i + 1}: ! e${i}`).join(
-      "\n",
-    );
+    const output = Array.from(
+      { length: 150 },
+      (_, i) => `main.tex:${i + 1}: ! e${i}`,
+    ).join("\n");
     expect(parse(output)).toHaveLength(100);
   });
 });
@@ -342,9 +362,9 @@ describe("estimateCompileProgress", () => {
       "Latexmk: applying rule 'pdflatex'",
     ].join("\n");
     expect(p(output)).toBe(26);
-    expect(p("Latexmk: applying rule 'xelatex'\nLatexmk: Run number 1 of rule 'xelatex'")).toBe(
-      10,
-    );
+    expect(
+      p("Latexmk: applying rule 'xelatex'\nLatexmk: Run number 1 of rule 'xelatex'"),
+    ).toBe(10);
   });
 
   it("bumps for bibliography rules by pass", () => {
@@ -352,9 +372,21 @@ describe("estimateCompileProgress", () => {
     const twoPasses =
       "Latexmk: Run number 2 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'bibtex'";
     expect(p(twoPasses)).toBe(60);
-    expect(p("Latexmk: Run number 3 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'makeindex'")).toBe(70);
-    expect(p("Latexmk: Run number 4 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'biber'")).toBe(74);
-    expect(p("Latexmk: Run number 6 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'biber'")).toBe(78);
+    expect(
+      p(
+        "Latexmk: Run number 3 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'makeindex'",
+      ),
+    ).toBe(70);
+    expect(
+      p(
+        "Latexmk: Run number 4 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'biber'",
+      ),
+    ).toBe(74);
+    expect(
+      p(
+        "Latexmk: Run number 6 of rule 'pdflatex'\nLatexmk: Run number 1 of rule 'biber'",
+      ),
+    ).toBe(78);
   });
 });
 
@@ -368,9 +400,16 @@ describe("materializeCloudCompileFiles", () => {
       { relativePath: "fig\\a.png", bytes: new Uint8Array([1, 2, 3]) },
       { relativePath: "empty.tex" },
     ]);
-    expect((await readdir(scratch)).sort()).toEqual([".latexdo", "empty.tex", "fig", "main.tex"]);
+    expect((await readdir(scratch)).sort()).toEqual([
+      ".latexdo",
+      "empty.tex",
+      "fig",
+      "main.tex",
+    ]);
     expect(await readFile(path.join(scratch, "main.tex"), "utf8")).toBe("hello");
-    expect([...(await readFile(path.join(scratch, "fig", "a.png")))]).toEqual([1, 2, 3]);
+    expect([...(await readFile(path.join(scratch, "fig", "a.png")))]).toEqual([
+      1, 2, 3,
+    ]);
     expect(await readFile(path.join(scratch, "empty.tex"), "utf8")).toBe("");
   });
 
@@ -405,7 +444,9 @@ describe("materializeCloudCompileFiles", () => {
     const big = { byteLength: compiler.maxCloudCompileFileBytes + 1 };
     const huge = Object.setPrototypeOf(big, Uint8Array.prototype) as Uint8Array;
     await expect(
-      compiler.materializeCloudCompileFiles(target, [{ relativePath: "big.pdf", bytes: huge }]),
+      compiler.materializeCloudCompileFiles(target, [
+        { relativePath: "big.pdf", bytes: huge },
+      ]),
     ).rejects.toThrow("big.pdf is too large");
     const nearLimit = Object.setPrototypeOf(
       { byteLength: compiler.maxCloudCompileFileBytes },
@@ -414,14 +455,21 @@ describe("materializeCloudCompileFiles", () => {
     await expect(
       compiler.materializeCloudCompileFiles(
         target,
-        Array.from({ length: 9 }, (_, i) => ({ relativePath: `p${i}.pdf`, bytes: nearLimit })),
+        Array.from({ length: 9 }, (_, i) => ({
+          relativePath: `p${i}.pdf`,
+          bytes: nearLimit,
+        })),
       ),
     ).rejects.toThrow("Shared project is too large");
   });
 });
 
 describe("compileLatex", () => {
-  const request = () => ({ projectPath: root, rootFile: "main.tex", engine: "xelatex" as const });
+  const request = () => ({
+    projectPath: root,
+    rootFile: "main.tex",
+    engine: "xelatex" as const,
+  });
 
   it("reports a missing toolchain", async () => {
     compiler = await loadCompiler("linux");
@@ -491,7 +539,10 @@ describe("compileLatex", () => {
     child.stdout.emit("data", Buffer.from("Latexmk: This is Latexmk\n"));
     child.stdout.emit("data", Buffer.from("x"));
     now += 50;
-    child.stdout.emit("data", Buffer.from("Latexmk: Run number 1 of rule 'pdflatex'\n"));
+    child.stdout.emit(
+      "data",
+      Buffer.from("Latexmk: Run number 1 of rule 'pdflatex'\n"),
+    );
     now += 200;
     child.stdout.emit("data", Buffer.from("[12]\n"));
     child.emit("close", 0);
@@ -520,9 +571,9 @@ describe("compileLatex", () => {
 
   it("reports an unknown exit code and spawn errors once", async () => {
     spawnsChild({ code: null });
-    expect((await compiler.compileLatex(request(), { executable: "latexmk" })).error).toBe(
-      "LaTeX exited with code unknown.",
-    );
+    expect(
+      (await compiler.compileLatex(request(), { executable: "latexmk" })).error,
+    ).toBe("LaTeX exited with code unknown.");
     const child = fakeChild();
     mocks.spawn.mockReturnValueOnce(child);
     const done = compiler.compileLatex(request(), { executable: "latexmk" });
@@ -556,9 +607,9 @@ describe("compileLatex", () => {
       "LatexDo forced a fresh compile because latexmk was stuck on a previous failed run.",
     );
     spawnsChild({ chunks: [[...stale, "keep me"].join("\r\n")], code: 12 });
-    expect((await compiler.compileLatex(request(), { executable: "latexmk" })).output).toBe(
-      "keep me",
-    );
+    expect(
+      (await compiler.compileLatex(request(), { executable: "latexmk" })).output,
+    ).toBe("keep me");
   });
 
   it("times out, terminating the process group, then force-kills", async () => {

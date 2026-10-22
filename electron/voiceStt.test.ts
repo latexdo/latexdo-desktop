@@ -208,7 +208,9 @@ describe("local speech server discovery and startup failures", () => {
     const dev = path.join(root, "resources", "speech");
     await installAt(dev);
     answerAfterSpawn();
-    expect(await ensureBundledSpeechServer({ baseUrl: "http://localhost/v1" })).toMatchObject({
+    expect(
+      await ensureBundledSpeechServer({ baseUrl: "http://localhost/v1" }),
+    ).toMatchObject({
       ok: true,
       bundled: true,
     });
@@ -224,7 +226,10 @@ describe("local speech server discovery and startup failures", () => {
     runtime.packaged = true;
     const resources = path.join(root, "packaged");
     const original = process.resourcesPath;
-    Object.defineProperty(process, "resourcesPath", { value: resources, configurable: true });
+    Object.defineProperty(process, "resourcesPath", {
+      value: resources,
+      configurable: true,
+    });
     try {
       await installAt(path.join(resources, "speech"));
       answerAfterSpawn();
@@ -233,7 +238,10 @@ describe("local speech server discovery and startup failures", () => {
         path.join(resources, "speech", "bin", "whisper-server"),
       );
     } finally {
-      Object.defineProperty(process, "resourcesPath", { value: original, configurable: true });
+      Object.defineProperty(process, "resourcesPath", {
+        value: original,
+        configurable: true,
+      });
     }
   });
 
@@ -244,7 +252,9 @@ describe("local speech server discovery and startup failures", () => {
       await installAt(root, "server.exe");
       answerAfterSpawn();
       expect(await ensureBundledSpeechServer()).toMatchObject({ ok: true });
-      expect(vi.mocked(spawn).mock.calls[0][0]).toBe(path.join(root, "bin", "server.exe"));
+      expect(vi.mocked(spawn).mock.calls[0][0]).toBe(
+        path.join(root, "bin", "server.exe"),
+      );
     } finally {
       Object.defineProperty(process, "platform", platform);
     }
@@ -284,4 +294,3 @@ describe("local speech server discovery and startup failures", () => {
     });
   });
 });
-

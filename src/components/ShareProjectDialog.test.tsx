@@ -5,7 +5,9 @@ import { ShareProjectDialog, type ShareProjectDialogProps } from "./ShareProject
 
 const owner = { clientId: "me", name: "Me", role: "admin" as const, isCurrent: true };
 
-function props(overrides: Partial<ShareProjectDialogProps> = {}): ShareProjectDialogProps {
+function props(
+  overrides: Partial<ShareProjectDialogProps> = {},
+): ShareProjectDialogProps {
   return {
     open: true,
     state: { enabled: false, users: [] },
@@ -131,7 +133,10 @@ describe("ShareProjectDialog", () => {
     const onSaveToFolder = vi.fn();
     rerender(
       <ShareProjectDialog
-        {...props({ state: { enabled: false, hosted: true, users: [] }, onSaveToFolder })}
+        {...props({
+          state: { enabled: false, hosted: true, users: [] },
+          onSaveToFolder,
+        })}
       />,
     );
     expect(screen.queryByRole("button", { name: /Back to my folder/ })).toBeNull();
@@ -147,21 +152,29 @@ describe("ShareProjectDialog", () => {
           state: {
             enabled: false,
             users: [],
-            host: { addresses: [], active: false, mode: null, phase: "failed", message: "Port blocked" },
+            host: {
+              addresses: [],
+              active: false,
+              mode: null,
+              phase: "failed",
+              message: "Port blocked",
+            },
           },
         })}
       />,
     );
     expect(screen.getByRole("alert").textContent).toBe("Port blocked");
     fireEvent.click(screen.getByRole("button", { name: /Create link/ }));
-    expect(screen.getByLabelText<HTMLInputElement>("Join collaboration token").placeholder).toBe(
-      "Paste an invite to join",
-    );
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Join collaboration token").placeholder,
+    ).toBe("Paste an invite to join");
   });
 
   it("shows link creation progress while busy", () => {
     render(<ShareProjectDialog {...props({ hostingAvailable: true, busy: true })} />);
-    const create = screen.getByRole("button", { name: /Creating link…/ }) as HTMLButtonElement;
+    const create = screen.getByRole("button", {
+      name: /Creating link…/,
+    }) as HTMLButtonElement;
     expect(create.disabled).toBe(true);
   });
 
@@ -210,9 +223,9 @@ describe("ShareProjectDialog", () => {
       fireEvent.click(button);
     }
     expect(p.onCopy).not.toHaveBeenCalled();
-    expect(screen.getByLabelText<HTMLInputElement>("Collaboration token").placeholder).toBe(
-      "Open a project to generate",
-    );
+    expect(
+      screen.getByLabelText<HTMLInputElement>("Collaboration token").placeholder,
+    ).toBe("Open a project to generate");
   });
 
   it("resolves pending requests even without a handler", () => {

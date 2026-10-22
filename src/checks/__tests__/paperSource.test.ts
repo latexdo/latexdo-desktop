@@ -88,7 +88,8 @@ describe("acronyms in prose only", () => {
 describe("loadPaperSource path handling", () => {
   it("normalises ./, .. and backslashes in include paths, keeping extensions", async () => {
     const tree: Record<string, string> = {
-      "paper/main.tex": "\\input{./sections\\..\\intro}\n\\input{fig.tikz}\\input{gone}",
+      "paper/main.tex":
+        "\\input{./sections\\..\\intro}\n\\input{fig.tikz}\\input{gone}",
       "intro.tex": "Hello",
       "fig.tikz": "tikz",
     };

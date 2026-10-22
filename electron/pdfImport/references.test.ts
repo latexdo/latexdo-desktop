@@ -58,7 +58,9 @@ describe("rewriteNumericCitations", () => {
     expect(rewriteNumericCitations("[5]--[3]", byMarker, stats)).toBe("[5]--[3]");
     expect(rewriteNumericCitations("[3-1]", byMarker, stats)).toBe("[3-1]");
     expect(rewriteNumericCitations("[1-50]", byMarker, stats)).toBe("[1-50]");
-    expect(rewriteNumericCitations("[1–3, 5]", byMarker, stats)).toBe("\\cite{a,b,c,e}");
+    expect(rewriteNumericCitations("[1–3, 5]", byMarker, stats)).toBe(
+      "\\cite{a,b,c,e}",
+    );
     expect(stats.citations).toBe(2);
   });
 
@@ -164,7 +166,12 @@ describe("rewriteReferences", () => {
     ]);
     expect(authorYear).toEqual({
       latex: "\\citet{doe19}",
-      stats: { citations: 1, crossReferences: 0, unresolvedCitations: 0, authorYear: true },
+      stats: {
+        citations: 1,
+        crossReferences: 0,
+        unresolvedCitations: 0,
+        authorYear: true,
+      },
     });
     expect(rewriteReferences("[1]", emptyLabels(), []).latex).toBe("[1]");
   });

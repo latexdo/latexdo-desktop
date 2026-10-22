@@ -20,7 +20,8 @@ function makeModel(path: string, initial: string) {
   const getOffsetAt = ({ lineNumber, column }: Pos) => {
     const lines = value.split("\n");
     let offset = 0;
-    for (let i = 0; i < lineNumber - 1 && i < lines.length; i++) offset += lines[i].length + 1;
+    for (let i = 0; i < lineNumber - 1 && i < lines.length; i++)
+      offset += lines[i].length + 1;
     return Math.min(offset + column - 1, value.length);
   };
   return {
@@ -94,7 +95,8 @@ type FakeEditor = ReturnType<typeof makeEditor>;
 const tex = (body = "") =>
   `\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\n${body}\n\\end{document}\n`;
 
-const figure = "\\begin{tikzpicture}\n\\draw[-Stealth] (0,0) -- (1,1);\n\\end{tikzpicture}";
+const figure =
+  "\\begin{tikzpicture}\n\\draw[-Stealth] (0,0) -- (1,1);\n\\end{tikzpicture}";
 
 function doc(path: string, relativePath: string, content: string, kind = "text") {
   return {
@@ -387,7 +389,11 @@ describe("runInReturnDocument", () => {
 });
 
 describe("insertFigureInEditor", () => {
-  function setupEditor(content: string, path = "/p/main.tex", relativePath = "main.tex") {
+  function setupEditor(
+    content: string,
+    path = "/p/main.tex",
+    relativePath = "main.tex",
+  ) {
     const document = doc(path, relativePath, content);
     const model = makeModel(path, content);
     const editor = makeEditor(model);
@@ -401,18 +407,32 @@ describe("insertFigureInEditor", () => {
 
   it("refuses without a model, in read-only sessions, or with nothing to insert", async () => {
     const { hook, editor, ctx } = setupEditor(tex());
-    expect(await hook.result.current.insertFigureInEditor(editor as never, "   ", "cursor")).toEqual({
+    expect(
+      await hook.result.current.insertFigureInEditor(editor as never, "   ", "cursor"),
+    ).toEqual({
       ok: false,
       message: "There is no figure to insert.",
       preambleLines: [],
     });
     ctx.activeCollaborationReadOnlyMessage = "Read only";
     expect(
-      (await hook.result.current.insertFigureInEditor(editor as never, figure, "cursor")).message,
+      (
+        await hook.result.current.insertFigureInEditor(
+          editor as never,
+          figure,
+          "cursor",
+        )
+      ).message,
     ).toBe("Read only");
     editor.model = null;
     expect(
-      (await hook.result.current.insertFigureInEditor(editor as never, figure, "cursor")).message,
+      (
+        await hook.result.current.insertFigureInEditor(
+          editor as never,
+          figure,
+          "cursor",
+        )
+      ).message,
     ).toBe("Open a .tex file first.");
   });
 
@@ -430,7 +450,9 @@ describe("insertFigureInEditor", () => {
     );
     expect(result.message).toMatch(/^Figure inserted; added .*\\usepackage\{tikz\}/);
     const text = model.getValue();
-    expect(text.indexOf("\\usepackage{tikz}")).toBeLessThan(text.indexOf("\\begin{document}"));
+    expect(text.indexOf("\\usepackage{tikz}")).toBeLessThan(
+      text.indexOf("\\begin{document}"),
+    );
     expect(text).toContain(`Hello\n${figure}\n`);
     expect(editor.pushUndoStop).toHaveBeenCalledTimes(2);
     expect(editor.setSelection).toHaveBeenCalled();
@@ -468,7 +490,9 @@ describe("insertFigureInEditor", () => {
     const start = content.indexOf("OLD");
     const a = model.getPositionAt(start);
     const b = model.getPositionAt(start + 3);
-    editor.select(new monacoApi.Selection(a.lineNumber, a.column, b.lineNumber, b.column));
+    editor.select(
+      new monacoApi.Selection(a.lineNumber, a.column, b.lineNumber, b.column),
+    );
     await hook.result.current.insertFigureInEditor(editor as never, "NEW", "selection");
     expect(model.getValue()).toBe(tex("NEW"));
 
@@ -503,13 +527,21 @@ describe("insertFigureInEditor", () => {
     ctx.activePathRef.current = chapter.path;
     ctx.documentsRef.current = [chapter, main];
     const { result } = mount(ctx);
-    const inserted = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const inserted = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(inserted.preambleLines).toContain("\\usepackage{tikz}");
     const root = ctx.documentsRef.current.find((d) => d.path === main.path)!;
     expect(root.content).toContain("\\usepackage{tikz}");
 
     // A second figure needs nothing new.
-    const again = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const again = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(again.preambleLines).toEqual([]);
     expect(again.message).toBe("Figure inserted.");
   });
@@ -522,7 +554,11 @@ describe("insertFigureInEditor", () => {
     ctx.activePathRef.current = chapter.path;
     ctx.documentsRef.current = [chapter, main];
     const { result } = mount(ctx);
-    const inserted = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const inserted = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(inserted.message).toBe(
       "Figure inserted. Load tikz in your main file's preamble.",
     );
@@ -536,7 +572,11 @@ describe("insertFigureInEditor", () => {
     ctx.activePathRef.current = "/p/elsewhere.tex";
     ctx.documentsRef.current = [chapter];
     const { result } = mount(ctx);
-    const inserted = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const inserted = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(latexdo.readFile).toHaveBeenCalledWith("proj", "main.tex");
     expect(latexdo.writeFile).toHaveBeenCalledWith(
       "proj",
@@ -550,22 +590,31 @@ describe("insertFigureInEditor", () => {
     // Already loaded on disk: nothing written.
     latexdo.writeFile.mockClear();
     latexdo.readFile.mockResolvedValue(
-      tex().replace("\\usepackage{amsmath}", "\\usepackage{tikz}\n\\usetikzlibrary{arrows.meta}"),
+      tex().replace(
+        "\\usepackage{amsmath}",
+        "\\usepackage{tikz}\n\\usetikzlibrary{arrows.meta}",
+      ),
     );
-    const again = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const again = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(latexdo.writeFile).not.toHaveBeenCalled();
     expect(again.message).toBe("Figure inserted.");
 
     // No preamble on disk.
     latexdo.readFile.mockResolvedValue("nothing");
     expect(
-      (await result.current.insertFigureInEditor(editor as never, figure, "cursor")).message,
+      (await result.current.insertFigureInEditor(editor as never, figure, "cursor"))
+        .message,
     ).toMatch(/Load tikz/);
 
     // Unreadable.
     latexdo.readFile.mockRejectedValue(new Error("nope"));
     expect(
-      (await result.current.insertFigureInEditor(editor as never, figure, "cursor")).message,
+      (await result.current.insertFigureInEditor(editor as never, figure, "cursor"))
+        .message,
     ).toMatch(/Load tikz/);
   });
 
@@ -576,7 +625,11 @@ describe("insertFigureInEditor", () => {
     ctx.projectIdRef.current = null;
     ctx.documentsRef.current = [chapter];
     const { result } = mount(ctx);
-    const inserted = await result.current.insertFigureInEditor(editor as never, figure, "cursor");
+    const inserted = await result.current.insertFigureInEditor(
+      editor as never,
+      figure,
+      "cursor",
+    );
     expect(inserted.message).toMatch(/Load tikz/);
     expect(latexdo.readFile).not.toHaveBeenCalled();
   });
@@ -609,7 +662,9 @@ describe("insertFigure and insertTextFromTool", () => {
     const { result } = mount(ctx);
     result.current.insertFigure("  ");
     await waitFor(() =>
-      expect(ctx.setStatusMessage).toHaveBeenCalledWith("There is no figure to insert."),
+      expect(ctx.setStatusMessage).toHaveBeenCalledWith(
+        "There is no figure to insert.",
+      ),
     );
     expect(ctx.compile).not.toHaveBeenCalled();
 

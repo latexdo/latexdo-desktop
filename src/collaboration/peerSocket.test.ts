@@ -29,7 +29,11 @@ describe("PeerBridgeSocket", () => {
   it("opens, relays messages and sends only while open", () => {
     const { connection, connect, handlers } = installBridge();
     const socket = openPeerBridgeSocket("http://peer", "ws://peer/rooms/1?x=2");
-    expect(connect).toHaveBeenCalledWith("http://peer", "/rooms/1?x=2", expect.any(Object));
+    expect(connect).toHaveBeenCalledWith(
+      "http://peer",
+      "/rooms/1?x=2",
+      expect.any(Object),
+    );
     expect(socket.readyState).toBe(WebSocket.CONNECTING);
 
     const messages: ArrayBuffer[] = [];
@@ -91,7 +95,9 @@ describe("usesPeerBridge", () => {
     (window as unknown as { latexdo: unknown }).latexdo = {};
     expect(usesPeerBridge("http://x")).toBe(false);
     const check = vi.fn((url: string) => url.startsWith("peer"));
-    (window as unknown as { latexdo: unknown }).latexdo = { usesCollaborationBridge: check };
+    (window as unknown as { latexdo: unknown }).latexdo = {
+      usesCollaborationBridge: check,
+    };
     expect(usesPeerBridge("peer://a")).toBe(true);
     expect(usesPeerBridge("http://a")).toBe(false);
   });

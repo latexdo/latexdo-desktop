@@ -62,9 +62,9 @@ describe("UpdateRestartCountdown dismissal", () => {
     const emit = installBridge();
     render(<UpdateRestartCountdown />);
     emit({ restartInSeconds: 3, latestVersion: null });
-    expect(screen.getByRole("alertdialog", { name: "Updating LatexDo" })).toHaveTextContent(
-      "restart in 3 seconds.",
-    );
+    expect(
+      screen.getByRole("alertdialog", { name: "Updating LatexDo" }),
+    ).toHaveTextContent("restart in 3 seconds.");
     emit({ status: "error" });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     emit({ restartInSeconds: 2 });

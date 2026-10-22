@@ -72,4 +72,3 @@ describe("Paper-aware graph filtering", () => {
     );
   });
 });
-

@@ -13,7 +13,8 @@ const llama = vi.hoisted(() => {
     getLlama: vi.fn(),
   };
   class LlamaChat {
-    chatWrapper = state.wrapperName === undefined ? undefined : { wrapperName: state.wrapperName };
+    chatWrapper =
+      state.wrapperName === undefined ? undefined : { wrapperName: state.wrapperName };
     dispose = vi.fn();
     constructor() {
       state.chats.push(this);
@@ -87,7 +88,11 @@ describe("local LLM generation", () => {
       type: "text",
       content: "Hello",
       truncated: true,
-      providerContent: { kind: "llama", response: ["Hello", { type: "segment" }], rawCalls: [] },
+      providerContent: {
+        kind: "llama",
+        response: ["Hello", { type: "segment" }],
+        rawCalls: [],
+      },
     });
     expect(tokens).toEqual(["Hel"]);
     expect(activity).toHaveBeenCalledTimes(1);
@@ -113,7 +118,11 @@ describe("local LLM generation", () => {
     llama.state.generate.mockResolvedValue({ response: "ok" });
     await mod.generateLocalStep(user, { fileName: "m.gguf", maxTokens: 64 }, () => {});
     const options = llama.state.generate.mock.calls[0][1];
-    expect(options).toMatchObject({ temperature: 0.7, topP: 0.8, budgets: { thoughtTokens: 0 } });
+    expect(options).toMatchObject({
+      temperature: 0.7,
+      topP: 0.8,
+      budgets: { thoughtTokens: 0 },
+    });
 
     await mod.generateLocalStep(
       user,
@@ -148,18 +157,28 @@ describe("local LLM generation", () => {
     llama.state.generate.mockResolvedValue({
       response: "Calling",
       functionCalls: [
-        { functionName: "read_file", params: { path: "a.tex", line: null, x: undefined }, raw: "r1" },
+        {
+          functionName: "read_file",
+          params: { path: "a.tex", line: null, x: undefined },
+          raw: "r1",
+        },
         { functionName: "list_files", params: null, raw: "r2" },
       ],
     });
-    const step = await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {}, undefined, [
-      {
-        name: "read_file",
-        description: "Read",
-        params: { path: { type: "string", description: "p" } },
-        required: ["path"],
-      },
-    ]);
+    const step = await mod.generateLocalStep(
+      user,
+      { fileName: "m.gguf" },
+      () => {},
+      undefined,
+      [
+        {
+          name: "read_file",
+          description: "Read",
+          params: { path: { type: "string", description: "p" } },
+          required: ["path"],
+        },
+      ],
+    );
     expect(step.type).toBe("tool_calls");
     if (step.type !== "tool_calls") return;
     expect(step.toolCalls.map((c) => [c.name, c.args])).toEqual([
@@ -177,24 +196,33 @@ describe("local LLM generation", () => {
   it("returns empty text when aborted and a friendly error when the runtime is missing", async () => {
     const abortError = Object.assign(new Error("stop"), { name: "AbortError" });
     llama.state.generate.mockRejectedValueOnce(abortError);
-    expect(await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {})).toEqual({
-      type: "text",
-      content: "",
-    });
+    expect(await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {})).toEqual(
+      {
+        type: "text",
+        content: "",
+      },
+    );
 
     const controller = new AbortController();
     controller.abort();
     llama.state.generate.mockRejectedValueOnce(new Error("whatever"));
     expect(
-      await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {}, controller.signal),
+      await mod.generateLocalStep(
+        user,
+        { fileName: "m.gguf" },
+        () => {},
+        controller.signal,
+      ),
     ).toEqual({ type: "text", content: "" });
 
     // A failed generation does not block the lane for the next one.
     llama.state.generate.mockRejectedValueOnce("plain failure");
-    expect(await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {})).toEqual({
-      type: "error",
-      content: "Local model error: plain failure",
-    });
+    expect(await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {})).toEqual(
+      {
+        type: "error",
+        content: "Local model error: plain failure",
+      },
+    );
   });
 
   it("reports a missing native runtime and retries loading later", async () => {
@@ -206,7 +234,9 @@ describe("local LLM generation", () => {
     expect(step.content).toContain("not installed in this build");
 
     llama.state.generate.mockResolvedValue({ response: "back" });
-    expect(await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {})).toMatchObject({
+    expect(
+      await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {}),
+    ).toMatchObject({
       content: "back",
     });
     expect(llama.state.getLlama).toHaveBeenCalledTimes(2);
@@ -215,7 +245,10 @@ describe("local LLM generation", () => {
   it("falls back to a smaller context when the large one does not fit", async () => {
     llama.state.createContext
       .mockRejectedValueOnce(new Error("out of memory"))
-      .mockResolvedValueOnce({ getSequence: () => ({}), dispose: llama.state.contextDispose });
+      .mockResolvedValueOnce({
+        getSequence: () => ({}),
+        dispose: llama.state.contextDispose,
+      });
     llama.state.generate.mockResolvedValue({ response: "ok" });
     await mod.generateLocalStep(user, { fileName: "m.gguf" }, () => {});
     expect(llama.state.createContext.mock.calls[1][0]).toEqual({
@@ -237,7 +270,9 @@ describe("local LLM generation", () => {
     expect(firstChats[1].dispose).toHaveBeenCalledWith({ disposeSequence: true });
     expect(llama.state.contextDispose).toHaveBeenCalledTimes(1);
     expect(llama.state.modelDispose).toHaveBeenCalledTimes(1);
-    expect(llama.state.loadModel).toHaveBeenLastCalledWith({ modelPath: "/models/b.gguf" });
+    expect(llama.state.loadModel).toHaveBeenLastCalledWith({
+      modelPath: "/models/b.gguf",
+    });
 
     await mod.unloadLocalModel();
     expect(llama.state.modelDispose).toHaveBeenCalledTimes(2);
@@ -247,13 +282,17 @@ describe("local LLM generation", () => {
 
   it("recovers after a model fails to load", async () => {
     llama.state.loadModel.mockRejectedValueOnce(new Error("bad gguf"));
-    expect(await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {})).toEqual({
-      type: "error",
-      content: "Local model error: bad gguf",
-    });
+    expect(await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {})).toEqual(
+      {
+        type: "error",
+        content: "Local model error: bad gguf",
+      },
+    );
     llama.state.generate.mockResolvedValue({ response: "ok" });
     // The failed engine is skipped (not disposed) when the next one loads.
-    expect(await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {})).toMatchObject({
+    expect(
+      await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {}),
+    ).toMatchObject({
       content: "ok",
     });
     await mod.unloadLocalModel();
@@ -280,7 +319,9 @@ describe("local LLM unload races", () => {
       options.onResponseChunk({ type: "segment", segmentType: "thought" });
       return { response: "ok" };
     });
-    expect(await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {})).toMatchObject({
+    expect(
+      await mod.generateLocalStep(user, { fileName: "a.gguf" }, () => {}),
+    ).toMatchObject({
       content: "ok",
     });
   });

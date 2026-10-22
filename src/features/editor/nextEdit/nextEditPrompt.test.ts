@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildNextEditMessages, buildNextEditModelContext } from "./nextEditPrompt";
-import type { NextEditCandidate, NormalizedEdit, SemanticNextEditInput } from "./nextEditTypes";
+import type {
+  NextEditCandidate,
+  NormalizedEdit,
+  SemanticNextEditInput,
+} from "./nextEditTypes";
 
 function edit(startOffsetBefore: number, oldText = "a", newText = "b"): NormalizedEdit {
   return {
@@ -20,7 +24,11 @@ function edit(startOffsetBefore: number, oldText = "a", newText = "b"): Normaliz
   } as NormalizedEdit;
 }
 
-function candidate(startOffset: number, endOffset: number, confidence = 0.12345): NextEditCandidate {
+function candidate(
+  startOffset: number,
+  endOffset: number,
+  confidence = 0.12345,
+): NextEditCandidate {
   return {
     id: `c${startOffset}`,
     documentKey: "k",
@@ -35,7 +43,11 @@ function candidate(startOffset: number, endOffset: number, confidence = 0.12345)
   } as NextEditCandidate;
 }
 
-function input(text: string, cursorOffset: number, extra: Partial<SemanticNextEditInput> = {}): SemanticNextEditInput {
+function input(
+  text: string,
+  cursorOffset: number,
+  extra: Partial<SemanticNextEditInput> = {},
+): SemanticNextEditInput {
   return {
     snapshot: { documentKey: "k", revision: 1, text, language: "latex" },
     cursorOffset,

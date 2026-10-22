@@ -179,7 +179,9 @@ describe("aiConfig normalization edge cases", () => {
     expect(cloud.credentialConfigured).toBe(true);
     expect(cloud.credentialId).toBe("credential-groq-primary");
     expect(JSON.stringify(cloud)).not.toContain("sk");
-    const blank = normalizeAiConfig({ cloud: { vendor: "weird", apiKey: "   " } }).cloud;
+    const blank = normalizeAiConfig({
+      cloud: { vendor: "weird", apiKey: "   " },
+    }).cloud;
     expect(blank.vendor).toBe(defaultAiConfig.cloud.vendor);
     expect(blank.credentialConfigured).toBe(false);
   });
@@ -250,8 +252,13 @@ describe("aiConfig normalization edge cases", () => {
             custom: { kind: "ollama", baseUrl: "http://b", model: "c" },
           },
         }).selection,
-      ).toEqual({ mode: "custom", custom: { kind: "ollama", baseUrl: "http://b", model: "c" } });
-      expect(normalizeAiConfig({ provider: "ollama", selection: null }).selection).toEqual({
+      ).toEqual({
+        mode: "custom",
+        custom: { kind: "ollama", baseUrl: "http://b", model: "c" },
+      });
+      expect(
+        normalizeAiConfig({ provider: "ollama", selection: null }).selection,
+      ).toEqual({
         mode: "custom",
         custom: {
           kind: "ollama",

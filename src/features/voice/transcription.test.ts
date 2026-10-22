@@ -371,7 +371,13 @@ describe("transcription provider failure modes", () => {
     (globalThis as { aiApi?: unknown }).aiApi = {
       ensureSpeechServer: vi.fn(async () => {
         controller.abort();
-        return { ok: true, baseUrl: "", model: "", alreadyRunning: true, bundled: true };
+        return {
+          ok: true,
+          baseUrl: "",
+          model: "",
+          alreadyRunning: true,
+          bundled: true,
+        };
       }),
     };
     await expect(
@@ -393,7 +399,9 @@ describe("transcription provider failure modes", () => {
   });
 
   it("sanitises and truncates provider error bodies, tolerating unreadable bodies", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(500, "bad\u0001\u007f thing happened"));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(500, "bad\u0001\u007f thing happened"),
+    );
     const error = (await local(5)
       .transcribe({ audio: audio() })
       .catch((e: unknown) => e)) as TranscriptionError;
@@ -441,7 +449,9 @@ describe("transcription provider failure modes", () => {
   });
 
   it("returns the detected language", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { text: "Bonjour", language: "fr" }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { text: "Bonjour", language: "fr" }),
+    );
     await expect(provider().transcribe({ audio: audio() })).resolves.toEqual({
       text: "Bonjour",
       language: "fr",
@@ -449,8 +459,12 @@ describe("transcription provider failure modes", () => {
   });
 
   it("only treats http(s) loopback hosts as local", () => {
-    expect(createTranscriptionProvider(defaultAiConfig, { baseUrl: "ftp://localhost/v1" })).toBeNull();
-    expect(createTranscriptionProvider(defaultAiConfig, { baseUrl: "not a url" })).toBeNull();
+    expect(
+      createTranscriptionProvider(defaultAiConfig, { baseUrl: "ftp://localhost/v1" }),
+    ).toBeNull();
+    expect(
+      createTranscriptionProvider(defaultAiConfig, { baseUrl: "not a url" }),
+    ).toBeNull();
     expect(
       createTranscriptionProvider(defaultAiConfig, { baseUrl: "http://[::1]:9000/v1" }),
     ).toBeInstanceOf(OpenAiTranscriptionProvider);
@@ -465,4 +479,3 @@ describe("transcription provider failure modes", () => {
     expect((fetchMock.mock.calls[0][1]?.body as FormData).get("model")).toBeTruthy();
   });
 });
-

@@ -133,10 +133,16 @@ describe("startPaneDrag", () => {
     const handle = document.createElement("div");
     const capture = vi.fn();
     const release = vi.fn();
-    Object.assign(handle, { setPointerCapture: capture, releasePointerCapture: release });
+    Object.assign(handle, {
+      setPointerCapture: capture,
+      releasePointerCapture: release,
+    });
     const onMove = vi.fn();
     const onEnd = vi.fn();
-    const { event, preventDefault } = pointerDown(handle, { button: 1, pointerType: "touch" });
+    const { event, preventDefault } = pointerDown(handle, {
+      button: 1,
+      pointerType: "touch",
+    });
     startPaneDrag(event, onMove, onEnd);
     expect(preventDefault).toHaveBeenCalled();
     expect(capture).toHaveBeenCalledWith(7);
@@ -176,7 +182,10 @@ describe("startPaneDrag", () => {
     expect(handle.classList.contains("dragging")).toBe(false);
 
     const plain = document.createElement("div");
-    Object.assign(plain, { setPointerCapture: undefined, releasePointerCapture: undefined });
+    Object.assign(plain, {
+      setPointerCapture: undefined,
+      releasePointerCapture: undefined,
+    });
     startPaneDrag(pointerDown(plain).event, onMove);
     window.dispatchEvent(new Event("blur"));
     expect(plain.classList.contains("dragging")).toBe(false);

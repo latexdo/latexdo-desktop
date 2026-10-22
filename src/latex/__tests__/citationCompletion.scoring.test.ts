@@ -31,14 +31,18 @@ describe("citation URL whitespace regressions", () => {
   });
 
   it("trims and escapes an invalid URL without turning it into a link", () => {
-    const markdown = citationCompletionMarkdown({ ...smith, url: " \t http://[bad \n" });
+    const markdown = citationCompletionMarkdown({
+      ...smith,
+      url: " \t http://[bad \n",
+    });
     expect(markdown).toContain("**URL:** http://\\[bad\n\n**Source:**");
     expect(markdown).not.toContain("](http://[bad)");
   });
 
   it("keeps valid padded URLs clickable", () => {
-    expect(citationCompletionMarkdown({ ...smith, url: " \nhttps://example.org/paper\t" }))
-      .toContain("**URL:** [https://example\\.org/paper](https://example.org/paper)");
+    expect(
+      citationCompletionMarkdown({ ...smith, url: " \nhttps://example.org/paper\t" }),
+    ).toContain("**URL:** [https://example\\.org/paper](https://example.org/paper)");
   });
 });
 
@@ -79,20 +83,26 @@ describe("citation completion scoring", () => {
       "b-entry",
     ]);
     const untitled = { type: "article", key: "deepnote", sourceFile: "r.bib" };
-    expect(rankedCitationCompletions([smith, untitled], "deep").map((e) => e.key)).toEqual([
-      "deepnote",
-      "smith2020",
-    ]);
+    expect(
+      rankedCitationCompletions([smith, untitled], "deep").map((e) => e.key),
+    ).toEqual(["deepnote", "smith2020"]);
   });
 });
 
 describe("citation completion text", () => {
   it("labels with the title, then the people, then nothing", () => {
     expect(citationCompletionLabelDetail(smith)).toBe(" Deep Learning Methods");
-    expect(citationCompletionLabelDetail({ type: "", key: "k", editor: "Ed", sourceFile: "r" })).toBe(
-      " Ed",
-    );
-    expect(citationCompletionLabelDetail({ type: "", key: "k", sourceFile: "r" })).toBeUndefined();
+    expect(
+      citationCompletionLabelDetail({
+        type: "",
+        key: "k",
+        editor: "Ed",
+        sourceFile: "r",
+      }),
+    ).toBe(" Ed");
+    expect(
+      citationCompletionLabelDetail({ type: "", key: "k", sourceFile: "r" }),
+    ).toBeUndefined();
   });
 
   it("builds info and detail lines from whatever fields exist", () => {
@@ -112,17 +122,22 @@ describe("citation completion text", () => {
       "URL: https://x.org",
       "Source: refs.bib",
     ]);
-    expect(citationCompletionInfo({ type: "", key: "k", sourceFile: "r.bib" })).toBe("Source: r.bib");
-    expect(citationCompletionDetail({ type: "", key: "k", school: "MIT", sourceFile: "r" }, { citedKeys: [] })).toBe(
-      "Not cited yet - MIT",
+    expect(citationCompletionInfo({ type: "", key: "k", sourceFile: "r.bib" })).toBe(
+      "Source: r.bib",
     );
+    expect(
+      citationCompletionDetail(
+        { type: "", key: "k", school: "MIT", sourceFile: "r" },
+        { citedKeys: [] },
+      ),
+    ).toBe("Not cited yet - MIT");
   });
 
   it("renders markdown with safe links and plain fallbacks", () => {
     const md = citationCompletionMarkdown(
       {
         type: "",
-      key: "k",
+        key: "k",
         doi: "https://doi.org/",
         url: "http://[bad",
         eprint: "1234",
@@ -150,15 +165,17 @@ describe("citation completion text", () => {
       abstract: "word ".repeat(200),
       sourceFile: "r.bib",
     });
-    expect(linked).toContain("**URL:** [https://example\\.com/paper](https://example.com/paper)");
+    expect(linked).toContain(
+      "**URL:** [https://example\\.com/paper](https://example.com/paper)",
+    );
     expect(linked).toContain("**Abstract**\n\nword word");
     expect(linked.endsWith(" wo\\.\\.\\.")).toBe(true);
     expect(citationCompletionMarkdown({ type: "", key: "k", sourceFile: "r" })).toBe(
       "### k\n\n**Source:** `r`",
     );
-    expect(citationCompletionMarkdown({ type: "", key: "k", url: "  ", sourceFile: "r" })).not.toContain(
-      "**URL:**",
-    );
+    expect(
+      citationCompletionMarkdown({ type: "", key: "k", url: "  ", sourceFile: "r" }),
+    ).not.toContain("**URL:**");
   });
 
   it("skips blank and duplicate fields in the filter text", () => {

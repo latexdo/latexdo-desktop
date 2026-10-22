@@ -138,7 +138,11 @@ describe("project search", () => {
 
 describe("project search patterns and edge cases", () => {
   const search = (patch: Partial<typeof defaultProjectSearchOptions>, input = files) =>
-    searchProjectFiles(input, { ...defaultProjectSearchOptions, query: "alpha", ...patch });
+    searchProjectFiles(input, {
+      ...defaultProjectSearchOptions,
+      query: "alpha",
+      ...patch,
+    });
   const paths = (patch: Partial<typeof defaultProjectSearchOptions>) =>
     search(patch).files.map((f) => f.path);
 
@@ -148,18 +152,27 @@ describe("project search patterns and edge cases", () => {
     expect(paths({ include: "method" })).toEqual(["chapters/method.tex"]);
     expect(paths({ include: "**/m?thod.tex" })).toEqual(["chapters/method.tex"]);
     expect(paths({ include: "chapters/**" })).toEqual(["chapters/method.tex"]);
-    expect(paths({ include: "*.tex", exclude: "chapters/*.tex" })).toEqual(["main.tex"]);
+    expect(paths({ include: "*.tex", exclude: "chapters/*.tex" })).toEqual([
+      "main.tex",
+    ]);
   });
 
   it("skips files without an extension and normalises Windows paths", () => {
     expect(isProjectSearchablePath("Makefile")).toBe(false);
-    const result = search({}, [{ path: "\\sub\\a.tex", content: "alpha\r\nalpha\rbeta" }]);
+    const result = search({}, [
+      { path: "\\sub\\a.tex", content: "alpha\r\nalpha\rbeta" },
+    ]);
     expect(result.files[0].path).toBe("sub/a.tex");
     expect(result.files[0].matches.map((m) => m.line)).toEqual([1, 2]);
   });
 
   it("applies whole-word filtering to regex searches and skips zero-length matches", () => {
-    const whole = search({ query: "alpha", useRegex: true, wholeWord: true, matchCase: true });
+    const whole = search({
+      query: "alpha",
+      useRegex: true,
+      wholeWord: true,
+      matchCase: true,
+    });
     expect(whole.totalMatches).toBe(1);
     const lookahead = search({ query: "(?=Alpha)", useRegex: true });
     expect(lookahead.totalMatches).toBe(0);
@@ -191,4 +204,3 @@ describe("project search patterns and edge cases", () => {
     expect(formatProjectSearchResults(result)).toBe("");
   });
 });
-
