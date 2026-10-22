@@ -212,4 +212,85 @@ describe("PDF logical structure reconstruction", () => {
       analyze([line("Table 1: Unrecoverable cells", 50, 100)]).blocks[0],
     ).toMatchObject({ kind: "table", caption: "Unrecoverable cells", body: null });
   });
+
+  it.each(["above", "below"])(
+    "recovers an unruled table %s its caption without consuming distant prose",
+    (position) => {
+      const row = (left: string, right: string, y: number) =>
+        buildLines(page([...glyphs(left, 70, y), ...glyphs(right, 250, y)]), 10)[0];
+      const rows = [
+        row("Method", "Score", 115),
+        row("Baseline", "0.5", 130),
+        row("Ours", "0.9", 145),
+      ];
+      const caption = line(
+        "Table III: Comparison",
+        50,
+        position === "above" ? 175 : 85,
+      );
+      const result = analyze([
+        ...(position === "above" ? [...rows, caption] : [caption, ...rows]),
+        line("Discussion follows here.", 50, 250),
+      ]);
+      expect(result.blocks).toEqual([
+        expect.objectContaining({
+          kind: "table",
+          numbering: "3",
+          label: "tab:3",
+          caption: "Comparison",
+          body: expect.stringContaining("Baseline"),
+        }),
+        { kind: "paragraph", latex: "Discussion follows here." },
+      ]);
+      expect(result.labels.tables.get("3")).toBe("tab:3");
+      expect(result.tableCount).toBe(1);
+    },
+  );
+
+  it("preserves unnumbered equations and parentheses that are not margin tags", () => {
+    const result = analyze([
+      line("abcdefghijklmnop=x", 190, 100, { font: math }),
+      line("x+(3)", 190, 150, { font: math }),
+    ]);
+    expect(result.blocks).toHaveLength(2);
+    for (const block of result.blocks) {
+      expect(block).toMatchObject({ kind: "equation", numbering: null, label: null });
+    }
+    expect(result.blocks[1]).toMatchObject({ latex: expect.stringContaining("3") });
+    expect(result.labels.equations.size).toBe(0);
+  });
+
+  it("strips a section number separated by geometric whitespace without losing its first letter", () => {
+    const heading = buildLines(
+      page([
+        ...glyphs("2", 50, 100, { font: bold }),
+        ...glyphs("Methods", 65, 100, { font: bold }),
+      ]),
+      10,
+    );
+    expect(analyze(heading).blocks).toEqual([
+      {
+        kind: "section",
+        level: 1,
+        latex: "Methods",
+        numbering: "2",
+        label: "sec:2",
+        starred: false,
+      },
+    ]);
+  });
+
+  it("keeps adjacent ordered and unordered lists as separate blocks", () => {
+    const result = analyze([
+      line("1) First step", 65, 100),
+      line("2) Second step", 65, 130),
+      line("• Supporting point", 65, 160),
+      line("Ordinary prose.", 50, 200),
+    ]);
+    expect(result.blocks).toEqual([
+      { kind: "list", ordered: true, items: ["First step", "Second step"], level: 0 },
+      { kind: "list", ordered: false, items: ["Supporting point"], level: 0 },
+      { kind: "paragraph", latex: "Ordinary prose." },
+    ]);
+  });
 });
