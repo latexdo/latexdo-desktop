@@ -113,4 +113,42 @@ describe("ReviewSidebar", () => {
 
     expect(screen.getByText(/in tex source/i)).toBeVisible();
   });
+
+  it("truncates long selections, ignores blank messages and sends with the button", () => {
+    const onAddComment = vi.fn();
+    const longChat: ReviewChat = {
+      ...chat,
+      comments: [],
+      selection: { ...chat.selection, text: "x".repeat(60) },
+    };
+    render(
+      <ReviewSidebar
+        chats={[longChat]}
+        onAddChat={vi.fn()}
+        onAddComment={onAddComment}
+        onDeleteChat={vi.fn()}
+        onJumpToSelection={vi.fn()}
+        onInsertIntoTex={vi.fn()}
+      />,
+    );
+    expect(screen.getByTitle("Click to jump to selection").textContent).toBe(
+      `"${"x".repeat(50)}..."`,
+    );
+    expect(screen.getByText("No messages yet.")).toBeVisible();
+
+    const input = screen.getByLabelText("Review message");
+    const send = screen.getByRole("button", { name: "Send review message" });
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(send).toBeDisabled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAddComment).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(onAddComment).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "  Looks good  " } });
+    fireEvent.click(send);
+    expect(onAddComment).toHaveBeenCalledWith("chat-1", "Looks good");
+    expect(input).toHaveValue("");
+  });
 });

@@ -13,6 +13,14 @@ src/rendererDiagnostics.ts,
 src/utils/*.ts
 }`.replace(/\s/g, "");
 
+const recentCoverageThresholds = Object.fromEntries(
+  [
+    "electron/pdfImport/bibliography.ts",
+    "src/features/scholarly/scholarlyClient.ts",
+    "src/latex/citationCompletion.ts",
+  ].map((file) => [file, { lines: 95, functions: 95, branches: 95, statements: 95 }]),
+);
+
 export default defineConfig({
   plugins: [
     react(),
@@ -73,8 +81,17 @@ export default defineConfig({
         "collaborations/cloudflare/**",
       ],
       thresholds: {
-        // Baseline for all source, including previously unmeasured files.
-        lines: 43,
+        // Production modules changed in 1ed42dc: enforce the target for each
+        // module, so a well-covered file cannot conceal another's regression.
+        ...recentCoverageThresholds,
+        "src/app/useAppCitationSearch.tsx": {
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100,
+        },
+        // Keep full-codebase line coverage at the requested 95% target.
+        lines: 95,
         functions: 45,
         branches: 38,
         statements: 42,

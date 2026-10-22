@@ -352,3 +352,136 @@ describe("document extraction and PDF import orchestration", () => {
     }
   });
 });
+describe("PDF operator fallbacks", () => {
+  it("treats missing or invalid operands as neutral values", async () => {
+    const { page } = await extract([
+      [12, "a", "b", "c", "d", "e", "f"],
+      [10],
+      [11],
+      [11],
+      [75],
+      [2],
+      [31],
+      [37],
+      [37, "F1"],
+      [33],
+      [34],
+      [35],
+      [36],
+      [39],
+      [38],
+      [42],
+      [40],
+      [41],
+      [47],
+      [91],
+      [91, [13, 14, 15, 16, 17, 19, 18, 99], []],
+      [22],
+      [44, null],
+      [62],
+      [77],
+    ]);
+    expect(page.glyphs).toEqual([]);
+    expect(page.graphics).toEqual([]);
+  });
+
+  it("emits subpaths, closes polylines, ignores short ones and clips paths", async () => {
+    const { page } = await extract([
+      [2, 1],
+      [91, [13, 14, 13, 14, 18], [10, 100, 200, 100, 10, 300, 10, 400]],
+      [20],
+      [91, [13, 14, 14, 18], [0, 0, 1, 1, 0, 0]],
+      [29],
+      [91, [13, 18], [5, 5]],
+      [21],
+    ]);
+    const horizontal = page.rules.filter((rule) => rule.horizontal);
+    const vertical = page.rules.filter((rule) => rule.vertical);
+    expect(horizontal).toHaveLength(1);
+    expect(horizontal[0]).toMatchObject({ x1: 10, x2: 200 });
+    expect(vertical.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("drops curved subpaths before a new moveTo and records vector artwork", async () => {
+    const { page } = await extract([
+      [
+        91,
+        [13, 15, 13, 16, 17],
+        [0, 0, 1, 1, 2, 2, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90],
+      ],
+      [22],
+    ]);
+    expect(page.rules).toEqual([]);
+    expect(page.graphics[0]).toMatchObject({ kind: "vector" });
+  });
+
+  it("uses the stroke width for zero-height filled rectangles and dedupes rules", async () => {
+    const { page } = await extract([
+      [2, 0],
+      [91, [19, 19], [10, 10, 100, 0, 10, 10, 100, 0]],
+      [22],
+    ]);
+    expect(page.rules).toHaveLength(1);
+    expect(page.rules[0].thickness).toBeCloseTo(0.1);
+  });
+
+  it("falls back to the default glyph scale for fonts without a usable matrix", async () => {
+    const p = proxy(textOps("Hi"));
+    p.commonObjs.get = () => ({ name: "", fontMatrix: [0] }) as never;
+    const fonts = new Map();
+    await extractPage(p, 0, fonts, [], { remaining: 100 });
+    expect(fonts.get("F1").glyphScale).toBe(0.001);
+    const q = proxy(textOps("Hi"));
+    q.commonObjs.get = () => undefined as never;
+    const fonts2 = new Map();
+    await extractPage(q, 0, fonts2, [], { remaining: 100 });
+    expect(fonts2.get("F1").glyphScale).toBe(0.001);
+  });
+
+  it("handles non-array viewport transforms and glyphs without unicode", async () => {
+    const p = proxy([
+      [31],
+      [37, "F1", 10],
+      [42, 1, 0, 0, 1, 72, 700],
+      [
+        44,
+        [
+          { originalCharCode: 65, width: 500, isSpace: false },
+          { unicode: " ", width: 250 },
+        ],
+      ],
+    ]);
+    p.getViewport = () => ({ width: 1, height: 1, transform: null as never });
+    const page = await extractPage(p, 0, new Map(), [], { remaining: 100 });
+    expect(page.glyphs.some((glyph) => glyph.space)).toBe(true);
+  });
+
+  it("reports pages that fail and missing metadata gracefully", async () => {
+    const bad = proxy([]);
+    bad.getOperatorList = vi.fn(async () => {
+      throw {};
+    });
+    const doc = document([bad]);
+    doc.getMetadata.mockResolvedValue({} as never);
+    const result = await extractDocument(new Uint8Array());
+    expect(result.warnings[0]).toBe("Page 1 could not be read: unknown error");
+    expect(result).toMatchObject({ title: "", author: "", producer: "" });
+  });
+});
+describe("PDF subpath rules", () => {
+  it("skips diagonal subpath segments and classifies tiny squares as horizontal", async () => {
+    const { page } = await extract([
+      [91, [13, 14, 14, 13, 14], [0, 0, 100, 100, 102, 102, 300, 300, 300, 310]],
+      [28],
+    ]);
+    expect(page.rules).toHaveLength(1);
+    expect(page.rules[0]).toMatchObject({ horizontal: true, vertical: false });
+  });
+
+  it("tolerates an operator list with missing argument slots", async () => {
+    const p = proxy([]);
+    p.getOperatorList = vi.fn(async () => ({ fnArray: [31, 32], argsArray: [] }));
+    const page = await extractPage(p, 0, new Map(), [], { remaining: 10 });
+    expect(page.glyphs).toEqual([]);
+  });
+});

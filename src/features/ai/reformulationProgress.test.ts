@@ -115,4 +115,34 @@ describe("showReformulationProgress", () => {
     expect(clear).toHaveBeenCalledTimes(1);
     expect(node.isConnected).toBe(false);
   });
+
+  it("keeps the widget id stable, the selection on mousedown and shows the tail of long rewrites", () => {
+    const { editor, widget } = fakeEditor();
+    const progress = showReformulationProgress(
+      editor as unknown as Monaco.editor.IStandaloneCodeEditor,
+      monaco,
+      range,
+      () => {},
+    );
+    expect(widget()!.getId()).toBe("latexdo.reformulate.progress");
+    const node = widget()!.getDomNode();
+    const cancel = node.querySelector<HTMLButtonElement>(
+      ".latexdo-reformulate-progress-cancel",
+    )!;
+    const mouseDown = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    cancel.dispatchEvent(mouseDown);
+    expect(mouseDown.defaultPrevented).toBe(true);
+
+    const preview = node.querySelector<HTMLElement>(
+      ".latexdo-reformulate-progress-preview",
+    )!;
+    progress.append("");
+    progress.append("   \n ");
+    expect(preview.hidden).toBe(true);
+    expect(editor.layoutContentWidget).not.toHaveBeenCalled();
+
+    progress.append("a".repeat(300) + "END");
+    expect(preview.textContent).toBe(`…${"a".repeat(217)}END`);
+    expect(preview.textContent!.length).toBe(221);
+  });
 });

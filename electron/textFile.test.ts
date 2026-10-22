@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { decodeTextBuffer } from "./textFile.js";
+import { NOT_UTF8_MESSAGE, decodeTextBuffer } from "./textFile.js";
 
 const bib = "@article{lewis2020,\n  title = {Retrieval},\n}\n";
 
@@ -21,6 +21,20 @@ describe("decodeTextBuffer", () => {
     const be = Buffer.from(le).swap16();
     expect(decodeTextBuffer(Buffer.concat([Buffer.from([0xfe, 0xff]), be]))).toBe(bib);
     expect(decodeTextBuffer(be)).toBe(bib);
+  });
+
+  it("refuses Latin-1 text instead of replacing its accents on the next save", () => {
+    // "Résumé" in ISO-8859-1: 0xE9 is not valid UTF-8 on its own.
+    const latin1 = Buffer.from([0x52, 0xe9, 0x73, 0x75, 0x6d, 0xe9]);
+    expect(() => decodeTextBuffer(latin1)).toThrow(NOT_UTF8_MESSAGE);
+    expect(() =>
+      decodeTextBuffer(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), latin1])),
+    ).toThrow(NOT_UTF8_MESSAGE);
+  });
+
+  it("keeps Unicode and special characters intact", () => {
+    const text = "Résumé ∑ αβγ 漢字 🧪 \\& \\% \\$ {}^_~\n";
+    expect(decodeTextBuffer(Buffer.from(text, "utf8"))).toBe(text);
   });
 
   it("still refuses real binary data", () => {

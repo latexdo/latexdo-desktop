@@ -400,3 +400,98 @@ describe("QuickPick", () => {
     expect(onCancel).toHaveBeenCalled();
   });
 });
+
+describe("source-control navigation", () => {
+  it("supports keyboard menu navigation, Escape and outside dismissal", () => {
+    view({ entries: [modified] });
+    fireEvent.click(screen.getByLabelText("More Source Control actions"));
+    const menu = screen.getByRole("menu");
+    const first = document.activeElement;
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).not.toBe(first);
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByLabelText("More Source Control actions"));
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+  it("collapses nested folders, opens files and dispatches row actions", () => {
+    localStorage.setItem("latexdo.scm.viewMode", "list");
+    const props = view({ entries: [modified] });
+    fireEvent.click(screen.getByLabelText("View as Tree"));
+    const folder = screen.getByRole("button", { name: "chapters" });
+    fireEvent.click(folder);
+    expect(screen.queryByLabelText(/Open working tree diff/)).toBeNull();
+    fireEvent.click(folder);
+    const row = screen.getByLabelText(/Open working tree diff/);
+    fireEvent.doubleClick(row);
+    expect(props.onOpenFile).toHaveBeenCalledWith(modified.path);
+    fireEvent.contextMenu(row, { clientX: 10, clientY: 20 });
+    expect(props.onContextMenu).toHaveBeenCalledWith(modified, "changes", 10, 20);
+    fireEvent.click(screen.getByLabelText(`Open file ${modified.path}`));
+    fireEvent.click(screen.getByLabelText(`Discard ${modified.path}`));
+    expect(props.onDiscard).toHaveBeenCalledWith(modified.path);
+    fireEvent.click(screen.getByLabelText("View as List"));
+    expect(screen.getByText("chapters")).toBeVisible();
+  });
+  it("edits commit messages, restores an empty draft and dismisses errors", () => {
+    const props = view(
+      { entries: [modified] },
+      { messageHistory: () => ["Previous"], error: "Git failed" },
+    );
+    const box = screen.getByLabelText("Commit message");
+    fireEvent.keyDown(box, { key: "ArrowUp" });
+    expect(props.onMessageChange).toHaveBeenLastCalledWith("Previous");
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(props.onMessageChange).toHaveBeenLastCalledWith("");
+    fireEvent.change(box, { target: { value: "New message" } });
+    expect(props.onMessageChange).toHaveBeenLastCalledWith("New message");
+    fireEvent.click(screen.getByLabelText("Dismiss"));
+    expect(props.onDismissError).toHaveBeenCalledOnce();
+  });
+});
+
+it("resizes and collapses the commit graph and runs its toolbar actions", () => {
+  const graph: NonNullable<SourceControlViewProps["graph"]> = {
+    commits,
+    loading: false,
+    hasMore: false,
+    refs: "all",
+    expanded: new Set(),
+    files: new Map(),
+    revealHash: null,
+    onLoadMore: vi.fn(),
+    onToggle: vi.fn(),
+    onOpenFile: vi.fn(),
+    onContextMenu: vi.fn(),
+    onChooseRefs: vi.fn(),
+    onGoToCurrent: vi.fn(),
+    onRefresh: vi.fn(),
+  };
+  const props = view({ entries: [modified], upstream: "origin/main" }, { graph });
+  const sash = screen.getByRole("separator", { name: "Resize the graph" });
+  const section = document.querySelector<HTMLElement>(".scm-graph-section")!;
+  const initial = section.style.height;
+  fireEvent.keyDown(sash, { key: "ArrowUp" });
+  expect(section.style.height).not.toBe(initial);
+  fireEvent.keyDown(sash, { key: "ArrowDown" });
+  expect(section.style.height).toBe(initial);
+  fireEvent.pointerDown(sash, { clientY: 200 });
+  fireEvent.pointerMove(window, { clientY: 250 });
+  fireEvent.pointerUp(window);
+  expect(section.style.height).not.toBe(initial);
+  for (const kind of ["Fetch", "Pull", "Push"]) {
+    fireEvent.click(screen.getByLabelText(kind));
+    expect(props.onAction).toHaveBeenLastCalledWith({ kind: kind.toLowerCase() });
+  }
+  fireEvent.click(screen.getByLabelText("Choose the branches shown in the graph"));
+  expect(graph.onChooseRefs).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByLabelText("Go to Current Commit"));
+  expect(graph.onGoToCurrent).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByLabelText("Refresh the graph"));
+  expect(graph.onRefresh).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByLabelText("Graph"));
+  expect(screen.queryByRole("separator", { name: "Resize the graph" })).toBeNull();
+});

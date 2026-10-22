@@ -83,4 +83,29 @@ describe("Electron LatexDo AI tier availability", () => {
       state: "available",
     });
   });
+
+  it("reports unknown storage as unsupported and plenty of storage as available", () => {
+    const tier = findLatexDoAiTier("latexdo-ai-plus")!;
+    const system: AiSystemCapabilities = {
+      totalRamBytes: 64 * GB,
+      freeRamBytes: 48 * GB,
+      totalStorageBytes: 2048 * GB,
+      freeStorageBytes: null,
+      modelStoragePath: "/models",
+      platform: "darwin",
+      arch: "arm64",
+      cpuCount: 10,
+      localAiAvailable: true,
+    };
+    expect(fastTierAvailability(tier, system)).toEqual({
+      state: "unsupported",
+      reason: "Could not check available storage for local AI models.",
+    });
+    expect(
+      fastTierAvailability(tier, { ...system, freeStorageBytes: 1024 * GB }),
+    ).toEqual({ state: "available" });
+    expect(
+      fastTierAvailability(tier, { ...system, localAiAvailable: false }),
+    ).toMatchObject({ state: "unsupported" });
+  });
 });

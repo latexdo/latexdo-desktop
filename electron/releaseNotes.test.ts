@@ -2,7 +2,7 @@ import { generateKeyPairSync, createHash, createPublicKey, sign } from "node:cry
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalJson,
   fetchReleaseNotesIndex,
@@ -556,4 +556,75 @@ describe("release ranges", () => {
     expect(result.available).toBe(false);
     expect(result.documents.map((document) => document.version)).toEqual(["0.3.0"]);
   });
+});
+
+describe("release security notes and default transport", () => {
+  it("preserves security notes with optional advisory links", () => {
+    const securityNotes = [
+      { title: "Fix", description: "Details" },
+      {
+        title: "Advisory",
+        description: "Details",
+        advisoryUrl: "https://latexdo.org/security/advisory",
+      },
+    ];
+    expect(
+      parseReleaseNotesDocument(
+        signedPayload({ ...documentPayload("0.3.0"), security: securityNotes }),
+      )?.security,
+    ).toEqual(securityNotes);
+  });
+  it.each(
+    [
+      {},
+      [null],
+      [[]],
+      [{ title: "", description: "x" }],
+      [{ title: "Fix", description: 42 }],
+      [{ title: "Fix", description: "x", advisoryUrl: "javascript:alert(1)" }],
+    ].map((value) => [value]),
+  )("rejects invalid security notes %j", (securityNotes) => {
+    expect(
+      parseReleaseNotesDocument(
+        signedPayload({ ...documentPayload("0.3.0"), security: securityNotes }),
+      ),
+    ).toBeNull();
+  });
+  it.each([NaN, Infinity, undefined, () => 0])(
+    "rejects non-canonical values",
+    (value) => {
+      expect(() => canonicalJson({ value })).toThrow();
+    },
+  );
+  it.each(["success", "http", "oversize"])(
+    "handles default HTTP transport: %s",
+    async (mode) => {
+      const { publicKeyPemPath } = await makeTestKeyPair();
+      const dataDirectory = await temporaryDirectory();
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(
+          new Response(
+            mode === "oversize"
+              ? "x".repeat(2 * 1024 * 1024)
+              : JSON.stringify(signedPayload(indexPayload())),
+            { status: mode === "http" ? 503 : 200 },
+          ),
+        );
+      try {
+        const result = await fetchReleaseNotesIndex({
+          dataDirectory,
+          publicKeyPemPath,
+          baseUrl: testBaseUrl,
+        });
+        if (mode === "success") expect(result?.releases).toHaveLength(4);
+        else expect(result).toBeNull();
+        expect(fetch).toHaveBeenCalledWith(`${testBaseUrl}/index.json`, {
+          signal: expect.any(AbortSignal),
+        });
+      } finally {
+        fetch.mockRestore();
+      }
+    },
+  );
 });

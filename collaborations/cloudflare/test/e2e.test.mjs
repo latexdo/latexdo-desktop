@@ -154,6 +154,35 @@ test("an encrypted shared project works end to end", async () => {
   // Sharing requires owner approval by default, even with the invite and key.
   const token = (await call(owner, "POST", `/api/projects/${id}/share`, {})).body.token;
   assert.match(token, /^p[0-9a-f]{32}_[A-Za-z0-9_-]{43}$/);
+  // These routes either ignore the payload or reject before parsing it. The
+  // E2E runner also rejects uncaught runtime errors after these responses.
+  for (const [who, route, status] of [
+    [owner, "share", 200],
+    [stranger, "share", 403],
+    [owner, "unknown-route", 404],
+  ]) {
+    let chunks = 0;
+    const response = await fetch(new URL(`/api/projects/${id}/${route}`, base), {
+      method: "POST",
+      headers: {
+        "x-latexdo-session": who.session,
+        "x-latexdo-client": who.client,
+      },
+      body: new ReadableStream({
+        pull(controller) {
+          if (chunks++ < 4) controller.enqueue(new Uint8Array(32 * 1024));
+          else controller.close();
+        },
+      }),
+      duplex: "half",
+    });
+    assert.equal(response.status, status);
+    await response.arrayBuffer();
+  }
+  assert.equal(
+    (await call(owner, "GET", `/api/projects/${id}/share`)).body.token,
+    token,
+  );
   assert.equal(
     (await call(guest, "POST", `/api/shares/${token}/open`, {}, token)).body.code,
     "approval-pending",

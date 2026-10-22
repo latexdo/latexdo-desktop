@@ -54,4 +54,39 @@ describe("AnnotationStore", () => {
 
     expect(loadPdfAnnotations(selection.documentId)).toEqual([]);
   });
+
+  it("defaults the user and color by annotation type", () => {
+    const note = createAnnotationFromSelection(selection, { type: "note" });
+    expect(note).toMatchObject({ userId: "local-user", color: "blue", type: "note" });
+    expect(createAnnotationFromSelection(selection, { type: "highlight" }).color).toBe(
+      "yellow",
+    );
+  });
+
+  it("orders annotations by page, then creation time", () => {
+    const base = createAnnotationFromSelection(selection, { type: "note" });
+    savePdfAnnotation({ ...base, id: "late", pageNumber: 2, createdAt: 5 });
+    savePdfAnnotation({ ...base, id: "early", pageNumber: 2, createdAt: 1 });
+    savePdfAnnotation({ ...base, id: "first-page", pageNumber: 1, createdAt: 9 });
+    expect(loadPdfAnnotations(selection.documentId).map((item) => item.id)).toEqual([
+      "first-page",
+      "early",
+      "late",
+    ]);
+  });
+
+  it("deletes from a document with no annotations without failing", () => {
+    deletePdfAnnotation("pdf:none", "missing");
+    expect(loadPdfAnnotations("pdf:none")).toEqual([]);
+  });
+
+  it.each([
+    ["corrupt JSON", "{not json"],
+    ["a wrong version", JSON.stringify({ version: 2, annotations: {} })],
+    ["missing annotations", JSON.stringify({ version: 1 })],
+    ["null", "null"],
+  ])("starts empty from %s", (_label, raw) => {
+    window.localStorage.setItem(pdfAnnotationStorageKey, raw);
+    expect(loadPdfAnnotations(selection.documentId)).toEqual([]);
+  });
 });

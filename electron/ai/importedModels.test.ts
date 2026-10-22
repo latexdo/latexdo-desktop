@@ -161,6 +161,11 @@ describe("GGUF imports", () => {
     ],
     ["unknown type", gguf([["unknown", 99, Buffer.alloc(0)]]), "Unsupported GGUF"],
     [
+      "missing value type",
+      Buffer.concat([gguf().subarray(0, 16), u64(1), str("general.name")]),
+      "Unexpected end of GGUF metadata",
+    ],
+    [
       "short signed integer",
       gguf([["unknown", 11, Buffer.alloc(2)]]),
       "Unexpected end",
@@ -218,10 +223,12 @@ describe("model manifests and memory preflight", () => {
           capabilities: { toolUse: "bad" },
         },
         { fileName: "minimal.gguf" },
+        { fileName: "context.gguf", contextLength: 4096, parameterCount: 7e9 },
       ]),
     );
     const entries = await readImportedModelManifests();
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(3);
+    expect(entries[2]).toMatchObject({ contextLength: 4096, parameterCount: 7e9 });
     expect(entries[0]).toMatchObject({
       id: "imported-gguf:old.gguf",
       fileName: "old.gguf",

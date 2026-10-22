@@ -7,7 +7,10 @@ import {
   shouldOfferInlineCompletion,
 } from "./inlineCompletion";
 import { InlineCompletionCache } from "./inlineCompletionCache";
-import { registerInlineCompletion } from "./registerInlineCompletion";
+import {
+  registerInlineCompletion,
+  registerInlineCompletionKeys,
+} from "./registerInlineCompletion";
 
 const prose = "Our experiments on three benchmarks show that the proposed method ";
 
@@ -214,5 +217,162 @@ describe("registerInlineCompletion", () => {
   it("shows nothing when the model has nothing useful", async () => {
     const { request } = setup(null);
     expect((await request(1)).items).toEqual([]);
+  });
+});
+
+describe("registerInlineCompletion edge cases", () => {
+  type Provider = {
+    provideInlineCompletions: (...args: unknown[]) => Promise<{ items: unknown[] }>;
+    freeInlineCompletions: () => void;
+  };
+
+  function harness(options: {
+    client?: { complete: ReturnType<typeof vi.fn> } | null;
+    text?: string;
+    disposed?: boolean;
+    path?: string;
+    delayMs?: number;
+  }) {
+    let provider: Provider | null = null;
+    const monaco = {
+      languages: {
+        InlineCompletionTriggerKind: { Automatic: 0, Explicit: 1 },
+        registerInlineCompletionsProvider: (_language: string, value: Provider) => {
+          provider = value;
+          return { dispose: () => undefined };
+        },
+      },
+      Range: class {
+        constructor(
+          public startLineNumber: number,
+          public startColumn: number,
+          public endLineNumber: number,
+          public endColumn: number,
+        ) {}
+      },
+    };
+    const client = options.client === undefined ? null : options.client;
+    registerInlineCompletion({
+      monaco: monaco as never,
+      getClient: () => client as never,
+      delayMs: options.delayMs ?? 0,
+    });
+    const text = options.text ?? prose;
+    const model = {
+      getValue: () => text,
+      getOffsetAt: () => text.length,
+      isDisposed: () => options.disposed ?? false,
+      uri: { path: options.path ?? "/project/main.tex" },
+    };
+    const cancelHandlers: Array<() => void> = [];
+    const token = {
+      isCancellationRequested: false,
+      onCancellationRequested: (handler: () => void) => {
+        cancelHandlers.push(handler);
+      },
+    };
+    const cancel = () => {
+      token.isCancellationRequested = true;
+      cancelHandlers.forEach((handler) => handler());
+    };
+    const request = (kind = 0) =>
+      provider!.provideInlineCompletions(
+        model,
+        { lineNumber: 1, column: text.length + 1 },
+        { triggerKind: kind },
+        token,
+      );
+    return { provider: provider!, request, cancel, token };
+  }
+
+  it("offers nothing without a ready AI client", async () => {
+    const { request, provider } = harness({ client: null });
+    expect((await request(1)).items).toEqual([]);
+    expect(provider.freeInlineCompletions()).toBeUndefined();
+  });
+
+  it("offers nothing where ghost text does not belong", async () => {
+    const client = { complete: vi.fn() };
+    const { request } = harness({ client, text: "   " });
+    expect((await request(1)).items).toEqual([]);
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it("drops the request when typing resumes during the pause", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = { complete: vi.fn() };
+      const { request, cancel } = harness({ client, delayMs: 300 });
+      const pending = request();
+      cancel();
+      expect((await pending).items).toEqual([]);
+      expect(client.complete).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts the model call when the request is cancelled mid-flight", async () => {
+    let signal: AbortSignal | undefined;
+    let finish: (value: string) => void = () => undefined;
+    const client = {
+      complete: vi.fn((_request: unknown, abort: AbortSignal) => {
+        signal = abort;
+        return new Promise<string>((resolve) => {
+          finish = resolve;
+        });
+      }),
+    };
+    const { request, cancel } = harness({ client, path: "" });
+    const pending = request(1);
+    await vi.waitFor(() => expect(client.complete).toHaveBeenCalled());
+    cancel();
+    expect(signal?.aborted).toBe(true);
+    finish("outperforms them.");
+    expect((await pending).items).toEqual([]);
+  });
+
+  it("ignores replies for a closed file or with nothing left after cleaning", async () => {
+    const disposedClient = { complete: vi.fn().mockResolvedValue("outperforms them.") };
+    expect(
+      (await harness({ client: disposedClient, disposed: true }).request(1)).items,
+    ).toEqual([]);
+    const emptyClient = { complete: vi.fn().mockResolvedValue("   ") };
+    expect((await harness({ client: emptyClient }).request(1)).items).toEqual([]);
+  });
+
+  it("registers the accept-word and trigger keys", () => {
+    const actions: Array<{ id: string; keybindings: number[]; run: () => void }> = [];
+    const editor = {
+      addAction: vi.fn((action: (typeof actions)[number]) => {
+        actions.push(action);
+        return { dispose: vi.fn() };
+      }),
+      trigger: vi.fn(),
+    };
+    const monaco = {
+      KeyMod: { CtrlCmd: 2048, Alt: 512 },
+      KeyCode: { RightArrow: 17, Backslash: 93 },
+    };
+    const disposables = registerInlineCompletionKeys(editor as never, monaco as never);
+    expect(disposables).toHaveLength(2);
+    expect(actions.map((action) => action.keybindings[0])).toEqual([
+      2048 | 17,
+      512 | 93,
+    ]);
+    actions[0].run();
+    actions[1].run();
+    expect(editor.trigger).toHaveBeenNthCalledWith(
+      1,
+      "keyboard",
+      "editor.action.inlineSuggest.acceptNextWord",
+      {},
+    );
+    expect(editor.trigger).toHaveBeenNthCalledWith(
+      2,
+      "keyboard",
+      "editor.action.inlineSuggest.trigger",
+      {},
+    );
   });
 });

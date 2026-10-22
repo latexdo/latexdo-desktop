@@ -165,3 +165,28 @@ describe("RebuttalSidebar", () => {
     expect(screen.getByText("Marked in TeX")).toBeVisible();
   });
 });
+
+describe("RebuttalSidebar fallbacks", () => {
+  it("falls back to the default reviewer, empty original text and the legacy modification", () => {
+    renderSidebar({
+      items: [
+        {
+          ...item,
+          reviewer: undefined,
+          originalText: undefined,
+          revisedText: undefined,
+          modificationMade: "Legacy change.",
+        },
+      ],
+    });
+    const reviewer = screen.getByLabelText("Reviewer") as HTMLInputElement;
+    expect(reviewer.value).toBe(reviewer.placeholder);
+    expect(reviewer.value).not.toBe("");
+    expect((screen.getByLabelText(/Original text/) as HTMLTextAreaElement).value).toBe(
+      "",
+    );
+    expect((screen.getByLabelText(/Revised text/) as HTMLTextAreaElement).value).toBe(
+      "Legacy change.",
+    );
+  });
+});

@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
   citationCommandsInText,
+  commandCounts,
+  commandFromPackages,
   formatCitation,
   resolveCitationStyle,
 } from "../citationStyle";
 
 describe("resolveCitationStyle", () => {
+  it("falls back to the selection, then the project, then plain cite", () => {
+    expect(
+      resolveCitationStyle({ selectedText: "as shown by \\textcite{a}" }),
+    ).toMatchObject({ command: "textcite", source: "selection" });
+    expect(
+      resolveCitationStyle({
+        activeFilePath: "intro.tex",
+        usages: [{ key: "b", command: "citep", sourceFile: "other.tex", line: 1 }],
+      }),
+    ).toMatchObject({ command: "citep", source: "project" });
+    expect(resolveCitationStyle({})).toEqual({
+      command: "cite",
+      source: "fallback",
+      confidence: 0.4,
+    });
+  });
+
   it("prefers a nearby citation command", () => {
     const result = resolveCitationStyle({
       nearbyText: "Prior work \\parencite{a}.",
@@ -85,5 +104,24 @@ describe("formatCitation", () => {
     expect(formatCitation("citep", ["smith2024", "smith2024", "jones2025"])).toBe(
       "\\citep{smith2024,jones2025}",
     );
+  });
+});
+
+describe("citation command helpers", () => {
+  it("counts only supported commands, folding starred variants", () => {
+    const counts = commandCounts([
+      { command: "citep*" },
+      { command: "citep" },
+      { command: "nocite" },
+      { command: undefined },
+    ] as { command?: string }[] as never);
+    expect([...counts]).toEqual([["citep", 2]]);
+  });
+
+  it("infers the command from the bibliography package", () => {
+    expect(commandFromPackages("\\usepackage[round]{natbib}")).toBe("citep");
+    expect(commandFromPackages("\\usepackage{amsmath, biblatex}")).toBe("parencite");
+    expect(commandFromPackages("\\addbibresource{refs.bib}")).toBe("parencite");
+    expect(commandFromPackages("\\usepackage{amsmath}")).toBeNull();
   });
 });

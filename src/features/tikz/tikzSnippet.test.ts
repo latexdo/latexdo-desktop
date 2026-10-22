@@ -214,3 +214,145 @@ describe("safeFigureOffset", () => {
     expect(figureInsertionText("a\n\nb", 2, "F")).toBe("F");
   });
 });
+
+describe("tikzSnippet edge cases", () => {
+  const none = {
+    packages: [],
+    libraries: [],
+    pgfplotsLibraries: [],
+    pgfplotsCompat: false,
+  };
+
+  it("keeps the rest of a standalone file that never ends its document", () => {
+    const prepared = prepareTikzSnippet(
+      "\\documentclass{standalone}\n\\usepackage{tikz}\n\\begin{document}\n\\tikz \\draw (0,0) -- (1,1);",
+    );
+    expect(prepared.body).toBe("\\tikz \\draw (0,0) -- (1,1);");
+    expect(prepared.preambleLines).toEqual(["\\usepackage{tikz}"]);
+  });
+
+  it("does not join lines of a preamble command whose braces are balanced", () => {
+    const prepared = prepareTikzSnippet(
+      "\\usepackage[x]{pgfplots}\n\\usetikzlibrary{calc}\nbody",
+    );
+    expect(prepared.preambleLines).toEqual([
+      "\\usepackage[x]{pgfplots}",
+      "\\usetikzlibrary{calc}",
+    ]);
+    // An unclosed option list stops at the last line.
+    expect(prepareTikzSnippet("\\pgfplotsset{compat=1.18,").preambleLines).toEqual([
+      "\\pgfplotsset{compat=1.18,",
+    ]);
+  });
+
+  it("detects tikz-cd, circuitikz and pgfplots libraries", () => {
+    expect(tikzRequirements("\\begin{tikzcd} A \\end{tikzcd}").packages).toEqual([
+      "tikz-cd",
+    ]);
+    expect(tikzRequirements("\\begin{circuitikz}\\end{circuitikz}").packages).toEqual([
+      "circuitikz",
+    ]);
+    const plots = tikzRequirements(
+      "\\begin{groupplot}\\addplot fill between [of=a and b];\\end{groupplot}\\begin{polaraxis}\\end{polaraxis}",
+    );
+    expect(plots.packages).toEqual(["pgfplots"]);
+    expect(plots.pgfplotsLibraries).toEqual(["polar", "groupplots", "fillbetween"]);
+    expect(plots.pgfplotsCompat).toBe(true);
+  });
+
+  it("adds pgfplots libraries and compat that the preamble lacks", () => {
+    const requirements = tikzRequirements(
+      "\\begin{axis}\\addplot fill between [of=a and b];\\end{axis}",
+    );
+    expect(
+      missingPreambleLines(
+        "\\documentclass{article}\n\\usepackage{pgfplots}\n\\usepgfplotslibrary{ , polar}",
+        requirements,
+        ["\\usepgfplotslibrary{polar,dateplot}"],
+      ),
+    ).toEqual([
+      "\\usepgfplotslibrary{fillbetween,dateplot}",
+      "\\pgfplotsset{compat=newest}",
+    ]);
+    expect(
+      missingPreambleLines(
+        "\\usepackage{pgfplots}\n\\usepgfplotslibrary{fillbetween}\n\\pgfplotsset{compat=1.18}",
+        requirements,
+      ),
+    ).toEqual([]);
+  });
+
+  it("splits multi-package snippet lines and skips xcolor once tikz is loaded", () => {
+    expect(
+      missingPreambleLines("\\usepackage{tikz}", none, [
+        "\\usepackage{xcolor,amsmath}",
+        "\\usepackage[dvipsnames]{xcolor}",
+      ]),
+    ).toEqual(["\\usepackage{amsmath}"]);
+    expect(
+      missingPreambleLines("", none, ["\\usepackage[dvipsnames]{xcolor}"]),
+    ).toEqual(["\\usepackage[dvipsnames]{xcolor}"]);
+  });
+
+  it("returns no edit for a document without a usable class or with nothing missing", () => {
+    expect(
+      preambleEditFor("\\documentclass{article", { ...none, packages: ["tikz"] }),
+    ).toBeNull();
+    expect(
+      preambleEditFor(
+        "\\documentclass{art\\}icle}\n\\begin{document}\\end{document}",
+        none,
+      ),
+    ).toEqual({ offset: "\\documentclass{art\\}icle}".length, text: "", lines: [] });
+    expect(withPreambleEdit("doc", null)).toBe("doc");
+    expect(withPreambleEdit("doc", { offset: 0, text: "", lines: [] })).toBe("doc");
+  });
+
+  it("reads nested braces in the class and brace-less loader lines", () => {
+    const doc = "\\documentclass{a{b}c}";
+    expect(preambleEditFor(doc, none)).toEqual({
+      offset: doc.length,
+      text: "",
+      lines: [],
+    });
+    expect(prepareTikzSnippet("\\usetikzlibrary\nbody").preambleLines).toEqual([
+      "\\usetikzlibrary",
+    ]);
+  });
+
+  it("appends after the class when there is no body or loader line", () => {
+    const doc = "\\documentclass{article}";
+    const edit = preambleEditFor(doc, { ...none, packages: ["tikz"] });
+    expect(edit).toEqual({
+      offset: doc.length,
+      text: "\n\\usepackage{tikz}",
+      lines: ["\\usepackage{tikz}"],
+    });
+    expect(withPreambleEdit(doc, edit)).toBe(
+      "\\documentclass{article}\n\\usepackage{tikz}",
+    );
+  });
+
+  it("skips commented loader lines and loaders before the class", () => {
+    const doc = [
+      "\\RequirePackage{fix-cm}",
+      "\\documentclass{article}",
+      "\\usepackage{amsmath}",
+      "% \\usepackage{hyperref}",
+      "\\begin{document}",
+      "\\end{document}",
+    ].join("\n");
+    const edit = preambleEditFor(doc, { ...none, packages: ["tikz"] })!;
+    expect(withPreambleEdit(doc, edit)).toContain(
+      "\\usepackage{amsmath}\n\\usepackage{tikz}\n% \\usepackage{hyperref}",
+    );
+  });
+
+  it("keeps figures inside the body", () => {
+    expect(safeFigureOffset("plain text", 50)).toBe(10);
+    expect(safeFigureOffset("plain text", -3)).toBe(0);
+    const open = "\\begin{document}\nbody";
+    expect(safeFigureOffset(open, 2)).toBe(open.length);
+    expect(safeFigureOffset(open, open.length)).toBe(open.length);
+  });
+});

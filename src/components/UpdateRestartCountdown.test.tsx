@@ -56,3 +56,20 @@ describe("UpdateRestartCountdown", () => {
     expect(dialog).toHaveTextContent("restart in 1 second.");
   });
 });
+
+describe("UpdateRestartCountdown dismissal", () => {
+  it("hides on error or failure and names no version when unknown", () => {
+    const emit = installBridge();
+    render(<UpdateRestartCountdown />);
+    emit({ restartInSeconds: 3, latestVersion: null });
+    expect(
+      screen.getByRole("alertdialog", { name: "Updating LatexDo" }),
+    ).toHaveTextContent("restart in 3 seconds.");
+    emit({ status: "error" });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    emit({ restartInSeconds: 2 });
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    emit({ status: "failed" as UpdateDownloadProgress["status"] });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+});

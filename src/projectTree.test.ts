@@ -78,4 +78,26 @@ describe("project tree listing limits", () => {
       ).toBe(true);
     });
   });
+
+  it("sorts folders first, then names, and keeps limit markers last", async () => {
+    await withTempDirectory(async (root) => {
+      await writeFile(path.join(root, "b.tex"), "b");
+      await writeFile(path.join(root, ".DS_Store"), "junk");
+      await mkdir(path.join(root, "zeta"), { recursive: true });
+      await writeFile(path.join(root, "a.tex"), "a");
+      await mkdir(path.join(root, "alpha"), { recursive: true });
+
+      const entries = await listProject(root);
+      expect(entries.map((entry) => entry.name)).toEqual([
+        "alpha",
+        "zeta",
+        "a.tex",
+        "b.tex",
+      ]);
+
+      const limited = await listProject(root, { maxEntries: 2 });
+      expect(limited.at(-1)?.limited).toBe(true);
+      expect(limited.slice(0, -1).every((entry) => !entry.limited)).toBe(true);
+    });
+  });
 });

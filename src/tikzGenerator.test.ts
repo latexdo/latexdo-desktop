@@ -181,3 +181,116 @@ describe("TikZ serialization", () => {
     ).toEqual([]);
   });
 });
+describe("TikZ generator and parser edge cases", () => {
+  it("skips arrows without two points and comments unknown shapes", () => {
+    expect(generate(shape("arrow", { points: [[1, 1]] }))).toBe(
+      "\\begin{tikzpicture}\n\n\\end{tikzpicture}",
+    );
+    expect(generate(shape("bogus" as ShapeKind))).toContain("% Unknown shape: bogus");
+    expect(generate(shape("cloud"))).not.toContain("\\node");
+  });
+
+  it("omits unnamed stroke widths and keeps fill, dashes and rotation", () => {
+    const code = generate(
+      shape("rect", {
+        strokeWidth: 1.1,
+        fill: "#ff0000",
+        dashed: true,
+        rotation: 12.345,
+      }),
+    );
+    expect(code).toContain("[draw, fill=");
+    expect(code).toContain("dashed, rotate=12.35");
+    expect(code).not.toMatch(/thin|thick/);
+  });
+
+  it("parses option fallbacks: unknown colours, rgb colours, bad rotation and fonts", () => {
+    const [rect] = parseTikzCode(
+      "\\draw[draw=mystery, fill={rgb,255:red,1;green,2;blue,255}, rotate=abc, font=\\small] (0,16) rectangle (2,14);",
+      1200,
+      800,
+    );
+    expect(rect).toMatchObject({
+      kind: "rect",
+      stroke: "#d6dae2",
+      fill: "#0102ff",
+      rotation: 0,
+      fontSize: 14,
+    });
+    const [text] = parseTikzCode(
+      "\\node[text=red, font=\\fontsize{12}{14}\\selectfont] at (1,15) {Hi};",
+      1200,
+      800,
+    );
+    expect(text).toMatchObject({
+      kind: "text",
+      stroke: "#ff0000",
+      fontSize: 16,
+      label: "Hi",
+    });
+    const [unlabeled] = parseTikzCode("\\node at (1,15);", 1200, 800);
+    expect(unlabeled.label).toBe("text");
+  });
+
+  it("returns nothing for incomplete draw commands", () => {
+    const lines = [
+      "\\draw;",
+      "\\draw (0,0) rectangle;",
+      "\\draw (0,0) circle;",
+      "\\draw (0,0) ellipse (1);",
+      "\\draw (0,0);",
+      "\\draw (0,0) -- (1,0) -- (1,1) -- (0,1) -- (0,2) -- (0,3) -- (0,4) -- cycle;",
+      "\\node[draw] {missing position};",
+    ];
+    expect(parseTikzCode(lines.join("\n"), 1200, 800)).toEqual([]);
+  });
+
+  it("parses axes, trapezia, parallelograms and polygons", () => {
+    const code = [
+      "\\draw[->] (0,0) -- (4,0) node[right] {$x$} (0,0) -- (0,3) node[above] {$y$};",
+      "\\draw (1,4) -- (3,4) -- (4,0) -- (0,0) -- cycle;",
+      "\\draw (1,4) -- (5,4) -- (4,0) -- (0,0) -- cycle;",
+      "\\draw (0,0) -- (4,0) -- (4,4) -- (0,4) -- cycle;",
+      "\\draw (0,0) -- (1,0) -- (2,1) -- (1,2) -- (0,1) -- cycle;",
+      "\\draw (0,0) -- (1,0) -- (2,1) -- (1,2) -- (0,2) -- (-1,1) -- cycle;",
+      "\\draw (0,0) -- (1,0) -- (2,1) -- (1,2) -- (0,2) -- (-1,1) -- (0,1) -- (1,1) -- cycle;",
+      "\\draw[->] (0,0) -- (2,2);",
+    ].join("\n");
+    expect(parseTikzCode(code, 1200, 800).map((s) => s.kind)).toEqual([
+      "axes",
+      "trapezium",
+      "parallelogram",
+      "rect",
+      "pentagon",
+      "hexagon",
+      "star",
+      "arrow",
+    ]);
+  });
+
+  it("attaches labels from following or standalone nodes", () => {
+    const code = [
+      "\\draw (0,16) rectangle (2,14);",
+      "\\node at (1,15) {Inside};",
+      "\\draw (4,16) circle (1);",
+      "\\node {no position};",
+      "\\node at (5,15) {Late label};",
+      "\\node at (6,15) {Standalone};",
+      "\\draw (0,0) -- (1,1);",
+      "\\node at (9,9) {Line label};",
+      "\\draw (0,0) -- (2,2);",
+      "\\node at (9,9) {Free};",
+    ].join("\n");
+    const shapes = parseTikzCode(code, 1200, 800);
+    expect(shapes.map((s) => [s.kind, s.label])).toEqual([
+      ["rect", "Inside"],
+      ["circle", "Late label"],
+      ["text", "Standalone"],
+      ["line", "Line label"],
+      ["line", "Free"],
+    ]);
+    expect(
+      parseTikzCode("\\node at (1,1) {A};\n\\node at (2,2) {B};", 1200, 800),
+    ).toHaveLength(2);
+  });
+});

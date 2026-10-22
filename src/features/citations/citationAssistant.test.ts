@@ -158,3 +158,34 @@ describe("generated BibTeX", () => {
     expect(bibtex).toContain("journal = {Journal of Intelligent \\& Fuzzy Systems}");
   });
 });
+
+describe("citation assistant edge cases", () => {
+  it("treats a single shared term as a fit only for short references", () => {
+    const context = citationContextTerms("transformer alignment");
+    expect(citationContextFit(entry("a", "Transformer"), context)).toEqual({
+      kind: "fits",
+      shared: ["transformer"],
+    });
+    const long = entry("b", "Transformer kernels accelerate sparse matrix decoding");
+    expect(citationContextFit(long, context).kind).toBeNull();
+  });
+
+  it("does not judge untitled references as weak", () => {
+    const context = citationContextTerms(
+      "graph neural networks predict protein folding energies accurately",
+    );
+    expect(citationContextFit(entry("c", ""), context).kind).toBeNull();
+  });
+
+  it("merges lists of different lengths without gaps", () => {
+    const merged = mergeOnlinePapers([
+      [paper("First long paper title"), paper("Second long paper title")],
+      [paper("Third long paper title")],
+    ]);
+    expect(merged.map((p) => p.title)).toEqual([
+      "First long paper title",
+      "Third long paper title",
+      "Second long paper title",
+    ]);
+  });
+});

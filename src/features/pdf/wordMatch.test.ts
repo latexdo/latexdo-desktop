@@ -170,3 +170,45 @@ describe("sourceContextAt (source → PDF)", () => {
     });
   });
 });
+
+describe("sourceTokens hidden arguments, edge cases", () => {
+  it("skips escapes inside hidden arguments and unterminated options", () => {
+    expect(words("\\label{fig\\_a} One")).toEqual(["one"]);
+    expect(words("\\begin{figure}[ht")).toEqual([]);
+    expect(words("\\cite[p. 3")).toEqual([]);
+  });
+
+  it("allows spaces and stars before a hidden argument and comments between lines", () => {
+    expect(words("\\label {a} \\cite* {b} Two")).toEqual(["two"]);
+    expect(words("\\label% note\n{key} Three")).toEqual(["three"]);
+    expect(words("\\label{a % hidden\n} Five")).toEqual(["five"]);
+    expect(words("\\label Six")).toEqual(["six"]);
+  });
+
+  it("hides the arguments of environment definitions", () => {
+    expect(words("\\newenvironment{box}{\\begin{x}}{\\end{x}} Four")).toEqual(["four"]);
+  });
+});
+
+describe("matching fallbacks", () => {
+  it("contextAt falls back to the normalised word", () => {
+    expect(contextAt([{ norm: "a" }, { norm: "b" }], 0).word).toBe("a");
+  });
+
+  it("wordSimilarity handles empty words and a shorter candidate", () => {
+    expect(wordSimilarity("", "word")).toBe(0);
+    expect(wordSimilarity("vex", "vexingly")).toBe(1);
+    expect(wordSimilarity("ingly", "vexingly")).toBe(1);
+    expect(wordSimilarity("ab", "abc")).toBe(0);
+  });
+
+  it("findSourceWord gives up on a word with no letters", () => {
+    expect(
+      findSourceWord("some text", 1, { word: "", before: [], after: [] }),
+    ).toBeNull();
+  });
+
+  it("sourceContextAt only looks at the requested line", () => {
+    expect(sourceContextAt("alpha beta\ngamma delta", 2, 1)?.word).toBe("gamma");
+  });
+});

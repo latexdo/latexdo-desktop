@@ -3,7 +3,10 @@ import {
   capabilityById,
   fastTierAvailability,
   fastTierRuntimeAvailability,
+  findLatexDoAiTier,
+  findLatexDoAiTierByModelId,
   latexDoAiTiers,
+  resolveLatexDoAiTier,
   tierCapabilityCatalog,
   tierUnlockGuidance,
 } from "./latexDoAiTiers";
@@ -122,5 +125,78 @@ describe("tier availability checks", () => {
     ).toMatchObject({
       state: "available",
     });
+  });
+});
+
+describe("tier lookups and availability states", () => {
+  const plus = latexDoAiTiers.find((item) => item.id === "latexdo-ai-plus")!;
+
+  it("finds tiers by id and runtime model and rejects unknown ones", () => {
+    expect(findLatexDoAiTier("latexdo-ai-plus")).toBe(plus);
+    expect(findLatexDoAiTier("nope")).toBeUndefined();
+    expect(findLatexDoAiTierByModelId(plus.runtime.modelId)).toBe(plus);
+    expect(findLatexDoAiTierByModelId("nope")).toBeUndefined();
+    expect(resolveLatexDoAiTier("latexdo-ai-plus")).toBe(plus);
+    expect(() => resolveLatexDoAiTier("nope" as never)).toThrow(
+      "Unknown LatexDo AI tier: nope",
+    );
+  });
+
+  it("derives byte requirements from the catalog sizes", () => {
+    for (const tier of latexDoAiTiers) {
+      expect(tier.runtime.downloadBytes).toBeGreaterThan(0);
+      expect(tier.requirements.minAvailableStorageBytes).toBeGreaterThan(
+        tier.runtime.downloadBytes,
+      );
+    }
+  });
+
+  it("is unsupported without the desktop app", () => {
+    expect(fastTierRuntimeAvailability(plus, null)).toEqual({
+      state: "unsupported",
+      reason: "Local AI requires the LatexDo desktop app.",
+    });
+    expect(
+      fastTierAvailability(plus, {
+        ...capableButLowStorageSystem,
+        localAiAvailable: false,
+      }),
+    ).toMatchObject({ state: "unsupported" });
+  });
+
+  it("reports missing physical memory and memory pressure", () => {
+    expect(
+      fastTierAvailability(plus, { ...capableButLowStorageSystem, totalRamBytes: 1 }),
+    ).toEqual({
+      state: "unsupported",
+      reason: "Insufficient physical memory",
+      requiredSystemRamBytes: plus.requirements.minSystemRamBytes,
+      detectedSystemRamBytes: 1,
+    });
+    expect(
+      fastTierAvailability(plus, { ...capableButLowStorageSystem, freeRamBytes: 2 }),
+    ).toEqual({
+      state: "memory-pressure",
+      requiredAvailableBytes: plus.requirements.minAvailableRamBytes,
+      availableBytes: 2,
+    });
+  });
+
+  it("needs a storage reading and enough space to install", () => {
+    expect(
+      fastTierAvailability(plus, {
+        ...capableButLowStorageSystem,
+        freeStorageBytes: null,
+      }),
+    ).toEqual({
+      state: "unsupported",
+      reason: "Could not check available storage for local AI models.",
+    });
+    expect(
+      fastTierAvailability(plus, {
+        ...capableButLowStorageSystem,
+        freeStorageBytes: 500 * GB,
+      }),
+    ).toEqual({ state: "available" });
   });
 });

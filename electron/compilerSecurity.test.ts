@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -69,6 +69,37 @@ describe("compiler security boundaries", () => {
       ),
     ).rejects.toThrow(/escapes/);
     expect(spawn).not.toHaveBeenCalled();
+  });
+  it("recreates source folders in the build folder so \\include can write subfolder .aux files", async () => {
+    const outside = path.join(directory, "outside");
+    await mkdir(outside);
+    await mkdir(path.join(root, "chapters", "part1"), { recursive: true });
+    await mkdir(path.join(root, ".git"));
+    await symlink(
+      outside,
+      path.join(root, "linked"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    await compileLatex(
+      { projectPath: root, rootFile: "main.tex", engine: "pdflatex" },
+      { executable: "fake-latexmk" },
+    );
+    const outdirArg = vi
+      .mocked(spawn)
+      .mock.calls[0][1]?.find((arg) => arg.startsWith("-outdir="));
+    const buildDirectory = outdirArg!.slice("-outdir=".length);
+    expect(
+      (await stat(path.join(buildDirectory, "chapters", "part1"))).isDirectory(),
+    ).toBe(true);
+    await expect(stat(path.join(buildDirectory, ".git"))).rejects.toThrow();
+    await expect(stat(path.join(buildDirectory, "linked"))).rejects.toThrow();
+  });
+  it("stops TeX wrapping log lines so errors in long project paths are still found", async () => {
+    await compileLatex(
+      { projectPath: root, rootFile: "main.tex", engine: "pdflatex" },
+      { executable: "fake-latexmk" },
+    );
+    expect(vi.mocked(spawn).mock.calls[0][2]?.env?.max_print_line).toBe("10000");
   });
   it("rejects input traversal before starting an executable", async () => {
     await expect(

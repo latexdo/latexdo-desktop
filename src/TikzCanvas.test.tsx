@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TikzCanvas from "./TikzCanvas";
 
@@ -41,6 +41,172 @@ function expectCodeOrder(code: string, first: string, second: string): void {
 }
 
 describe("TikzCanvas interactions", () => {
+  it.each([
+    ["h", "Pan"],
+    ["c", "Circle"],
+    ["e", "Ellipse"],
+    ["l", "Line"],
+    ["a", "Arrow"],
+    ["t", "Text"],
+    ["d", "Diamond"],
+    ["p", "Freehand"],
+    ["g", "Grid"],
+    ["x", "Axes"],
+  ])("selects %s shortcut and escapes to selection", (key, name) => {
+    render(<TikzCanvas />);
+    fireEvent.keyDown(window, { key });
+    const button = screen.queryByRole("button", { name });
+    if (button) expect(button).toHaveClass("active");
+    else {
+      fireEvent.click(screen.getByRole("button", { name: /More shapes/ }));
+      expect(screen.getByRole("menuitem", { name })).toHaveClass("active");
+    }
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(toolButton("Select")).toHaveClass("active");
+  });
+
+  it.each(["Line", "Arrow", "Freehand"])(
+    "moves %s geometry and misses distant clicks",
+    (name) => {
+      const { container } = render(<TikzCanvas />);
+      const svg = getSvg(container);
+      pickTool(name);
+      fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      for (let i = 1; i <= 6; i++)
+        fireEvent.mouseMove(svg, { clientX: 100 + i * 10, clientY: 100 + i * 10 });
+      fireEvent.mouseUp(svg);
+      const before = generatedCode(container);
+      pickTool("Select");
+      fireEvent.mouseDown(svg, { button: 0, clientX: 130, clientY: 130 });
+      fireEvent.mouseMove(svg, { clientX: 180, clientY: 180 });
+      fireEvent.mouseUp(svg);
+      expect(generatedCode(container)).not.toBe(before);
+      fireEvent.click(toolButton("Undo"));
+      expect(generatedCode(container)).toBe(before);
+      fireEvent.mouseDown(svg, { button: 0, clientX: 800, clientY: 600 });
+      fireEvent.keyDown(window, { key: "Delete" });
+      expect(screen.getByText("1 shape")).toBeVisible();
+    },
+  );
+
+  it("rejects tiny shapes, cancels text entry and selects text by its bounds", () => {
+    const { container } = render(<TikzCanvas />);
+    const svg = getSvg(container);
+    for (const name of ["Rectangle", "Line"]) {
+      pickTool(name);
+      fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.mouseUp(svg);
+      expect(screen.getByText("0 shapes")).toBeVisible();
+    }
+    pickTool("Text");
+    fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.keyDown(screen.getByPlaceholderText("Text…"), { key: "Escape" });
+    expect(screen.queryByPlaceholderText("Text…")).toBeNull();
+    fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.blur(screen.getByPlaceholderText("Text…"));
+    expect(screen.queryByPlaceholderText("Text…")).toBeNull();
+    fireEvent.mouseDown(svg, { button: 0, clientX: 100, clientY: 100 });
+    fireEvent.change(screen.getByPlaceholderText("Text…"), {
+      target: { value: "Label" },
+    });
+    fireEvent.keyDown(screen.getByPlaceholderText("Text…"), { key: "Enter" });
+    pickTool("Select");
+    fireEvent.mouseDown(svg, { button: 0, clientX: 110, clientY: 100 });
+    fireEvent.mouseUp(svg);
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(screen.getByText("0 shapes")).toBeVisible();
+  });
+
+  it("zooms around the pointer and dismisses palettes on outside clicks", () => {
+    const { container } = render(<TikzCanvas />);
+    const svg = getSvg(container);
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1200,
+      bottom: 800,
+      width: 1200,
+      height: 800,
+      toJSON: () => ({}),
+    });
+    fireEvent.wheel(svg, { clientX: 600, clientY: 400, deltaY: -100 });
+    expect(screen.getByText("110%")).toBeVisible();
+    fireEvent.wheel(svg, { clientX: 600, clientY: 400, deltaY: 100 });
+    expect(screen.getByText("100%")).toBeVisible();
+    fireEvent.click(toolButton("Fill color"));
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByLabelText("Fill colors")).toBeNull();
+  });
+
+  it("styles selected shapes and supports every layer action and context deletion", () => {
+    const { container } = render(<TikzCanvas />);
+    const svg = getSvg(container);
+    pickTool("Rectangle");
+    for (const x of [100, 300, 500]) {
+      fireEvent.mouseDown(svg, { button: 0, clientX: x, clientY: 100 });
+      fireEvent.mouseMove(svg, { clientX: x + 100, clientY: 200 });
+      fireEvent.mouseUp(svg);
+    }
+    pickColor("Fill", "#ef4444");
+    fireEvent.click(toolButton("Dashed"));
+    fireEvent.click(toolButton("Line width"));
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "3" } });
+    expect(generatedCode(container)).toContain("dashed");
+    fireEvent.click(toolButton("Fill color"));
+    fireEvent.click(screen.getByLabelText("No fill"));
+    for (const name of ["Send to back", "Bring forward", "Send backward"]) {
+      fireEvent.contextMenu(svg, { clientX: 550, clientY: 150 });
+      fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(name, "i") }));
+      expect(screen.queryByRole("menu", { name: /shape order/i })).toBeNull();
+    }
+    fireEvent.contextMenu(svg, { clientX: 550, clientY: 150 });
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected" }));
+    expect(screen.getByText("2 shapes")).toBeVisible();
+  });
+
+  it("reports unparseable code and exports clipboard and downloadable documents", async () => {
+    vi.useFakeTimers();
+    try {
+      const clipboard = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: clipboard },
+      });
+      const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:tikz");
+      const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(() => {});
+      const { container } = render(<TikzCanvas />);
+      fireEvent.change(container.querySelector("textarea")!, {
+        target: { value: "unsupported code" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Apply edited code to canvas" }),
+      );
+      expect(
+        screen.getByText("Could not parse any shapes from the code."),
+      ).toBeVisible();
+      await act(async () =>
+        fireEvent.click(screen.getByLabelText("Copy to clipboard")),
+      );
+      expect(clipboard).toHaveBeenCalledWith(
+        expect.stringContaining("\\begin{tikzpicture}"),
+      );
+      expect(screen.getByLabelText("Copied")).toBeVisible();
+      act(() => vi.advanceTimersByTime(2000));
+      expect(screen.getByLabelText("Copy to clipboard")).toBeVisible();
+      fireEvent.click(screen.getByLabelText("Download .tex file"));
+      expect(create).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalledOnce();
+      expect(revoke).toHaveBeenCalledWith("blob:tikz");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   beforeEach(() => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });

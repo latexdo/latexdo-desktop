@@ -297,3 +297,134 @@ describe("changesBetweenBuilds", () => {
     expect(changesBetweenBuilds(changes, "f".repeat(40))).toEqual([]);
   });
 });
+
+describe("update experience state validation and edge cases", () => {
+  async function loadRaw(value: unknown) {
+    const directory = await temporaryDirectory();
+    await saveUpdateExperienceState(directory, value as UpdateExperienceState);
+    return loadUpdateExperienceState(directory);
+  }
+
+  it.each([
+    ["an array", []],
+    ["null", null],
+    ["another schema", { schemaVersion: 2 }],
+    ["a bad snapshot", { schemaVersion: 1, lastConfirmedUpdate: [] }],
+    ["a bad presented version", { schemaVersion: 1, lastPresentedVersion: 3 }],
+    ["a bad run version", { schemaVersion: 1, lastRunVersion: 3 }],
+    ["a bad run commit", { schemaVersion: 1, lastRunCommit: 3 }],
+    ["bad presented builds", { schemaVersion: 1, presentedBuilds: [1] }],
+    ["non-array presented versions", { schemaVersion: 1, presentedVersions: "x" }],
+    ["bad presented versions", { schemaVersion: 1, presentedVersions: [1] }],
+  ])("rejects %s", async (_label, value) => {
+    expect(await loadRaw(value)).toEqual(emptyUpdateExperienceState());
+  });
+
+  it("accepts a fully populated state", async () => {
+    const state: UpdateExperienceState = {
+      schemaVersion: 1,
+      lastConfirmedUpdate: {
+        fromVersion: "1.0.0",
+        toVersion: "1.1.0",
+        confirmedAt: "2026-01-01T00:00:00.000Z",
+      },
+      lastPresentedVersion: "1.0.0",
+      lastRunVersion: "1.1.0",
+      lastRunCommit: "abc",
+      presentedBuilds: ["1.0.0+abc"],
+      presentedVersions: ["1.0.0"],
+    };
+    expect(await loadRaw(state)).toEqual(state);
+  });
+
+  it("removes the temporary file and rethrows when the rename fails", async () => {
+    const directory = await temporaryDirectory();
+    const { mkdir, writeFile, readdir } = await import("node:fs/promises");
+    // A non-empty directory where the file belongs makes rename fail.
+    await mkdir(path.join(directory, "update-state.json", "occupied"), {
+      recursive: true,
+    });
+    await writeFile(path.join(directory, "update-state.json", "occupied", "x"), "x");
+    await expect(
+      saveUpdateExperienceState(directory, emptyUpdateExperienceState()),
+    ).rejects.toThrow();
+    expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual(
+      [],
+    );
+  });
+
+  it("returns the stored state untouched when the same build relaunches", async () => {
+    const directory = await temporaryDirectory();
+    await recordLaunchedVersion(directory, "1.0.0", new Date(), { commit: "a" });
+    const before = await readFile(path.join(directory, "update-state.json"), "utf8");
+    const state = await recordLaunchedVersion(directory, "1.0.0", new Date(), {
+      commit: "a",
+    });
+    expect(state.lastRunCommit).toBe("a");
+    expect(await readFile(path.join(directory, "update-state.json"), "utf8")).toBe(
+      before,
+    );
+  });
+
+  it("does not treat a same-version build without history as an update", async () => {
+    const directory = await temporaryDirectory();
+    await recordLaunchedVersion(directory, "1.0.0", new Date(), { commit: "a" });
+    const state = await recordLaunchedVersion(directory, "1.0.0", new Date(), {
+      commit: "b",
+    });
+    expect(state.lastConfirmedUpdate).toBeUndefined();
+    expect(state.lastRunCommit).toBe("b");
+  });
+
+  it("ignores an updater record for another build of the version", async () => {
+    const directory = await temporaryDirectory();
+    await recordLaunchedVersion(directory, "1.0.0", new Date(), { commit: "a" });
+    await recordConfirmedUpdate(directory, {
+      fromVersion: "1.0.0",
+      toVersion: "1.1.0",
+      toCommit: "other",
+      confirmedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const now = new Date("2026-02-02T00:00:00.000Z");
+    const state = await recordLaunchedVersion(directory, "1.1.0", now, { commit: "c" });
+    expect(state.lastConfirmedUpdate).toEqual({
+      fromVersion: "1.0.0",
+      toVersion: "1.1.0",
+      fromCommit: "a",
+      toCommit: "c",
+      confirmedAt: now.toISOString(),
+    });
+  });
+
+  it("does not show What's New for a different build of the confirmed version", () => {
+    expect(
+      shouldShowWhatsNew(
+        "1.1.0",
+        {
+          schemaVersion: 1,
+          lastConfirmedUpdate: {
+            fromVersion: "1.0.0",
+            toVersion: "1.1.0",
+            toCommit: "x",
+            confirmedAt: "2026-01-01T00:00:00.000Z",
+          },
+        },
+        "y",
+      ),
+    ).toBe(false);
+  });
+
+  it("skips unknown kinds and empty subjects and honours the limit", () => {
+    const changes = [
+      { commit: "5", subject: "Merge branch main" },
+      { commit: "4", subject: "chore: tidy" },
+      { commit: "3", subject: "fix: (#12)" },
+      { commit: "2", subject: "feat: one" },
+      { commit: "1", subject: "perf: two" },
+      { commit: "0", subject: "feat: base" },
+    ];
+    expect(changesBetweenBuilds(changes as never, "0", 1)).toEqual([
+      { kind: "new", text: "One" },
+    ]);
+  });
+});

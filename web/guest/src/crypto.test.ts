@@ -78,3 +78,46 @@ describe("web invite links", () => {
     expect(parseWebInvite("#<script>")).toBeNull();
   });
 });
+
+describe("browser encryption input checks", () => {
+  it("rejects invalid keys, short or foreign payloads and plain strings", async () => {
+    const key = desktop.newProjectKey();
+    await expect(
+      web.encryptBytes("short", projectId, "text", new Uint8Array([1])),
+    ).rejects.toThrow("Invalid project key.");
+    await expect(
+      web.decryptBytes(key, projectId, "text", new Uint8Array(10)),
+    ).rejects.toThrow("Not an encrypted LatexDo payload.");
+    const wrongVersion = await web.encryptBytes(
+      key,
+      projectId,
+      "text",
+      new Uint8Array([1]),
+    );
+    wrongVersion[0] = 2;
+    await expect(
+      web.decryptBytes(key, projectId, "text", wrongVersion),
+    ).rejects.toThrow("Not an encrypted LatexDo payload.");
+    await expect(web.decryptString(key, "", "name", "plain")).rejects.toThrow(
+      "Not an encrypted LatexDo string.",
+    );
+    expect(web.isEncryptedString(42)).toBe(false);
+  });
+});
+
+describe("web invite edge cases", () => {
+  it("rejects over-long codes, other versions and unknown share tokens", () => {
+    const key = desktop.newProjectKey();
+    const encode = (value: unknown) =>
+      web.bytesToBase64Url(new TextEncoder().encode(JSON.stringify(value)));
+    expect(parseWebInvite("a".repeat(4097))).toBeNull();
+    expect(parseWebInvite(encode({ v: 2, t: token, k: key }))).toBeNull();
+    expect(parseWebInvite(encode({ v: 1, t: 5, k: key }))).toBeNull();
+    expect(parseWebInvite(encode({ v: 1, t: "not-a-token", k: key }))).toBeNull();
+    expect(parseWebInvite(encode({ v: 1, t: token, k: key }))).toEqual({
+      token,
+      key,
+      projectId,
+    });
+  });
+});

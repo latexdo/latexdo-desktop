@@ -49,6 +49,24 @@ describe("safe editable text file reads", () => {
     });
   });
 
+  it("reports the size limit in KiB and MiB", async () => {
+    await withTempDirectory(async (root) => {
+      const filePath = path.join(root, "main.tex");
+      await writeFile(filePath, "x".repeat(3000), "utf8");
+
+      await expect(
+        readSafeTextFile(root, filePath, "main.tex", { maxBytes: 2048 }),
+      ).rejects.toThrow("Maximum text file size is 2 KiB.");
+      await expect(
+        readSafeTextFile(root, filePath, "main.tex", { maxBytes: 1 }),
+      ).rejects.toThrow("Maximum text file size is 1 B.");
+      await writeFile(filePath, Buffer.alloc(1024 * 1024 + 1, 120));
+      await expect(
+        readSafeTextFile(root, filePath, "main.tex", { maxBytes: 1024 * 1024 }),
+      ).rejects.toThrow("Maximum text file size is 1 MiB.");
+    });
+  });
+
   it("rejects files with null bytes", async () => {
     await withTempDirectory(async (root) => {
       const filePath = path.join(root, "main.tex");

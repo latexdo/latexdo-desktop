@@ -98,4 +98,112 @@ describe("main-process diagnostics", () => {
       "clean-exit",
     );
   });
+
+  it("writes events synchronously for crash paths and sanitizes nested context", async () => {
+    await withTempDirectory(async (directory) => {
+      const reporter = createDiagnosticReporter({
+        getUserDataPath: () => path.join(directory, "user"),
+        getAppVersion: () => "9.9.9",
+        processType: "renderer",
+      });
+      const context: Record<string, unknown> = {
+        nothing: null,
+        count: 3,
+        flag: false,
+        missing: undefined,
+        list: Array.from({ length: 30 }, (_, i) => i),
+        nested: { deep: { value: "ok" } },
+        when: new Date("2026-01-01T00:00:00.000Z"),
+        fn: Symbol("s"),
+      };
+      for (let i = 0; i < 60; i += 1) context[`extra${i}`] = i;
+      context[`k${"y".repeat(200)}`] = "long key";
+      reporter.recordSync("renderer-error", "error", "plain failure", context);
+      reporter.recordSync("renderer-freeze", "warning", new Error("again"));
+
+      const lines = (await readFile(reporter.logPath(), "utf8")).trim().split("\n");
+      expect(lines).toHaveLength(2);
+      const first = JSON.parse(lines[0]);
+      expect(first).toMatchObject({
+        kind: "renderer-error",
+        processType: "renderer",
+        appVersion: "9.9.9",
+        error: { name: "NonError", message: "plain failure" },
+      });
+      expect(first.context).toMatchObject({
+        nothing: null,
+        count: 3,
+        flag: false,
+        nested: { deep: { value: "ok" } },
+        when: {},
+        fn: "Symbol(s)",
+      });
+      expect(first.context.list).toHaveLength(25);
+      // 50 entries are kept; JSON drops the undefined one.
+      expect(Object.keys(first.context)).toHaveLength(49);
+      expect(JSON.parse(lines[1]).context).toBeUndefined();
+    });
+  });
+});
+
+describe("serializeError", () => {
+  it("keeps error codes, fills in blank names and messages and truncates", () => {
+    const coded = Object.assign(new Error("x".repeat(2100)), { code: "ENOENT" });
+    const serialized = serializeError(coded);
+    expect(serialized.code).toBe("ENOENT");
+    expect(serialized.message).toHaveLength(2003);
+
+    const blank = new Error("");
+    blank.name = "";
+    blank.stack = undefined;
+    expect(serializeError(blank)).toEqual({
+      name: "Error",
+      message: "",
+      stack: undefined,
+      code: undefined,
+    });
+  });
+
+  it("reads name, message, stack and code from error-like objects", () => {
+    expect(
+      serializeError({ name: "IpcError", message: "bad", stack: "at x", code: "E1" }),
+    ).toEqual({ name: "IpcError", message: "bad", stack: "at x", code: "E1" });
+  });
+
+  it("serializes objects without a message as JSON, or as a string when JSON fails", () => {
+    expect(serializeError({ status: 500 }).message).toBe('{"status":500}');
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(serializeError(circular)).toMatchObject({
+      name: "NonError",
+      message: "[object Object]",
+    });
+  });
+
+  it("stringifies primitives", () => {
+    expect(serializeError(42)).toEqual({ name: "NonError", message: "42" });
+    expect(serializeError(undefined)).toEqual({
+      name: "NonError",
+      message: "undefined",
+    });
+  });
+});
+
+describe("renderer failure helpers", () => {
+  it("escapes quotes and apostrophes and omits an empty detail", () => {
+    const html = rendererFailureHtml({
+      productName: "Latex\"Do'",
+      title: "t",
+      message: "m",
+    });
+    expect(html).toContain("Latex&quot;Do&#39; Recovery");
+    expect(html).not.toContain('class="detail"');
+  });
+
+  it.each([
+    ["killed", /terminated/],
+    ["launch-failed", /failed to start/],
+  ])("explains %s", (reason, expected) => {
+    expect(rendererGoneMessage({ reason, exitCode: 1 } as never)).toMatch(expected);
+  });
 });

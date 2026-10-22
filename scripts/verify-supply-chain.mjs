@@ -19,10 +19,38 @@ const [
 const workflowYamlFiles = workflowFiles
   .filter((file) => file.endsWith(".yml") || file.endsWith(".yaml"))
   .sort();
-if (workflowYamlFiles.length !== 1 || workflowYamlFiles[0] !== "ci.yml") {
+if (
+  !workflowYamlFiles.includes("ci.yml") ||
+  workflowYamlFiles.some((file) => !["ci.yml", "auto-merge.yml"].includes(file))
+) {
   throw new Error(
-    `GitHub Actions must expose one workflow only: ${workflowYamlFiles.join(", ")}`,
+    `GitHub Actions may expose only ci.yml and auto-merge.yml: ${workflowYamlFiles.join(", ")}`,
   );
+}
+
+// The merge-only workflow was added separately from the release pipeline. It
+// must retain the tested-commit and same-repository protections.
+if (workflowYamlFiles.includes("auto-merge.yml")) {
+  const mergeWorkflow = await readFile(".github/workflows/auto-merge.yml", "utf8");
+  for (const control of [
+    "workflows: [latexdo-ci]",
+    "github.event.workflow_run.event == 'pull_request'",
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.head_repository.full_name == github.repository",
+    "admin|maintain|write)",
+    'select(.name == "no-auto-merge")',
+    ".[0].isDraft",
+    '--match-head-commit "$HEAD_SHA"',
+  ]) {
+    if (!mergeWorkflow.includes(control)) {
+      throw new Error(`Auto-merge protection is missing: ${control}`);
+    }
+  }
+  if (/uses:|checkout|npm |wrangler|LATEXDO_UPDATE_SIGNING_KEY/.test(mergeWorkflow)) {
+    throw new Error(
+      "Auto-merge must not check out, execute, or publish repository code.",
+    );
+  }
 }
 
 if (appPackage.build?.toolsets?.appimage !== "1.0.3") {

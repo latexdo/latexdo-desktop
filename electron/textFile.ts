@@ -39,14 +39,30 @@ function looksLikeUtf16(sample: Buffer, zeroOffset: 0 | 1): boolean {
   return zeros / pairs > 0.6 && otherZeros / pairs < 0.05;
 }
 
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+export const NOT_UTF8_MESSAGE =
+  "This file is not UTF-8 text (it may use Latin-1 or Windows-1252). LatexDo did not open it so its accented characters are not damaged on save. Convert it to UTF-8, then open it again.";
+
+// Saves always write UTF-8, so a lossy decode here (invalid bytes become
+// U+FFFD) would permanently destroy the original characters on the next save.
+function decodeUtf8(buffer: Buffer): string {
+  try {
+    return strictUtf8.decode(buffer);
+  } catch {
+    throw new Error(NOT_UTF8_MESSAGE);
+  }
+}
+
 /**
  * Decodes a text file. Windows tools often write UTF-16, which contains zero
  * bytes and used to be refused as "binary"; it is decoded instead. Only data
- * that is neither UTF-8 nor UTF-16 is treated as binary.
+ * that is neither UTF-8 nor UTF-16 is treated as binary, and 8-bit legacy
+ * encodings are refused rather than decoded lossily.
  */
 export function decodeTextBuffer(buffer: Buffer): string {
   if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
-    return buffer.subarray(3).toString("utf8");
+    return decodeUtf8(buffer.subarray(3));
   }
   if (buffer[0] === 0xff && buffer[1] === 0xfe) {
     return buffer.subarray(2).toString("utf16le");
@@ -55,7 +71,7 @@ export function decodeTextBuffer(buffer: Buffer): string {
     return Buffer.from(buffer.subarray(2)).swap16().toString("utf16le");
   }
   if (!buffer.includes(0)) {
-    return buffer.toString("utf8");
+    return decodeUtf8(buffer);
   }
   const sample = buffer.subarray(0, NULL_BYTE_PREFIX_SCAN_BYTES);
   if (looksLikeUtf16(sample, 1)) return buffer.toString("utf16le");

@@ -216,3 +216,58 @@ describe("buildKnowledgeGraph", () => {
     expect(neighbors[0].key).toBe("strong");
   });
 });
+
+describe("knowledge graph edge cases", () => {
+  it("skips empty author names and empty titles", () => {
+    expect(authorLastNames("Smith, J and ")).toEqual(["smith"]);
+    expect(titleTokens(undefined).size).toBe(0);
+    expect(titleTokens("").size).toBe(0);
+  });
+
+  it("caps the graph at 2000 distinct entries", () => {
+    const entries = Array.from({ length: 2005 }, (_, index) =>
+      entry({ key: `k${index}` }),
+    );
+    const graph = buildKnowledgeGraph(entries, [], {
+      ...defaultKnowledgeGraphParams,
+      relations: {
+        "shared-author": false,
+        "shared-venue": false,
+        "shared-year": false,
+        "title-similarity": false,
+      },
+    });
+    expect(graph.stats.nodeCount).toBe(2000);
+    expect(graph.nodes.at(-1)?.key).toBe("k1999");
+    expect(graph.stats.componentCount).toBe(2000);
+  });
+
+  it("labels untitled entries without authors by key and ignores missing titles", () => {
+    const graph = buildKnowledgeGraph(
+      [
+        entry({ key: "anon", year: "2021" }),
+        entry({ key: "other", year: "2021", title: "Graph neural networks" }),
+      ],
+      [],
+      { ...defaultKnowledgeGraphParams, minEdgeWeight: 0 },
+    );
+    expect(graph.nodes[0]).toMatchObject({ label: "anon", title: undefined });
+    expect(graph.edges[0].relations).toEqual(["shared-year"]);
+  });
+
+  it("lists neighbors on both ends of an edge, strongest first", () => {
+    const graph = buildKnowledgeGraph(
+      [
+        entry({ key: "a", author: "Lee, K", year: "2019", journal: "JMLR" }),
+        entry({ key: "b", author: "Lee, K", year: "2019", journal: "JMLR" }),
+        entry({ key: "c", year: "2019" }),
+        entry({ key: "d", author: "Zed, Q" }),
+      ],
+      [],
+      { ...defaultKnowledgeGraphParams, minEdgeWeight: 0 },
+    );
+    expect(neighborsOf(graph, "b").map((item) => item.key)).toEqual(["a", "c"]);
+    expect(neighborsOf(graph, "a").map((item) => item.key)).toEqual(["b", "c"]);
+    expect(neighborsOf(graph, "d")).toEqual([]);
+  });
+});

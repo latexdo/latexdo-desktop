@@ -195,6 +195,21 @@ describe("runPdfComplianceChecks", () => {
       expect(result.some((d) => d.message.includes("Abstract"))).toBe(true);
     });
 
+    it("counts words of an \\abstract{...} command and reports its line", () => {
+      const words = Array(12).fill("word").join(" ");
+      const doc =
+        "\\documentclass{article}\n\\abstract{" +
+        words +
+        "}\n\\begin{document}\\end{document}";
+      const result = runPdfComplianceChecks(doc, "", {
+        ...defaultSettings,
+        maxAbstractWords: 10,
+      });
+      const abstract = result.find((d) => d.message.includes("Abstract"));
+      expect(abstract?.message).toBe("Abstract is 12 words (recommended max: 10)");
+      expect(abstract?.line).toBe(2);
+    });
+
     it("skips abstract word count when disabled", () => {
       const words = Array(300).fill("word").join(" ");
       const doc =

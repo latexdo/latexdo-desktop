@@ -146,3 +146,82 @@ describe("tidyLatex", () => {
     expect(tidyLatex("\\section{A}\n\nText.\n")).toBeNull();
   });
 });
+
+describe("tidyLatex block edge cases", () => {
+  it("shifts tab-indented aligned bodies and keeps what the closing line opens", () => {
+    expect(
+      tidy([
+        "\\begin{center}",
+        "\\begin{align}",
+        "\ta &= b \\\\",
+        "  c &= d",
+        "",
+        "\\end{align}\\begin{itemize}",
+        "\\item x",
+        "\\end{itemize}",
+        "\\end{center}",
+      ]),
+    ).toEqual([
+      "\\begin{center}",
+      "    \\begin{align}",
+      "        a &= b \\\\",
+      "        c &= d",
+      "",
+      "    \\end{align}\\begin{itemize}",
+      "        \\item x",
+      "    \\end{itemize}",
+      "\\end{center}",
+    ]);
+  });
+
+  it("closes outer environments from an aligned block's closing line", () => {
+    expect(
+      tidy([
+        "\\begin{center}",
+        "\\begin{equation}",
+        "",
+        "\\end{equation}\\end{center}",
+        "after",
+      ]),
+    ).toEqual([
+      "\\begin{center}",
+      "    \\begin{equation}",
+      "",
+      "    \\end{equation}\\end{center}",
+      "after",
+    ]);
+  });
+
+  it("indents an unclosed verbatim block like ordinary text", () => {
+    expect(tidy(["\\begin{verbatim}", "  never closed"])).toEqual([
+      "\\begin{verbatim}",
+      "    never closed",
+    ]);
+  });
+
+  it("leaves one-line blocks, nested same-family blocks and stray ends sensible", () => {
+    expect(tidyLatex("\\begin{equation} x \\end{equation}\ny")).toBeNull();
+    expect(
+      tidy([
+        "\\begin{equation}",
+        "\\begin{split}",
+        "a",
+        "\\end{split}",
+        "\\end{equation}",
+      ]),
+    ).toEqual([
+      "\\begin{equation}",
+      "    \\begin{split}",
+      "    a",
+      "    \\end{split}",
+      "\\end{equation}",
+    ]);
+    expect(tidy(["\\begin{center}", "text \\end{center}", "\\end{foo}", "z"])).toEqual([
+      "\\begin{center}",
+      "    text \\end{center}",
+      "\\end{foo}",
+      "z",
+    ]);
+    expect(tidyLatex("\\section{A}\n\\end{center}")).toBeNull();
+  });
+});

@@ -76,8 +76,10 @@ const errorPatterns: ErrorPattern[] = [
     title: "Undefined control sequence",
     explanation:
       "LaTeX does not recognize a command you used. This usually means you misspelled a command name, forgot to load a required package, or used a command that doesn't exist.",
-    getSuggestion: (match) => {
-      const cmdMatch = match[0].match(/\\[a-zA-Z@]+/);
+    getSuggestion: (_m, contextLines) => {
+      // TeX prints the source up to the failing command on the "l.<n>" line.
+      const sourceLine = contextLines.find((line) => /^l\.\d+/.test(line));
+      const cmdMatch = sourceLine?.match(/\\[a-zA-Z@]+(?=[^\\]*$)/);
       const cmd = cmdMatch ? cmdMatch[0] : "(unknown)";
       return (
         `Possible fixes for undefined command ${cmd}:\n` +
@@ -123,7 +125,7 @@ const errorPatterns: ErrorPattern[] = [
     explanation:
       "LaTeX cannot find or load a requested package. Either the package is not installed, the name is misspelled, or there's a conflict between packages.",
     getSuggestion: (match) => {
-      const pkgMatch = match[0].match(/\\usepackage\s*\{([^}]+)\}/);
+      const pkgMatch = match.input.match(/\\usepackage\s*\{([^}]+)\}/);
       const pkg = pkgMatch ? pkgMatch[1] : "(unknown)";
       return (
         `Possible fixes for package "${pkg}":\n` +
@@ -179,7 +181,8 @@ const errorPatterns: ErrorPattern[] = [
     explanation:
       "A LaTeX command expected its argument to end on the same line but found a blank line or paragraph break instead. Commands like \\caption, \\section, \\textbf cannot contain a \\par or blank line in their argument.",
     getSuggestion: (match) => {
-      const cmd = match[1] || "(unknown)";
+      // TeX names the command with its backslash, e.g. "\\caption".
+      const cmd = (match[1] || "(unknown)").replace(/^\\/, "");
       return (
         `Possible fixes for \\${cmd}:\n` +
         `  1. Remove any blank lines inside the argument of \\${cmd}{...}\n` +
@@ -212,8 +215,10 @@ const errorPatterns: ErrorPattern[] = [
     explanation:
       "A package was loaded twice with conflicting options. The first \\usepackage command loaded the package with certain options, and a subsequent \\usepackage tries to load it with different options.",
     getSuggestion: (match) => {
-      const pkgMatch = match[0].match(/\\usepackage\s*(?:\[([^\]]*)\])?\s*\{([^}]+)\}/);
-      const pkg = pkgMatch ? pkgMatch[2] : "(unknown)";
+      const pkgMatch = match.input
+        .slice(match.index)
+        .match(/Option\s+clash\s+for\s+package\s+([^\s.]+)/i);
+      const pkg = pkgMatch ? pkgMatch[1] : "(unknown)";
       return (
         `Possible fixes for package "${pkg}":\n` +
         `  1. Load the package only once with all needed options: \\usepackage[opt1,opt2]{${pkg}}\n` +

@@ -59,4 +59,10 @@ describe("peer invites", () => {
     expect(normalizePeerOrigin(42)).toBeNull();
     expect(looksLikePeerInvite(42)).toBe(false);
   });
+
+  it("rejects unparsable origins and invites whose payload is not JSON", () => {
+    expect(normalizePeerOrigin("not a url")).toBeNull();
+    const garbage = Buffer.from("{not json", "utf8").toString("base64url");
+    expect(decodePeerInvite(`${peerInvitePrefix}${garbage}`)).toBeNull();
+  });
 });

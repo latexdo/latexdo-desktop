@@ -84,3 +84,29 @@ describe("acronyms in prose only", () => {
     expect(result).toHaveLength(0);
   });
 });
+
+describe("loadPaperSource path handling", () => {
+  it("normalises ./, .. and backslashes in include paths, keeping extensions", async () => {
+    const tree: Record<string, string> = {
+      "paper/main.tex":
+        "\\input{./sections\\..\\intro}\n\\input{fig.tikz}\\input{gone}",
+      "intro.tex": "Hello",
+      "fig.tikz": "tikz",
+    };
+    const requested: string[] = [];
+    const source = await loadPaperSource("./paper//main.tex", async (path) => {
+      requested.push(path);
+      return tree[path] ?? null;
+    });
+    expect(requested).toEqual(["paper/main.tex", "intro.tex", "fig.tikz", "gone.tex"]);
+    expect(source.text).toBe(
+      "\\input{./sections\\..\\intro}\nHello\n\\input{fig.tikz}\\input{gone}\ntikz",
+    );
+  });
+
+  it("returns empty source when the root is missing and null for empty origins", async () => {
+    const source = await loadPaperSource("missing.tex", async () => null);
+    expect(source).toEqual({ text: "", origins: [] });
+    expect(paperLineOrigin(source, 1)).toBeNull();
+  });
+});

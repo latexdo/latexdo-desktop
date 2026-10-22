@@ -44,4 +44,20 @@ describe("locateReviewSelection", () => {
   it("reports a passage that was rewritten", () => {
     expect(locateReviewSelection("Nothing left.", selection)).toBeNull();
   });
+
+  it("gives up on an empty passage", () => {
+    expect(
+      locateReviewSelection("some claim here", { ...selection, text: "" }),
+    ).toBeNull();
+  });
+
+  it("searches from the start when the recorded position is invalid", () => {
+    const content = "a claim\nanother claim";
+    expect(
+      locateReviewSelection(content, { ...selection, startLine: 0, startColumn: 0 }),
+    ).toEqual({ startLine: 1, startColumn: 3, endLine: 1, endColumn: 8 });
+    expect(
+      locateReviewSelection(content, { ...selection, startLine: 9, startColumn: 1 }),
+    ).toEqual({ startLine: 1, startColumn: 3, endLine: 1, endColumn: 8 });
+  });
 });

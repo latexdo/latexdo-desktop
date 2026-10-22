@@ -734,9 +734,11 @@ describe("App critical UI controls", () => {
       "paper-a/main.tex",
     );
     openOutputPanel();
-    expect(
-      screen.getByText("Research Space ready", { selector: ".status-message" }),
-    ).toBeVisible();
+    await waitFor(() => {
+      expect(
+        screen.getByText("Research Space ready", { selector: ".status-message" }),
+      ).toBeVisible();
+    });
   });
 
   it("reviews the open paper with the AI agent and the author's settings", async () => {

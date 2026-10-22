@@ -627,6 +627,37 @@ export function parseDiagnostics(
     }
   }
 
+  // A failing biber/bibtex/makeindex run stops latexmk without any TeX error,
+  // which used to leave only "LaTeX exited with code 12".
+  const toolFailure = output.match(
+    /^Latexmk: Error return from '(biber|bibtex8?|makeindex|makeglossaries|bib2gls|upmendex|texindy)\b/m,
+  );
+  if (
+    toolFailure &&
+    !diagnostics.some((diagnostic) => diagnostic.severity === "error")
+  ) {
+    const tool = toolFailure[1];
+    const toolLines = outputLines.filter(
+      (line) =>
+        /^(?:ERROR|FATAL) - /.test(line) ||
+        line.startsWith(`${tool}:`) ||
+        /^I (?:couldn't open|found no)\b/.test(line) ||
+        line.startsWith("Latexmk: Error return from"),
+    );
+    addDiagnostic({
+      file: normalizeDiagnosticFile(projectPath, rootFile),
+      line: 1,
+      column: 1,
+      severity: "error",
+      message: `${tool} failed, so the bibliography or index could not be built.`,
+      detail: `Check the bibliography file names and entries. If ${tool} itself is broken, running \`${tool} --version\` in a terminal shows the problem with your TeX installation.`,
+      compilerExcerpt: toolLines.slice(0, 12).join("\n"),
+      source: "latex",
+      locationAccuracy: "inferred",
+      locationConfidence: 10,
+    });
+  }
+
   if (!diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     const fallback = fallbackProblemBlock(outputLines);
     if (fallback) {
@@ -921,6 +952,39 @@ function createProgressEmitter(
   };
 }
 
+const maxMirroredSourceDirectories = 2000;
+const maxMirroredSourceDepth = 12;
+
+/**
+ * \include{chapters/intro} makes TeX write chapters/intro.aux inside the
+ * output directory, and TeX cannot create directories. latexmk would create
+ * them, but it only recognizes "! I can't write on file", which
+ * -file-line-error rewrites, so the build failed. Recreate the project's
+ * source folders (not following links) in the fresh build directory instead.
+ */
+async function mirrorSourceDirectories(
+  projectPath: string,
+  buildDirectory: string,
+): Promise<void> {
+  let created = 0;
+  const visit = async (relativeDirectory: string, depth: number): Promise<void> => {
+    if (depth > maxMirroredSourceDepth) return;
+    const entries = await readdir(path.join(projectPath, relativeDirectory), {
+      withFileTypes: true,
+    }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      if (entry.name === "node_modules") continue;
+      if (created >= maxMirroredSourceDirectories) return;
+      const relative = path.join(relativeDirectory, entry.name);
+      await mkdir(path.join(buildDirectory, relative), { recursive: true });
+      created += 1;
+      await visit(relative, depth + 1);
+    }
+  };
+  await visit("", 0);
+}
+
 export async function compileLatex(
   request: CompileLatexRequest,
   options: CompileRunOptions = {},
@@ -949,6 +1013,7 @@ export async function compileLatex(
   );
   await assertProjectPath(request.projectPath, buildDirectory);
   await mkdir(buildDirectory, { recursive: true });
+  await mirrorSourceDirectories(request.projectPath, buildDirectory);
 
   const engineFlag = {
     pdflatex: "-pdf",
@@ -993,6 +1058,9 @@ export async function compileLatex(
       env: {
         ...process.env,
         PATH: texToolPath(latexmk),
+        // TeX wraps log lines at 79 columns, splitting "file:line: error"
+        // for long project paths so the error was never reported.
+        max_print_line: process.env.max_print_line ?? "10000",
       },
       detached: process.platform !== "win32",
       windowsHide: true,

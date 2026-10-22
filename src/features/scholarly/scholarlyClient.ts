@@ -96,6 +96,7 @@ function cleanText(value: string): string {
 
 export function normalizeDoi(value: string | undefined): string {
   return (value ?? "")
+    .trim()
     .toLowerCase()
     .replace(/^https?:\/\/(?:dx\.)?doi\.org\//, "")
     .replace(/^doi:/, "")

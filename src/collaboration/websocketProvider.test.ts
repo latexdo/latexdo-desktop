@@ -1,3 +1,5 @@
+import * as sync from "y-protocols/sync";
+import { encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
@@ -71,6 +73,83 @@ describe("LatexDoWebsocketProvider", () => {
     globalThis.WebSocket = originalWebSocket;
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("applies real Yjs synchronization and awareness frames without echoing remote updates", async () => {
+    const doc = new Y.Doc();
+    const remote = new Y.Doc();
+    const awareness = new Awareness(doc);
+    const remoteAwareness = new Awareness(remote);
+    const onSynced = vi.fn();
+    const onProjectChanged = vi.fn();
+    const onStatusChange = vi.fn();
+    const provider = new LatexDoWebsocketProvider({
+      url: "wss://collab.example.org/socket",
+      doc,
+      awareness,
+      onSynced,
+      onProjectChanged,
+      onStatusChange,
+    });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    try {
+      const hello = encoding.createEncoder();
+      encoding.writeVarUint(hello, 0);
+      sync.writeSyncStep1(hello, remote);
+      const sent = socket.sent.length;
+      socket.receive(encoding.toUint8Array(hello).buffer);
+      await Promise.resolve();
+      expect(socket.sent.length).toBeGreaterThan(sent);
+      expect(onSynced).toHaveBeenCalledOnce();
+      remote.getText("content").insert(0, "Shared document");
+      const update = encoding.createEncoder();
+      encoding.writeVarUint(update, 0);
+      sync.writeUpdate(update, Y.encodeStateAsUpdate(remote));
+      socket.receive(encoding.toUint8Array(update).buffer);
+      await Promise.resolve();
+      expect(doc.getText("content").toString()).toBe("Shared document");
+      expect(onSynced).toHaveBeenCalledOnce();
+      remoteAwareness.setLocalState({ user: { name: "Grace" } });
+      const frame = encoding.createEncoder();
+      encoding.writeVarUint(frame, 1);
+      encoding.writeVarUint8Array(
+        frame,
+        encodeAwarenessUpdate(remoteAwareness, [remote.clientID]),
+      );
+      socket.receive(encoding.toUint8Array(frame).buffer);
+      await Promise.resolve();
+      expect(awareness.getStates().get(remote.clientID)).toEqual({
+        user: { name: "Grace" },
+      });
+      awareness.setLocalState({ user: { name: "Ada" } });
+      const changed = encoding.createEncoder();
+      encoding.writeVarUint(changed, 5);
+      encoding.writeVarString(changed, JSON.stringify({ revision: 42 }));
+      socket.receive(encoding.toUint8Array(changed).buffer);
+      await Promise.resolve();
+      expect(onProjectChanged).toHaveBeenCalledWith(42);
+      for (const bytes of [
+        [255],
+        [0],
+        [1, 0],
+        [1, 1, 255],
+        [4, 1, 123],
+        [5, 1, 123],
+        [6, 1, 123],
+      ])
+        socket.receive(new Uint8Array(bytes).buffer);
+      await Promise.resolve();
+      expect(onProjectChanged).toHaveBeenCalledOnce();
+      socket.dispatchEvent(new Event("error"));
+      expect(onStatusChange).toHaveBeenLastCalledWith("error");
+    } finally {
+      provider.destroy();
+      awareness.destroy();
+      remoteAwareness.destroy();
+      doc.destroy();
+      remote.destroy();
+    }
   });
 
   it("handles immediate WebSocket construction failures", () => {

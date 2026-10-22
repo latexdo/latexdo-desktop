@@ -1,0 +1,85 @@
+name: latexdo-auto-merge
+
+# Merges a pull request into main as soon as the full latexdo-ci pipeline
+# (lint, typecheck, tests with the coverage gate, build, packaging and
+# installer checks) succeeds on its head commit. No human approval is needed:
+# the test suite is the gate.
+#
+# Safety rails:
+# - Only PRs whose branch lives in this repository (never forks).
+# - Only PRs opened by someone with write access to the repository.
+# - Draft PRs and PRs labelled `no-auto-merge` are left alone.
+# - The merge is pinned to the exact commit CI tested (--match-head-commit),
+#   so a push after CI started can never be merged untested.
+#
+# Merges made with the default GITHUB_TOKEN do not trigger the push-to-main
+# release pipeline. Set an `AUTO_MERGE_TOKEN` secret (a fine-grained PAT or
+# GitHub App token with contents + pull-requests write) so they do.
+
+on:
+  workflow_run:
+    workflows: [latexdo-ci]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: latexdo-auto-merge-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: merge / green pull request
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Merge the tested pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(gh pr list --state open --base main --head "$HEAD_BRANCH" \
+            --json number,headRefOid,isDraft,author,labels --limit 1)"
+          number="$(jq -r '.[0].number // empty' <<<"$pr_json")"
+          if [ -z "$number" ]; then
+            echo "No open pull request into main for $HEAD_BRANCH; nothing to merge."
+            exit 0
+          fi
+
+          if [ "$(jq -r '.[0].headRefOid' <<<"$pr_json")" != "$HEAD_SHA" ]; then
+            echo "PR #$number moved past the tested commit $HEAD_SHA; waiting for its own CI run."
+            exit 0
+          fi
+          if [ "$(jq -r '.[0].isDraft' <<<"$pr_json")" = "true" ]; then
+            echo "PR #$number is a draft; not merging."
+            exit 0
+          fi
+          if jq -e '.[0].labels[] | select(.name == "no-auto-merge")' <<<"$pr_json" >/dev/null; then
+            echo "PR #$number is labelled no-auto-merge; not merging."
+            exit 0
+          fi
+
+          author="$(jq -r '.[0].author.login' <<<"$pr_json")"
+          permission="$(gh api "repos/$GH_REPO/collaborators/$author/permission" --jq .permission || echo none)"
+          case "$permission" in
+            admin|maintain|write) ;;
+            *)
+              echo "PR #$number author $author has '$permission' access; auto-merge needs write access."
+              exit 0
+              ;;
+          esac
+
+          gh pr merge "$number" --merge --match-head-commit "$HEAD_SHA"
+          echo "### Auto-merged PR #$number at $HEAD_SHA" >> "$GITHUB_STEP_SUMMARY"

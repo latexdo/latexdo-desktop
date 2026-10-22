@@ -148,3 +148,32 @@ describe("runNotationChecks", () => {
     expect(undefinedDiags).toHaveLength(0);
   });
 });
+
+describe("analyzeNotation coverage edge cases", () => {
+  it("attributes first use to the last chapter when there are no sections", () => {
+    const doc = makeDoc(
+      "\\chapter{Intro}\nSome $q$ here.\n\\chapter{Methods}\nThen $z$.",
+    );
+    const result = analyzeNotation(doc);
+    expect(result.find((s) => s.symbol === "q")?.firstUseSection).toBe("Intro");
+    expect(result.find((s) => s.symbol === "z")?.firstUseSection).toBe("Methods");
+  });
+
+  it("keeps subscript and superscript together", () => {
+    const result = analyzeNotation(makeDoc("We use $x_1^2$."));
+    expect(result.some((s) => s.symbol.replace(/\s/g, "") === "x_1^2")).toBe(true);
+  });
+
+  it("marks a symbol defined when a later use follows a definition", () => {
+    const doc = makeDoc(
+      "First $w$ appears.\n" +
+        "x".repeat(120) +
+        "\n\\begin{definition} Let $w$ be a weight. \\end{definition}",
+    );
+    const w = analyzeNotation(doc).find((s) => s.symbol === "w")!;
+    expect(w.usageCount).toBe(2);
+    expect(w.defined).toBe(true);
+    expect(w.definitionLine).toBe(5);
+    expect(w.firstUseLine).toBe(3);
+  });
+});

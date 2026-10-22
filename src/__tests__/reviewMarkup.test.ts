@@ -116,3 +116,57 @@ describe("review markup", () => {
     });
   });
 });
+
+describe("incomplete review markup and removal anchors", () => {
+  it.each([
+    "\\latexdoinsert{unfinished",
+    "\\latexdodelete{unfinished",
+    "\\latexdochange{old}{unfinished",
+  ])("preserves incomplete tracked source %s", (source) => {
+    expect(acceptLatexDoTrackedChanges(source)).toBe(source);
+    expect(rejectLatexDoTrackedChanges(source)).toBe(source);
+    expect(summarizeLatexDoTrackedChanges(source)).toEqual({
+      insertions: 0,
+      deletions: 0,
+      replacements: 0,
+    });
+  });
+  it.each([
+    "\\reviewercomment unfinished",
+    "\\reviewercomment{selected} unfinished",
+    "\\reviewercomment{selected}{unfinished",
+  ])("preserves incomplete review source %s", (source) => {
+    expect(normalizeLatexDoReviewMarkup(source)).toBe(source);
+    expect(removeInsertedReviewMarkup(source, "selected", 0)).toEqual({
+      content: source,
+      removed: false,
+    });
+  });
+  it("removes the preferred wrapper among repeated selections", () => {
+    const first = "\\reviewercomment{selected}{first}";
+    const source = first + " and \\reviewercomment{selected}{second}";
+    expect(removeInsertedReviewMarkup(source, "selected", first.length + 5)).toEqual({
+      content: first + " and selected",
+      removed: true,
+    });
+  });
+  it.each(["\r\n", ""])("removes an inserted block with %j line ending", (newline) => {
+    const source = "selected\\latexdoreviewercomment{note}" + newline + "following";
+    expect(removeInsertedReviewMarkup(source, "selected")).toEqual({
+      content: "selectedfollowing",
+      removed: true,
+    });
+  });
+  it("skips unrelated wrappers and stale or empty selection anchors", () => {
+    const source =
+      "\\reviewercomment{other}{note} selected\\latexdoreviewercomment{unfinished";
+    expect(removeInsertedReviewMarkup(source, "selected", 2)).toEqual({
+      content: source,
+      removed: false,
+    });
+    expect(removeInsertedReviewMarkup(source, "", 0)).toEqual({
+      content: source,
+      removed: false,
+    });
+  });
+});

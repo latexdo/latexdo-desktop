@@ -60,5 +60,45 @@ describe("FindPanel", () => {
     expect(findSeedFromSelection("method")).toBe("method");
     expect(findSeedFromSelection("two\nlines")).toBe("");
     expect(findSeedFromSelection("x".repeat(201))).toBe("");
+    expect(findSeedFromSelection(null)).toBe("");
+    expect(findSeedFromSelection(undefined)).toBe("");
+  });
+
+  it("ignores other shortcuts and opens the project scope with Shift", () => {
+    renderPanel();
+    fireEvent.keyDown(window, { key: "g", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "f" });
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true, altKey: true });
+    expect(screen.queryByRole("dialog", { name: "Find" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "F", ctrlKey: true, shiftKey: true });
+    expect(screen.getByRole("radio", { name: "All files" })).toBeChecked();
+  });
+
+  it("keeps the previous scope and query when reopened without details", () => {
+    renderPanel();
+    act(() => requestFind({ scope: "project", query: "method" }));
+    act(() => {
+      window.dispatchEvent(new CustomEvent("latexdo:open-find"));
+    });
+    expect(screen.getByRole("radio", { name: "All files" })).toBeChecked();
+    expect(screen.getByRole("textbox", { name: "Find" })).toHaveValue("method");
+  });
+
+  it("finds nothing in this file without an open document and closes from the button", () => {
+    const onClosed = vi.fn();
+    render(
+      <FindPanel
+        files={files}
+        activeFile={null}
+        onOpenMatch={vi.fn()}
+        onClosed={onClosed}
+      />,
+    );
+    act(() => requestFind({ query: "method" }));
+    expect(screen.queryByText("0 of 2")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }));
+    expect(screen.queryByRole("dialog", { name: "Find" })).not.toBeInTheDocument();
+    expect(onClosed).toHaveBeenCalled();
   });
 });

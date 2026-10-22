@@ -189,3 +189,51 @@ describe("development process supervision", () => {
     expect(state.children[0].kill).not.toHaveBeenCalled();
   });
 });
+describe("development process supervision edge cases", () => {
+  it("uses npm.cmd on Windows and maps a signalled exit to status 1", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    try {
+      state.freePorts = new Set([5173]);
+      fetcher.mockRejectedValueOnce(new Error("offline"));
+      await import("./dev.mjs");
+      await settle();
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
+    expect(spawn.mock.calls[0][0]).toBe("npm.cmd");
+    expect(spawn.mock.calls[2][0]).toBe("node");
+    state.children[1].emit("exit", null, "SIGKILL");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it("aborts a readiness probe that hangs for a second", async () => {
+    fetcher.mockImplementationOnce(
+      (_url, { signal }) =>
+        new Promise((_resolve, reject) =>
+          signal.addEventListener("abort", () => reject(new Error("aborted"))),
+        ),
+    );
+    await import("./dev.mjs");
+    await settle();
+    expect(spawn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    await settle();
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
+    expect(spawn.mock.calls[0][1]).toContain("vite");
+  });
+
+  it("maps a clean exit without code or signal to status 0 and shuts down once", async () => {
+    await import("./dev.mjs");
+    await settle();
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[0][0]).toBe("npm");
+    state.children[0].emit("exit", null, null);
+    signals.get("SIGTERM")();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(0);
+    expect(state.children[1].kill).toHaveBeenCalledOnce();
+  });
+});

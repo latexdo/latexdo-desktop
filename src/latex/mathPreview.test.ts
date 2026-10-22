@@ -51,6 +51,33 @@ describe("parseMathAtPosition", () => {
   });
 });
 
+describe("parseMathAtPosition edge cases", () => {
+  it("ignores unclosed \\[ and environments", () => {
+    expect(parseMathAtPosition("a \\[ x^2 and more", 1, 6)).toBeNull();
+    expect(parseMathAtPosition("\\begin{align} x = 1", 1, 16)).toBeNull();
+  });
+
+  it("ignores unclosed display dollars", () => {
+    expect(parseMathAtPosition("$$ x^2 and $y$", 1, 4)).toBeNull();
+  });
+
+  it("returns null for empty math", () => {
+    expect(parseMathAtPosition("empty $  $ here", 1, 8)).toBeNull();
+  });
+
+  it("prefers the innermost of nested math ranges", () => {
+    const text = "\\[ a + \\text{$x$} \\]";
+    expect(parseMathAtPosition(text, 1, 15)).toMatchObject({
+      tex: "x",
+      display: false,
+    });
+  });
+
+  it("clamps a line past the end of the text", () => {
+    expect(parseMathAtPosition("$x$", 5, 2)).toBeNull();
+  });
+});
+
 describe("mathPreviewDataUri", () => {
   it("renders TeX to a themed transparent SVG data URI", () => {
     const uri = mathPreviewDataUri("E = mc^2", false, "#d7dce5");

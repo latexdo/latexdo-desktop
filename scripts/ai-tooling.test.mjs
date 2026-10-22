@@ -203,6 +203,11 @@ describe("runtime source synchronization", () => {
     { schemaVersion: 1, files: [{ from: "a", to: "" }] },
     { schemaVersion: 1, files: [], styleFragments: [null] },
     { schemaVersion: 1, files: [], styleFragments: [{ from: "a", to: "b" }] },
+    {
+      schemaVersion: 1,
+      files: [],
+      styleFragments: [{ from: "a", to: "b", startMarker: "s", endMarker: 1 }],
+    },
   ])("rejects invalid sync manifests before copying %j", async (manifest) => {
     vi.stubEnv("LATEXDO_AI_SOURCE_PATH", path.join(fixture.root, "upstream"));
     await write("upstream/latexdo-sync.json", JSON.stringify(manifest));
@@ -256,5 +261,132 @@ describe("runtime source synchronization", () => {
     await write("b", "target");
     const file = await write("sync.json", manifest);
     await expect(run("validate-sync.mjs", file)).rejects.toThrow();
+  });
+});
+describe("sync manifest validation", () => {
+  it.each([
+    [[], "must be an object"],
+    [{ schemaVersion: 2, files: [] }, "schemaVersion must be 1"],
+    [{ schemaVersion: 1, files: {} }, "files must be an array"],
+    [{ schemaVersion: 1, files: ["a"] }, "files[0] must be an object"],
+    [{ schemaVersion: 1, files: [{ from: "", to: "b" }] }, "non-empty relative path"],
+    [{ schemaVersion: 1, files: [{ from: "a", to: 3 }] }, "non-empty relative path"],
+    [
+      { schemaVersion: 1, files: [{ from: "x/../a", to: "b" }] },
+      "inside this repository",
+    ],
+    [
+      { schemaVersion: 1, files: [], styleFragments: [null] },
+      "styleFragments[0] must be an object",
+    ],
+    [
+      {
+        schemaVersion: 1,
+        files: [],
+        styleFragments: [{ from: "a", to: "b", startMarker: 1, endMarker: "e" }],
+      },
+      "startMarker/endMarker must be strings",
+    ],
+    [
+      {
+        schemaVersion: 1,
+        files: [],
+        styleFragments: [{ from: "a", to: "b", startMarker: "s", endMarker: null }],
+      },
+      "startMarker/endMarker must be strings",
+    ],
+  ])("rejects malformed manifest %j", async (manifest, message) => {
+    const file = await write("sync.json", manifest);
+    await expect(run("validate-sync.mjs", file)).rejects.toThrow(message);
+  });
+
+  it("accepts a style fragment that is its own host and logs the totals", async () => {
+    await write("a", "source");
+    await write("b", "target");
+    await write("style.css", "/* AI */ css /* END */");
+    const file = await write("sync.json", {
+      schemaVersion: 1,
+      files: [{ from: "a", to: "b" }],
+      styleFragments: [
+        {
+          from: "style.css",
+          to: "style.css",
+          startMarker: "/* AI */",
+          endMarker: "/* END */",
+        },
+      ],
+    });
+    await expect(run("validate-sync.mjs", file)).resolves.toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith(
+      "Validated LatexDo AI sync manifest with 1 files and 1 style fragment(s).",
+    );
+  });
+
+  it("validates the repository manifest when no path argument is given", async () => {
+    process.cwd.mockReturnValue(repo);
+    await expect(run("validate-sync.mjs")).resolves.toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("Validated LatexDo AI sync manifest"),
+    );
+  });
+});
+describe("catalog and sync edge cases", () => {
+  it("rejects non-object model and provider entries in both entry points", async () => {
+    const source = await write("catalog/latexdo-ai-catalog.v1.json", {
+      ...catalog,
+      localModels: [null],
+      cloudProviders: ["nope"],
+    });
+    await expect(run("validate-catalog.mjs", source)).rejects.toThrow("exit 1");
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("localModels[0] must be an object"),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("cloudProviders[0] must be an object"),
+    );
+    await expect(run("sync-ai.mjs")).rejects.toThrow(
+      /localModels\[0\] must be an object/,
+    );
+  });
+  it("validates the repository catalog when no path argument is given", async () => {
+    process.cwd.mockReturnValue(repo);
+    await expect(run("validate-catalog.mjs")).resolves.toBeUndefined();
+  });
+  it("skips runtime sync when the source is the project itself", async () => {
+    vi.stubEnv("LATEXDO_AI_SOURCE_PATH", fixture.root);
+    await write("catalog/latexdo-ai-catalog.v1.json", catalog);
+    await run("sync-ai.mjs");
+    expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining("AI files"));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Synced catalog"));
+  });
+  it("fails when the target stylesheet lacks the AI markers", async () => {
+    const sourceRoot = path.join(fixture.root, "upstream");
+    vi.stubEnv("LATEXDO_AI_SOURCE_PATH", sourceRoot);
+    await write("upstream/latexdo-sync.json", {
+      schemaVersion: 1,
+      files: [],
+      styleFragments: [
+        { from: "f.css", to: "s.css", startMarker: "/* AI */", endMarker: "/* END */" },
+      ],
+    });
+    await write("upstream/f.css", "x");
+    await write("s.css", "/* END */ before /* AI */");
+    await expect(run("sync-ai.mjs")).rejects.toThrow("Could not find AI style markers");
+  });
+  it("writes unformatted output when prettier is unavailable", async () => {
+    vi.doMock("prettier", () => {
+      throw new Error("no prettier");
+    });
+    try {
+      await write("catalog/latexdo-ai-catalog.v1.json", catalog);
+      await run("sync-ai.mjs");
+      const generated = await readFile(
+        path.join(fixture.root, "src/features/ai/aiCatalog.generated.ts"),
+        "utf8",
+      );
+      expect(generated).toContain(`export const aiCatalog = {\n  "schemaVersion"`);
+    } finally {
+      vi.doUnmock("prettier");
+    }
   });
 });

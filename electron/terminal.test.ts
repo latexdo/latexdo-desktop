@@ -29,6 +29,23 @@ vi.mock("./trustedIpc.js", () => ({
 vi.mock("electron", () => ({ app: { getPath: () => os.tmpdir() } }));
 vi.mock("node-pty", () => ({ default: { spawn: mocks.pty } }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
+const fsMocks = vi.hoisted(() => ({
+  allow: null as null | ((file: string) => boolean),
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    access: async (file: string, mode?: number) => {
+      // An explicit shell fixture must not depend on installed host binaries.
+      if (fsMocks.allow) {
+        if (!fsMocks.allow(file)) throw new Error("ENOENT");
+        return;
+      }
+      return actual.access(file, mode);
+    },
+  };
+});
 import { registerTerminalIpc } from "./terminal.js";
 let root: string;
 let sender: EventEmitter & {
@@ -67,6 +84,9 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
+  fsMocks.allow = null;
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   sender.emit("destroyed");
   await rm(root, { recursive: true, force: true });
 });
@@ -219,5 +239,144 @@ describe("terminal ownership and lifecycle", () => {
     expect(sender.send).toHaveBeenCalledWith("terminal:exit", { id, exitCode: 1 });
     const second = await create(sender);
     expect(() => send("terminal:dispose", sender, { id: second.id })).not.toThrow();
+  });
+});
+
+describe("terminal shell selection", () => {
+  function failPty() {
+    mocks.pty.mockImplementation(() => {
+      throw new Error("no PTY");
+    });
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(),
+      stderr: new EventEmitter(),
+      stdin: { write: vi.fn() },
+      kill: vi.fn(),
+    });
+    mocks.spawn.mockReturnValue(child);
+    return child;
+  }
+
+  it("uses PowerShell without login arguments on Windows", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("win32");
+    await create(sender);
+    const [shell, args, options] = mocks.pty.mock.calls[0];
+    expect(shell).toBe("powershell.exe");
+    expect(args).toEqual([]);
+    expect(options.env.TERM_PROGRAM).toBe("LatexDo");
+
+    failPty();
+    const { mode } = await create(sender);
+    expect(mode).toBe("pipe");
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      "powershell.exe",
+      [],
+      expect.objectContaining({ cwd: root, stdio: "pipe" }),
+    );
+  });
+
+  it("selects the configured shell independently of host installations", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("linux");
+    const shell = path.join(root, "fixture-shell");
+    vi.stubEnv("SHELL", shell);
+    fsMocks.allow = (file) => file === shell;
+
+    await create(sender);
+    expect(mocks.pty).toHaveBeenLastCalledWith(
+      shell,
+      ["-l"],
+      expect.objectContaining({ env: expect.objectContaining({ SHELL: shell }) }),
+    );
+
+    failPty();
+    await create(sender);
+    expect(mocks.spawn).toHaveBeenLastCalledWith(shell, [], expect.anything());
+  });
+
+  it("falls back to plain sh when no shell is reachable", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("linux");
+    vi.stubEnv("SHELL", undefined);
+    vi.stubEnv("PS1", undefined);
+    vi.stubEnv("PATH", undefined);
+    fsMocks.allow = (file) => !file.startsWith("/bin/");
+    await create(sender);
+    const [shell, args, options] = mocks.pty.mock.calls[0];
+    expect(shell).toBe("sh");
+    expect(args).toEqual(["-l"]);
+    expect(options.env.SHELL).toBe("sh");
+    expect(options.env.PS1).toContain("\\w");
+    expect(options.env.PATH).toContain("/usr/bin");
+
+    failPty();
+    await create(sender);
+    expect(mocks.spawn).toHaveBeenLastCalledWith("sh", [], expect.anything());
+  });
+
+  it("starts bash without profiles and other shells plainly in pipe mode", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("darwin");
+    vi.stubEnv("SHELL", "/missing/zsh");
+    vi.stubEnv("PS1", undefined);
+    failPty();
+    fsMocks.allow = (file) => file === "/bin/bash" || !file.startsWith("/");
+    await create(sender);
+    expect(mocks.spawn).toHaveBeenLastCalledWith(
+      "/bin/bash",
+      ["--noprofile", "--norc", "-i"],
+      expect.anything(),
+    );
+
+    fsMocks.allow = (file) => file === "/bin/zsh";
+    await create(sender);
+    const [shell, args, options] = mocks.spawn.mock.calls.at(-1)!;
+    expect(shell).toBe("/bin/zsh");
+    expect(args).toEqual([]);
+    expect(options.env.PS1).toContain("%F{75}LatexDo");
+
+    fsMocks.allow = (file) => file === "/bin/sh";
+    await create(sender);
+    expect(mocks.spawn).toHaveBeenLastCalledWith("/bin/sh", [], expect.anything());
+  });
+
+  it("ignores events for disposed terminals and destroyed renderers", async () => {
+    const { id } = await create(sender);
+    const onData = terminal.onData.mock.calls[0][0];
+    const onExit = terminal.onExit.mock.calls[0][0];
+    sender.isDestroyed.mockReturnValue(true);
+    onExit(undefined);
+    expect(sender.send).not.toHaveBeenCalled();
+    sender.isDestroyed.mockReturnValue(false);
+    onData("late");
+    onExit({ exitCode: 2 });
+    expect(sender.send).not.toHaveBeenCalled();
+    sender.emit("destroyed");
+    expect(terminal.kill).not.toHaveBeenCalled();
+    send("terminal:resize", sender, { id, cols: 80, rows: 24 });
+    expect(terminal.resize).not.toHaveBeenCalled();
+  });
+
+  it("fills missing colour and home variables and keeps user overrides", async () => {
+    for (const key of ["COLORTERM", "HOME", "ZDOTDIR", "HISTFILE", "LS_COLORS"])
+      vi.stubEnv(key, undefined);
+    vi.stubEnv("CLICOLOR", "0");
+    vi.stubEnv("FORCE_COLOR", "3");
+    vi.stubEnv("PS1", "$ ");
+    await create(sender);
+    const env = mocks.pty.mock.calls[0][2].env;
+    expect(env).toMatchObject({
+      COLORTERM: "truecolor",
+      HOME: os.tmpdir(),
+      ZDOTDIR: os.tmpdir(),
+      HISTFILE: `${os.tmpdir()}/latexdo-shell-history`,
+      CLICOLOR: "0",
+      FORCE_COLOR: "3",
+      PS1: "$ ",
+    });
+    expect(env.LS_COLORS).toContain("di=1;34");
+  });
+
+  it("reports exit code 0 when the PTY gives no exit details", async () => {
+    const { id } = await create(sender);
+    terminal.onExit.mock.calls[0][0](undefined);
+    expect(sender.send).toHaveBeenCalledWith("terminal:exit", { id, exitCode: 0 });
   });
 });

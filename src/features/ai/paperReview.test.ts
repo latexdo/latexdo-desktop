@@ -159,4 +159,51 @@ describe("paper review prompt", () => {
     expect(describeLanguage("auto")).toBe("");
     expect(describeLanguage("xx-unknown")).toBe("xx-unknown");
   });
+
+  it("keeps codes Intl cannot parse", () => {
+    expect(describeLanguage("not a language!")).toBe("not a language!");
+  });
+
+  it("describes failed builds without messages and successful builds", () => {
+    expect(
+      buildPaperReviewPrompt(
+        context({
+          engine: undefined,
+          lastBuild: { ok: false, errors: [], warningCount: 0 },
+        }),
+      ),
+    ).toContain("failed with some error(s). The PDF may not match the source.");
+    expect(
+      buildPaperReviewPrompt(
+        context({ lastBuild: { ok: true, errors: [], warningCount: 0 } }),
+      ),
+    ).toContain("The last build succeeded without warnings.");
+    const warned = buildPaperReviewPrompt(
+      context({
+        engine: undefined,
+        lastBuild: { ok: true, errors: [], warningCount: 2 },
+      }),
+    );
+    expect(warned).toContain("The last build succeeded with 2 warning(s).");
+    expect(warned).toContain("root file `main.tex`. Start from the root file.");
+  });
+
+  it("numbers unnamed reviewers, clips long comments and caps the list", () => {
+    const reviews = Array.from({ length: 17 }, (_, index) => ({
+      reviewer: index === 0 ? "  " : undefined,
+      comment: index === 0 ? "word ".repeat(200) : `Comment text ${index}`,
+      response: index === 1 ? "   " : undefined,
+    }));
+    const prompt = buildPaperReviewPrompt(context({ previousReviews: reviews }));
+    expect(prompt).toContain("- Comment 1: word word");
+    expect(prompt).toMatch(/word…\n- Comment 2: Comment text 1\n/);
+    expect(prompt).not.toContain("Author's response");
+    expect(prompt).toContain("- … and 2 more.");
+    expect(prompt).not.toContain("Comment text 16");
+  });
+
+  it("uses the plain label when no focus is given", () => {
+    expect(paperReviewDisplayText({})).toBe("Review this paper");
+    expect(paperReviewDisplayText({ focus: "   " })).toBe("Review this paper");
+  });
 });

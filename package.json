@@ -25,6 +25,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:recent": "vitest run electron/pdfImport/bibliography.test.ts src/features/scholarly/scholarlyClient.test.ts src/latex/__tests__/citationCompletion.test.ts src/latex/__tests__/citationCompletion.scoring.test.ts --coverage --coverage.include=electron/pdfImport/bibliography.ts --coverage.include=src/features/scholarly/scholarlyClient.ts --coverage.include=src/latex/citationCompletion.ts --coverage.reportsDirectory=coverage/recent",
     "posttest:coverage": "node scripts/update-coverage-badge.mjs",
     "test:diagnostics": "node --experimental-strip-types scripts/test-latex-diagnostics.ts",
     "test:supply-chain": "node scripts/verify-supply-chain.mjs && node scripts/test-supply-chain-runtime.mjs",
@@ -67,10 +68,10 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "concurrently": "9.2.5",
     "cross-env": "^7.0.3",
-    "electron": "43.5.0",
+    "electron": "43.8.3",
     "electron-builder": "26.15.3",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -79,8 +80,8 @@
     "prettier": "^3.8.4",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.61.1",
-    "vite": "^6.0.5",
-    "vitest": "^4.1.11",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12",
     "wait-on": "^8.0.1"
   },
   "overrides": {
@@ -113,6 +114,9 @@
   "build": {
     "appId": "com.latexdo.editor",
     "productName": "LatexDo",
+    "directories": {
+      "output": "release"
+    },
     "icon": "build/icon.png",
     "npmRebuild": true,
     "fileAssociations": [

@@ -40,6 +40,7 @@ function requireUrl(errors, owner, value, key, allowEmpty = false) {
 function assertUniqueIds(errors, name, values) {
   const seen = new Set();
   for (const value of values) {
+    if (!isObject(value)) continue;
     if (seen.has(value.id)) errors.push(`${name} contains duplicate id ${value.id}`);
     seen.add(value.id);
   }
@@ -114,7 +115,7 @@ function validateCatalog(catalog) {
       validateLocalModel(errors, model, index),
     );
     assertUniqueIds(errors, "localModels", catalog.localModels);
-    const modelIds = new Set(catalog.localModels.map((model) => model.id));
+    const modelIds = new Set(catalog.localModels.map((model) => model?.id));
     if (!modelIds.has(catalog.defaultLocalModelId)) {
       errors.push("defaultLocalModelId must reference a local model");
     }
@@ -129,7 +130,7 @@ function validateCatalog(catalog) {
       validateCloudProvider(errors, provider, index),
     );
     assertUniqueIds(errors, "cloudProviders", catalog.cloudProviders);
-    const providerIds = new Set(catalog.cloudProviders.map((provider) => provider.id));
+    const providerIds = new Set(catalog.cloudProviders.map((provider) => provider?.id));
     if (!providerIds.has(catalog.defaultCloudProviderId)) {
       errors.push("defaultCloudProviderId must reference a cloud provider");
     }

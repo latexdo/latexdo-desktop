@@ -88,3 +88,35 @@ describe("compileTrust", () => {
     ).rejects.toThrow(/escape/);
   });
 });
+
+describe("canonicalCompileTarget", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await makeTree();
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns the canonical path of an existing target", async () => {
+    const { realpath } = await import("node:fs/promises");
+    const { canonicalCompileTarget } = await import("./compileTrust.js");
+    const target = path.join(dir, "main.tex");
+    await expect(canonicalCompileTarget(dir, target)).resolves.toBe(
+      await realpath(target),
+    );
+  });
+
+  it("falls back to the given path for a missing output file", async () => {
+    const { canonicalCompileTarget } = await import("./compileTrust.js");
+    const target = path.join(dir, "build", "missing.pdf");
+    await expect(canonicalCompileTarget(dir, target)).resolves.toBe(target);
+  });
+
+  it("rejects an escaping target", async () => {
+    const { canonicalCompileTarget } = await import("./compileTrust.js");
+    await expect(
+      canonicalCompileTarget(dir, path.join(dir, "..", "elsewhere.tex")),
+    ).rejects.toThrow();
+  });
+});
