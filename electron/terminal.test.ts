@@ -37,7 +37,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return {
     ...actual,
     access: async (file: string, mode?: number) => {
-      if (fsMocks.allow && !fsMocks.allow(file)) throw new Error("ENOENT");
+      // An explicit shell fixture must not depend on installed host binaries.
+      if (fsMocks.allow) {
+        if (!fsMocks.allow(file)) throw new Error("ENOENT");
+        return;
+      }
       return actual.access(file, mode);
     },
   };
@@ -269,6 +273,24 @@ describe("terminal shell selection", () => {
       [],
       expect.objectContaining({ cwd: root, stdio: "pipe" }),
     );
+  });
+
+  it("selects the configured shell independently of host installations", async () => {
+    vi.spyOn(os, "platform").mockReturnValue("linux");
+    const shell = path.join(root, "fixture-shell");
+    vi.stubEnv("SHELL", shell);
+    fsMocks.allow = (file) => file === shell;
+
+    await create(sender);
+    expect(mocks.pty).toHaveBeenLastCalledWith(
+      shell,
+      ["-l"],
+      expect.objectContaining({ env: expect.objectContaining({ SHELL: shell }) }),
+    );
+
+    failPty();
+    await create(sender);
+    expect(mocks.spawn).toHaveBeenLastCalledWith(shell, [], expect.anything());
   });
 
   it("falls back to plain sh when no shell is reachable", async () => {
