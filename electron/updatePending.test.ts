@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -34,6 +34,23 @@ afterEach(async () => {
 });
 
 describe("beginPendingUpdate", () => {
+  it("cleans up a failed atomic replacement without damaging the existing target", async () => {
+    const directory = await temporaryDirectory();
+    const target = path.join(directory, "pending-update.json");
+    await mkdir(target);
+    await writeFile(path.join(target, "preserved"), "original data");
+    await expect(
+      beginPendingUpdate(directory, {
+        fromVersion: "0.2.0",
+        expectedVersion: "0.3.0",
+        installerSha256: "abc123",
+      }),
+    ).rejects.toThrow();
+    expect(await readdir(directory)).toEqual(["pending-update.json"]);
+    expect(await readFile(path.join(target, "preserved"), "utf8")).toBe(
+      "original data",
+    );
+  });
   it("writes an installing record", async () => {
     const directory = await temporaryDirectory();
     const record = await beginPendingUpdate(directory, {
@@ -102,6 +119,61 @@ describe("loadPendingUpdate", () => {
 });
 
 describe("resolvePendingUpdate", () => {
+  it("preserves the pending state when the helper failure report cannot be read", async () => {
+    const directory = await temporaryDirectory();
+    const record = await beginPendingUpdate(directory, {
+      fromVersion: "0.2.0",
+      expectedVersion: "0.3.0",
+      installerSha256: "abc123",
+    });
+    // A path beneath a regular file reliably fails with ENOTDIR on all platforms.
+    const blocker = path.join(directory, "not-a-directory");
+    await writeFile(blocker, "preserved");
+    record.failurePath = path.join(blocker, "failure.txt");
+    await writeFile(
+      path.join(directory, "pending-update.json"),
+      JSON.stringify(record),
+    );
+    await expect(resolvePendingUpdate(directory, "0.3.0")).rejects.toThrow();
+    expect(await loadPendingUpdate(directory)).toEqual(record);
+  });
+
+  it("does not increment attempts or overwrite evidence when reopening a failed update", async () => {
+    const directory = await temporaryDirectory();
+    const record = await beginPendingUpdate(directory, {
+      fromVersion: "0.2.0",
+      expectedVersion: "0.3.0",
+      installerSha256: "abc123",
+    });
+    const failed = await markPendingUpdateFailed(
+      directory,
+      record,
+      "signature invalid",
+    );
+    for (let i = 0; i < 2; i++) {
+      expect(await resolvePendingUpdate(directory, "0.3.0")).toMatchObject({
+        status: "failed",
+        attempts: 1,
+        error: "signature invalid",
+      });
+    }
+    expect(await loadPendingUpdate(directory)).toEqual(failed);
+  });
+
+  it("keeps a confirmed update stable across subsequent launches", async () => {
+    const directory = await temporaryDirectory();
+    await beginPendingUpdate(directory, {
+      fromVersion: "0.2.0",
+      expectedVersion: "0.3.0",
+      installerSha256: "abc123",
+    });
+    await resolvePendingUpdate(directory, "0.3.0");
+    const confirmed = await loadPendingUpdate(directory);
+    expect(await resolvePendingUpdate(directory, "0.3.0")).toMatchObject({
+      status: "confirmed",
+    });
+    expect(await loadPendingUpdate(directory)).toEqual(confirmed);
+  });
   it("rejects a different installed path even when its version matches", async () => {
     const directory = await temporaryDirectory();
     await beginPendingUpdate(directory, {

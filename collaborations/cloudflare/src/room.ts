@@ -225,6 +225,14 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       throw new HttpError(404, "Route not found.");
     } catch (error) {
       return errorResponse(error);
+    } finally {
+      // Routes that ignore a payload (or reject before parsing it) still own
+      // its stream. Drain it without buffering before returning so the
+      // forwarding Worker finishes pumping before the request lifetime ends.
+      // Cancelling alone does not wait for workerd's forwarding pump.
+      if (request.body && !request.bodyUsed && !request.body.locked) {
+        await request.body.pipeTo(new WritableStream());
+      }
     }
   }
 

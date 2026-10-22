@@ -208,6 +208,33 @@ describe("project file lifecycle", () => {
 });
 
 describe("compile saves", () => {
+  it("preserves dirty contents after a partial write failure and allows retry", async () => {
+    const { result, ctx } = setup();
+    const root = doc();
+    const chapter = doc("chapter.tex", "chapter edits");
+    ctx.documentsRef.current = [root, chapter];
+    api.writeFile.mockImplementation(async (_id, path) => {
+      if (path === "main.tex") throw new Error("disk full");
+    });
+    await expect(
+      result.current.saveDocumentsForCompile("p", [root, chapter]),
+    ).rejects.toThrow("disk full");
+    expect(api.writeFile).toHaveBeenCalledWith("p", "chapter.tex", "chapter edits");
+    expect(ctx.documentsRef.current).toEqual([root, chapter]);
+    expect(ctx.setDocuments).not.toHaveBeenCalled();
+
+    api.writeFile.mockResolvedValue(undefined);
+    await result.current.saveDocumentsForCompile("p", ctx.documentsRef.current);
+    expect(
+      ctx.documentsRef.current.map(({ content, savedContent }) => ({
+        content,
+        savedContent,
+      })),
+    ).toEqual([
+      { content: "changed", savedContent: "changed" },
+      { content: "chapter edits", savedContent: "chapter edits" },
+    ]);
+  });
   it("keeps edits typed during a save dirty and ignores assets", async () => {
     const { result, ctx } = setup();
     const root = doc();

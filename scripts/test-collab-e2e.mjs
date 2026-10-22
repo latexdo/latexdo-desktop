@@ -14,6 +14,10 @@
  */
 
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import { createInterface } from "node:readline";
+import { stripVTControlCharacters } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -52,11 +56,35 @@ async function waitForServer(server) {
 }
 
 await run(npm, ["run", "build:guest"], { cwd: root });
-const server = spawn(npx, ["wrangler", "dev", "--port", port], {
-  cwd: cloudflare,
-  stdio: ["ignore", "inherit", "inherit"],
-  detached: process.platform !== "win32",
-});
+const stateDirectory = await mkdtemp(path.join(os.tmpdir(), "latexdo-collab-e2e-"));
+const server = spawn(
+  npx,
+  ["wrangler", "dev", "--local", "--port", port, "--persist-to", stateDirectory],
+  {
+    cwd: cloudflare,
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
+  },
+);
+// HTTP assertions can pass while workerd reports an unhandled exception.
+// Inspect complete lines so chunk boundaries cannot conceal runtime failures.
+let runtimeFailed = false;
+for (const [stream, output] of [
+  [server.stdout, process.stdout],
+  [server.stderr, process.stderr],
+]) {
+  const lines = createInterface({ input: stream });
+  lines.on("line", (line) => {
+    output.write(`${line}\n`);
+    if (
+      /\buncaught\b|\bunhandled\s+(?:exception|rejection)\b/i.test(
+        stripVTControlCharacters(line),
+      )
+    )
+      runtimeFailed = true;
+  });
+}
+const serverClosed = new Promise((resolve) => server.on("close", resolve));
 const stop = () => {
   if (server.exitCode !== null) return;
   try {
@@ -85,4 +113,12 @@ try {
   process.exitCode = 1;
 } finally {
   stop();
+  await serverClosed;
+  await rm(stateDirectory, { recursive: true, force: true });
+  if (runtimeFailed) {
+    console.error(
+      "Collaboration E2E failed: the Workers runtime reported an uncaught error.",
+    );
+    process.exitCode = 1;
+  }
 }
