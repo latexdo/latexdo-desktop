@@ -403,6 +403,7 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
   const api: BrowserLatexDoApi = {
     runtime: "browser",
     startWithEmptyWorkspace: false,
+    rememberActiveProject() {},
 
     async reportRendererIssue(_payload) {},
 

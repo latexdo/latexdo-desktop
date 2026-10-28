@@ -180,6 +180,7 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
           await openDocument(main, project.id);
         }
       }
+      window.latexdo.rememberActiveProject?.(project.id);
       setStatusMessage(
         treeLimited
           ? "Project tree was limited. Adjust tree limits in Settings."

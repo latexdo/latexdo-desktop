@@ -947,10 +947,11 @@ const projectGarbageCollector = createGarbageCollector({
     Boolean(activeCompileControllers.get(projectId)?.size),
 });
 
-function scheduleProjectGarbageCollection(
+async function finishOpeningProject(
   project: OpenProject | null,
-): OpenProject | null {
+): Promise<OpenProject | null> {
   if (project) {
+    await rememberLastProject(project.rootPath);
     projectGarbageCollector.schedule(project.id);
   }
   return project;
@@ -1550,34 +1551,42 @@ async function registerProjectIfTrusted(
   if (!(await ensureWorkspaceTrust(targetWindow, rootPath))) {
     return null;
   }
-  const project = registerProject(rootPath);
-  void rememberLastProject(project.rootPath);
-  return project;
+  return registerProject(rootPath);
 }
 
-/** The folder opened last, so the next launch can reopen it (#229). */
+/** The folder or Research Space opened last, for startup restoration. */
 const lastProjectFile = "last-project.json";
 
-async function rememberLastProject(rootPath: string): Promise<void> {
-  try {
-    await atomicWriteUtf8(
-      userDataFilePath(lastProjectFile),
-      JSON.stringify({ rootPath }),
-    );
-  } catch {
-    // Reopening at the next launch is a convenience.
-  }
+let rememberLastProjectQueue: Promise<void> = Promise.resolve();
+
+function rememberLastProject(rootPath: string): Promise<void> {
+  // Serialize windows opening projects so an older write cannot win a race.
+  rememberLastProjectQueue = rememberLastProjectQueue.then(async () => {
+    try {
+      await atomicWriteUtf8(
+        userDataFilePath(lastProjectFile),
+        JSON.stringify({ rootPath }),
+      );
+    } catch {
+      // A failure to remember the project must not prevent opening it.
+    }
+  });
+  return rememberLastProjectQueue;
 }
 
 async function reopenLastProject(
   targetWindow: BrowserWindow | null,
 ): Promise<OpenProject | null> {
+  await rememberLastProjectQueue;
   const saved = await readUserDataJson<{ rootPath?: unknown }>(lastProjectFile);
   const rootPath = typeof saved?.rootPath === "string" ? saved.rootPath : "";
   if (!rootPath || !path.isAbsolute(rootPath)) return null;
   const stats = await stat(rootPath).catch(() => null);
-  if (!stats?.isDirectory()) return null;
-  return registerProjectIfTrusted(targetWindow, rootPath);
+  if (stats?.isDirectory()) return registerProjectIfTrusted(targetWindow, rootPath);
+  if (stats?.isFile() && isResearchSpaceFile(rootPath)) {
+    return registerResearchSpaceFileIfTrusted(targetWindow, rootPath);
+  }
+  return null;
 }
 
 const maxProjectIdLength = 128;
@@ -6544,12 +6553,12 @@ async function startApp(): Promise<void> {
   ipcMain.handle("project:reopen-last", async (event, ...rawArgs: unknown[]) => {
     expectIpcArgs("project:reopen-last", rawArgs, 0);
     const window = BrowserWindow.fromWebContents(event.sender) ?? null;
-    return scheduleProjectGarbageCollection(await reopenLastProject(window));
+    return finishOpeningProject(await reopenLastProject(window));
   });
   ipcMain.handle("project:open-requested", async (event, ...rawArgs: unknown[]) => {
     expectIpcArgs("project:open-requested", rawArgs, 0);
     const window = BrowserWindow.fromWebContents(event.sender) ?? null;
-    return scheduleProjectGarbageCollection(await openRequestedPath(window));
+    return finishOpeningProject(await openRequestedPath(window));
   });
   ipcMain.handle("project:open", async (event, ...rawArgs: unknown[]) => {
     const channel = "project:open";
@@ -6577,12 +6586,12 @@ async function startApp(): Promise<void> {
     const selectedPath = result.filePaths[0];
     const selectedStats = await stat(selectedPath).catch(() => null);
     if (selectedStats?.isDirectory()) {
-      return scheduleProjectGarbageCollection(
+      return finishOpeningProject(
         await registerProjectIfTrusted(window ?? null, selectedPath),
       );
     }
     if (selectedStats?.isFile() && isResearchSpaceFile(selectedPath)) {
-      return scheduleProjectGarbageCollection(
+      return finishOpeningProject(
         await registerResearchSpaceFileIfTrusted(window ?? null, selectedPath),
       );
     }
@@ -6628,12 +6637,10 @@ async function startApp(): Promise<void> {
         ? await dialog.showMessageBox(window, messageOptions)
         : await dialog.showMessageBox(messageOptions);
       if (response !== 0) return null;
-      return scheduleProjectGarbageCollection(
-        await registerProjectIfTrusted(window, projectPath),
-      );
+      return finishOpeningProject(await registerProjectIfTrusted(window, projectPath));
     }
     await trustWorkspace(projectPath);
-    return scheduleProjectGarbageCollection(registerProject(projectPath));
+    return finishOpeningProject(registerProject(projectPath));
   });
   ipcMain.handle("provider:import-overleaf-project", async (event, ...rawArgs) => {
     const channel = "provider:import-overleaf-project";
@@ -6665,7 +6672,7 @@ async function startApp(): Promise<void> {
       maxBytes: 512 * 1024,
     });
     await trustWorkspace(projectPath);
-    return scheduleProjectGarbageCollection(registerProject(projectPath));
+    return finishOpeningProject(registerProject(projectPath));
   });
   ipcMain.handle("research-space:create", async (event, ...rawArgs: unknown[]) => {
     const channel = "research-space:create";
@@ -6711,7 +6718,7 @@ async function startApp(): Promise<void> {
     for (const folder of space.folders) {
       await trustWorkspace(folder.path);
     }
-    return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    return finishOpeningProject(registerResearchSpace(space));
   });
   ipcMain.handle("research-space:save-as", async (event, ...rawArgs: unknown[]) => {
     const channel = "research-space:save-as";
@@ -6735,7 +6742,7 @@ async function startApp(): Promise<void> {
         })
       : await createResearchSpaceFile(filePath, [project.rootPath]);
     await trustWorkspace(path.dirname(space.filePath));
-    return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    return finishOpeningProject(registerResearchSpace(space));
   });
   // An online (shared) copy has no folder here: save its files into a new
   // folder next to the space file, so the space opens like any other.
@@ -6783,7 +6790,7 @@ async function startApp(): Promise<void> {
       await materializeCloudCompileFiles(folderPath, files);
       const space = await createResearchSpaceFile(filePath, [folderPath]);
       await trustWorkspace(parent);
-      return scheduleProjectGarbageCollection(registerResearchSpace(space));
+      return finishOpeningProject(registerResearchSpace(space));
     },
   );
   ipcMain.handle("research-space:add-folder", async (event, ...rawArgs: unknown[]) => {
@@ -6826,7 +6833,7 @@ async function startApp(): Promise<void> {
       ];
       const space = await createResearchSpaceFile(filePath, folderPaths);
       await trustWorkspace(path.dirname(space.filePath));
-      return scheduleProjectGarbageCollection(registerResearchSpace(space));
+      return finishOpeningProject(registerResearchSpace(space));
     }
 
     const current = project.researchSpace;
@@ -6851,7 +6858,7 @@ async function startApp(): Promise<void> {
       throw new Error("Those folders are already in this Research Space.");
     }
     const space = await writeResearchSpaceFile({ ...current, folders });
-    return scheduleProjectGarbageCollection(registerResearchSpace(space));
+    return finishOpeningProject(registerResearchSpace(space));
   });
   ipcMain.handle("app:menu-shortcuts", async (_event, ...rawArgs: unknown[]) => {
     expectIpcArgs("app:menu-shortcuts", rawArgs, 0);
@@ -7044,7 +7051,7 @@ async function startApp(): Promise<void> {
           return null;
         }
       }
-      scheduleProjectGarbageCollection(project);
+      await finishOpeningProject(project);
       const importTarget = defaultImportTargetForProject(project);
       const imported = await importDocxIntoProject(
         importTarget.projectPath,
@@ -7098,7 +7105,7 @@ async function startApp(): Promise<void> {
           return null;
         }
       }
-      scheduleProjectGarbageCollection(project);
+      await finishOpeningProject(project);
       const importTarget = defaultImportTargetForProject(project);
       const imported = await importMarkdown(
         importTarget.projectPath,
@@ -7152,7 +7159,7 @@ async function startApp(): Promise<void> {
           return null;
         }
       }
-      scheduleProjectGarbageCollection(project);
+      await finishOpeningProject(project);
       const importTarget = defaultImportTargetForProject(project);
       const imported = await importPdfIntoProject(
         importTarget.projectPath,

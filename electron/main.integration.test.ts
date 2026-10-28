@@ -426,6 +426,31 @@ describe("project files and data preservation", () => {
       expect((await call("project:reopen-last"))?.rootPath).toBe(opened.rootPath),
     );
   });
+  it("remembers a newly created project instead of the previously opened folder", async () => {
+    native.open.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [project.rootPath],
+    });
+    await call("project:open");
+    native.open.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [path.dirname(project.rootPath)],
+    });
+    const created = await call("project:create", { folderName: "Latest Paper" });
+    expect(created.rootPath).not.toBe(project.rootPath);
+    expect((await call("project:reopen-last"))?.rootPath).toBe(created.rootPath);
+    expect(
+      await readFile(path.join(project.rootPath, "main.tex"), "utf8"),
+    ).toBeTruthy();
+    // Returning to an already registered project also updates startup restoration.
+    native.open.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [project.rootPath],
+    });
+    await call("project:open");
+    expect((await call("project:reopen-last"))?.rootPath).toBe(project.rootPath);
+  });
+
   it("opens a trusted folder and opens, never replaces, an existing main.tex", async () => {
     native.open.mockResolvedValueOnce({
       canceled: false,
@@ -656,6 +681,7 @@ describe("multi-folder research spaces", () => {
     ]);
     native.open.mockResolvedValueOnce({ canceled: false, filePaths: [space.rootPath] });
     expect((await call("project:open")).id).toBe(space.id);
+    expect((await call("project:reopen-last"))?.id).toBe(space.id);
   });
   it("routes file operations and imports to the selected folder", async () => {
     expect(await call("file:read", space.id, "paper/main.tex")).toBe("paper source");

@@ -1043,6 +1043,10 @@ const api = {
   reopenLastProject: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("project:reopen-last"),
   restoreCloudProject,
+  rememberActiveProject: (projectId: string): void => {
+    if (isCloudProject(projectId)) storageSet(cloudActiveProjectKey, projectId);
+    else storageRemove(cloudActiveProjectKey);
+  },
   createProject: (options?: CreateProjectOptions): Promise<OpenProject | null> =>
     options === undefined
       ? ipcRenderer.invoke("project:create")
