@@ -54,3 +54,31 @@ describe("color theme migration", () => {
     });
   });
 });
+
+describe("completion settings", () => {
+  it("offers word completion and keeps intelligent completion off by default", () => {
+    expect(loadSettings()).toMatchObject({
+      wordCompletion: true,
+      intelligentCompletion: false,
+    });
+  });
+
+  it("keeps the user's choice and ignores invalid values", () => {
+    window.localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ wordCompletion: false, intelligentCompletion: true }),
+    );
+    expect(loadSettings()).toMatchObject({
+      wordCompletion: false,
+      intelligentCompletion: true,
+    });
+    window.localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ wordCompletion: "no", intelligentCompletion: 1 }),
+    );
+    expect(loadSettings()).toMatchObject({
+      wordCompletion: true,
+      intelligentCompletion: false,
+    });
+  });
+});

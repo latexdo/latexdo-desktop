@@ -174,7 +174,6 @@ describe("AiSidebar voice dictation integration", () => {
       voiceSettingsStorageKey,
       JSON.stringify({
         transcriptMode: "verbatim",
-        maxDurationMs: 60_000,
         transcriptionModel: "test-transcribe",
       }),
     );
@@ -305,7 +304,6 @@ describe("AiSidebar voice dictation integration", () => {
       JSON.stringify({
         sttMode: "openai",
         transcriptMode: "verbatim",
-        maxDurationMs: 60_000,
         transcriptionModel: "whisper-1",
         cloudTranscriptionModel: "gpt-transcribe",
       }),

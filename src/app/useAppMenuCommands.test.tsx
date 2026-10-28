@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { figureToTikzExtensionId } from "../extensions";
 import { toolTabIds } from "../features/workspace/toolTabs";
-import type { AppCtx19 } from "./appContext";
+import type { AppCtx20 } from "./appContext";
 import { useAppMenuCommands } from "./useAppMenuCommands";
 
 type Listener = (command: string) => void;
@@ -47,6 +47,9 @@ function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
     openSidebar: vi.fn(),
     openPanel: vi.fn(),
     applyLayoutPreset: vi.fn(),
+    setLayoutMode: vi.fn(),
+    toggleFocusMode: vi.fn(),
+    resetPaneSizes: vi.fn(),
     applyLatexToolbarCommand: vi.fn(),
     extensionToolAvailability: { tikzConverter: true },
     extensionToolInstallation: { tikzConverter: false },
@@ -77,7 +80,7 @@ function makeCtx(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 function mount(ctx: ReturnType<typeof makeCtx>["ctx"]) {
-  return renderHook(({ c }) => useAppMenuCommands(c as unknown as AppCtx19), {
+  return renderHook(({ c }) => useAppMenuCommands(c as unknown as AppCtx20), {
     initialProps: { c: ctx },
   });
 }
@@ -148,6 +151,9 @@ describe("useAppMenuCommands", () => {
     ["view.layout.focus", "applyLayoutPreset", "focus"],
     ["view.layout.balanced", "applyLayoutPreset", "balanced"],
     ["view.layout.power", "applyLayoutPreset", "power"],
+    ["view.mode.split", "setLayoutMode", "split"],
+    ["view.mode.editor", "setLayoutMode", "editor"],
+    ["view.mode.pdf", "setLayoutMode", "pdf"],
     ["insert.section", "applyLatexToolbarCommand", "section"],
     ["insert.formatTable", "applyLatexToolbarCommand", "formatTable"],
     ["view.tool.tableGenerator", "openToolTab", toolTabIds.tableGenerator],
@@ -157,6 +163,15 @@ describe("useAppMenuCommands", () => {
     mount(ctx);
     await send(command);
     expect(ctx[method as keyof typeof ctx]).toHaveBeenCalledWith(argument);
+  });
+
+  it("toggles focus mode and resets pane sizes", async () => {
+    const { ctx } = makeCtx();
+    mount(ctx);
+    await send("view.toggleFocusMode");
+    expect(ctx.toggleFocusMode).toHaveBeenCalled();
+    await send("view.resetPaneSizes");
+    expect(ctx.resetPaneSizes).toHaveBeenCalled();
   });
 
   it("focuses the editor before inserting, and tolerates a missing editor", async () => {

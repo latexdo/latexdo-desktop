@@ -51,35 +51,33 @@ describe("agent tool execution", () => {
     ["edit_selection", { new_text: "new" }, "replace-selection"],
     ["insert_at_cursor", { text: "new" }, "insert-at-cursor"],
     ["write_file", { path: "main.tex", content: "new" }, "replace-file"],
-  ])(
-    "requires approval for %s even with autoApprove enabled",
-    async (name, args, kind) => {
-      const ctx = context();
-      ctx.requestApproval.mockResolvedValue(false);
-      const result = await executeTool(
-        name as string,
-        args as Record<string, unknown>,
-        ctx,
-        { autoApprove: true },
+  ])("asks approval for %s unless approval is turned off", async (name, args, kind) => {
+    const ctx = context();
+    ctx.requestApproval.mockResolvedValue(false);
+    const result = await executeTool(
+      name as string,
+      args as Record<string, unknown>,
+      ctx,
+      { autoApprove: false },
+    );
+    expect(result.content).toContain("declined");
+    expect(ctx.requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "main.tex", kind, newText: "new" }),
+    );
+    expect(ctx.applyEdit).not.toHaveBeenCalled();
+    expect(ctx.writeFile).not.toHaveBeenCalled();
+    ctx.requestApproval.mockClear();
+    await executeTool(name as string, args as Record<string, unknown>, ctx, {
+      autoApprove: true,
+    });
+    expect(ctx.requestApproval).not.toHaveBeenCalled();
+    if (name === "write_file")
+      expect(ctx.writeFile).toHaveBeenCalledWith("main.tex", "new");
+    else
+      expect(ctx.applyEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ kind, newText: "new" }),
       );
-      expect(result.content).toContain("declined");
-      expect(ctx.requestApproval).toHaveBeenCalledWith(
-        expect.objectContaining({ path: "main.tex", kind, newText: "new" }),
-      );
-      expect(ctx.applyEdit).not.toHaveBeenCalled();
-      expect(ctx.writeFile).not.toHaveBeenCalled();
-      ctx.requestApproval.mockResolvedValue(true);
-      await executeTool(name as string, args as Record<string, unknown>, ctx, {
-        autoApprove: false,
-      });
-      if (name === "write_file")
-        expect(ctx.writeFile).toHaveBeenCalledWith("main.tex", "new");
-      else
-        expect(ctx.applyEdit).toHaveBeenCalledWith(
-          expect.objectContaining({ kind, newText: "new" }),
-        );
-    },
-  );
+  });
   it("can create a file while retaining an empty before-image", async () => {
     const ctx = context();
     ctx.readFile.mockRejectedValue(new Error("missing"));

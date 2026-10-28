@@ -445,7 +445,9 @@ export async function executeTool(
   ctx: AgentContext,
   opts: { autoApprove: boolean },
 ): Promise<ToolResult> {
-  void opts;
+  // Edits ask first unless the user turned approval off in AI settings.
+  const approve = (proposal: EditProposal) =>
+    opts.autoApprove ? Promise.resolve(true) : ctx.requestApproval(proposal);
   try {
     switch (name) {
       case "get_knowledge_graph": {
@@ -512,7 +514,7 @@ export async function executeTool(
           ...figureText(argStr(args, "new_text"), ctx),
           oldText: sel.text,
         };
-        if (!(await ctx.requestApproval(proposal))) {
+        if (!(await approve(proposal))) {
           return ok("The user declined this edit.");
         }
         await ctx.applyEdit(proposal);
@@ -538,7 +540,7 @@ export async function executeTool(
           ...figureText(tikz, ctx),
           oldText: sel.text,
         };
-        if (!(await ctx.requestApproval(proposal))) {
+        if (!(await approve(proposal))) {
           return ok("The user declined this figure update.");
         }
         await ctx.applyEdit(proposal);
@@ -553,7 +555,7 @@ export async function executeTool(
           kind: "insert-at-cursor",
           ...figureText(argStr(args, "text"), ctx),
         };
-        if (!(await ctx.requestApproval(proposal))) {
+        if (!(await approve(proposal))) {
           return ok("The user declined this insertion.");
         }
         await ctx.applyEdit(proposal);
@@ -593,7 +595,7 @@ export async function executeTool(
           newText: content,
           oldText: current,
         };
-        if (!(await ctx.requestApproval(proposal))) {
+        if (!(await approve(proposal))) {
           return ok("The user declined this edit.");
         }
         await ctx.writeFile(path, content);
@@ -623,7 +625,7 @@ export async function executeTool(
           newText: content,
           oldText,
         };
-        if (!(await ctx.requestApproval(proposal))) {
+        if (!(await approve(proposal))) {
           return ok("The user declined this write.");
         }
         await ctx.writeFile(path, content);

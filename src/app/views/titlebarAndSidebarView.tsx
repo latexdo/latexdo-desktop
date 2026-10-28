@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import FileTree from "../../FileTree";
+import { LayoutMenu } from "../../components/LayoutMenu";
 import { ActivityItems } from "../../components/ActivityItems";
 import { productConfig, productIsPro } from "../../productConfig";
 import { AiSidebar } from "../../components/AiSidebar";
@@ -41,6 +42,11 @@ export function renderTitlebar(ctx: AppCtx) {
   const {
     activePanel,
     diagnostics,
+    focusMode,
+    layoutMode,
+    resetPaneSizes,
+    setLayoutMode,
+    toggleFocusMode,
     openPanel,
     openShareDialog,
     panelVisible,
@@ -79,6 +85,19 @@ export function renderTitlebar(ctx: AppCtx) {
             <span>Join</span>
           </button>
         )}
+        {projectId ? (
+          <LayoutMenu
+            mode={layoutMode}
+            focusMode={focusMode}
+            sidebarVisible={sidebarVisible}
+            panelVisible={panelVisible}
+            onSelectMode={(mode) => void setLayoutMode(mode)}
+            onToggleFocusMode={toggleFocusMode}
+            onToggleSidebar={toggleSidebar}
+            onTogglePanel={togglePanel}
+            onResetSizes={resetPaneSizes}
+          />
+        ) : null}
         <button
           type="button"
           className={`icon-button ${sidebarVisible ? "active" : ""}`}

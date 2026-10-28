@@ -34,13 +34,6 @@ const cloudModels: Array<[string, string]> = [
   ["whisper-1", "whisper-1"],
 ];
 
-const recordingLimits: Array<[number, string]> = [
-  [60_000, "1 minute"],
-  [180_000, "3 minutes"],
-  [300_000, "5 minutes"],
-  [600_000, "10 minutes"],
-];
-
 export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
   settings,
   onSave,
@@ -94,15 +87,6 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
         : phase === "missing" || phase === "failed"
           ? "Not installed"
           : null;
-  const limitOptions = recordingLimits.some(([ms]) => ms === settings.maxDurationMs)
-    ? recordingLimits
-    : [
-        ...recordingLimits,
-        [
-          settings.maxDurationMs,
-          `${Math.round(settings.maxDurationMs / 1000)} seconds`,
-        ] as [number, string],
-      ];
 
   return (
     <div className="voice-settings-panel">
@@ -208,24 +192,6 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
             save({ transcriptMode: e.target.checked ? "clean" : "verbatim" })
           }
         />
-      </label>
-
-      <label className="settings-row">
-        <span>
-          <strong>Longest recording</strong>
-          <small>Dictation stops and transcribes on its own after this.</small>
-        </span>
-        <select
-          aria-label="Longest recording"
-          value={settings.maxDurationMs}
-          onChange={(e) => save({ maxDurationMs: Number(e.target.value) })}
-        >
-          {limitOptions.map(([ms, label]) => (
-            <option key={ms} value={ms}>
-              {label}
-            </option>
-          ))}
-        </select>
       </label>
 
       {local ? (

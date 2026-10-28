@@ -507,8 +507,8 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
         }
       };
 
-      // In "ask" mode, route approvals through the sidebar UI. In autonomous
-      // mode, autoApprove short-circuits and requestApproval is never called.
+      // Approvals go through the sidebar UI unless the user turned them off
+      // in AI settings; then autoApprove skips requestApproval.
       const effectiveCtx: AgentContext = {
         ...ctx,
         hasProject: () => hasProject,
@@ -556,7 +556,7 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
           tools: availableTools,
           toolCapabilities,
           generate,
-          autoApprove: false,
+          autoApprove: config.autoApproveEdits,
           maxSteps: config.maxAgentSteps,
           // On-device models need the reminder; cloud models apply changes.
           nudgeUnappliedChanges: runtimeIsLocal,

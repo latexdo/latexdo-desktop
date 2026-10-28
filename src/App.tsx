@@ -44,6 +44,7 @@ import { useAppDerivedState } from "./app/useAppDerivedState";
 import { useAppCitationAssistant } from "./app/useAppCitationAssistant";
 import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
+import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
 import { SettingsShell } from "./components/SettingsShell";
 import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
@@ -110,8 +111,9 @@ export default function App() {
   const s17 = { ...s16, ...useAppCitationAssistant(s16) };
   const s18 = { ...s17, ...useAppSessionRestore(s17) };
   const s19 = { ...s18, ...useAppPaperReview(s18) };
-  const s20 = { ...s19, ...useAppMenuCommands(s19) };
-  const ctx = s20;
+  const s20 = { ...s19, ...useAppViewLayout(s19) };
+  const s21 = { ...s20, ...useAppMenuCommands(s20) };
+  const ctx = s21;
   const {
     openInstalledExtension,
     openExtensionDetails,
@@ -311,7 +313,7 @@ export default function App() {
       {renderTitlebar(ctx)}
 
       <div
-        className={`workbench workspace-layout-${aiConfig.layoutPreset} ${aiStandalone ? "ai-standalone" : ""}`}
+        className={`workbench workspace-layout-${aiConfig.layoutPreset} ${aiStandalone ? "ai-standalone" : ""} ${ctx.focusMode ? "focus-mode" : ""}`}
         data-layout-preset={aiConfig.layoutPreset}
         data-tour-id="workspace"
       >
@@ -701,20 +703,21 @@ export default function App() {
                     <div className="settings-section-heading">Writing assistance</div>
                     <label className="settings-row settings-toggle">
                       <span>
-                        <strong>Suggest text as I type</strong>
+                        <strong>Intelligent completion</strong>
                         <small>
-                          Grey text continues what you are writing. Tab accepts it,
+                          Off by default. When on, grey AI text continues what you are
+                          writing and the editor predicts repeat edits. Tab accepts,
                           ⌘/Ctrl+→ accepts one word, Esc hides it and ⌥/Alt+\ asks for a
-                          suggestion now.
+                          suggestion now. Plain word completion is under Editor.
                         </small>
                       </span>
                       <input
                         type="checkbox"
-                        checked={aiConfig.sentenceCompletionEnabled}
+                        checked={settings.intelligentCompletion}
                         onChange={(event) =>
-                          setAiConfig((current) => ({
+                          setSettings((current) => ({
                             ...current,
-                            sentenceCompletionEnabled: event.target.checked,
+                            intelligentCompletion: event.target.checked,
                           }))
                         }
                       />
@@ -723,15 +726,26 @@ export default function App() {
                     <VoiceSettingsSection aiConfig={aiConfig} />
 
                     <div className="settings-section-heading">AI edit safety</div>
-                    <div className="ai-autonomy-option ai-autonomy-option-locked">
+                    <label className="settings-row settings-toggle">
                       <span>
-                        <strong>Approval required before edits</strong>
+                        <strong>Ask before the assistant edits files</strong>
                         <small>
-                          The assistant can inspect enabled project context, but file
-                          changes are shown for approval before they are applied.
+                          {aiConfig.autoApproveEdits
+                            ? "Edits from the AI chat are applied right away. You can still undo them in the editor."
+                            : "Each edit from the AI chat is shown for approval before it is applied."}
                         </small>
                       </span>
-                    </div>
+                      <input
+                        type="checkbox"
+                        checked={!aiConfig.autoApproveEdits}
+                        onChange={(event) =>
+                          setAiConfig((current) => ({
+                            ...current,
+                            autoApproveEdits: !event.target.checked,
+                          }))
+                        }
+                      />
+                    </label>
                   </div>
                 ),
               },

@@ -305,7 +305,7 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
       <label className="settings-row">
         <span>
           <strong>Editor font size</strong>
-          <small>{settings.editorFontSize}px</small>
+          <small className="settings-value">{settings.editorFontSize}px</small>
         </span>
         <input
           type="range"
@@ -334,6 +334,46 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
             setSettings((current) => ({
               ...current,
               wordWrap: event.target.checked,
+            }))
+          }
+        />
+      </label>
+
+      <label className="settings-row settings-toggle">
+        <span>
+          <strong>Word completion</strong>
+          <small>
+            Suggest words as you type, from your project first and then common English
+            words. Tab or Enter accepts.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.wordCompletion}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              wordCompletion: event.target.checked,
+            }))
+          }
+        />
+      </label>
+
+      <label className="settings-row settings-toggle">
+        <span>
+          <strong>Intelligent completion</strong>
+          <small>
+            AI text that continues your sentence and predictions of repeat edits. Off by
+            default; needs an AI model.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.intelligentCompletion}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              intelligentCompletion: event.target.checked,
             }))
           }
         />

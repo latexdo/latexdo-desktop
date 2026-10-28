@@ -673,6 +673,10 @@ export interface AppSettings {
   editorFontSize: number;
   wordWrap: boolean;
   minimap: boolean;
+  /** Plain word suggestions from the project and an English dictionary. */
+  wordCompletion: boolean;
+  /** AI ghost text and next-edit predictions while typing. */
+  intelligentCompletion: boolean;
   inlineBlame: boolean;
   showRawLatex: boolean;
   projectTreeIgnoredNames: string[];
@@ -812,6 +816,8 @@ export const defaultSettings: AppSettings = {
   editorFontSize: 13.5,
   wordWrap: true,
   minimap: true,
+  wordCompletion: true,
+  intelligentCompletion: false,
   inlineBlame: true,
   showRawLatex: true,
   projectTreeIgnoredNames: defaultProjectTreeIgnoredNames,
@@ -1213,6 +1219,14 @@ function readSavedSettings(): AppSettings {
         typeof saved.wordWrap === "boolean" ? saved.wordWrap : defaultSettings.wordWrap,
       minimap:
         typeof saved.minimap === "boolean" ? saved.minimap : defaultSettings.minimap,
+      wordCompletion:
+        typeof saved.wordCompletion === "boolean"
+          ? saved.wordCompletion
+          : defaultSettings.wordCompletion,
+      intelligentCompletion:
+        typeof saved.intelligentCompletion === "boolean"
+          ? saved.intelligentCompletion
+          : defaultSettings.intelligentCompletion,
       inlineBlame:
         typeof saved.inlineBlame === "boolean"
           ? saved.inlineBlame

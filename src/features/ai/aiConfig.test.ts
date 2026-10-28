@@ -53,8 +53,10 @@ describe("normalizeAiConfig", () => {
     });
   });
 
-  it("does not honor saved autonomous edit mode", () => {
-    expect(normalizeAiConfig({ autoApproveEdits: true }).autoApproveEdits).toBe(false);
+  it("asks before AI edits unless the user turned approval off", () => {
+    expect(normalizeAiConfig({}).autoApproveEdits).toBe(false);
+    expect(normalizeAiConfig({ autoApproveEdits: true }).autoApproveEdits).toBe(true);
+    expect(normalizeAiConfig({ autoApproveEdits: "yes" }).autoApproveEdits).toBe(false);
   });
 
   it("migrates known local runtime models to LatexDo AI tiers", () => {
@@ -147,7 +149,7 @@ describe("aiConfig normalization edge cases", () => {
       layoutPreset: "wide",
       userName: "u".repeat(120),
       maxAgentSteps: Number.NaN,
-      autoApproveEdits: true,
+      autoApproveEdits: "garbage",
     });
     expect(config.modelId).toBe(defaultAiConfig.modelId);
     expect(config.inlineModelId).toBe(defaultAiConfig.inlineModelId);

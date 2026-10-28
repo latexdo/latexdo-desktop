@@ -6,6 +6,7 @@ export const MIN_SOURCE_WIDTH = 180;
 export const MIN_PREVIEW_WIDTH = 200;
 export const SPLIT_HANDLE_WIDTH = 6;
 export const DEFAULT_SPLIT_PERCENT = 52;
+export const DEFAULT_PANEL_HEIGHT = 200;
 export const MIN_SIDEBAR_WIDTH = 180;
 export const MAX_SIDEBAR_WIDTH = 760;
 /** Space the editor and preview keep no matter how wide a sidebar is dragged. */
@@ -88,13 +89,15 @@ export function splitPercentAt(
 }
 
 /**
- * Runs a horizontal pane drag. The handle captures the pointer so the drag
- * keeps tracking over the editor, the PDF canvas and embedded frames.
+ * Runs a pane drag, horizontal unless `axis` is "y". The handle captures the
+ * pointer so the drag keeps tracking over the editor, the PDF canvas and
+ * embedded frames. `onMove` gets the pointer coordinate along the axis.
  */
 export function startPaneDrag(
   event: ReactPointerEvent<HTMLElement>,
-  onMove: (clientX: number) => void,
+  onMove: (position: number) => void,
   onEnd?: () => void,
+  axis: "x" | "y" = "x",
 ): void {
   if (event.button !== 0 && event.pointerType === "mouse") return;
   event.preventDefault();
@@ -105,11 +108,12 @@ export function startPaneDrag(
   } catch {
     // Pointer capture is an enhancement; window listeners still track the drag.
   }
+  const bodyClass = axis === "y" ? "pane-resizing-row" : "pane-resizing";
   handle.classList.add("dragging");
-  document.body.classList.add("pane-resizing");
+  document.body.classList.add(bodyClass);
 
   const handleMove = (moveEvent: PointerEvent) => {
-    onMove(moveEvent.clientX);
+    onMove(axis === "y" ? moveEvent.clientY : moveEvent.clientX);
   };
   const handleEnd = () => {
     window.removeEventListener("pointermove", handleMove);
@@ -122,7 +126,7 @@ export function startPaneDrag(
       // The capture may already be gone.
     }
     handle.classList.remove("dragging");
-    document.body.classList.remove("pane-resizing");
+    document.body.classList.remove(bodyClass);
     onEnd?.();
   };
   window.addEventListener("pointermove", handleMove);
