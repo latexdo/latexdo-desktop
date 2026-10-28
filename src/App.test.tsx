@@ -3131,6 +3131,14 @@ describe("App critical UI controls", () => {
 
     fireEvent.click(screen.getByTitle("Source control"));
 
+    await waitFor(() =>
+      expect(screen.getByTitle("Source control")).toHaveAccessibleName(
+        "Source control (1 changed file)",
+      ),
+    );
+    expect(
+      screen.getByTitle("Source control").querySelector(".activity-change-badge"),
+    ).toHaveTextContent("1");
     const discardFile = await screen.findByRole("button", {
       name: /discard main\.tex/i,
     });
@@ -4022,7 +4030,7 @@ describe("App critical UI controls", () => {
       expect(api.revealGitFile).toHaveBeenCalledWith(project.id, "main.tex"),
     );
     fireEvent.contextMenu(entry);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open File History" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File History" }));
     await waitFor(() =>
       expect(api.getGitHistory).toHaveBeenCalledWith(project.id, "main.tex"),
     );

@@ -443,6 +443,29 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     }
   }, []);
 
+  const copyGitPatch = useCallback(
+    async (relativePath: string, area: GitChangeArea) => {
+      const currentProject = projectIdRef.current;
+      if (!currentProject) return;
+      try {
+        const patch = await window.latexdo.getGitPatch(
+          currentProject,
+          relativePath,
+          area,
+        );
+        if (!patch) {
+          setStatusMessage("No changes to copy.");
+          return;
+        }
+        await navigator.clipboard.writeText(patch);
+        setStatusMessage(`Copied patch for ${pathForDisplay(relativePath)}`);
+      } catch (error) {
+        setStatusMessage(ipcErrorMessage(error, "Could not copy the patch"));
+      }
+    },
+    [projectIdRef, setStatusMessage],
+  );
+
   const copyGitPath = useCallback(async (relativePath: string) => {
     await navigator.clipboard?.writeText(relativePath);
     setStatusMessage(`Copied ${pathForDisplay(relativePath)}`);
@@ -763,6 +786,7 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     openGitDiffEditor,
     revealGitFile,
     copyGitPath,
+    copyGitPatch,
     openGitFileHistory,
     applyLatexPrettier,
     applyLatexToolbarCommand,

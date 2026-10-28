@@ -88,6 +88,7 @@ describe("isolated desktop bridge", () => {
     ["unstageGitFile", "git:unstage", ["local", "main.tex"]],
     ["commitGit", "git:commit", ["local", "Save paper"]],
     ["getGitDiff", "git:diff", ["local", "main.tex"]],
+    ["getGitPatch", "git:patch", ["local", "main.tex", "staged"]],
     ["discardGitFile", "git:discard", ["local", "main.tex"]],
     ["stageAllGit", "git:stage-all", ["local"]],
     ["unstageAllGit", "git:unstage-all", ["local"]],

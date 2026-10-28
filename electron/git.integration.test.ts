@@ -10,6 +10,7 @@ import {
   readCommitDiffSession,
   readGitBlame,
   readGitDiffPreview,
+  readGitPatch,
   readStructuredGitCommitDetails,
   readStructuredGitHistory,
   readStructuredGitStatus,
@@ -56,6 +57,14 @@ describe("real repository history and revisions", () => {
       modifiedRef: { kind: "working-tree" },
     });
     expect(await readGitDiffPreview(root, "main.tex")).toContain("+working");
+    const stagedPatch = await readGitPatch(root, "main.tex", "staged");
+    expect(stagedPatch).toContain("+staged");
+    expect(stagedPatch).not.toContain("+working");
+    const workingPatch = await readGitPatch(root, "main.tex", "changes");
+    expect(workingPatch).toContain("-staged");
+    expect(workingPatch).toContain("+working");
+    await writeFile(path.join(root, "changes.patch"), workingPatch);
+    await git("apply", "--check", "--reverse", "changes.patch");
     const details = await readStructuredGitCommitDetails(root, first);
     expect(details).toMatchObject({
       hash: first,

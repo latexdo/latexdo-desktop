@@ -68,22 +68,44 @@ const entry = { path: "chapters/a.tex" };
 
 describe("renderScmContextMenu", () => {
   it.each([
-    ["Open Diff", "openGitDiffEditor", [entry, "changes"]],
+    ["Open Changes", "openGitDiffEditor", [entry, "changes"]],
     ["Open File", "openGitFile", ["chapters/a.tex"]],
+    ["Copy Changes (Patch)", "copyGitPatch", ["chapters/a.tex", "changes"]],
     ["Stage Changes", "stageGitEntry", ["chapters/a.tex"]],
-    ["Discard Changes", "discardGitEntry", ["chapters/a.tex"]],
+    ["Revert Changes…", "discardGitEntry", ["chapters/a.tex"]],
     ["Reveal in File Manager", "revealGitFile", ["chapters/a.tex"]],
-    ["Copy Path", "copyGitPath", ["chapters/a.tex"]],
-    ["Open File History", "openGitFileHistory", ["chapters/a.tex"]],
+    ["Copy Relative Path", "copyGitPath", ["chapters/a.tex"]],
+    ["File History", "openGitFileHistory", ["chapters/a.tex"]],
   ])("%s closes the menu and runs %s", (label, method, args) => {
     const ctx = makeCtx({ gitContextMenu: { entry, area: "changes", x: 10, y: 20 } });
     render(renderScmContextMenu(ctx));
     const menu = screen.getByRole("menu", { name: "Actions for chapters/a.tex" });
     expect(menu.style.left).toBe("10px");
     expect(screen.queryByText("Unstage Changes")).toBeNull();
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(`${label}$`) }));
+    fireEvent.click(screen.getByRole("menuitem", { name: label }));
     expect(ctx.setGitContextMenu).toHaveBeenCalledWith(null);
     expect(ctx[method]).toHaveBeenCalledWith(...args);
+  });
+
+  it("does not offer unavailable revisions or patches for an untracked file", () => {
+    const ctx = makeCtx({
+      gitStatus: { headHash: "abc" },
+      gitContextMenu: {
+        entry: { ...entry, untracked: true },
+        area: "changes",
+        x: -20,
+        y: -20,
+      },
+    });
+    render(renderScmContextMenu(ctx));
+    expect(
+      screen.getByRole("menuitem", { name: "Open Changes at HEAD" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("menuitem", { name: "Copy Changes (Patch)" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Revert Changes…" })).toBeEnabled();
+    expect(screen.getByRole("menu")).toHaveStyle({ left: "8px", top: "8px" });
   });
 
   it("offers unstaging for staged files and keeps the menu on screen", () => {
@@ -92,8 +114,8 @@ describe("renderScmContextMenu", () => {
     });
     render(renderScmContextMenu(ctx));
     const menu = screen.getByRole("menu");
-    expect(menu.style.left).toBe(`${window.innerWidth - 210}px`);
-    expect(menu.style.top).toBe(`${window.innerHeight - 260}px`);
+    expect(menu.style.left).toBe(`${window.innerWidth - 288}px`);
+    expect(menu.style.top).toBe(`${window.innerHeight - 380}px`);
     expect(screen.queryByText("Stage Changes")).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: /Unstage Changes/ }));
     expect(ctx.unstageGitEntry).toHaveBeenCalledWith("chapters/a.tex");

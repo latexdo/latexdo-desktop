@@ -737,6 +737,10 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       throw browserUnavailable("Git");
     },
 
+    async getGitPatch() {
+      throw browserUnavailable("Git");
+    },
+
     async getGitDiff(_projectId, relativePath): Promise<GitDiffPreview> {
       return {
         path: relativePath,

@@ -1650,6 +1650,14 @@ const api = {
     isCloudProject(projectId)
       ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:action", projectId, action),
+  getGitPatch: (
+    projectId: string,
+    relativePath: string,
+    area: "staged" | "changes",
+  ): Promise<string> =>
+    isCloudProject(projectId)
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
+      : ipcRenderer.invoke("git:patch", projectId, relativePath, area),
   getGitDiff: (projectId: string, relativePath: string): Promise<GitDiffPreview> =>
     isCloudProject(projectId)
       ? Promise.resolve({

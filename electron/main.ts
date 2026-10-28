@@ -101,6 +101,7 @@ import {
   readCommitDiffSession,
   readGitBlame,
   readGitDiffPreview,
+  readGitPatch,
   readStructuredGitCommitDetails,
   readStructuredGitHistory,
   readStructuredGitStatus,
@@ -7424,6 +7425,16 @@ async function startApp(): Promise<void> {
     );
     if (action.kind === "init") await ensureGitWatchers(projectId, projectPath);
     return result;
+  });
+  ipcMain.handle("git:patch", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "git:patch";
+    const [rawProjectId, rawRelativePath, area] = expectIpcArgs(channel, rawArgs, 3);
+    const projectId = parseProjectId(channel, rawProjectId);
+    const relativePath = parseRelativePath(channel, rawRelativePath);
+    if (area !== "staged" && area !== "changes")
+      throw new Error("Invalid Git change area");
+    const location = await resolveOpenProjectPath(projectId, relativePath);
+    return readGitPatch(location.projectPath, location.relativePath, area);
   });
   ipcMain.handle("git:diff", async (_event, ...rawArgs: unknown[]) => {
     const channel = "git:diff";

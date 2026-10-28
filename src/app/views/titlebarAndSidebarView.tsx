@@ -145,6 +145,9 @@ export function renderActivityBar(ctx: AppCtx) {
     activePath,
     toggleToolTab,
   } = ctx;
+  const changedFileCount = new Set(
+    ctx.gitStatus?.entries?.map((entry) => entry.path) ?? [],
+  ).size;
   return (
     <nav className="activity-bar">
       <ActivityItems>
@@ -163,8 +166,14 @@ export function renderActivityBar(ctx: AppCtx) {
           }`}
           onClick={() => openSidebar("sourceControl")}
           title="Source control"
+          aria-label={`Source control${changedFileCount ? ` (${changedFileCount} changed ${changedFileCount === 1 ? "file" : "files"})` : ""}`}
         >
           <GitBranch size={21} />
+          {changedFileCount > 0 && (
+            <span className="activity-change-badge" aria-hidden="true">
+              {changedFileCount > 99 ? "99+" : changedFileCount}
+            </span>
+          )}
         </button>
         {productIsPro ? (
           <button

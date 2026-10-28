@@ -444,6 +444,32 @@ function normalizeGitError(error: unknown, fallback: string): string {
     : message;
 }
 
+export async function readGitPatch(
+  projectRoot: string,
+  relativePath: string,
+  area: "staged" | "changes",
+): Promise<string> {
+  const context = await getGitRepositoryContext(projectRoot);
+  const repoPath = repoPathForProjectPath(context, relativePath);
+  return runGitText(
+    context.repositoryRoot,
+    [
+      "diff",
+      "--no-ext-diff",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "--no-textconv",
+      "--binary",
+      "--full-index",
+      ...(area === "staged" ? ["--cached"] : []),
+      "--",
+      repoPath,
+    ],
+    { maxBytes: diffPreviewLimit },
+  );
+}
+
 export async function readGitDiffPreview(
   projectRoot: string,
   relativePath: string,

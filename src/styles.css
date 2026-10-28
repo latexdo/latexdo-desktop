@@ -30849,3 +30849,27 @@ body.pane-resizing .preview-pane > * {
     transition: none;
   }
 }
+
+.activity-change-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 5px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  place-items: center;
+  pointer-events: none;
+}
+
+.scm-file-context-menu {
+  min-width: min(260px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
