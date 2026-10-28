@@ -1035,6 +1035,7 @@ function bindPeerSocketEvents(): void {
 
 const api = {
   runtime: "desktop",
+  startWithEmptyWorkspace: process.argv.includes("--latexdo-empty-workspace"),
   hostsProjectsLocally,
   reportRendererIssue: (payload: RendererDiagnosticPayload): Promise<void> =>
     ipcRenderer.invoke("app:renderer-diagnostic", payload),

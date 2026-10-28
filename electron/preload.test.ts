@@ -51,6 +51,21 @@ describe("isolated desktop bridge", () => {
     expect(api).not.toHaveProperty("ipcRenderer");
   });
 
+  it("passes the new-window startup flag through the isolated bridge", async () => {
+    expect(api.startWithEmptyWorkspace).toBe(false);
+    const originalArgv = process.argv;
+    try {
+      process.argv = [...originalArgv, "--latexdo-empty-workspace"];
+      vi.resetModules();
+      await import("./preload.cjs");
+      expect(
+        (bridge.exposed.get("latexdo") as LatexDoApi).startWithEmptyWorkspace,
+      ).toBe(true);
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
   const contracts: [keyof LatexDoApi, string, unknown[]][] = [
     ["openProject", "project:open", []],
     ["reopenLastProject", "project:reopen-last", []],

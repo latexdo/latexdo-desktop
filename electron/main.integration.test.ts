@@ -105,7 +105,8 @@ vi.mock("electron", async () => {
         native.appEvents.set(name, fn),
       quit: native.quit,
       exit: native.exit,
-      dock: { setIcon: vi.fn() },
+      dock: { setIcon: vi.fn(), setMenu: vi.fn() },
+      setAboutPanelOptions: vi.fn(),
       setPath: vi.fn(),
     },
     BrowserWindow: Window,
@@ -850,6 +851,39 @@ describe("application menu", () => {
     (findItem(label).click as (...args: unknown[]) => void)({}, window, {
       triggeredByAccelerator,
     });
+
+  it("opens a separate empty window from File and the macOS Dock", async () => {
+    const before = native.windows.length;
+    expect(findItem("New Window").accelerator).toBe("CmdOrCtrl+Shift+N");
+    click("New Window", true);
+    expect(native.windows).toHaveLength(before + 1);
+    const created = native.windows.at(-1) as typeof window;
+    expect(created).not.toBe(window);
+    expect(created.options.webPreferences).toMatchObject({
+      additionalArguments: ["--latexdo-empty-workspace"],
+      sandbox: true,
+      contextIsolation: true,
+    });
+    expect(created.loadURL).toHaveBeenCalledWith("latexdo://app/index.html");
+    native.windows.pop();
+    if (process.platform === "darwin") {
+      const { app } = await import("electron");
+      expect(app.dock!.setMenu).toHaveBeenCalledOnce();
+      const dockTemplate = native.menu.mock.calls
+        .map(([template]) => template as Electron.MenuItemConstructorOptions[])
+        .find(
+          (template) => template.length === 1 && template[0].label === "New Window",
+        )!;
+      (dockTemplate[0].click as () => void)();
+      expect(native.windows).toHaveLength(before + 1);
+      expect(
+        (native.windows.at(-1) as typeof window).options.webPreferences,
+      ).toMatchObject({
+        additionalArguments: ["--latexdo-empty-workspace"],
+      });
+      native.windows.pop();
+    }
+  });
 
   it("sends menu commands to the focused window", () => {
     window.webContents.send.mockClear();

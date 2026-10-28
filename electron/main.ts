@@ -3113,13 +3113,20 @@ function buildApplicationMenu(): void {
       label: "File",
       submenu: [
         {
+          label: "New Window",
+          accelerator: "CmdOrCtrl+Shift+N",
+          click: () => {
+            createWindow({ startWithEmptyWorkspace: true });
+          },
+        },
+        { type: "separator" },
+        {
           label: "New File...",
           accelerator: "CmdOrCtrl+N",
           click: () => sendToFocusedWindow(createFileChannel),
         },
         {
           label: "New Folder...",
-          accelerator: "CmdOrCtrl+Shift+N",
           click: () => sendToFocusedWindow(createFolderChannel),
         },
         menuCommand("New Project...", "file.newProject"),
@@ -5770,7 +5777,9 @@ function isWindowUnresponsive(window: BrowserWindow): boolean {
   return !window.isDestroyed() && unresponsiveWindows.has(window);
 }
 
-function createWindow(): BrowserWindow {
+function createWindow(
+  options: { startWithEmptyWorkspace?: boolean } = {},
+): BrowserWindow {
   console.log("[latexdo] createWindow:start");
   nativeTheme.themeSource = "dark";
   const window = new BrowserWindow({
@@ -5788,6 +5797,9 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
+      additionalArguments: options.startWithEmptyWorkspace
+        ? ["--latexdo-empty-workspace"]
+        : [],
     },
   });
   console.log("[latexdo] createWindow:created");
@@ -6511,6 +6523,16 @@ async function startApp(): Promise<void> {
   }
   if (process.platform === "darwin") {
     app.dock?.setIcon(appIconPath);
+    app.dock?.setMenu(
+      Menu.buildFromTemplate([
+        {
+          label: "New Window",
+          click: () => {
+            createWindow({ startWithEmptyWorkspace: true });
+          },
+        },
+      ]),
+    );
   }
   registerTerminalIpc({ getProjectRoot });
   registerPeerCollabIpc({ getProjectRoot, registerProject });

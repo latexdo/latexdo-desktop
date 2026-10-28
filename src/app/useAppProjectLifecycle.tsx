@@ -201,6 +201,8 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
     }
 
     browserAutoOpenRef.current = true;
+    // A deliberately opened window must not inherit the last local or cloud project.
+    if (runtime === "desktop" && window.latexdo.startWithEmptyWorkspace) return;
     void (async () => {
       try {
         // On the desktop: a file opened from Finder first, then a shared

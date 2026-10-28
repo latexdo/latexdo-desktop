@@ -402,6 +402,7 @@ function unavailableGitDiffSession(
 function createBrowserLatexDoApi(): BrowserLatexDoApi {
   const api: BrowserLatexDoApi = {
     runtime: "browser",
+    startWithEmptyWorkspace: false,
 
     async reportRendererIssue(_payload) {},
 

@@ -281,6 +281,21 @@ describe("automatic project open", () => {
     await waitFor(() => expect(ctx.projectIdRef.current).toBe("last"));
   });
 
+  it("starts an explicitly new desktop window without restoring another project", () => {
+    const api = stubLatexdo({
+      runtime: "desktop",
+      startWithEmptyWorkspace: true,
+      openRequestedProject: vi.fn(),
+      reopenLastProject: vi.fn(),
+    });
+    const { ctx } = makeCtx({ legalAcceptanceRequired: false });
+    mount(ctx);
+    expect(api.openRequestedProject).not.toHaveBeenCalled();
+    expect(api.restoreCloudProject).not.toHaveBeenCalled();
+    expect(api.reopenLastProject).not.toHaveBeenCalled();
+    expect(ctx.projectIdRef.current).toBe("");
+  });
+
   it("handles desktops without optional open APIs and nothing to restore", async () => {
     const api = stubLatexdo({ runtime: "desktop" });
     const { ctx } = makeCtx({ legalAcceptanceRequired: false });
