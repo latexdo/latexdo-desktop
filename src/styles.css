@@ -31059,3 +31059,75 @@ body.pane-resizing-row .preview-pane > * {
   font-size: 11px;
   line-height: 1.4;
 }
+
+/* ===== Setting descriptions as hover popovers =====
+   A setting shows just its name; the description opens in a small popover
+   when the name is hovered, or when its control has keyboard focus. Values
+   that change (font size, update status) are marked .settings-value and stay
+   inline. The text stays in the DOM, so screen readers still read it. */
+.settings-row:not(.settings-row-stack) {
+  min-height: 52px;
+  align-items: center;
+}
+
+.settings-row > span:has(> small:not(.settings-value)) {
+  position: relative;
+  justify-self: start;
+  cursor: help;
+}
+
+.settings-row > span:has(> small:not(.settings-value)) > strong::after {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  background: currentColor;
+  content: "";
+  opacity: 0.45;
+  vertical-align: -2px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: opacity 0.12s ease;
+}
+
+.settings-row > span > small:not(.settings-value) {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -6px;
+  z-index: 60;
+  width: max-content;
+  max-width: min(340px, 70vw);
+  padding: 8px 10px;
+  border: 1px solid var(--border-dialog);
+  border-radius: 7px;
+  background: var(--bg-menu);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--bg-root) 65%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.settings-row > span:hover > small:not(.settings-value),
+.settings-row:has(:focus-visible) > span > small:not(.settings-value) {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.25s;
+}
+
+.settings-row > span:hover > strong::after,
+.settings-row:has(:focus-visible) > span > strong::after {
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-row > span > small:not(.settings-value) {
+    transform: none;
+    transition: none;
+  }
+}

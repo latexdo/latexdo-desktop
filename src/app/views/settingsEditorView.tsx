@@ -305,7 +305,7 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
       <label className="settings-row">
         <span>
           <strong>Editor font size</strong>
-          <small>{settings.editorFontSize}px</small>
+          <small className="settings-value">{settings.editorFontSize}px</small>
         </span>
         <input
           type="range"

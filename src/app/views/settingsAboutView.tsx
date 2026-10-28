@@ -246,7 +246,7 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
               ? `Version ${updateInfo.latestVersion} is available`
               : "LatexDo updates"}
           </strong>
-          {status ? <small>{status}</small> : null}
+          {status ? <small className="settings-value">{status}</small> : null}
           {updateProgressActive ? (
             <div
               className={`update-progress-bar settings-update-progress ${
