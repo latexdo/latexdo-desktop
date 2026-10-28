@@ -30873,3 +30873,9 @@ body.pane-resizing .preview-pane > * {
   max-height: calc(100vh - 16px);
   overflow-y: auto;
 }
+
+.tree-row[data-tree-entry]:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  background: var(--accent-bg);
+}

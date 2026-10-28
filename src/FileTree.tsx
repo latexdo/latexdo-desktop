@@ -8,7 +8,14 @@ import {
   FolderOpen,
   MoreHorizontal,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from "react";
 import type { ProjectEntry } from "./types";
 import { pathForDisplay } from "./pathDisplay";
 
@@ -261,6 +268,80 @@ function TreeRow({
     const trimmed = name.trim();
     if (trimmed && trimmed !== entry.name) onRenameEntry?.(entry, trimmed);
   };
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    // Shortcuts belong to the focused row, never a rename field or icon button.
+    if (
+      event.target !== event.currentTarget ||
+      renaming ||
+      event.nativeEvent.isComposing
+    )
+      return;
+    const command = event.metaKey || event.ctrlKey;
+    const plain = !command && !event.altKey && !event.shiftKey;
+    let run: (() => void) | undefined;
+    if (
+      onDeleteEntry &&
+      !event.altKey &&
+      !event.shiftKey &&
+      ((event.key === "Backspace" && event.metaKey && !event.ctrlKey) ||
+        (event.key === "Delete" && !command))
+    ) {
+      run = () => onDeleteEntry(entry);
+    } else if (plain && event.key === "F2" && onRenameEntry) {
+      run = () => setRenaming(true);
+    } else if (
+      command &&
+      !event.altKey &&
+      !event.shiftKey &&
+      ["c", "x"].includes(event.key.toLowerCase())
+    ) {
+      run = () =>
+        onClipboardChange({
+          path: entry.path,
+          mode: event.key.toLowerCase() === "x" ? "cut" : "copy",
+        });
+    } else if (
+      command &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() === "v" &&
+      entry.type === "directory" &&
+      clipboard &&
+      onPasteEntry
+    ) {
+      run = () => {
+        onPasteEntry(clipboard.path, clipboard.mode, entry);
+        if (clipboard.mode === "cut") onClipboardChange(null);
+      };
+    } else if (plain && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      const rows = Array.from(
+        event.currentTarget
+          .closest(".file-tree-drop-surface")
+          ?.querySelectorAll<HTMLElement>("[data-tree-entry]") ?? [],
+      );
+      const index = rows.indexOf(event.currentTarget);
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? rows.length - 1
+            : index + (event.key === "ArrowDown" ? 1 : -1);
+      run = () => rows[Math.max(0, Math.min(next, rows.length - 1))]?.focus();
+    } else if (
+      plain &&
+      entry.type === "directory" &&
+      ["ArrowLeft", "ArrowRight"].includes(event.key)
+    ) {
+      run = () => setExpanded(event.key === "ArrowRight");
+    } else if (plain && entry.type === "file" && ["Enter", " "].includes(event.key)) {
+      run = () => onOpen(entry);
+    }
+    if (!run) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) run();
+  };
+
   const sharedMenuItems: TreeMenuItem[] = [
     "separator",
     ...(onRevealFile ? [{ label: revealLabel, run: () => onRevealFile(entry) }] : []),
@@ -346,15 +427,15 @@ function TreeRow({
         <button
           className={`tree-row ${dropActive ? "drop-target" : ""} ${isCut ? "cut" : ""}`}
           style={{ paddingLeft: rowPadding }}
-          onClick={() => {
-            if (!renaming) setExpanded((current) => !current);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "F2" && onRenameEntry) {
-              event.preventDefault();
-              setRenaming(true);
+          data-tree-entry
+          aria-expanded={expanded}
+          onClick={(event) => {
+            if (!renaming) {
+              event.currentTarget.focus();
+              setExpanded((current) => !current);
             }
           }}
+          onKeyDown={handleRowKeyDown}
           title={displayRelativePath}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -533,8 +614,15 @@ function TreeRow({
           isCut ? "cut" : ""
         }`}
         style={{ paddingLeft: rowPadding }}
-        onClick={() => {
-          if (!renaming) onOpen(entry);
+        role="button"
+        tabIndex={0}
+        data-tree-entry
+        onKeyDown={handleRowKeyDown}
+        onClick={(event) => {
+          if (!renaming) {
+            event.currentTarget.focus();
+            onOpen(entry);
+          }
         }}
         title={displayRelativePath}
         draggable
