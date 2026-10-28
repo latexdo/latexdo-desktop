@@ -40,7 +40,15 @@ describe("countDocumentWords", () => {
     expect(counts.get("robust")).toBe(1);
     expect(counts.get("results")).toBe(1);
     expect(counts.get("state")).toBe(1);
-    for (const skipped of ["section", "textbf", "smith", "intro", "figure", "embedding", "hidden"])
+    for (const skipped of [
+      "section",
+      "textbf",
+      "smith",
+      "intro",
+      "figure",
+      "embedding",
+      "hidden",
+    ])
       expect(counts.has(skipped)).toBe(false);
     // Too short to be worth completing.
     expect(counts.has("of")).toBe(false);
@@ -112,7 +120,11 @@ describe("rankWordCompletions", () => {
   });
 
   it("does not list a word twice and respects the limit", () => {
-    expect(words("res", "result result", 10)).toEqual(["result", "results", "resilient"]);
+    expect(words("res", "result result", 10)).toEqual([
+      "result",
+      "results",
+      "resilient",
+    ]);
     expect(words("th", "", 2)).toHaveLength(2);
   });
 });

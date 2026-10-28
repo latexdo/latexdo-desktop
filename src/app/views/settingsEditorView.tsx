@@ -363,8 +363,8 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
         <span>
           <strong>Intelligent completion</strong>
           <small>
-            AI text that continues your sentence and predictions of repeat edits. Off
-            by default; needs an AI model.
+            AI text that continues your sentence and predictions of repeat edits. Off by
+            default; needs an AI model.
           </small>
         </span>
         <input

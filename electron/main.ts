@@ -3310,10 +3310,26 @@ function buildApplicationMenu(): void {
             menuCommand("Toggle PDF Preview", "view.togglePreview", "CmdOrCtrl+Alt+V"),
             { type: "separator" },
             // Keep in step with the labels in src/components/LayoutMenu.tsx.
-            menuCommand("Split View", "view.mode.split", isMac ? "Ctrl+Cmd+Down" : "Ctrl+Alt+Shift+Down"),
-            menuCommand("Editor Only", "view.mode.editor", isMac ? "Ctrl+Cmd+Left" : "Ctrl+Alt+Shift+Left"),
-            menuCommand("PDF Only", "view.mode.pdf", isMac ? "Ctrl+Cmd+Right" : "Ctrl+Alt+Shift+Right"),
-            menuCommand("Focus Mode", "view.toggleFocusMode", isMac ? "Ctrl+Cmd+Up" : "Ctrl+Alt+Shift+Up"),
+            menuCommand(
+              "Split View",
+              "view.mode.split",
+              isMac ? "Ctrl+Cmd+Down" : "Ctrl+Alt+Shift+Down",
+            ),
+            menuCommand(
+              "Editor Only",
+              "view.mode.editor",
+              isMac ? "Ctrl+Cmd+Left" : "Ctrl+Alt+Shift+Left",
+            ),
+            menuCommand(
+              "PDF Only",
+              "view.mode.pdf",
+              isMac ? "Ctrl+Cmd+Right" : "Ctrl+Alt+Shift+Right",
+            ),
+            menuCommand(
+              "Focus Mode",
+              "view.toggleFocusMode",
+              isMac ? "Ctrl+Cmd+Up" : "Ctrl+Alt+Shift+Up",
+            ),
             menuCommand("Reset Pane Sizes", "view.resetPaneSizes"),
             { type: "separator" },
             menuCommand("Focus Layout", "view.layout.focus"),

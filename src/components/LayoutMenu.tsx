@@ -150,9 +150,27 @@ export const LayoutMenu: React.FC<LayoutMenuProps> = ({
             </button>
           ))}
           <hr />
-          {toggleItem("Focus mode", Maximize, focusMode, onToggleFocusMode, shortcut("↑"))}
-          {toggleItem("Sidebar", PanelLeft, sidebarVisible, onToggleSidebar, isMac ? "⌘B" : "Ctrl+B")}
-          {toggleItem("Bottom panel", PanelBottom, panelVisible, onTogglePanel, isMac ? "⌘J" : "Ctrl+J")}
+          {toggleItem(
+            "Focus mode",
+            Maximize,
+            focusMode,
+            onToggleFocusMode,
+            shortcut("↑"),
+          )}
+          {toggleItem(
+            "Sidebar",
+            PanelLeft,
+            sidebarVisible,
+            onToggleSidebar,
+            isMac ? "⌘B" : "Ctrl+B",
+          )}
+          {toggleItem(
+            "Bottom panel",
+            PanelBottom,
+            panelVisible,
+            onTogglePanel,
+            isMac ? "⌘J" : "Ctrl+J",
+          )}
           <hr />
           <button type="button" role="menuitem" onClick={() => run(onResetSizes)}>
             <RotateCcw size={15} aria-hidden="true" />

@@ -28,10 +28,9 @@ describe("LayoutMenu", () => {
       "aria-checked",
       "true",
     );
-    expect(screen.getByRole("menuitemcheckbox", { name: /Bottom panel/ })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: /Bottom panel/ }),
+    ).toHaveAttribute("aria-checked", "false");
     fireEvent.click(screen.getByRole("menuitemradio", { name: /PDF only/ }));
     expect(props.onSelectMode).toHaveBeenCalledWith("pdf");
     expect(screen.queryByRole("menu")).toBeNull();

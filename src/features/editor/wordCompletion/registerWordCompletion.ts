@@ -34,8 +34,11 @@ export function registerWordCompletion({
   let dictionary: DictionaryWord[] = [];
   let dictionaryRequested = false;
   // Counting every word on each keystroke is wasteful; recount on change.
-  let cached: { model: Monaco.editor.ITextModel; version: number; words: Map<string, number> } | null =
-    null;
+  let cached: {
+    model: Monaco.editor.ITextModel;
+    version: number;
+    words: Map<string, number>;
+  } | null = null;
 
   const documentWords = (model: Monaco.editor.ITextModel) => {
     const version = model.getVersionId();
@@ -68,8 +71,18 @@ export function registerWordCompletion({
       }
       const wordEnd = model.getWordAtPosition(position)?.endColumn ?? position.column;
       const range = {
-        insert: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, position.column),
-        replace: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, wordEnd),
+        insert: new monaco.Range(
+          position.lineNumber,
+          word.startColumn,
+          position.lineNumber,
+          position.column,
+        ),
+        replace: new monaco.Range(
+          position.lineNumber,
+          word.startColumn,
+          position.lineNumber,
+          wordEnd,
+        ),
       };
       const suggestions = rankWordCompletions(word.word, counts, dictionary).map(
         (suggestion, index): Monaco.languages.CompletionItem => ({
@@ -79,7 +92,8 @@ export function registerWordCompletion({
           filterText: suggestion.word,
           // Keep this ranking; Monaco would otherwise re-sort by label.
           sortText: String(index).padStart(4, "0"),
-          detail: suggestion.source === "document" ? "Word in this project" : "English word",
+          detail:
+            suggestion.source === "document" ? "Word in this project" : "English word",
           range,
         }),
       );

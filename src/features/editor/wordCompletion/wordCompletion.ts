@@ -70,9 +70,17 @@ export function countDocumentWords(
 export function matchTypedCase(word: string, typed: string): string {
   // Words with their own capitals (LaTeX, PhD) keep their spelling.
   if (/\p{Lu}/u.test(word.slice(1))) return word;
-  if (typed.length > 1 && typed === typed.toUpperCase() && typed !== typed.toLowerCase())
+  if (
+    typed.length > 1 &&
+    typed === typed.toUpperCase() &&
+    typed !== typed.toLowerCase()
+  )
     return word.toUpperCase();
-  if (typed[0] && typed[0] === typed[0].toUpperCase() && typed[0] !== typed[0].toLowerCase())
+  if (
+    typed[0] &&
+    typed[0] === typed[0].toUpperCase() &&
+    typed[0] !== typed[0].toLowerCase()
+  )
     return word[0].toUpperCase() + word.slice(1);
   return word;
 }
@@ -143,10 +151,12 @@ export function rankWordCompletions(
   for (let i = lowerBound(dictionary, prefix); i < dictionary.length; i += 1) {
     const entry = dictionary[i];
     if (!entry.key.startsWith(prefix)) break;
-    if (entry.word.length > typed.length && !seen.has(entry.key)) fromDictionary.push(entry);
+    if (entry.word.length > typed.length && !seen.has(entry.key))
+      fromDictionary.push(entry);
   }
   fromDictionary.sort(
-    (a, b) => a.tier - b.tier || a.word.length - b.word.length || (a.key < b.key ? -1 : 1),
+    (a, b) =>
+      a.tier - b.tier || a.word.length - b.word.length || (a.key < b.key ? -1 : 1),
   );
   for (const entry of fromDictionary) {
     if (results.length >= limit) break;

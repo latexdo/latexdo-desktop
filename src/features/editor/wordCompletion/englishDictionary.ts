@@ -8,11 +8,41 @@ import { sortDictionary, type DictionaryWord } from "./wordCompletion";
 type WordList = { default: string[] };
 
 const tiers: Array<[number, () => Promise<WordList>[]]> = [
-  [0, () => [import("wordlist-english/english-words-10.json"), import("wordlist-english/american-words-10.json")]],
-  [1, () => [import("wordlist-english/english-words-20.json"), import("wordlist-english/american-words-20.json")]],
-  [2, () => [import("wordlist-english/english-words-35.json"), import("wordlist-english/american-words-35.json")]],
-  [3, () => [import("wordlist-english/english-words-40.json"), import("wordlist-english/american-words-40.json")]],
-  [4, () => [import("wordlist-english/english-words-50.json"), import("wordlist-english/american-words-50.json")]],
+  [
+    0,
+    () => [
+      import("wordlist-english/english-words-10.json"),
+      import("wordlist-english/american-words-10.json"),
+    ],
+  ],
+  [
+    1,
+    () => [
+      import("wordlist-english/english-words-20.json"),
+      import("wordlist-english/american-words-20.json"),
+    ],
+  ],
+  [
+    2,
+    () => [
+      import("wordlist-english/english-words-35.json"),
+      import("wordlist-english/american-words-35.json"),
+    ],
+  ],
+  [
+    3,
+    () => [
+      import("wordlist-english/english-words-40.json"),
+      import("wordlist-english/american-words-40.json"),
+    ],
+  ],
+  [
+    4,
+    () => [
+      import("wordlist-english/english-words-50.json"),
+      import("wordlist-english/american-words-50.json"),
+    ],
+  ],
 ];
 
 // Possessives ("cat's") and single letters only add noise to completion.
