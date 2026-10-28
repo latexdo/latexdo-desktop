@@ -13,8 +13,6 @@ export interface VoiceSettings {
   transcriptMode: TranscriptMode;
   /** Where recorded audio is transcribed. Local remains the privacy-first default. */
   sttMode: VoiceSttMode;
-  /** Hard cap for a single dictation. See spec §38 (default 3 minutes). */
-  maxDurationMs: number;
   /** Speech model used by the local transcription server. */
   transcriptionModel: string;
   /** Speech model used by OpenAI cloud transcription. */
@@ -28,6 +26,7 @@ export interface VoiceSettings {
 }
 
 export const voiceSettingsStorageKey = "latexdo.voice.config.v1";
+/** Safety cap for a single dictation (spec §38): it stops and transcribes. */
 export const defaultMaxVoiceDurationMs = 180_000;
 export const defaultLocalTranscriptionBaseUrl = "http://localhost:8080/v1";
 export const defaultCloudTranscriptionModel = "gpt-transcribe";
@@ -38,7 +37,6 @@ export const voiceSttCredentialId = "credential-voice-stt-primary";
 export const defaultVoiceSettings: VoiceSettings = {
   transcriptMode: "clean",
   sttMode: "local",
-  maxDurationMs: defaultMaxVoiceDurationMs,
   transcriptionModel: "whisper-1",
   cloudTranscriptionModel: defaultCloudTranscriptionModel,
   sttBaseUrl: defaultLocalTranscriptionBaseUrl,
@@ -85,16 +83,6 @@ function isVoiceSttMode(value: unknown): value is VoiceSttMode {
   return value === "local" || value === "openai";
 }
 
-function intInRange(
-  value: unknown,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(value)));
-}
-
 export function normalizeVoiceSettings(raw: unknown): VoiceSettings {
   const saved = (raw ?? {}) as Partial<VoiceSettings>;
   return {
@@ -104,12 +92,6 @@ export function normalizeVoiceSettings(raw: unknown): VoiceSettings {
     sttMode: isVoiceSttMode(saved.sttMode)
       ? saved.sttMode
       : defaultVoiceSettings.sttMode,
-    maxDurationMs: intInRange(
-      saved.maxDurationMs,
-      defaultVoiceSettings.maxDurationMs,
-      5_000, // never below a few seconds
-      10 * 60_000,
-    ),
     transcriptionModel: transcriptionModel(saved.transcriptionModel),
     cloudTranscriptionModel: str(
       saved.cloudTranscriptionModel,

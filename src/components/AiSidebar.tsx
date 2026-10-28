@@ -54,6 +54,7 @@ import { useVoiceDictation } from "../features/voice/useVoiceDictation";
 import {
   voiceSttCredentialId,
   defaultLocalTranscriptionBaseUrl,
+  defaultMaxVoiceDurationMs,
 } from "../features/voice/voiceSettings";
 import { useVoiceSettings } from "../features/voice/useVoiceSettings";
 import { chatPrivacyText, type ChatModelOption } from "../features/ai/chatModelOptions";
@@ -292,7 +293,7 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
 
   const voice = useVoiceDictation({
     transcriptMode: voiceSettings.transcriptMode,
-    maxDurationMs: voiceSettings.maxDurationMs,
+    maxDurationMs: defaultMaxVoiceDurationMs,
     transcriptionProvider,
     cleanup:
       configured && voiceSettings.transcriptMode === "clean" ? cleanupProvider : null,
