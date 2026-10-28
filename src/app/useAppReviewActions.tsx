@@ -63,6 +63,7 @@ import {
 } from "./appShared";
 import type { AppCtx13 } from "./appContext";
 import { reformulatingContextKey } from "../features/ai/reformulationProgress";
+import { notify } from "../features/notifications/notifications";
 
 export function useAppReviewActions(ctx: AppCtx13) {
   const {
@@ -536,6 +537,13 @@ export function useAppReviewActions(ctx: AppCtx13) {
     editor.focus();
   };
 
+  // Info status messages are only logged, so a missing selection is raised as
+  // a warning to pop up a toast; the status bar copy is deduplicated.
+  const warnSelectionRequired = (message: string) => {
+    notify(message, { severity: "warning", source: "Review" });
+    setStatusMessage(message);
+  };
+
   const handleAddReviewChat = useCallback(() => {
     const editor = editorRef.current;
     const document = documentsRef.current.find((d) => d.path === activePathRef.current);
@@ -546,7 +554,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
 
     const selection = editor.getSelection();
     if (!selection || selection.isEmpty()) {
-      setStatusMessage("Select text before starting a review thread.");
+      warnSelectionRequired("Please select some text to review.");
       return;
     }
 
@@ -558,7 +566,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
 
     const selectedText = model.getValueInRange(selection);
     if (!selectedText.trim()) {
-      setStatusMessage("Select some text to add a review comment.");
+      warnSelectionRequired("Please select some text to review.");
       return;
     }
 
@@ -599,7 +607,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
     const selection = editor.getSelection();
     const selectedText = selection ? model.getValueInRange(selection) : "";
     if (!selection || !selectedText.trim()) {
-      setStatusMessage("Select the text the reviewer commented on first.");
+      warnSelectionRequired("Please select some text to review.");
       return;
     }
 

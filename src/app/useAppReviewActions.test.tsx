@@ -8,6 +8,10 @@ import { defaultAiConfig } from "../features/ai/aiConfig";
 import { rebuttalLetterFileName } from "../rebuttalGenerator";
 import { hookContext } from "./__tests__/hookHarness";
 import { editorHarness } from "./__tests__/editorHarness";
+import {
+  clearNotifications,
+  getNotifications,
+} from "../features/notifications/notifications";
 const api = { readFile: vi.fn(), writeFile: vi.fn(), fileExists: vi.fn() };
 function setup(overrides = {}) {
   const e = editorHarness();
@@ -113,10 +117,15 @@ describe("review conversations", () => {
   it("rejects empty selections and absent editors", () => {
     const h = setup();
     h.editor.setPosition({ lineNumber: 1, column: 1 });
+    clearNotifications();
     h.result.current.handleAddReviewChat();
-    expect(h.state.statusMessage).toContain("Select text");
+    expect(h.state.statusMessage).toBe("Please select some text to review.");
+    expect(getNotifications()[0]).toMatchObject({
+      severity: "warning",
+      message: "Please select some text to review.",
+    });
     h.result.current.handleAddRebuttalToSource();
-    expect(h.state.statusMessage).toContain("Select the text");
+    expect(h.state.statusMessage).toBe("Please select some text to review.");
     h.ctx.editorRef.current = null;
     h.result.current.handleAddReviewChat();
     expect(h.state.statusMessage).toContain("Open a document");
