@@ -30879,3 +30879,8 @@ body.pane-resizing .preview-pane > * {
   outline-offset: -1px;
   background: var(--accent-bg);
 }
+
+.tree-row.selected {
+  background: var(--accent-bg);
+  color: var(--text-primary);
+}

@@ -469,6 +469,7 @@ export function renderFileTree(ctx: AppCtx) {
     copyEntry,
     copyRelativePath,
     deleteEntry,
+    deleteEntries,
     importExternalFiles,
     insertImageReference,
     moveEntry,
@@ -482,6 +483,7 @@ export function renderFileTree(ctx: AppCtx) {
   } = ctx;
   return (
     <FileTree
+      key={ctx.projectId}
       entries={projectEntries}
       activePath={activePath}
       onOpen={openDocument}
@@ -491,7 +493,7 @@ export function renderFileTree(ctx: AppCtx) {
         rootFileRef.current = entry.relativePath;
         setStatusMessage(`Main file set to ${pathForDisplay(entry.relativePath)}`);
       }}
-      onMoveEntry={(sourcePath, destination) => void moveEntry(sourcePath, destination)}
+      onMoveEntry={moveEntry}
       onImportExternalFiles={(files, destination) =>
         void importExternalFiles(files, destination)
       }
@@ -511,6 +513,7 @@ export function renderFileTree(ctx: AppCtx) {
       }}
       onRenameEntry={(entry, newName) => void moveEntry(entry.path, null, newName)}
       onDeleteEntry={(entry) => void deleteEntry(entry)}
+      onDeleteEntries={deleteEntries}
       onDuplicateEntry={(entry) => {
         const parent = entry.relativePath.includes("/")
           ? (flattenEntries(projectEntries).find(
@@ -523,9 +526,9 @@ export function renderFileTree(ctx: AppCtx) {
         void copyEntry(entry.path, parent);
       }}
       onPasteEntry={(sourcePath, mode, destination) =>
-        void (mode === "cut"
+        mode === "cut"
           ? moveEntry(sourcePath, destination)
-          : copyEntry(sourcePath, destination))
+          : copyEntry(sourcePath, destination)
       }
     />
   );
@@ -539,6 +542,7 @@ export function renderReviewFiles(ctx: AppCtx) {
     copyEntry,
     copyRelativePath,
     deleteEntry,
+    deleteEntries,
     importExternalFiles,
     insertImageReference,
     moveEntry,
@@ -554,6 +558,7 @@ export function renderReviewFiles(ctx: AppCtx) {
     <details className="review-files" open>
       <summary>Files</summary>
       <FileTree
+        key={ctx.projectId}
         entries={projectEntries}
         activePath={activePath}
         onOpen={openDocument}
@@ -563,9 +568,7 @@ export function renderReviewFiles(ctx: AppCtx) {
           rootFileRef.current = entry.relativePath;
           setStatusMessage(`Main file set to ${pathForDisplay(entry.relativePath)}`);
         }}
-        onMoveEntry={(sourcePath, destination) =>
-          void moveEntry(sourcePath, destination)
-        }
+        onMoveEntry={moveEntry}
         onImportExternalFiles={(files, destination) =>
           void importExternalFiles(files, destination)
         }
@@ -585,6 +588,7 @@ export function renderReviewFiles(ctx: AppCtx) {
         }}
         onRenameEntry={(entry, newName) => void moveEntry(entry.path, null, newName)}
         onDeleteEntry={(entry) => void deleteEntry(entry)}
+        onDeleteEntries={deleteEntries}
         onDuplicateEntry={(entry) => {
           const parent = entry.relativePath.includes("/")
             ? (flattenEntries(projectEntries).find(
@@ -597,9 +601,9 @@ export function renderReviewFiles(ctx: AppCtx) {
           void copyEntry(entry.path, parent);
         }}
         onPasteEntry={(sourcePath, mode, destination) =>
-          void (mode === "cut"
+          mode === "cut"
             ? moveEntry(sourcePath, destination)
-            : copyEntry(sourcePath, destination))
+            : copyEntry(sourcePath, destination)
         }
       />
     </details>

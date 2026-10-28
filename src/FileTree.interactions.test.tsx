@@ -41,6 +41,7 @@ function setup() {
     onCopyPath: vi.fn(),
     onRenameEntry: vi.fn(),
     onDeleteEntry: vi.fn(),
+    onDeleteEntries: vi.fn(),
     onDuplicateEntry: vi.fn(),
     onPasteEntry: vi.fn(),
   };
@@ -72,6 +73,86 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("file tree interaction", () => {
+  it("toggles individual selections without opening files and preserves them on right-click", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { metaKey: true });
+    expect(row("main.tex")).toHaveAttribute("aria-selected", "true");
+    expect(row("plot.png")).toHaveAttribute("aria-selected", "true");
+    expect(view.onOpen).toHaveBeenCalledTimes(1);
+    fireEvent.contextMenu(row("main.tex"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete 2 Items" }));
+    expect(view.onDeleteEntries).toHaveBeenCalledWith([main, image]);
+    expect(view.onDeleteEntry).not.toHaveBeenCalled();
+    fireEvent.click(row("plot.png"), { ctrlKey: true });
+    expect(row("plot.png")).toHaveAttribute("aria-selected", "false");
+    fireEvent.keyDown(row("plot.png"), { key: "Delete" });
+    expect(view.onDeleteEntry).toHaveBeenCalledWith(main);
+  });
+
+  it("selects ranges across folders with Shift-click and Shift-arrows", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("intro.tex"), { shiftKey: true });
+    for (const name of ["main.tex", "plot.png", "sections", "intro.tex"])
+      expect(row(name)).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(row("intro.tex"), { key: "ArrowUp", shiftKey: true });
+    expect(row("intro.tex")).toHaveAttribute("aria-selected", "false");
+    expect(row("sections")).toHaveFocus();
+    fireEvent.keyDown(row("sections"), { key: "Delete" });
+    expect(view.onDeleteEntries).toHaveBeenCalledWith([main, image, folder]);
+  });
+
+  it("selects all visible entries and copies a selected folder only once", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.keyDown(row("main.tex"), { key: "a", ctrlKey: true });
+    expect(screen.getAllByRole("treeitem", { selected: true })).toHaveLength(6);
+    fireEvent.click(row("sections"), { ctrlKey: true });
+    fireEvent.click(row("sections"), { ctrlKey: true });
+    fireEvent.keyDown(row("main.tex"), { key: "c", ctrlKey: true });
+    fireEvent.click(row("appendix"));
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry.mock.calls.map(([path]) => path)).not.toContain(
+      nested.path,
+    );
+    expect(
+      view.onPasteEntry.mock.calls.filter(([path]) => path === folder.path),
+    ).toHaveLength(1);
+  });
+
+  it("moves the entire selection when dragging one selected file", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { metaKey: true });
+    const dataTransfer = transfer();
+    fireEvent.dragStart(row("main.tex"), { dataTransfer });
+    fireEvent.dragOver(row("appendix"), { dataTransfer });
+    fireEvent.drop(row("appendix"), { dataTransfer });
+    expect(view.onMoveEntry.mock.calls).toEqual([
+      [main.path, target],
+      [image.path, target],
+    ]);
+  });
+
+  it("cuts several files and retains remaining items if a paste fails", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { ctrlKey: true });
+    fireEvent.keyDown(row("plot.png"), { key: "x", ctrlKey: true });
+    expect(row("main.tex")).toHaveClass("cut");
+    expect(row("plot.png")).toHaveClass("cut");
+    view.onPasteEntry.mockReturnValueOnce(true).mockReturnValueOnce(false);
+    fireEvent.click(row("appendix"));
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(row("main.tex")).not.toHaveClass("cut");
+    expect(row("plot.png")).toHaveClass("cut");
+    view.onPasteEntry.mockReturnValue(true);
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry).toHaveBeenLastCalledWith(image.path, "cut", target);
+    expect(row("plot.png")).not.toHaveClass("cut");
+  });
+
   it.each([
     ["macOS", { key: "Backspace", metaKey: true }],
     ["Windows/Linux", { key: "Delete" }],
