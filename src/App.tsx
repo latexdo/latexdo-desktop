@@ -211,7 +211,6 @@ export default function App() {
     settingsOpen,
     settingsTab,
     extensionToolInstallation,
-    showActivationStep,
     showLegalAcceptanceGate,
     showWelcome,
     sidebarVisible,
@@ -298,7 +297,6 @@ export default function App() {
           onPrepare={prepareActivationTutorial}
           onRestore={restoreActivationWorkspace}
           onRevealStep={revealActivationStep}
-          onStepAction={showActivationStep}
         />
       ) : null}
       {profileOpen && (
@@ -811,7 +809,7 @@ export default function App() {
                 : []),
               {
                 id: "application",
-                title: "Updates",
+                title: "About",
                 group: "Application",
                 content: renderSettingsSectionHeading12(ctx),
               },

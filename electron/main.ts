@@ -3080,6 +3080,11 @@ function listMenuShortcuts(
 }
 
 function buildApplicationMenu(): void {
+  app.setAboutPanelOptions({
+    copyright: "Copyright © 2026 LatexDo Association",
+    credits:
+      "Developed, maintained, and owned by the LatexDo Association.\nFree and open-source software released under the MIT License.\nSee Settings → About for the full licence and ownership notice.",
+  });
   const template: MenuItemConstructorOptions[] = [];
   const settingsItem = menuCommand("Settings...", "app.settings", "CmdOrCtrl+,");
 

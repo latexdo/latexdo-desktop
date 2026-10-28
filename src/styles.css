@@ -5427,6 +5427,53 @@ button {
   font-size: 10px;
 }
 
+.settings-about-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  background: var(--bg-settings-row);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.settings-about-card h3 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.settings-about-card p {
+  margin: 0 0 12px;
+}
+
+.settings-about-copyright {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.settings-about-license {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-about-license summary {
+  width: fit-content;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.settings-about-license pre {
+  margin: 14px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
 .settings-row {
   display: grid;
   width: 100%;

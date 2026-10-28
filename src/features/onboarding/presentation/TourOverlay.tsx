@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, ChevronRight, Eye, FastForward, Play } from "lucide-react";
+import { Check, ChevronRight, FastForward, Play } from "lucide-react";
 import {
   getTourProgress,
   markFeatureDiscovery,
@@ -14,7 +14,6 @@ interface TourOverlayProps {
   launchNonce: number;
   onPrepare: () => void;
   onRevealStep?: (step: TourStep) => void;
-  onStepAction?: (step: TourStep) => void;
   onRestore: () => void;
 }
 
@@ -105,7 +104,6 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
   onPrepare,
   onRestore,
   onRevealStep,
-  onStepAction,
 }) => {
   const [runtimeState, setRuntimeState] = React.useState<TourRuntimeState>("idle");
   const [visible, setVisible] = React.useState(false);
@@ -114,22 +112,16 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
   const [successMessage, setSuccessMessage] = React.useState("");
   const [startedAt, setStartedAt] = React.useState(0);
   const [attemptCount, setAttemptCount] = React.useState(0);
-  // The step whose "Show me" was used; its primary button becomes "Next".
-  const [shownStepId, setShownStepId] = React.useState<string | null>(null);
   const shownStepRef = React.useRef<string | null>(null);
   const currentStep = tour.steps[currentStepIndex];
   const transitionTimerRef = React.useRef<number | undefined>(undefined);
   const stepCompletedRef = React.useRef(false);
   const revealRef = React.useRef(onRevealStep);
   revealRef.current = onRevealStep;
-  const actionRef = React.useRef(onStepAction);
-  actionRef.current = onStepAction;
-  const showTimerRef = React.useRef<number | undefined>(undefined);
 
   React.useEffect(
     () => () => {
       window.clearTimeout(transitionTimerRef.current);
-      window.clearTimeout(showTimerRef.current);
     },
     [],
   );
@@ -217,7 +209,6 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
     setRuntimeState("preparing");
     onPrepare();
     shownStepRef.current = null;
-    setShownStepId(null);
     setCurrentStepIndex(0);
     setSuccessMessage("");
     setStartedAt(Date.now());
@@ -239,7 +230,6 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
 
   const completeTour = (completionMethod: "manual" | "skip") => {
     window.clearTimeout(transitionTimerRef.current);
-    window.clearTimeout(showTimerRef.current);
     stepCompletedRef.current = true;
     const progress = getTourProgress(tour.id, tour.version);
     updateTourProgress({
@@ -315,33 +305,6 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
     );
   };
 
-  // "Show me" performs the step in the real workspace; the step still only
-  // completes when the product reports the expected event.
-  const showStep = () => {
-    if (!currentStep) return;
-    const step = currentStep;
-    setShownStepId(step.id);
-    setAttemptCount((count) => count + 1);
-    recordOnboardingAnalytics({
-      type: "tour_step_interacted",
-      tourId: tour.id,
-      tourVersion: tour.version,
-      stepId: step.id,
-      featureId: step.featureId,
-      elapsedMs: Date.now() - startedAt,
-      attemptCount: attemptCount + 1,
-      completionMethod: "manual",
-    });
-    onRevealStep?.(step);
-    window.clearTimeout(showTimerRef.current);
-    // Let the revealed panel mount before acting on it.
-    showTimerRef.current = window.setTimeout(() => {
-      scrollStepIntoView(step);
-      actionRef.current?.(step);
-      setTargetRect(rectForStep(step));
-    }, 0);
-  };
-
   const abandonTour = () => completeTour("skip");
 
   if (!visible) return null;
@@ -378,11 +341,7 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
       {!targetRect && <div className="tour-scrim" />}
       {targetRect ? (
         <div
-          // Re-keyed on "Show me" so the highlight pulses where to look.
-          key={shownStepId === currentStep?.id ? "shown" : "idle"}
-          className={`tour-spotlight ${
-            shownStepId === currentStep?.id ? "tour-spotlight-pulse" : ""
-          }`}
+          className="tour-spotlight"
           style={{
             top: targetRect.top - 8,
             left: targetRect.left - 8,
@@ -416,36 +375,23 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
           <p>{currentStep?.body}</p>
         )}
         <div className="tour-actions">
-          {currentStep?.expectedEvent && shownStepId !== currentStep.id ? (
-            <button
-              type="button"
-              className="tour-primary"
-              disabled={runtimeState !== "waiting-for-user"}
-              onClick={showStep}
-            >
-              <Eye size={14} /> Show me
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="tour-primary"
-              disabled={runtimeState !== "waiting-for-user"}
-              onClick={() => completeStep("manual")}
-            >
-              {(currentStep?.expectedEvent ? undefined : currentStep?.cta) ?? "Next"}{" "}
-              <ChevronRight size={14} />
-            </button>
-          )}
-          {shownStepId !== currentStep?.id ? (
-            <button
-              type="button"
-              className="tour-ghost"
-              disabled={runtimeState !== "waiting-for-user"}
-              onClick={() => completeStep("skip")}
-            >
-              <FastForward size={14} /> Skip step
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="tour-primary"
+            disabled={runtimeState !== "waiting-for-user"}
+            onClick={() => completeStep("manual")}
+          >
+            {(currentStep?.expectedEvent ? undefined : currentStep?.cta) ?? "Next"}{" "}
+            <ChevronRight size={14} />
+          </button>
+          <button
+            type="button"
+            className="tour-ghost"
+            disabled={runtimeState !== "waiting-for-user"}
+            onClick={() => completeStep("skip")}
+          >
+            <FastForward size={14} /> Skip step
+          </button>
           <button type="button" className="tour-ghost" onClick={abandonTour}>
             Skip tour
           </button>

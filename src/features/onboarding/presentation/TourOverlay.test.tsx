@@ -91,7 +91,6 @@ describe("interactive onboarding tour", () => {
     });
     fireEvent.resize(window);
     fireEvent.scroll(window);
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
     act(() => vi.advanceTimersByTime(0));
     expect(getTourProgress(tour.id, 1).completedSteps).toEqual([]);
     act(() => emitProductEvent({ type: "compile:failed" }));
@@ -116,7 +115,6 @@ describe("interactive onboarding tour", () => {
     const view = setup({ onRevealStep });
     start();
     expect(onRevealStep).toHaveBeenCalledWith(tour.steps[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
     act(() => vi.advanceTimersByTime(1000));
     expect(getTourProgress(tour.id, 1).completedSteps).toEqual([]);
     expect(loadDiscoveryStore().features.compile.state).toBe("introduced");
@@ -128,25 +126,9 @@ describe("interactive onboarding tour", () => {
     expect(getTourProgress(tour.id, 1).skippedSteps).toEqual(["finish"]);
     expect(view.onRestore).toHaveBeenCalledOnce();
   });
-  it("invokes the real action and still waits for its success event", () => {
-    const onStepAction = vi.fn();
-    setup({ onStepAction });
+  it("offers Next immediately so a step can never get stuck", () => {
+    setup();
     start();
-    expect(screen.getByText("Compile the paper")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
-    act(() => vi.advanceTimersByTime(0));
-    expect(onStepAction).toHaveBeenCalledWith(tour.steps[0]);
-    expect(getTourProgress(tour.id, 1).completedSteps).toEqual([]);
-    act(() => emitProductEvent({ type: "compile:succeeded" }));
-    expect(getTourProgress(tour.id, 1).completedSteps).toEqual(["compile"]);
-  });
-  it("turns Show me into Next so a step can never get stuck", () => {
-    const onStepAction = vi.fn();
-    setup({ onStepAction });
-    start();
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
-    act(() => vi.advanceTimersByTime(0));
-    expect(onStepAction).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: "Show me" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     act(() => vi.advanceTimersByTime(650));
