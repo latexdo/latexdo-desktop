@@ -1035,6 +1035,7 @@ function bindPeerSocketEvents(): void {
 
 const api = {
   runtime: "desktop",
+  startWithEmptyWorkspace: process.argv.includes("--latexdo-empty-workspace"),
   hostsProjectsLocally,
   reportRendererIssue: (payload: RendererDiagnosticPayload): Promise<void> =>
     ipcRenderer.invoke("app:renderer-diagnostic", payload),
@@ -1042,6 +1043,10 @@ const api = {
   reopenLastProject: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("project:reopen-last"),
   restoreCloudProject,
+  rememberActiveProject: (projectId: string): void => {
+    if (isCloudProject(projectId)) storageSet(cloudActiveProjectKey, projectId);
+    else storageRemove(cloudActiveProjectKey);
+  },
   createProject: (options?: CreateProjectOptions): Promise<OpenProject | null> =>
     options === undefined
       ? ipcRenderer.invoke("project:create")
@@ -1650,6 +1655,14 @@ const api = {
     isCloudProject(projectId)
       ? Promise.reject(new Error(gitInSharedCopyMessage))
       : ipcRenderer.invoke("git:action", projectId, action),
+  getGitPatch: (
+    projectId: string,
+    relativePath: string,
+    area: "staged" | "changes",
+  ): Promise<string> =>
+    isCloudProject(projectId)
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
+      : ipcRenderer.invoke("git:patch", projectId, relativePath, area),
   getGitDiff: (projectId: string, relativePath: string): Promise<GitDiffPreview> =>
     isCloudProject(projectId)
       ? Promise.resolve({

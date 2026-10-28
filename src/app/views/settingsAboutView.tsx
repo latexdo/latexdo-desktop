@@ -2,6 +2,7 @@ import { supportLatexDoUrl } from "../../features/settings/settings";
 import { Check, Download, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { defaultSettings } from "../../features/settings/settings";
 import type { AppCtx } from "../appContext";
+import mitLicense from "../../../LICENSE?raw";
 
 export function renderSettingsSectionHeading11(ctx: AppCtx) {
   const { setSettings, settings } = ctx;
@@ -207,6 +208,33 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
         (updateInfo ? `LatexDo ${updateInfo.currentVersion}` : null));
   return (
     <>
+      <div className="settings-section-heading">
+        <strong>About LatexDo</strong>
+        <span>A focused workspace for LaTeX writing and research.</span>
+      </div>
+
+      <section className="settings-about-card" aria-label="Ownership and licence">
+        <h3>Built and maintained by the LatexDo Association</h3>
+        <p>
+          LatexDo is developed, maintained, and owned by the LatexDo Association, a
+          French nonprofit association dedicated to supporting scientific writing and
+          research.
+        </p>
+        <p className="settings-about-copyright">
+          © 2026 LatexDo Association. Released under the MIT License.
+        </p>
+        <p>
+          LatexDo is free and open-source software. You may use, copy, modify, and
+          distribute it, including for commercial purposes, under the terms of the MIT
+          License below. Third-party components remain the property of their respective
+          copyright holders and are subject to their own licences.
+        </p>
+        <details className="settings-about-license">
+          <summary>Read the MIT License</summary>
+          <pre>{mitLicense.trim()}</pre>
+        </details>
+      </section>
+
       <div className="settings-section-heading">
         <strong>Updates</strong>
       </div>

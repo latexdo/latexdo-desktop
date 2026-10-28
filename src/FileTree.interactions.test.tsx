@@ -41,6 +41,7 @@ function setup() {
     onCopyPath: vi.fn(),
     onRenameEntry: vi.fn(),
     onDeleteEntry: vi.fn(),
+    onDeleteEntries: vi.fn(),
     onDuplicateEntry: vi.fn(),
     onPasteEntry: vi.fn(),
   };
@@ -72,6 +73,137 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("file tree interaction", () => {
+  it("toggles individual selections without opening files and preserves them on right-click", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { metaKey: true });
+    expect(row("main.tex")).toHaveAttribute("aria-selected", "true");
+    expect(row("plot.png")).toHaveAttribute("aria-selected", "true");
+    expect(view.onOpen).toHaveBeenCalledTimes(1);
+    fireEvent.contextMenu(row("main.tex"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete 2 Items" }));
+    expect(view.onDeleteEntries).toHaveBeenCalledWith([main, image]);
+    expect(view.onDeleteEntry).not.toHaveBeenCalled();
+    fireEvent.click(row("plot.png"), { ctrlKey: true });
+    expect(row("plot.png")).toHaveAttribute("aria-selected", "false");
+    fireEvent.keyDown(row("plot.png"), { key: "Delete" });
+    expect(view.onDeleteEntry).toHaveBeenCalledWith(main);
+  });
+
+  it("selects ranges across folders with Shift-click and Shift-arrows", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("intro.tex"), { shiftKey: true });
+    for (const name of ["main.tex", "plot.png", "sections", "intro.tex"])
+      expect(row(name)).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(row("intro.tex"), { key: "ArrowUp", shiftKey: true });
+    expect(row("intro.tex")).toHaveAttribute("aria-selected", "false");
+    expect(row("sections")).toHaveFocus();
+    fireEvent.keyDown(row("sections"), { key: "Delete" });
+    expect(view.onDeleteEntries).toHaveBeenCalledWith([main, image, folder]);
+  });
+
+  it("selects all visible entries and copies a selected folder only once", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.keyDown(row("main.tex"), { key: "a", ctrlKey: true });
+    expect(screen.getAllByRole("treeitem", { selected: true })).toHaveLength(6);
+    fireEvent.click(row("sections"), { ctrlKey: true });
+    fireEvent.click(row("sections"), { ctrlKey: true });
+    fireEvent.keyDown(row("main.tex"), { key: "c", ctrlKey: true });
+    fireEvent.click(row("appendix"));
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry.mock.calls.map(([path]) => path)).not.toContain(
+      nested.path,
+    );
+    expect(
+      view.onPasteEntry.mock.calls.filter(([path]) => path === folder.path),
+    ).toHaveLength(1);
+  });
+
+  it("moves the entire selection when dragging one selected file", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { metaKey: true });
+    const dataTransfer = transfer();
+    fireEvent.dragStart(row("main.tex"), { dataTransfer });
+    fireEvent.dragOver(row("appendix"), { dataTransfer });
+    fireEvent.drop(row("appendix"), { dataTransfer });
+    expect(view.onMoveEntry.mock.calls).toEqual([
+      [main.path, target],
+      [image.path, target],
+    ]);
+  });
+
+  it("cuts several files and retains remaining items if a paste fails", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.click(row("plot.png"), { ctrlKey: true });
+    fireEvent.keyDown(row("plot.png"), { key: "x", ctrlKey: true });
+    expect(row("main.tex")).toHaveClass("cut");
+    expect(row("plot.png")).toHaveClass("cut");
+    view.onPasteEntry.mockReturnValueOnce(true).mockReturnValueOnce(false);
+    fireEvent.click(row("appendix"));
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(row("main.tex")).not.toHaveClass("cut");
+    expect(row("plot.png")).toHaveClass("cut");
+    view.onPasteEntry.mockReturnValue(true);
+    fireEvent.keyDown(row("appendix"), { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry).toHaveBeenLastCalledWith(image.path, "cut", target);
+    expect(row("plot.png")).not.toHaveClass("cut");
+  });
+
+  it.each([
+    ["macOS", { key: "Backspace", metaKey: true }],
+    ["Windows/Linux", { key: "Delete" }],
+  ])(
+    "deletes the focused file or folder using the %s shortcut",
+    (_platform, shortcut) => {
+      const view = setup();
+      fireEvent.click(row("main.tex"));
+      expect(row("main.tex")).toHaveFocus();
+      fireEvent.keyDown(document.activeElement!, shortcut);
+      expect(view.onDeleteEntry).toHaveBeenLastCalledWith(main);
+      fireEvent.click(row("sections"));
+      expect(row("sections")).toHaveFocus();
+      fireEvent.keyDown(document.activeElement!, shortcut);
+      expect(view.onDeleteEntry).toHaveBeenLastCalledWith(folder);
+      expect(view.onDeleteEntry).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("does not delete while renaming, typing elsewhere, or holding the shortcut", () => {
+    const view = setup();
+    fireEvent.keyDown(row("main.tex"), { key: "Backspace" });
+    fireEvent.keyDown(row("main.tex"), { key: "Delete", repeat: true });
+    fireEvent.keyDown(window, { key: "Delete" });
+    fireEvent.keyDown(row("main.tex"), { key: "F2" });
+    const input = screen.getByRole("textbox", { name: "Rename main.tex" });
+    fireEvent.keyDown(input, { key: "Backspace", metaKey: true });
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(view.onDeleteEntry).not.toHaveBeenCalled();
+    expect(input).toHaveFocus();
+  });
+
+  it("navigates visible rows and copies or cuts into a focused folder", () => {
+    const view = setup();
+    fireEvent.click(row("main.tex"));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(row("plot.png")).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "c", metaKey: true });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(row("sections")).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "v", metaKey: true });
+    expect(view.onPasteEntry).toHaveBeenLastCalledWith(image.path, "copy", folder);
+    fireEvent.click(row("main.tex"));
+    fireEvent.keyDown(document.activeElement!, { key: "x", ctrlKey: true });
+    fireEvent.click(row("appendix"));
+    fireEvent.keyDown(document.activeElement!, { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry).toHaveBeenLastCalledWith(main.path, "cut", target);
+    fireEvent.keyDown(document.activeElement!, { key: "v", ctrlKey: true });
+    expect(view.onPasteEntry).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ["Open", "onOpen"],
     ["Compile to PDF", "onCompileFile"],

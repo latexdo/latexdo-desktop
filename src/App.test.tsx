@@ -1863,7 +1863,7 @@ describe("App critical UI controls", () => {
     render(<App />);
     expect(api.checkForUpdates).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
     fireEvent.click(await screen.findByRole("button", { name: /check for updates/i }));
     openOutputPanel();
     expect(
@@ -2003,7 +2003,7 @@ describe("App critical UI controls", () => {
 
     render(<App />);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
 
     const updateButton = await screen.findByRole("button", {
       name: /you’re up to date/i,
@@ -2032,7 +2032,7 @@ describe("App critical UI controls", () => {
 
     render(<App />);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
 
     fireEvent.click(await screen.findByRole("button", { name: /^update$/i }));
 
@@ -3131,6 +3131,14 @@ describe("App critical UI controls", () => {
 
     fireEvent.click(screen.getByTitle("Source control"));
 
+    await waitFor(() =>
+      expect(screen.getByTitle("Source control")).toHaveAccessibleName(
+        "Source control (1 changed file)",
+      ),
+    );
+    expect(
+      screen.getByTitle("Source control").querySelector(".activity-change-badge"),
+    ).toHaveTextContent("1");
     const discardFile = await screen.findByRole("button", {
       name: /discard main\.tex/i,
     });
@@ -4022,7 +4030,7 @@ describe("App critical UI controls", () => {
       expect(api.revealGitFile).toHaveBeenCalledWith(project.id, "main.tex"),
     );
     fireEvent.contextMenu(entry);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open File History" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File History" }));
     await waitFor(() =>
       expect(api.getGitHistory).toHaveBeenCalledWith(project.id, "main.tex"),
     );

@@ -32,148 +32,80 @@ import {
 } from "../../components/SourceControlView";
 
 export function renderScmContextMenu(ctx: AppCtx) {
-  const {
-    copyGitPath,
-    discardGitEntry,
-    openGitDiffEditor,
-    openGitFile,
-    openGitFileHistory,
-    revealGitFile,
-    setGitContextMenu,
-    stageGitEntry,
-    unstageGitEntry,
-  } = ctx;
-  const gitContextMenu = ctx.gitContextMenu!;
+  const { entry, area, x, y } = ctx.gitContextMenu!;
+  const action = (
+    label: string,
+    run: () => unknown,
+    danger = false,
+    disabled = false,
+  ) => (
+    <button
+      type="button"
+      role="menuitem"
+      className={danger ? "danger" : undefined}
+      disabled={disabled}
+      onClick={() => {
+        ctx.setGitContextMenu(null);
+        void run();
+      }}
+    >
+      {label}
+    </button>
+  );
   return (
     <div
-      className="scm-context-menu"
+      className="scm-context-menu scm-file-context-menu"
       role="menu"
-      aria-label={`Actions for ${gitContextMenu.entry.path}`}
+      aria-label={`Actions for ${entry.path}`}
       style={{
-        left: Math.min(gitContextMenu.x, window.innerWidth - 210),
-        top: Math.min(gitContextMenu.y, window.innerHeight - 260),
+        left: Math.max(8, Math.min(x, window.innerWidth - 288)),
+        top: Math.max(8, Math.min(y, window.innerHeight - 380)),
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          const { entry, area } = gitContextMenu;
-          setGitContextMenu(null);
-          void openGitDiffEditor(entry, area);
-        }}
-      >
-        <span className="menu-emoji" aria-hidden="true">
-          🔀
-        </span>
-        <span>Open Diff</span>
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          const path = gitContextMenu.entry.path;
-          setGitContextMenu(null);
-          void openGitFile(path);
-        }}
-      >
-        <span className="menu-emoji" aria-hidden="true">
-          📝
-        </span>
-        <span>Open File</span>
-      </button>
-      {gitContextMenu.area === "staged" ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            const path = gitContextMenu.entry.path;
-            setGitContextMenu(null);
-            void unstageGitEntry(path);
-          }}
-        >
-          <span className="menu-emoji" aria-hidden="true">
-            ➖
-          </span>
-          <span>Unstage Changes</span>
-        </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              const path = gitContextMenu.entry.path;
-              setGitContextMenu(null);
-              void stageGitEntry(path);
-            }}
-          >
-            <span className="menu-emoji" aria-hidden="true">
-              ➕
-            </span>
-            <span>Stage Changes</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="danger"
-            onClick={() => {
-              const path = gitContextMenu.entry.path;
-              setGitContextMenu(null);
-              void discardGitEntry(path);
-            }}
-          >
-            <span className="menu-emoji" aria-hidden="true">
-              🗑️
-            </span>
-            <span>Discard Changes</span>
-          </button>
-        </>
+      {action("Open Changes", () => ctx.openGitDiffEditor(entry, area))}
+      {action(
+        "Open File",
+        () => ctx.openGitFile(entry.path),
+        false,
+        entry.worktreeStatus === "deleted",
       )}
-      <span className="scm-context-menu-separator" />
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          const path = gitContextMenu.entry.path;
-          setGitContextMenu(null);
-          void revealGitFile(path);
-        }}
-      >
-        <span className="menu-emoji" aria-hidden="true">
-          🔍
-        </span>
-        <span>Reveal in File Manager</span>
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          const path = gitContextMenu.entry.path;
-          setGitContextMenu(null);
-          void copyGitPath(path);
-        }}
-      >
-        <span className="menu-emoji" aria-hidden="true">
-          📋
-        </span>
-        <span>Copy Path</span>
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          const path = gitContextMenu.entry.path;
-          setGitContextMenu(null);
-          void openGitFileHistory(path);
-        }}
-      >
-        <span className="menu-emoji" aria-hidden="true">
-          🕘
-        </span>
-        <span>Open File History</span>
-      </button>
+      {action(
+        "Open Changes at HEAD",
+        () =>
+          ctx.openGitCommitRevisionDiff(
+            ctx.gitStatus!.headHash!,
+            entry.originalPath ?? entry.path,
+          ),
+        false,
+        !ctx.gitStatus?.headHash || entry.untracked || entry.indexStatus === "added",
+      )}
+      {action("File History", () => ctx.openGitFileHistory(entry.path))}
+      <span className="scm-context-menu-separator" role="separator" />
+      {area === "staged"
+        ? action("Unstage Changes", () => ctx.unstageGitEntry(entry.path))
+        : action("Stage Changes", () => ctx.stageGitEntry(entry.path))}
+      {area === "changes" &&
+        action("Revert Changes…", () => ctx.discardGitEntry(entry.path), true)}
+      <span className="scm-context-menu-separator" role="separator" />
+      {action("Reveal in File Manager", () => ctx.revealGitFile(entry.path))}
+      {action(
+        "Reveal in Explorer",
+        async () => {
+          await ctx.openGitFile(entry.path);
+          ctx.openSidebar("explorer");
+        },
+        false,
+        entry.worktreeStatus === "deleted",
+      )}
+      <span className="scm-context-menu-separator" role="separator" />
+      {action(
+        "Copy Changes (Patch)",
+        () => ctx.copyGitPatch(entry.path, area),
+        false,
+        entry.untracked || entry.conflicted,
+      )}
+      {action("Copy Relative Path", () => ctx.copyGitPath(entry.path))}
     </div>
   );
 }

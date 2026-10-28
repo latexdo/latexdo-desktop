@@ -1,3 +1,4 @@
+import { topLevelTreeEntries } from "../features/project/treeSelection";
 import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo } from "react";
 import type { PdfClickLocation } from "../PdfPreview";
@@ -322,7 +323,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
         !currentProject ||
         (destination !== null && destination.type !== "directory")
       ) {
-        return;
+        return false;
       }
 
       const sourceEntry = flattenEntries(projectEntriesRef.current).find(
@@ -330,7 +331,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
       );
       if (!sourceEntry) {
         setStatusMessage("The dragged item could not be found.");
-        return;
+        return false;
       }
 
       const sourceRelativePath = normalizeRelativePath(sourceEntry.relativePath);
@@ -345,10 +346,10 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
 
       if (renaming && (!targetName || /[\\/]/.test(targetName))) {
         setStatusMessage("Enter a name without slashes.");
-        return;
+        return false;
       }
       if (renaming && targetName === sourceEntry.name) {
-        return;
+        return false;
       }
       if (!renaming && destinationDirectory === sourceParent) {
         setStatusMessage(
@@ -356,7 +357,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
             destinationDirectory || "the project root"
           }`,
         );
-        return;
+        return false;
       }
 
       if (
@@ -367,7 +368,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
           ))
       ) {
         setStatusMessage("A folder cannot be moved into itself.");
-        return;
+        return false;
       }
 
       const destinationRelativePath = destinationDirectory
@@ -481,6 +482,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
                 destination?.relativePath || "the project root"
               }`,
         );
+        return true;
       } catch (error) {
         setStatusMessage(
           error instanceof Error
@@ -489,6 +491,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
               ? "Could not rename the file"
               : "Could not move the file",
         );
+        return false;
       }
     },
     [refreshProject, saveDocument],
@@ -502,13 +505,13 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
         !currentProject ||
         (destination !== null && destination.type !== "directory")
       ) {
-        return;
+        return false;
       }
       const allEntries = flattenEntries(projectEntriesRef.current);
       const sourceEntry = allEntries.find((entry) => entry.path === sourcePath);
       if (!sourceEntry) {
         setStatusMessage("The copied item no longer exists.");
-        return;
+        return false;
       }
       const destinationDirectory = normalizeRelativePath(
         destination?.relativePath ?? "",
@@ -542,56 +545,82 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
         setStatusMessage(
           `Copied ${sourceEntry.name} as ${pathForDisplay(inDestination(targetName))}`,
         );
+        return true;
       } catch (error) {
         setStatusMessage(
           error instanceof Error ? error.message : "Could not copy the file",
         );
+        return false;
       }
     },
     [refreshProject, saveDocument],
   );
 
   /** Moves an entry to the system Trash after asking, and closes its open tabs. */
-  const deleteEntry = useCallback(
-    async (entry: ProjectEntry) => {
+  const deleteEntries = useCallback(
+    async (entries: ProjectEntry[]) => {
       const currentProject = projectIdRef.current;
-      if (!currentProject) return;
-      const kind = entry.type === "directory" ? "folder" : "file";
+      const targets = topLevelTreeEntries(entries);
+      if (!currentProject || !targets.length) return;
+      const first = targets[0];
+      const description =
+        targets.length === 1
+          ? `the ${first.type === "directory" ? "folder" : "file"} "${first.name}"`
+          : `${targets.length} selected items`;
       if (
         !window.confirm(
-          `Move the ${kind} "${entry.name}" to the Trash?\n\nYou can restore it from the Trash.`,
+          `Move ${description} to the Trash?\n\nYou can restore ${targets.length === 1 ? "it" : "them"} from the Trash.`,
         )
-      ) {
+      )
         return;
-      }
+      let removed = 0;
       try {
-        await window.latexdo.trashEntry(currentProject, entry.relativePath);
-        const removedPath = normalizeRelativePath(entry.path);
-        const isRemoved = (path: string) => {
-          const normalized = normalizeRelativePath(path);
-          return normalized === removedPath || normalized.startsWith(`${removedPath}/`);
-        };
-        const nextDocuments = documentsRef.current.filter(
-          (document) => !isRemoved(document.path),
-        );
-        if (nextDocuments.length !== documentsRef.current.length) {
-          documentsRef.current = nextDocuments;
-          setDocuments(nextDocuments);
-          if (isRemoved(activePathRef.current)) {
-            const nextActive = nextDocuments[0]?.path ?? "";
-            setActivePath(nextActive);
-            activePathRef.current = nextActive;
+        for (const entry of targets) {
+          await window.latexdo.trashEntry(currentProject, entry.relativePath);
+          removed += 1;
+          const removedPath = normalizeRelativePath(entry.path);
+          const isRemoved = (path: string) => {
+            const normalized = normalizeRelativePath(path);
+            return (
+              normalized === removedPath || normalized.startsWith(`${removedPath}/`)
+            );
+          };
+          const nextDocuments = documentsRef.current.filter(
+            (document) => !isRemoved(document.path),
+          );
+          if (nextDocuments.length !== documentsRef.current.length) {
+            documentsRef.current = nextDocuments;
+            setDocuments(nextDocuments);
+            if (isRemoved(activePathRef.current)) {
+              const nextActive = nextDocuments[0]?.path ?? "";
+              setActivePath(nextActive);
+              activePathRef.current = nextActive;
+            }
           }
         }
         await refreshProject(currentProject);
-        setStatusMessage(`Moved ${entry.name} to the Trash`);
-      } catch (error) {
         setStatusMessage(
-          error instanceof Error ? error.message : "Could not delete the file",
+          targets.length === 1
+            ? `Moved ${first.name} to the Trash`
+            : `Moved ${removed} items to the Trash`,
+        );
+      } catch (error) {
+        if (removed) await refreshProject(currentProject).catch(() => undefined);
+        const message =
+          error instanceof Error ? error.message : "Could not delete the file";
+        setStatusMessage(
+          removed
+            ? `Moved ${removed} of ${targets.length} items to the Trash. ${message}`
+            : message,
         );
       }
     },
     [refreshProject],
+  );
+
+  const deleteEntry = useCallback(
+    (entry: ProjectEntry) => deleteEntries([entry]),
+    [deleteEntries],
   );
 
   const revealPendingSource = useCallback((options: SourceRevealOptions = {}) => {
@@ -1064,6 +1093,7 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
     moveEntry,
     copyEntry,
     deleteEntry,
+    deleteEntries,
     revealPendingSource,
     handleEditorCursorToPdf,
     handleBackwardSync,

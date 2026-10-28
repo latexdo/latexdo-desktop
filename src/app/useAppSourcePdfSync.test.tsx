@@ -217,6 +217,38 @@ describe("project entry operations", () => {
     await h.result.current.deleteEntry(entry());
     expect(api.trashEntry).not.toHaveBeenCalled();
   });
+  it("confirms a bulk delete once and skips descendants of selected folders", async () => {
+    const h = setup();
+    vi.mocked(window.confirm).mockClear();
+    h.ctx.documentsRef.current = [doc("dir/a.tex"), doc("other.tex"), doc("keep.tex")];
+    await h.result.current.deleteEntries([
+      entry("dir", true),
+      entry("dir/a.tex"),
+      entry("other.tex"),
+    ]);
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(api.trashEntry.mock.calls.map(([, path]) => path)).toEqual([
+      "dir",
+      "other.tex",
+    ]);
+    expect(h.ctx.documentsRef.current.map((d) => d.relativePath)).toEqual(["keep.tex"]);
+  });
+
+  it("reports a partial bulk deletion and leaves failed files open", async () => {
+    const h = setup();
+    h.ctx.documentsRef.current = [doc("main.tex"), doc("other.tex")];
+    api.trashEntry
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("denied"));
+    await h.result.current.deleteEntries([entry(), entry("other.tex")]);
+    expect(h.ctx.documentsRef.current.map((d) => d.relativePath)).toEqual([
+      "other.tex",
+    ]);
+    expect(h.ctx.setStatusMessage).toHaveBeenLastCalledWith(
+      "Moved 1 of 2 items to the Trash. denied",
+    );
+  });
+
   it.each([new Error("denied"), "bad"])(
     "reports filesystem failures",
     async (error) => {

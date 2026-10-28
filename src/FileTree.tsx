@@ -8,7 +8,17 @@ import {
   FolderOpen,
   MoreHorizontal,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from "react";
+import { topLevelTreeEntries } from "./features/project/treeSelection";
 import type { ProjectEntry } from "./types";
 import { pathForDisplay } from "./pathDisplay";
 
@@ -19,7 +29,10 @@ interface FileTreeProps {
   onOpen: (entry: ProjectEntry) => void;
   onCompileFile?: (entry: ProjectEntry) => void;
   onSetRootFile?: (entry: ProjectEntry) => void;
-  onMoveEntry?: (sourcePath: string, destination: ProjectEntry | null) => void;
+  onMoveEntry?: (
+    sourcePath: string,
+    destination: ProjectEntry | null,
+  ) => void | boolean | Promise<void | boolean>;
   onImportExternalFiles?: (files: File[], destination: ProjectEntry | null) => void;
   onChooseImportFilesInDirectory?: (entry: ProjectEntry | null) => void;
   onCreateFileInDirectory?: (entry: ProjectEntry) => void;
@@ -30,12 +43,13 @@ interface FileTreeProps {
   onCopyPath?: (entry: ProjectEntry) => void;
   onRenameEntry?: (entry: ProjectEntry, newName: string) => void;
   onDeleteEntry?: (entry: ProjectEntry) => void;
+  onDeleteEntries?: (entries: ProjectEntry[]) => void | Promise<void>;
   onDuplicateEntry?: (entry: ProjectEntry) => void;
   onPasteEntry?: (
     sourcePath: string,
     mode: "copy" | "cut",
     destination: ProjectEntry,
-  ) => void;
+  ) => void | boolean | Promise<void | boolean>;
   clipboard?: TreeClipboard | null;
   onClipboardChange?: (clipboard: TreeClipboard | null) => void;
   menuPath?: string | null;
@@ -46,6 +60,7 @@ interface FileTreeProps {
 
 export interface TreeClipboard {
   path: string;
+  paths?: string[];
   mode: "copy" | "cut";
 }
 
@@ -67,6 +82,21 @@ interface TreeRowProps extends Omit<
   draggedPath: string | null;
   onDragStartPath: (path: string | null) => void;
 }
+
+interface SelectionState {
+  paths: Set<string>;
+  select: (
+    path: string,
+    element: HTMLElement,
+    modifiers?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean },
+  ) => void;
+  all: (element: HTMLElement) => void;
+  entriesFor: (entry: ProjectEntry) => ProjectEntry[];
+  deleteEntries?: FileTreeProps["onDeleteEntries"];
+  movingPaths: (path: string) => string[];
+  move: (path: string, destination: ProjectEntry | null) => Promise<void>;
+}
+const TreeSelection = createContext<SelectionState | null>(null);
 
 function FileIcon({ name }: { name: string }) {
   const extension = name.split(".").pop()?.toLowerCase();
@@ -239,6 +269,45 @@ function TreeRow({
   draggedPath,
   onDragStartPath,
 }: TreeRowProps) {
+  const selection = useContext(TreeSelection);
+  const selected = selection?.paths.has(entry.path) ?? false;
+  const selectedEntries = selection?.entriesFor(entry) ?? [entry];
+  const multiple = selectedEntries.length > 1;
+  const copySelection = (mode: "copy" | "cut") => {
+    const paths = topLevelTreeEntries(selectedEntries).map((item) => item.path);
+    onClipboardChange({ path: paths[0], ...(paths.length > 1 ? { paths } : {}), mode });
+  };
+  const deleteSelection = () => {
+    if (multiple && selection?.deleteEntries)
+      void selection.deleteEntries(selectedEntries);
+    else if (!multiple && selectedEntries[0]) onDeleteEntry?.(selectedEntries[0]);
+  };
+  const pasteBusy = useRef(false);
+  const pasteSelection = async () => {
+    if (!clipboard || !onPasteEntry || pasteBusy.current) return;
+    pasteBusy.current = true;
+    const sources = clipboard.paths ?? [clipboard.path];
+    try {
+      for (let index = 0; index < sources.length; index += 1) {
+        const result = onPasteEntry(sources[index], clipboard.mode, entry);
+        const succeeded = result instanceof Promise ? await result : result;
+        if (succeeded === false) return;
+        if (clipboard.mode === "cut") {
+          const remaining = sources.slice(index + 1);
+          onClipboardChange(
+            remaining.length
+              ? { path: remaining[0], paths: remaining, mode: "cut" }
+              : null,
+          );
+        }
+      }
+    } finally {
+      pasteBusy.current = false;
+    }
+  };
+  const selectContextRow = (element: HTMLElement) => {
+    if (!selected) selection?.select(entry.path, element);
+  };
   const [expanded, setExpanded] = useState(depth < 1);
   const [dropActive, setDropActive] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -246,7 +315,11 @@ function TreeRow({
   const toggleMenu = onToggleMenu ?? (() => {});
   const menuOpen = menuPath === entry.path;
   const isDropTarget =
-    entry.type === "directory" && canDropIntoDirectory(draggedPath, entry.path);
+    entry.type === "directory" &&
+    Boolean(draggedPath) &&
+    (selection?.movingPaths(draggedPath!) ?? [draggedPath!]).every((path) =>
+      canDropIntoDirectory(path, entry.path),
+    );
   const isImageFile =
     entry.type === "file" &&
     ["png", "jpg", "jpeg", "pdf", "svg"].includes(
@@ -254,28 +327,110 @@ function TreeRow({
     );
   const displayName = pathForDisplay(entry.name);
   const displayRelativePath = pathForDisplay(entry.relativePath);
-  const isCut = clipboard?.mode === "cut" && clipboard.path === entry.path;
+  const isCut =
+    clipboard?.mode === "cut" &&
+    (clipboard.paths ?? [clipboard.path]).includes(entry.path);
   const closeMenu = () => toggleMenu(null);
   const commitRename = (name: string) => {
     setRenaming(false);
     const trimmed = name.trim();
     if (trimmed && trimmed !== entry.name) onRenameEntry?.(entry, trimmed);
   };
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    // Shortcuts belong to the focused row, never a rename field or icon button.
+    if (
+      event.target !== event.currentTarget ||
+      renaming ||
+      event.nativeEvent.isComposing
+    )
+      return;
+    const command = event.metaKey || event.ctrlKey;
+    const plain = !command && !event.altKey && !event.shiftKey;
+    let run: (() => void) | undefined;
+    if (
+      onDeleteEntry &&
+      !event.altKey &&
+      !event.shiftKey &&
+      ((event.key === "Backspace" && event.metaKey && !event.ctrlKey) ||
+        (event.key === "Delete" && !command))
+    ) {
+      run = deleteSelection;
+    } else if (plain && event.key === "F2" && onRenameEntry && !multiple) {
+      run = () => setRenaming(true);
+    } else if (
+      command &&
+      !event.altKey &&
+      !event.shiftKey &&
+      ["c", "x"].includes(event.key.toLowerCase())
+    ) {
+      run = () => copySelection(event.key.toLowerCase() === "x" ? "cut" : "copy");
+    } else if (
+      command &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() === "v" &&
+      entry.type === "directory" &&
+      clipboard &&
+      onPasteEntry
+    ) {
+      run = () => {
+        void pasteSelection();
+      };
+    } else if (command && !event.altKey && event.key.toLowerCase() === "a") {
+      run = () => selection?.all(event.currentTarget);
+    } else if (
+      !command &&
+      !event.altKey &&
+      ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+    ) {
+      const rows = Array.from(
+        event.currentTarget
+          .closest(".file-tree-drop-surface")
+          ?.querySelectorAll<HTMLElement>("[data-tree-entry]") ?? [],
+      );
+      const index = rows.indexOf(event.currentTarget);
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? rows.length - 1
+            : index + (event.key === "ArrowDown" ? 1 : -1);
+      run = () => {
+        const target = rows[Math.max(0, Math.min(next, rows.length - 1))];
+        if (!target) return;
+        selection?.select(target.dataset.treeEntry!, target, {
+          shiftKey: event.shiftKey,
+        });
+        target.focus();
+      };
+    } else if (
+      plain &&
+      entry.type === "directory" &&
+      ["ArrowLeft", "ArrowRight"].includes(event.key)
+    ) {
+      run = () => setExpanded(event.key === "ArrowRight");
+    } else if (plain && entry.type === "file" && ["Enter", " "].includes(event.key)) {
+      run = () => onOpen(entry);
+    }
+    if (!run) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) run();
+  };
+
   const sharedMenuItems: TreeMenuItem[] = [
     "separator",
     ...(onRevealFile ? [{ label: revealLabel, run: () => onRevealFile(entry) }] : []),
     "separator",
-    { label: "Cut", run: () => onClipboardChange({ path: entry.path, mode: "cut" }) },
-    { label: "Copy", run: () => onClipboardChange({ path: entry.path, mode: "copy" }) },
+    { label: "Cut", run: () => copySelection("cut") },
+    { label: "Copy", run: () => copySelection("copy") },
     ...(entry.type === "directory" && onPasteEntry
       ? [
           {
             label: "Paste",
             disabled: !clipboard,
             run: () => {
-              if (!clipboard) return;
-              onPasteEntry(clipboard.path, clipboard.mode, entry);
-              if (clipboard.mode === "cut") onClipboardChange(null);
+              void pasteSelection();
             },
           },
         ]
@@ -289,9 +444,31 @@ function TreeRow({
     ...(entry.type === "file" && onDuplicateEntry
       ? [{ label: "Duplicate", run: () => onDuplicateEntry(entry) }]
       : []),
-    ...(onRenameEntry ? [{ label: "Rename…", run: () => setRenaming(true) }] : []),
-    ...(onDeleteEntry
-      ? [{ label: "Delete", danger: true, run: () => onDeleteEntry(entry) }]
+    ...(onRenameEntry && !multiple
+      ? [{ label: "Rename…", run: () => setRenaming(true) }]
+      : []),
+    ...(onDeleteEntry && (!multiple || selection?.deleteEntries)
+      ? [
+          {
+            label: multiple ? `Delete ${selectedEntries.length} Items` : "Delete",
+            danger: true,
+            run: deleteSelection,
+          },
+        ]
+      : []),
+  ];
+
+  const multiMenuItems: TreeMenuItem[] = [
+    { label: `Copy ${selectedEntries.length} Items`, run: () => copySelection("copy") },
+    { label: `Cut ${selectedEntries.length} Items`, run: () => copySelection("cut") },
+    ...(selection?.deleteEntries
+      ? [
+          {
+            label: `Delete ${selectedEntries.length} Items`,
+            danger: true,
+            run: deleteSelection,
+          },
+        ]
       : []),
   ];
 
@@ -344,25 +521,31 @@ function TreeRow({
     return (
       <div className="tree-directory-row">
         <button
-          className={`tree-row ${dropActive ? "drop-target" : ""} ${isCut ? "cut" : ""}`}
+          className={`tree-row ${dropActive ? "drop-target" : ""} ${isCut ? "cut" : ""} ${selected ? "selected" : ""}`}
           style={{ paddingLeft: rowPadding }}
-          onClick={() => {
-            if (!renaming) setExpanded((current) => !current);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "F2" && onRenameEntry) {
-              event.preventDefault();
-              setRenaming(true);
+          data-tree-entry={entry.path}
+          aria-selected={selected}
+          role="treeitem"
+          aria-expanded={expanded}
+          onClick={(event) => {
+            if (!renaming) {
+              event.currentTarget.focus();
+              selection?.select(entry.path, event.currentTarget, event);
+              if (!event.metaKey && !event.ctrlKey && !event.shiftKey)
+                setExpanded((current) => !current);
             }
           }}
+          onKeyDown={handleRowKeyDown}
           title={displayRelativePath}
           onContextMenu={(event) => {
             event.preventDefault();
+            selectContextRow(event.currentTarget);
             toggleMenu(menuOpen ? null : entry.path);
           }}
           draggable
           onDragStart={(event) => {
             event.stopPropagation();
+            selectContextRow(event.currentTarget);
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", entry.path);
             onDragStartPath?.(entry.path);
@@ -433,7 +616,8 @@ function TreeRow({
             if (!sourcePath || sourcePath === entry.path) {
               return;
             }
-            onMoveEntry(sourcePath, entry);
+            if (selection) void selection.move(sourcePath, entry);
+            else void onMoveEntry(sourcePath, entry);
             onDragStartPath(null);
           }}
         >
@@ -459,6 +643,7 @@ function TreeRow({
             className={`tree-row-menu-button ${menuOpen ? "active" : ""}`}
             onClick={(event) => {
               event.stopPropagation();
+              selectContextRow(event.currentTarget);
               toggleMenu(menuOpen ? null : entry.path);
             }}
             title={`Actions for ${displayName}`}
@@ -468,28 +653,37 @@ function TreeRow({
           {menuOpen ? (
             <TreeMenu
               onClose={closeMenu}
-              items={[
-                ...(onCreateFileInDirectory
-                  ? [{ label: "New File…", run: () => onCreateFileInDirectory(entry) }]
-                  : []),
-                ...(onCreateFolderInDirectory
-                  ? [
-                      {
-                        label: "New Folder…",
-                        run: () => onCreateFolderInDirectory(entry),
-                      },
+              items={
+                multiple
+                  ? multiMenuItems
+                  : [
+                      ...(onCreateFileInDirectory
+                        ? [
+                            {
+                              label: "New File…",
+                              run: () => onCreateFileInDirectory(entry),
+                            },
+                          ]
+                        : []),
+                      ...(onCreateFolderInDirectory
+                        ? [
+                            {
+                              label: "New Folder…",
+                              run: () => onCreateFolderInDirectory(entry),
+                            },
+                          ]
+                        : []),
+                      ...(onChooseImportFilesInDirectory
+                        ? [
+                            {
+                              label: "Import Files Here…",
+                              run: () => onChooseImportFilesInDirectory(entry),
+                            },
+                          ]
+                        : []),
+                      ...sharedMenuItems,
                     ]
-                  : []),
-                ...(onChooseImportFilesInDirectory
-                  ? [
-                      {
-                        label: "Import Files Here…",
-                        run: () => onChooseImportFilesInDirectory(entry),
-                      },
-                    ]
-                  : []),
-                ...sharedMenuItems,
-              ]}
+              }
             />
           ) : null}
         </div>
@@ -531,14 +725,24 @@ function TreeRow({
       <div
         className={`tree-row ${activePath === entry.path ? "active" : ""} ${
           isCut ? "cut" : ""
-        }`}
+        } ${selected ? "selected" : ""}`}
         style={{ paddingLeft: rowPadding }}
-        onClick={() => {
-          if (!renaming) onOpen(entry);
+        role="treeitem"
+        tabIndex={0}
+        data-tree-entry={entry.path}
+        aria-selected={selected}
+        onKeyDown={handleRowKeyDown}
+        onClick={(event) => {
+          if (!renaming) {
+            event.currentTarget.focus();
+            selection?.select(entry.path, event.currentTarget, event);
+            if (!event.metaKey && !event.ctrlKey && !event.shiftKey) onOpen(entry);
+          }
         }}
         title={displayRelativePath}
         draggable
         onDragStart={(event) => {
+          selectContextRow(event.currentTarget);
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", entry.path);
           onDragStartPath?.(entry.path);
@@ -546,6 +750,7 @@ function TreeRow({
         onDragEnd={() => onDragStartPath?.(null)}
         onContextMenu={(event) => {
           event.preventDefault();
+          selectContextRow(event.currentTarget);
           toggleMenu(menuOpen ? null : entry.path);
         }}
       >
@@ -581,6 +786,7 @@ function TreeRow({
           className={`tree-row-menu-button ${menuOpen ? "active" : ""}`}
           onClick={(event) => {
             event.stopPropagation();
+            selectContextRow(event.currentTarget);
             toggleMenu(menuOpen ? null : entry.path);
           }}
           title={`Actions for ${displayName}`}
@@ -590,24 +796,28 @@ function TreeRow({
         {menuOpen ? (
           <TreeMenu
             onClose={closeMenu}
-            items={[
-              { label: "Open", run: () => onOpen(entry) },
-              ...(isTexFile(entry) && onCompileFile
-                ? [{ label: "Compile to PDF", run: () => onCompileFile(entry) }]
-                : []),
-              ...(isTexFile(entry) && onSetRootFile
-                ? [{ label: "Set as Main File", run: () => onSetRootFile(entry) }]
-                : []),
-              ...(isImageFile && onInsertFileReference
-                ? [
-                    {
-                      label: "Insert Image Code",
-                      run: () => onInsertFileReference(entry),
-                    },
+            items={
+              multiple
+                ? multiMenuItems
+                : [
+                    { label: "Open", run: () => onOpen(entry) },
+                    ...(isTexFile(entry) && onCompileFile
+                      ? [{ label: "Compile to PDF", run: () => onCompileFile(entry) }]
+                      : []),
+                    ...(isTexFile(entry) && onSetRootFile
+                      ? [{ label: "Set as Main File", run: () => onSetRootFile(entry) }]
+                      : []),
+                    ...(isImageFile && onInsertFileReference
+                      ? [
+                          {
+                            label: "Insert Image Code",
+                            run: () => onInsertFileReference(entry),
+                          },
+                        ]
+                      : []),
+                    ...sharedMenuItems,
                   ]
-                : []),
-              ...sharedMenuItems,
-            ]}
+            }
           />
         ) : null}
       </div>
@@ -633,6 +843,7 @@ export default function FileTree({
   onCopyPath,
   onRenameEntry,
   onDeleteEntry,
+  onDeleteEntries,
   onDuplicateEntry,
   onPasteEntry,
   clipboard: controlledClipboard,
@@ -642,6 +853,67 @@ export default function FileTree({
   draggedPath: controlledDraggedPath,
   onDragStartPath: controlledSetDraggedPath,
 }: FileTreeProps) {
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set());
+  const anchorRef = useRef<string | null>(null);
+  const visiblePaths = (element: HTMLElement) =>
+    Array.from(
+      element
+        .closest(".file-tree-drop-surface")
+        ?.querySelectorAll<HTMLElement>("[data-tree-entry]") ?? [],
+    ).map((row) => row.dataset.treeEntry!);
+  const selection: SelectionState = {
+    paths: selectedPaths,
+    select: (path, element, modifiers = {}) => {
+      if (modifiers.shiftKey && anchorRef.current) {
+        const visible = visiblePaths(element);
+        const start = visible.indexOf(anchorRef.current);
+        const end = visible.indexOf(path);
+        if (start >= 0 && end >= 0) {
+          const range = visible.slice(Math.min(start, end), Math.max(start, end) + 1);
+          setSelectedPaths(
+            new Set(
+              modifiers.metaKey || modifiers.ctrlKey
+                ? [...selectedPaths, ...range]
+                : range,
+            ),
+          );
+          return;
+        }
+      }
+      anchorRef.current = path;
+      if (modifiers.metaKey || modifiers.ctrlKey) {
+        const next = new Set(selectedPaths);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        setSelectedPaths(next);
+      } else setSelectedPaths(new Set([path]));
+    },
+    all: (element) => {
+      const paths = visiblePaths(element);
+      anchorRef.current = paths[0] ?? null;
+      setSelectedPaths(new Set(paths));
+    },
+    entriesFor: (entry) => {
+      const selected = [...selectedPaths]
+        .map((path) => findEntryByPath(entries, path))
+        .filter((item): item is ProjectEntry => Boolean(item && !item.limited));
+      return selected.length ? selected : [entry];
+    },
+    deleteEntries: onDeleteEntries,
+    movingPaths: (path) => {
+      const entry = findEntryByPath(entries, path);
+      return entry && selectedPaths.has(path)
+        ? topLevelTreeEntries(selection.entriesFor(entry)).map((item) => item.path)
+        : [path];
+    },
+    move: async (path, destination) => {
+      if (!onMoveEntry) return;
+      for (const source of selection.movingPaths(path)) {
+        const result = onMoveEntry(source, destination);
+        if ((result instanceof Promise ? await result : result) === false) break;
+      }
+    },
+  };
   const [menuPathState, setMenuPathState] = useState<string | null>(null);
   const [clipboardState, setClipboardState] = useState<TreeClipboard | null>(null);
   const clipboard =
@@ -656,7 +928,11 @@ export default function FileTree({
   const draggedEntry =
     depth === 0 && draggedPath ? findEntryByPath(entries, draggedPath) : null;
   const canDropAtRoot = Boolean(
-    draggedEntry && normalizeTreePath(draggedEntry.relativePath).includes("/"),
+    draggedEntry &&
+    selection.movingPaths(draggedEntry.path).every((path) => {
+      const entry = findEntryByPath(entries, path);
+      return entry && normalizeTreePath(entry.relativePath).includes("/");
+    }),
   );
 
   useEffect(() => {
@@ -711,64 +987,69 @@ export default function FileTree({
   }
 
   return (
-    <div
-      className={`file-tree-drop-surface ${
-        draggedPath ? "dragging" : ""
-      } ${canDropAtRoot ? "root-available" : ""} ${
-        rootDropActive ? "root-drop-target" : ""
-      }`}
-      onDragOver={(event) => {
-        if (
-          Array.from(event.dataTransfer.types).includes("Files") &&
-          onImportExternalFiles
-        ) {
+    <TreeSelection.Provider value={selection}>
+      <div
+        role="tree"
+        aria-label="Project files"
+        aria-multiselectable="true"
+        className={`file-tree-drop-surface ${
+          draggedPath ? "dragging" : ""
+        } ${canDropAtRoot ? "root-available" : ""} ${
+          rootDropActive ? "root-drop-target" : ""
+        }`}
+        onDragOver={(event) => {
+          if (
+            Array.from(event.dataTransfer.types).includes("Files") &&
+            onImportExternalFiles
+          ) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            setRootDropActive(true);
+            return;
+          }
+          if (!canDropAtRoot) {
+            return;
+          }
           event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
+          event.dataTransfer.dropEffect = "move";
           setRootDropActive(true);
-          return;
-        }
-        if (!canDropAtRoot) {
-          return;
-        }
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        setRootDropActive(true);
-      }}
-      onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setRootDropActive(false);
+          }
+        }}
+        onDrop={(event) => {
           setRootDropActive(false);
-        }
-      }}
-      onDrop={(event) => {
-        setRootDropActive(false);
-        const files = Array.from(event.dataTransfer.files ?? []);
-        if (files.length > 0 && onImportExternalFiles) {
+          const files = Array.from(event.dataTransfer.files ?? []);
+          if (files.length > 0 && onImportExternalFiles) {
+            event.preventDefault();
+            onImportExternalFiles(files, null);
+            return;
+          }
+          if (!onMoveEntry || !canDropAtRoot) {
+            return;
+          }
           event.preventDefault();
-          onImportExternalFiles(files, null);
-          return;
-        }
-        if (!onMoveEntry || !canDropAtRoot) {
-          return;
-        }
-        event.preventDefault();
-        const sourcePath = event.dataTransfer.getData("text/plain");
-        if (!sourcePath) {
-          return;
-        }
-        onMoveEntry(sourcePath, null);
-        setDraggedPath(null);
-      }}
-    >
-      {rows}
-      {draggedPath && canDropAtRoot ? (
-        <div className="file-tree-root-hint">
-          Drop in this space to move to the project root
-        </div>
-      ) : rootDropActive ? (
-        <div className="file-tree-root-hint">
-          Drop files here to import into the project root
-        </div>
-      ) : null}
-    </div>
+          const sourcePath = event.dataTransfer.getData("text/plain");
+          if (!sourcePath) {
+            return;
+          }
+          void selection.move(sourcePath, null);
+          setDraggedPath(null);
+        }}
+      >
+        {rows}
+        {draggedPath && canDropAtRoot ? (
+          <div className="file-tree-root-hint">
+            Drop in this space to move to the project root
+          </div>
+        ) : rootDropActive ? (
+          <div className="file-tree-root-hint">
+            Drop files here to import into the project root
+          </div>
+        ) : null}
+      </div>
+    </TreeSelection.Provider>
   );
 }

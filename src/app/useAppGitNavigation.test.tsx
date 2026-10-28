@@ -91,6 +91,7 @@ beforeEach(() => {
     "getGitCommitDetails",
     "getGitCommitFileDiff",
     "getGitEditorDiff",
+    "getGitPatch",
     "revealGitFile",
     "getGitHistory",
     "lastUpdateStatus",
@@ -233,6 +234,20 @@ describe("Git navigation", () => {
     window.dispatchEvent(new Event("pointerdown"));
     expect(h.ctx.setGitContextMenu).toHaveBeenCalledTimes(2);
     menu.remove();
+  });
+  it("copies the requested patch and reports clipboard failures", async () => {
+    const h = setup();
+    api.getGitPatch.mockResolvedValue("diff --git a/main.tex b/main.tex\n");
+    await h.result.current.copyGitPatch("main.tex", "staged");
+    expect(api.getGitPatch).toHaveBeenCalledWith("p", "main.tex", "staged");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "diff --git a/main.tex b/main.tex\n",
+    );
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new Error("Clipboard denied"),
+    );
+    await h.result.current.copyGitPatch("main.tex", "changes");
+    expect(h.state.statusMessage).toContain("Clipboard denied");
   });
   it("opens the root document when showing preview and restores welcome navigation", async () => {
     const h = setup();

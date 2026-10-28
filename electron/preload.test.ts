@@ -45,10 +45,32 @@ afterEach(() => {
 });
 
 describe("isolated desktop bridge", () => {
+  it("stops restoring an older cloud project after switching to a local folder", async () => {
+    localStorage.setItem("latexdo.cloud.activeProject", "project_a");
+    api.rememberActiveProject("local-project-id");
+    expect(localStorage.getItem("latexdo.cloud.activeProject")).toBeNull();
+    expect(await api.restoreCloudProject()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("exposes only the application, terminal and AI APIs", () => {
     expect([...bridge.exposed.keys()]).toEqual(["latexdo", "terminalApi", "aiApi"]);
     expect(api.runtime).toBe("desktop");
     expect(api).not.toHaveProperty("ipcRenderer");
+  });
+
+  it("passes the new-window startup flag through the isolated bridge", async () => {
+    expect(api.startWithEmptyWorkspace).toBe(false);
+    const originalArgv = process.argv;
+    try {
+      process.argv = [...originalArgv, "--latexdo-empty-workspace"];
+      vi.resetModules();
+      await import("./preload.cjs");
+      expect(
+        (bridge.exposed.get("latexdo") as LatexDoApi).startWithEmptyWorkspace,
+      ).toBe(true);
+    } finally {
+      process.argv = originalArgv;
+    }
   });
 
   const contracts: [keyof LatexDoApi, string, unknown[]][] = [
@@ -88,6 +110,7 @@ describe("isolated desktop bridge", () => {
     ["unstageGitFile", "git:unstage", ["local", "main.tex"]],
     ["commitGit", "git:commit", ["local", "Save paper"]],
     ["getGitDiff", "git:diff", ["local", "main.tex"]],
+    ["getGitPatch", "git:patch", ["local", "main.tex", "staged"]],
     ["discardGitFile", "git:discard", ["local", "main.tex"]],
     ["stageAllGit", "git:stage-all", ["local"]],
     ["unstageAllGit", "git:unstage-all", ["local"]],
