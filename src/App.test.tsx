@@ -1863,7 +1863,7 @@ describe("App critical UI controls", () => {
     render(<App />);
     expect(api.checkForUpdates).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
     fireEvent.click(await screen.findByRole("button", { name: /check for updates/i }));
     openOutputPanel();
     expect(
@@ -2003,7 +2003,7 @@ describe("App critical UI controls", () => {
 
     render(<App />);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
 
     const updateButton = await screen.findByRole("button", {
       name: /you’re up to date/i,
@@ -2032,7 +2032,7 @@ describe("App critical UI controls", () => {
 
     render(<App />);
     fireEvent.click(screen.getByLabelText(/open settings/i));
-    fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
 
     fireEvent.click(await screen.findByRole("button", { name: /^update$/i }));
 
