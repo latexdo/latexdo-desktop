@@ -123,6 +123,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
     setRebuttalItems,
     setReviewChats,
     setStatusMessage,
+    settings,
     syncCitationSearchAnchor,
     toggleBookmarkAtCurrentLine,
     triggerCitationCompletionIfNeeded,
@@ -134,11 +135,10 @@ export function useAppReviewActions(ctx: AppCtx13) {
   const sentenceCompletionClientRef = useRef<NextEditModelClient | null>(null);
   useEffect(() => {
     sentenceCompletionClientRef.current =
-      aiConfig.sentenceCompletionEnabled &&
-      nextEditModelAvailable(aiConfig, aiIsDesktop)
+      settings.intelligentCompletion && nextEditModelAvailable(aiConfig, aiIsDesktop)
         ? new GenerateStepNextEditModelClient(aiConfig, nextEditConfig, aiIsDesktop)
         : null;
-  }, [aiConfig, aiIsDesktop, nextEditConfig]);
+  }, [aiConfig, aiIsDesktop, nextEditConfig, settings.intelligentCompletion]);
 
   // The AI selection actions are registered once per editor mount and call
   // the handlers through this ref, so they always see the current AI settings.
@@ -156,6 +156,50 @@ export function useAppReviewActions(ctx: AppCtx13) {
   // Editor actions live for the whole mount, including document switches.
   const bookmarkActionsRef = useRef({ toggleBookmarkAtCurrentLine, jumpToBookmark });
   bookmarkActionsRef.current = { toggleBookmarkAtCurrentLine, jumpToBookmark };
+
+  /** Next-edit predictions are "intelligent completion": off unless enabled. */
+  const installNextEdit = (editor: Monaco.editor.IStandaloneCodeEditor) => {
+    nextEditAdapterRef.current?.dispose();
+    nextEditAdapterRef.current = null;
+    if (!settings.intelligentCompletion) return;
+    const mountedDocument = documentsRef.current.find(
+      (item) => item.path === activePathRef.current,
+    );
+    if (
+      mountedDocument &&
+      isTextDocument(mountedDocument) &&
+      editorModelMatchesPath(editor, mountedDocument.path)
+    ) {
+      const semanticPredictor =
+        nextEditConfig.semanticEnabled && aiConfig.provider !== "off"
+          ? new AiSemanticNextEditPredictor(
+              new GenerateStepNextEditModelClient(
+                aiConfig,
+                nextEditConfig,
+                aiIsDesktop,
+              ),
+            )
+          : undefined;
+      nextEditAdapterRef.current = installMonacoNextEdit({
+        editor,
+        monaco,
+        documentKey: `${projectIdRef.current || projectPathRef.current || "project"}:${mountedDocument.relativePath}`,
+        language: languageFor(mountedDocument.name),
+        config: nextEditConfig,
+        semanticPredictor,
+        mutationOrigin: editorMutationOriginRef.current,
+        // One search for repeat edits per pause in typing, not per keystroke.
+        patternDebounceMs: 90,
+      });
+    }
+  };
+  const installNextEditRef = useRef(installNextEdit);
+  installNextEditRef.current = installNextEdit;
+  // Turning the setting on or off applies to the open editor at once.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor) installNextEditRef.current(editor);
+  }, [settings.intelligentCompletion, editorRef]);
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
@@ -468,36 +512,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
       revealPendingSource();
       triggerCitationCompletionIfNeeded(editor);
     });
-    const mountedDocument = documentsRef.current.find(
-      (item) => item.path === activePathRef.current,
-    );
-    if (
-      mountedDocument &&
-      isTextDocument(mountedDocument) &&
-      editorModelMatchesPath(editor, mountedDocument.path)
-    ) {
-      const semanticPredictor =
-        nextEditConfig.semanticEnabled && aiConfig.provider !== "off"
-          ? new AiSemanticNextEditPredictor(
-              new GenerateStepNextEditModelClient(
-                aiConfig,
-                nextEditConfig,
-                aiIsDesktop,
-              ),
-            )
-          : undefined;
-      nextEditAdapterRef.current = installMonacoNextEdit({
-        editor,
-        monaco,
-        documentKey: `${projectIdRef.current || projectPathRef.current || "project"}:${mountedDocument.relativePath}`,
-        language: languageFor(mountedDocument.name),
-        config: nextEditConfig,
-        semanticPredictor,
-        mutationOrigin: editorMutationOriginRef.current,
-        // One search for repeat edits per pause in typing, not per keystroke.
-        patternDebounceMs: 90,
-      });
-    }
+    installNextEdit(editor);
     const pendingCitation = pendingGraphCitationRef.current;
     if (pendingCitation && editorModelMatchesPath(editor, pendingCitation.path)) {
       pendingGraphCitationRef.current = null;

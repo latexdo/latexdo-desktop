@@ -341,6 +341,46 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <label className="settings-row settings-toggle">
         <span>
+          <strong>Word completion</strong>
+          <small>
+            Suggest words as you type, from your project first and then common English
+            words. Tab or Enter accepts.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.wordCompletion}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              wordCompletion: event.target.checked,
+            }))
+          }
+        />
+      </label>
+
+      <label className="settings-row settings-toggle">
+        <span>
+          <strong>Intelligent completion</strong>
+          <small>
+            AI text that continues your sentence and predictions of repeat edits. Off
+            by default; needs an AI model.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.intelligentCompletion}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              intelligentCompletion: event.target.checked,
+            }))
+          }
+        />
+      </label>
+
+      <label className="settings-row settings-toggle">
+        <span>
           <strong>Minimap</strong>
           <small>Show the source overview beside the editor.</small>
         </span>

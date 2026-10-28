@@ -21,6 +21,8 @@ function setup(overrides = {}) {
       aiConfig: defaultAiConfig,
       aiIsDesktop: false,
       nextEditConfig: { semanticEnabled: false },
+      settings: { intelligentCompletion: false },
+      nextEditAdapterRef: { current: null },
       activePathRef: { current: e.document.path },
       documentsRef: { current: [e.document] },
       documents: [e.document],

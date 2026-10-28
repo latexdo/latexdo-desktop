@@ -703,20 +703,21 @@ export default function App() {
                     <div className="settings-section-heading">Writing assistance</div>
                     <label className="settings-row settings-toggle">
                       <span>
-                        <strong>Suggest text as I type</strong>
+                        <strong>Intelligent completion</strong>
                         <small>
-                          Grey text continues what you are writing. Tab accepts it,
+                          Off by default. When on, grey AI text continues what you are
+                          writing and the editor predicts repeat edits. Tab accepts,
                           ⌘/Ctrl+→ accepts one word, Esc hides it and ⌥/Alt+\ asks for a
-                          suggestion now.
+                          suggestion now. Plain word completion is under Editor.
                         </small>
                       </span>
                       <input
                         type="checkbox"
-                        checked={aiConfig.sentenceCompletionEnabled}
+                        checked={settings.intelligentCompletion}
                         onChange={(event) =>
-                          setAiConfig((current) => ({
+                          setSettings((current) => ({
                             ...current,
-                            sentenceCompletionEnabled: event.target.checked,
+                            intelligentCompletion: event.target.checked,
                           }))
                         }
                       />

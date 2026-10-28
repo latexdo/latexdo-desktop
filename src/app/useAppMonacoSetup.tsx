@@ -14,6 +14,7 @@ import {
 import { recentCitationKeys } from "../features/citations/citationAssistant";
 import type { BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
+import { registerWordCompletion } from "../features/editor/wordCompletion/registerWordCompletion";
 import { citationKeysInText } from "../latex/citationAnalysis";
 import {
   figureBytesToDataUrl,
@@ -841,6 +842,22 @@ export function useAppMonacoSetup(ctx: AppCtx07) {
               ],
             };
           },
+        }),
+      );
+      // After the LaTeX providers: plain words are the fallback for prose.
+      providerDisposables.push(
+        registerWordCompletion({
+          monaco: instance,
+          isEnabled: () => settingsRef.current.wordCompletion,
+          getOtherDocuments: () =>
+            documentsRef.current
+              .filter(
+                (document) =>
+                  isTextDocument(document) &&
+                  document.path !== activePathRef.current &&
+                  /\.(tex|md|txt)$/i.test(document.name),
+              )
+              .map((document) => document.content),
         }),
       );
     }

@@ -36,6 +36,7 @@ import { ExtensionDetailPanel } from "../../components/ExtensionsSidebar";
 import { pathForDisplay } from "../../pathDisplay";
 import { verifyCitationCached } from "../../features/citations/citationVerification";
 import { fileName, languageFor } from "../../features/project/projectUtils";
+import { proseLanguages } from "../../features/editor/wordCompletion/registerWordCompletion";
 import {
   AppIcon,
   MonacoEditor,
@@ -374,6 +375,10 @@ export function renderEditorDropZone(ctx: AppCtx) {
                 strings: true,
               },
               snippetSuggestions: "top",
+              // Prose files use the ranked word completion instead.
+              wordBasedSuggestions: proseLanguages.has(languageFor(activeDocument.name))
+                ? "off"
+                : "currentDocument",
               // Copilot-style ghost text, with its hover toolbar.
               inlineSuggest: { enabled: true, showToolbar: "onHover" },
               suggest: {

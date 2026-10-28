@@ -102,8 +102,6 @@ export interface AiConfig {
 
   inlineCompletionEnabled: boolean;
   inlineModelId: string;
-  /** Grey ghost text that finishes the sentence being typed (Tab accepts). */
-  sentenceCompletionEnabled: boolean;
 
   ollamaBaseUrl: string;
   ollamaModel: string;
@@ -146,7 +144,6 @@ export const defaultAiConfig: AiConfig = {
 
   inlineCompletionEnabled: false,
   inlineModelId: defaultInlineModelId,
-  sentenceCompletionEnabled: true,
 
   ollamaBaseUrl: "http://127.0.0.1:11434",
   ollamaModel: "qwen2.5-coder:3b",
@@ -364,10 +361,6 @@ export function normalizeAiConfig(raw: unknown): AiConfig {
       defaultAiConfig.inlineCompletionEnabled,
     ),
     inlineModelId,
-    sentenceCompletionEnabled: bool(
-      saved.sentenceCompletionEnabled,
-      defaultAiConfig.sentenceCompletionEnabled,
-    ),
     ollamaBaseUrl,
     ollamaModel,
     cloud,
