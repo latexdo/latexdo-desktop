@@ -364,8 +364,8 @@ describe("step-by-step approval", () => {
     expect(result.content).toMatch(/declined/i);
   });
 
-  it("still requires approval even if an old config asks for autonomous mode", async () => {
-    const requestApproval = vi.fn(async () => true);
+  it("applies edits without asking when approval is turned off", async () => {
+    const requestApproval = vi.fn(async () => false);
     const applyEdit = vi.fn(async () => {});
     await executeTool(
       "edit_selection",
@@ -373,7 +373,7 @@ describe("step-by-step approval", () => {
       { ...proposalCtx(true, applyEdit), requestApproval },
       { autoApprove: true },
     );
-    expect(requestApproval).toHaveBeenCalledOnce();
+    expect(requestApproval).not.toHaveBeenCalled();
     expect(applyEdit).toHaveBeenCalledOnce();
   });
 });

@@ -725,15 +725,26 @@ export default function App() {
                     <VoiceSettingsSection aiConfig={aiConfig} />
 
                     <div className="settings-section-heading">AI edit safety</div>
-                    <div className="ai-autonomy-option ai-autonomy-option-locked">
+                    <label className="settings-row settings-toggle">
                       <span>
-                        <strong>Approval required before edits</strong>
+                        <strong>Ask before the assistant edits files</strong>
                         <small>
-                          The assistant can inspect enabled project context, but file
-                          changes are shown for approval before they are applied.
+                          {aiConfig.autoApproveEdits
+                            ? "Edits from the AI chat are applied right away. You can still undo them in the editor."
+                            : "Each edit from the AI chat is shown for approval before it is applied."}
                         </small>
                       </span>
-                    </div>
+                      <input
+                        type="checkbox"
+                        checked={!aiConfig.autoApproveEdits}
+                        onChange={(event) =>
+                          setAiConfig((current) => ({
+                            ...current,
+                            autoApproveEdits: !event.target.checked,
+                          }))
+                        }
+                      />
+                    </label>
                   </div>
                 ),
               },

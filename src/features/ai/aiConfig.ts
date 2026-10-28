@@ -115,7 +115,7 @@ export interface AiConfig {
   /** Controls which local project/profile context the AI agent may inspect. */
   access: AiAccessConfig;
 
-  /** Agent may write files / run compiles without per-step confirmation. */
+  /** Agent edits are applied without asking first (they stay undoable). */
   autoApproveEdits: boolean;
   /** Max agent tool-loop iterations before we stop and ask the user. */
   maxAgentSteps: number;
@@ -373,10 +373,7 @@ export function normalizeAiConfig(raw: unknown): AiConfig {
     cloud,
     profile: normalizeResearcherProfile(saved.profile),
     access: normalizeAccess(saved.access),
-    // Mutating AI tools always go through user approval. Keep the persisted
-    // field in the schema for backward compatibility, but do not honor older
-    // saved autonomous-mode configs.
-    autoApproveEdits: false,
+    autoApproveEdits: bool(saved.autoApproveEdits, defaultAiConfig.autoApproveEdits),
     maxAgentSteps: int(saved.maxAgentSteps, defaultAiConfig.maxAgentSteps, 1, 50),
   };
 }

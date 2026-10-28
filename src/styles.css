@@ -25201,31 +25201,6 @@ button {
   background: var(--bg-button-secondary);
   color: var(--text-secondary);
 }
-.ai-autonomy-option {
-  display: flex;
-  gap: 9px;
-  align-items: flex-start;
-  padding: 9px 2px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  cursor: pointer;
-}
-.ai-autonomy-option input {
-  margin-top: 3px;
-}
-.ai-autonomy-option-locked {
-  cursor: default;
-}
-.ai-autonomy-option-locked span {
-  display: grid;
-  gap: 3px;
-}
-.ai-autonomy-option-locked small {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
 
 @media (max-width: 900px) {
   .sidebar[data-view="ai"] {

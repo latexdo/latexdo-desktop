@@ -52,7 +52,7 @@ describe("agent tool execution", () => {
     ["insert_at_cursor", { text: "new" }, "insert-at-cursor"],
     ["write_file", { path: "main.tex", content: "new" }, "replace-file"],
   ])(
-    "requires approval for %s even with autoApprove enabled",
+    "asks approval for %s unless approval is turned off",
     async (name, args, kind) => {
       const ctx = context();
       ctx.requestApproval.mockResolvedValue(false);
@@ -60,7 +60,7 @@ describe("agent tool execution", () => {
         name as string,
         args as Record<string, unknown>,
         ctx,
-        { autoApprove: true },
+        { autoApprove: false },
       );
       expect(result.content).toContain("declined");
       expect(ctx.requestApproval).toHaveBeenCalledWith(
@@ -68,10 +68,11 @@ describe("agent tool execution", () => {
       );
       expect(ctx.applyEdit).not.toHaveBeenCalled();
       expect(ctx.writeFile).not.toHaveBeenCalled();
-      ctx.requestApproval.mockResolvedValue(true);
+      ctx.requestApproval.mockClear();
       await executeTool(name as string, args as Record<string, unknown>, ctx, {
-        autoApprove: false,
+        autoApprove: true,
       });
+      expect(ctx.requestApproval).not.toHaveBeenCalled();
       if (name === "write_file")
         expect(ctx.writeFile).toHaveBeenCalledWith("main.tex", "new");
       else
