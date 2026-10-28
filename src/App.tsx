@@ -44,6 +44,7 @@ import { useAppDerivedState } from "./app/useAppDerivedState";
 import { useAppCitationAssistant } from "./app/useAppCitationAssistant";
 import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
+import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
 import { SettingsShell } from "./components/SettingsShell";
 import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
@@ -110,8 +111,9 @@ export default function App() {
   const s17 = { ...s16, ...useAppCitationAssistant(s16) };
   const s18 = { ...s17, ...useAppSessionRestore(s17) };
   const s19 = { ...s18, ...useAppPaperReview(s18) };
-  const s20 = { ...s19, ...useAppMenuCommands(s19) };
-  const ctx = s20;
+  const s20 = { ...s19, ...useAppViewLayout(s19) };
+  const s21 = { ...s20, ...useAppMenuCommands(s20) };
+  const ctx = s21;
   const {
     openInstalledExtension,
     openExtensionDetails,
@@ -311,7 +313,7 @@ export default function App() {
       {renderTitlebar(ctx)}
 
       <div
-        className={`workbench workspace-layout-${aiConfig.layoutPreset} ${aiStandalone ? "ai-standalone" : ""}`}
+        className={`workbench workspace-layout-${aiConfig.layoutPreset} ${aiStandalone ? "ai-standalone" : ""} ${ctx.focusMode ? "focus-mode" : ""}`}
         data-layout-preset={aiConfig.layoutPreset}
         data-tour-id="workspace"
       >

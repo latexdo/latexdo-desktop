@@ -5,7 +5,9 @@ import {
   MIN_PREVIEW_WIDTH,
   MIN_SOURCE_WIDTH,
   SPLIT_HANDLE_WIDTH,
+  clamp,
   clampSidebarWidth,
+  DEFAULT_PANEL_HEIGHT,
   savePaneLayout,
   splitPercentAt,
   startPaneDrag,
@@ -533,22 +535,33 @@ export function useAppRebuttalAndHistory(ctx: AppCtx14) {
     };
   }, [previewShown, splitPercent]);
 
-  const startPanelResize = (event: React.PointerEvent) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+  const clampPanelHeight = (height: number) => {
+    const mainArea = document.querySelector(".main-area");
+    const maxHeight = Math.max(80, (mainArea?.clientHeight ?? 600) - 100);
+    return Math.round(clamp(height, 80, maxHeight));
+  };
+  const startPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
     const startY = event.clientY;
     const startHeight = panelHeight;
-    const handleMove = (moveEvent: PointerEvent) => {
-      const mainArea = document.querySelector(".main-area")!;
-      const maxHeight = mainArea.clientHeight - 100;
-      const delta = startY - moveEvent.clientY;
-      setPanelHeight(Math.max(80, Math.min(maxHeight, startHeight + delta)));
-    };
-    const handleUp = () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-    };
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
+    startPaneDrag(
+      event,
+      (clientY) => setPanelHeight(clampPanelHeight(startHeight + startY - clientY)),
+      undefined,
+      "y",
+    );
+  };
+  const resetPanelHeight = () => setPanelHeight(DEFAULT_PANEL_HEIGHT);
+  const nudgePanel = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 64 : 16;
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      setPanelHeight(
+        clampPanelHeight(panelHeight + (event.key === "ArrowUp" ? step : -step)),
+      );
+    } else if (event.key === "Home" || event.key === "Enter") {
+      event.preventDefault();
+      resetPanelHeight();
+    }
   };
 
   const availableUpdateVersion = updateInfo?.updateAvailable
@@ -578,6 +591,8 @@ export function useAppRebuttalAndHistory(ctx: AppCtx14) {
     startSidebarResize,
     nudgeSidebar,
     startPanelResize,
+    resetPanelHeight,
+    nudgePanel,
     availableUpdateVersion,
     updateBannerVisible,
     updatePublishedLabel,

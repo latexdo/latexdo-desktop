@@ -1,7 +1,7 @@
 import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CitationSearchAnchor } from "../components/CitationSearchPopup";
-import { loadPaneLayout } from "../features/layout/paneLayout";
+import { DEFAULT_PANEL_HEIGHT, loadPaneLayout } from "../features/layout/paneLayout";
 import { productConfig } from "../productConfig";
 import { appVersion } from "../appVersion";
 import type { PdfClickLocation } from "../PdfPreview";
@@ -126,7 +126,7 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
   );
   const [activePanel, setActivePanel] = useState<PanelKind>("problems");
   const [terminalStarted, setTerminalStarted] = useState(false);
-  const [panelHeight, setPanelHeight] = useState(200);
+  const [panelHeight, setPanelHeight] = useState(DEFAULT_PANEL_HEIGHT);
   const {
     gitStatus,
     setGitStatus,

@@ -7,7 +7,8 @@ import { toolTabIds, type ToolTabKey } from "../features/workspace/toolTabs";
 import type { LayoutPreset } from "../features/ai/aiConfig";
 import type { LatexToolbarCommand, PanelKind, SidebarView } from "./appShared";
 import { isTextDocument } from "./appShared";
-import type { AppCtx19 } from "./appContext";
+import type { AppCtx20 } from "./appContext";
+import type { ViewLayoutMode } from "./useAppViewLayout";
 
 const editorCommandPrefix = "editor:";
 
@@ -30,6 +31,12 @@ const layoutCommands: Record<string, LayoutPreset> = {
   "view.layout.power": "power",
 };
 
+const viewModeCommands: Record<string, ViewLayoutMode> = {
+  "view.mode.split": "split",
+  "view.mode.editor": "editor",
+  "view.mode.pdf": "pdf",
+};
+
 const insertCommands: Record<string, LatexToolbarCommand> = {
   "insert.underline": "underline",
   "insert.math": "math",
@@ -49,7 +56,7 @@ const insertCommands: Record<string, LatexToolbarCommand> = {
  * Insert, Tools, Help). The main process owns the menu and its shortcuts and
  * sends each chosen item here by id.
  */
-export function useAppMenuCommands(ctx: AppCtx19) {
+export function useAppMenuCommands(ctx: AppCtx20) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // The listener is registered once; commands always see the latest state.
   const latest = useRef(ctx);
@@ -163,6 +170,10 @@ export function useAppMenuCommands(ctx: AppCtx19) {
         c.applyLayoutPreset(layoutCommands[command]);
         return;
       }
+      if (command in viewModeCommands) {
+        await c.setLayoutMode(viewModeCommands[command]);
+        return;
+      }
       if (command in insertCommands) {
         c.editorRef.current?.focus();
         c.applyLatexToolbarCommand(insertCommands[command]);
@@ -240,6 +251,12 @@ export function useAppMenuCommands(ctx: AppCtx19) {
           return;
         case "view.togglePreview":
           await c.togglePreview();
+          return;
+        case "view.toggleFocusMode":
+          c.toggleFocusMode();
+          return;
+        case "view.resetPaneSizes":
+          c.resetPaneSizes();
           return;
         case "view.toggleWordWrap":
           c.setSettings((current) => ({ ...current, wordWrap: !current.wordWrap }));

@@ -48,6 +48,7 @@ export function renderMainArea(ctx: AppCtx) {
     editorRef,
     extensionToolAvailability,
     gitDiffSession,
+    layoutMode,
     addOnlineCitation,
     pickCitation,
     readCitationContext,
@@ -60,6 +61,8 @@ export function renderMainArea(ctx: AppCtx) {
     showWelcome,
     splitPercent,
     startPanelResize,
+    resetPanelHeight,
+    nudgePanel,
     workspaceTabs,
   } = ctx;
   const citationSearchAnchor = ctx.citationSearchAnchor!;
@@ -69,7 +72,7 @@ export function renderMainArea(ctx: AppCtx) {
 
       <div
         ref={editorPreviewRef}
-        className={`editor-preview ${previewShown ? "with-preview" : "without-preview"}`}
+        className={`editor-preview ${previewShown ? "with-preview" : "without-preview"} ${layoutMode === "pdf" ? "pdf-only" : ""}`}
         style={
           {
             "--source-width": previewShown ? `${splitPercent}%` : "100%",
@@ -109,7 +112,17 @@ export function renderMainArea(ctx: AppCtx) {
 
       {panelVisible ? (
         <section className="bottom-panel" style={{ height: panelHeight }}>
-          <div className="panel-resize-handle" onPointerDown={startPanelResize} />
+          <div
+            className="panel-resize-handle"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize bottom panel"
+            title="Drag to resize · double-click to reset"
+            tabIndex={0}
+            onPointerDown={startPanelResize}
+            onDoubleClick={resetPanelHeight}
+            onKeyDown={nudgePanel}
+          />
           {renderPanelTabs(ctx)}
           {renderPanelContent(ctx)}
         </section>

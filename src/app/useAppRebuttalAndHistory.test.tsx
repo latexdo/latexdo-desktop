@@ -354,20 +354,32 @@ describe("pane resizing", () => {
     main.className = "main-area";
     Object.defineProperty(main, "clientHeight", { value: 600 });
     document.body.append(main);
-    const setPointerCapture = vi.fn();
+    const handle = document.createElement("div");
+    handle.setPointerCapture = vi.fn();
     h.result.current.startPanelResize({
-      currentTarget: { setPointerCapture },
+      button: 0,
+      currentTarget: handle,
       pointerId: 1,
       clientY: 300,
-    } as unknown as ReactPointerEvent);
+      preventDefault: vi.fn(),
+    } as unknown as ReactPointerEvent<HTMLDivElement>);
+    expect(handle.classList.contains("dragging")).toBe(true);
+    expect(document.body.classList.contains("pane-resizing-row")).toBe(true);
     window.dispatchEvent(new MouseEvent("pointermove", { clientY: 0 }));
     expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(500);
     window.dispatchEvent(new MouseEvent("pointermove", { clientY: 1000 }));
     expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(80);
     window.dispatchEvent(new Event("pointerup"));
+    expect(document.body.classList.contains("pane-resizing-row")).toBe(false);
     h.ctx.setPanelHeight.mockClear();
     window.dispatchEvent(new MouseEvent("pointermove", { clientY: 0 }));
     expect(h.ctx.setPanelHeight).not.toHaveBeenCalled();
+    h.result.current.nudgePanel(keyEvent("ArrowUp", handle));
+    expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(216);
+    h.result.current.nudgePanel(keyEvent("ArrowDown", handle, true));
+    expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(136);
+    h.result.current.resetPanelHeight();
+    expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(200);
     main.remove();
   });
   it("uses the expanded AI sidebar width and reports build defaults", () => {

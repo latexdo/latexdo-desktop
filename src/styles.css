@@ -30884,3 +30884,203 @@ body.pane-resizing .preview-pane > * {
   background: var(--accent-bg);
   color: var(--text-primary);
 }
+
+/* ===== Pane sashes (VS Code style) =====
+   Every resizable edge is a thin divider with a wide invisible grab area. The
+   accent line appears after a short hover, so it doesn't flash while the
+   pointer passes over, and at once while dragging or focused. These rules
+   override the older per-handle styles above. */
+.editor-preview .split-handle,
+.editor-preview .split-handle:hover {
+  border: 0;
+  background: transparent;
+}
+
+.split-handle::after,
+.panel-resize-handle::after {
+  position: absolute;
+  content: "";
+  background: var(--border-default);
+  transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+
+.split-handle::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.split-handle:hover::after,
+.panel-resize-handle:hover::after,
+.sidebar-resize-handle:hover::after {
+  transition-delay: 0.3s;
+}
+
+.split-handle:hover::after,
+.split-handle:focus-visible::after,
+.split-handle.dragging::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.split-handle:focus-visible,
+.split-handle.dragging {
+  border: 0;
+  background: transparent;
+}
+
+.sidebar-resize-handle::after {
+  left: -2px;
+  width: 4px;
+}
+
+.sidebar-resize-handle.dragging::after,
+.sidebar-resize-handle:focus-visible::after,
+.split-handle.dragging::after,
+.split-handle:focus-visible::after,
+.panel-resize-handle.dragging::after,
+.panel-resize-handle:focus-visible::after {
+  transition-delay: 0s;
+}
+
+.panel-resize-handle {
+  top: -5px;
+  height: 9px;
+  outline: none;
+  touch-action: none;
+  cursor: row-resize;
+}
+
+.panel-resize-handle::after {
+  top: 4px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  border-radius: 0;
+  background: transparent;
+  transform: none;
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle:focus-visible::after,
+.panel-resize-handle.dragging::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+body.pane-resizing-row,
+body.pane-resizing-row * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+body.pane-resizing-row iframe,
+body.pane-resizing-row webview,
+body.pane-resizing-row .monaco-editor,
+body.pane-resizing-row .preview-pane > * {
+  pointer-events: none;
+}
+
+/* ===== Layout modes ===== */
+/* PDF only keeps the editor mounted, just collapsed, so it keeps its state. */
+.editor-preview.with-preview.pdf-only {
+  grid-template-columns: 0 0 minmax(0, 1fr);
+}
+
+.editor-preview.pdf-only > .source-pane,
+.editor-preview.pdf-only > .split-handle {
+  visibility: hidden;
+  overflow: hidden;
+}
+
+.workbench.focus-mode > .activity-bar {
+  display: none;
+}
+
+/* ===== Layout menu (title bar) ===== */
+.layout-menu {
+  position: relative;
+}
+
+.layout-menu-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1200;
+  display: flex;
+  min-width: 270px;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--border-dialog);
+  border-radius: 8px;
+  background: var(--bg-menu);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--bg-root) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+.layout-menu-heading {
+  padding: 6px 10px 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.layout-menu-popup button {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.layout-menu-popup button:hover,
+.layout-menu-popup button:focus-visible {
+  outline: 0;
+  background: var(--bg-row-active);
+  color: var(--text-primary);
+}
+
+.layout-menu-popup button.checked {
+  color: var(--text-primary);
+}
+
+.layout-menu-popup button.checked > svg:first-child {
+  color: var(--accent);
+}
+
+.layout-menu-label {
+  flex: 1;
+}
+
+.layout-menu-popup kbd {
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.layout-menu-popup hr {
+  width: calc(100% - 8px);
+  height: 1px;
+  margin: 5px 4px;
+  border: 0;
+  background: var(--border-subtle);
+}
+
+.layout-menu-hint {
+  margin: 4px 10px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
