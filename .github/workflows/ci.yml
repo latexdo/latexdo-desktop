@@ -892,10 +892,11 @@ jobs:
             exit 0
           fi
 
+          node scripts/render-release-notes.mjs "release-notes/${RELEASE_VERSION}.json" /tmp/latexdo-release-notes.md
           gh release create "$RELEASE_TAG" "${assets[@]}" \
             --target "$LATEXDO_RELEASE_TARGET_SHA" \
             --title "$RELEASE_TITLE" \
-            --notes "LatexDo v${RELEASE_VERSION} desktop installers from ${LATEXDO_RELEASE_TARGET_SHA}."
+            --notes-file /tmp/latexdo-release-notes.md
 
       - name: Checkout latexdo.org
         uses: actions/checkout@v6

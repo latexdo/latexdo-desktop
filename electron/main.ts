@@ -5161,6 +5161,7 @@ function currentReleaseNotesPublicKeyPath(): string {
 
 function releaseNotesResolverOptionsForCurrentApp() {
   return {
+    bundledDirectory: path.join(currentDirectory, "release-notes"),
     dataDirectory: app.getPath("userData"),
     publicKeyPemPath: currentReleaseNotesPublicKeyPath(),
     baseUrl: currentReleaseNotesBaseUrl(),
