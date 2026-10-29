@@ -79,8 +79,14 @@ vi.mock("electron", async () => {
       return false;
     }
     loadURL = vi.fn(async () => undefined);
-    static fromWebContents() {
-      return native.windows[0] ?? null;
+    static fromWebContents(sender: unknown) {
+      return (
+        native.windows.find(
+          (candidate) => (candidate as Window).webContents === sender,
+        ) ??
+        native.windows[0] ??
+        null
+      );
     }
     static getFocusedWindow() {
       return native.windows[0] ?? null;
@@ -639,6 +645,108 @@ describe("network and external navigation policy", () => {
     expect(result.currentVersion).toBe("0.3.0");
     expect(result.updateAvailable).toBe(false);
     expect(await call("app:last-update-status")).toHaveProperty("status");
+  });
+});
+
+describe("dropped folders", () => {
+  it("adds folders without a folder picker and keeps their contents in place", async () => {
+    const folder = path.join(root, "dropped-paper");
+    await mkdir(folder);
+    await writeFile(path.join(folder, "main.tex"), "dropped source");
+    const openCalls = native.open.mock.calls.length;
+    native.save.mockResolvedValueOnce({
+      canceled: false,
+      filePath: path.join(root, "Dropped Study"),
+    });
+    const space = await call(
+      "project:open-dropped-folders",
+      [folder],
+      project.id,
+      "space",
+    );
+    expect(native.open.mock.calls.length).toBe(openCalls);
+    expect(
+      space.researchSpace.folders.map((entry: { path: string }) => entry.path),
+    ).toEqual([project.rootPath, folder]);
+    expect(await call("file:read", space.id, "dropped-paper/main.tex")).toBe(
+      "dropped source",
+    );
+    await expect(
+      call("project:open-dropped-folders", [folder], space.id, "space"),
+    ).rejects.toThrow("already in this Research Space");
+    const second = path.join(root, "dropped-second");
+    await mkdir(second);
+    const updated = await call(
+      "project:open-dropped-folders",
+      [second],
+      space.id,
+      "space",
+    );
+    expect(updated.researchSpace.folders).toHaveLength(3);
+  });
+
+  it("cancels space creation without replacing the current project", async () => {
+    expect(
+      await call(
+        "project:open-dropped-folders",
+        [project.rootPath],
+        project.id,
+        "space",
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects files and malformed paths before opening a window", async () => {
+    const count = native.windows.length;
+    await expect(
+      call(
+        "project:open-dropped-folders",
+        [path.join(project.rootPath, "main.tex")],
+        null,
+        "window",
+      ),
+    ).rejects.toThrow();
+    await expect(
+      call("project:open-dropped-folders", ["relative"], null, "window"),
+    ).rejects.toThrow();
+    await expect(
+      call("project:open-dropped-folders", [], null, "window"),
+    ).rejects.toThrow();
+    expect(native.windows).toHaveLength(count);
+  });
+
+  it("routes each folder only to its own new window", async () => {
+    const paths = [path.join(root, "window-one"), path.join(root, "window-two")];
+    for (const folder of paths) await mkdir(folder);
+    const count = native.windows.length;
+    expect(
+      await call("project:open-dropped-folders", paths, null, "window"),
+    ).toBeNull();
+    expect(native.windows).toHaveLength(count + 2);
+    expect(await call("project:open-requested")).toBeNull();
+    for (let i = 0; i < paths.length; i++) {
+      const target = native.windows[count + i] as typeof window;
+      const opened = await native.handlers.get("project:open-requested")!({
+        sender: target.webContents,
+        senderFrame: target.webContents.mainFrame,
+      });
+      expect(opened).toMatchObject({ rootPath: paths[i] });
+    }
+  });
+
+  it("creates a research space from a welcome-screen drop", async () => {
+    native.message.mockResolvedValueOnce({ response: 1 });
+    native.save.mockResolvedValueOnce({
+      canceled: false,
+      filePath: path.join(root, "New Drop Space"),
+    });
+    const space = await call(
+      "project:open-dropped-folders",
+      [project.rootPath],
+      null,
+      "space",
+    );
+    expect(space.researchSpace.folders).toHaveLength(1);
   });
 });
 

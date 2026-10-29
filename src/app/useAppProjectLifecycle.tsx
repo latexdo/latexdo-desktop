@@ -209,9 +209,11 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
         // On the desktop: a file opened from Finder first, then a shared
         // cloud project, else the folder that was open when LatexDo last
         // closed (#229).
+        const requestedProject =
+          runtime === "desktop" ? await window.latexdo.openRequestedProject?.() : null;
         const project =
           runtime === "desktop"
-            ? ((await window.latexdo.openRequestedProject?.()) ??
+            ? (requestedProject ??
               (await window.latexdo.restoreCloudProject()) ??
               (await window.latexdo.reopenLastProject?.()) ??
               null)
@@ -221,6 +223,11 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
         }
         if (project) {
           await loadProject(project, true, false);
+          if (requestedProject) {
+            ctx.setSidebarVisible(true);
+            ctx.setActiveSidebar("explorer");
+            ctx.setWelcomeOpen(false);
+          }
         }
       } catch (error) {
         setStatusMessage(

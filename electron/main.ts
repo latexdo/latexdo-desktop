@@ -947,6 +947,58 @@ const projectGarbageCollector = createGarbageCollector({
     Boolean(activeCompileControllers.get(projectId)?.size),
 });
 
+async function addFoldersToResearchSpace(
+  window: BrowserWindow | null,
+  project: OpenProject,
+  folderPaths: string[],
+): Promise<OpenProject | null> {
+  for (const folderPath of folderPaths) {
+    await trustWorkspace(folderPath);
+  }
+
+  if (!isResearchSpaceProject(project)) {
+    // A plain folder becomes a space holding it and the new folders, like
+    // adding a folder to a Visual Studio Code window.
+    const filePath = await chooseResearchSpaceFile(window, project.name);
+    if (!filePath) {
+      return null;
+    }
+    const combinedPaths = [
+      project.rootPath,
+      ...folderPaths.filter(
+        (folderPath) => path.resolve(folderPath) !== path.resolve(project.rootPath),
+      ),
+    ];
+    const space = await createResearchSpaceFile(filePath, combinedPaths);
+    await trustWorkspace(path.dirname(space.filePath));
+    return finishOpeningProject(registerResearchSpace(space));
+  }
+
+  const current = project.researchSpace;
+  const known = new Set(current.folders.map((folder) => path.resolve(folder.path)));
+  const usedNames = new Set(current.folders.map((folder) => folder.name));
+  const folders = [...current.folders];
+  for (const folderPath of folderPaths) {
+    const resolvedFolderPath = path.resolve(folderPath);
+    const folderStats = await stat(resolvedFolderPath).catch(() => null);
+    if (known.has(resolvedFolderPath) || !folderStats?.isDirectory()) {
+      continue;
+    }
+    known.add(resolvedFolderPath);
+    const fallback = path.basename(resolvedFolderPath) || "Folder";
+    folders.push({
+      name: uniqueResearchSpaceFolderName(fallback, fallback, usedNames),
+      path: resolvedFolderPath,
+      kind: normalizeResearchSpaceFolderKind(undefined, resolvedFolderPath),
+    });
+  }
+  if (folders.length === current.folders.length) {
+    throw new Error("Those folders are already in this Research Space.");
+  }
+  const space = await writeResearchSpaceFile({ ...current, folders });
+  return finishOpeningProject(registerResearchSpace(space));
+}
+
 async function finishOpeningProject(
   project: OpenProject | null,
 ): Promise<OpenProject | null> {
@@ -6417,6 +6469,7 @@ let appWindowsAvailable = false;
 // Research Spaces and folders opened from Finder, the Dock or the command
 // line, waiting for the renderer to ask for them.
 const requestedOpenPaths: string[] = [];
+const windowOpenPaths = new WeakMap<BrowserWindow, string>();
 const openRequestedChannel = "project:open-requested";
 
 function requestOpenPath(candidate: string): void {
@@ -6444,10 +6497,18 @@ function openPathsFromArgv(argv: readonly string[]): string[] {
 async function openRequestedPath(
   targetWindow: BrowserWindow | null,
 ): Promise<OpenProject | null> {
-  const requested = requestedOpenPaths.shift();
+  const windowPath = targetWindow && windowOpenPaths.get(targetWindow);
+  const requested = windowPath || requestedOpenPaths.shift();
+  if (targetWindow) windowOpenPaths.delete(targetWindow);
   if (!requested) return null;
   const stats = await stat(requested).catch(() => null);
-  if (stats?.isDirectory()) return registerProjectIfTrusted(targetWindow, requested);
+  if (stats?.isDirectory()) {
+    const project = await registerProjectIfTrusted(targetWindow, requested);
+    // A cancelled folder drop must leave this new window empty, not restore
+    // an unrelated last-opened project through the renderer's fallback.
+    if (windowPath && !project) throw new Error("Opening folder cancelled.");
+    return project;
+  }
   if (stats?.isFile() && isResearchSpaceFile(requested)) {
     return registerResearchSpaceFileIfTrusted(targetWindow, requested);
   }
@@ -6620,6 +6681,81 @@ async function startApp(): Promise<void> {
     }
     throw new Error("Open a folder or a LatexDo Research Space file.");
   });
+  ipcMain.handle(
+    "project:open-dropped-folders",
+    async (event, ...rawArgs: unknown[]) => {
+      const channel = "project:open-dropped-folders";
+      const [rawPaths, rawProjectId, disposition] = expectIpcArgs(channel, rawArgs, 3);
+      const folderPaths = parseExternalSourcePaths(channel, rawPaths);
+      if (
+        !folderPaths.length ||
+        (disposition !== "window" && disposition !== "space")
+      ) {
+        invalidIpcInput(channel);
+      }
+      const projectId =
+        rawProjectId === null ? null : parseProjectId(channel, rawProjectId);
+      // Validate every drop before opening windows or changing a space.
+      for (const folderPath of folderPaths) {
+        if (!(await stat(folderPath)).isDirectory())
+          throw new Error("Drop folders to open a project.");
+      }
+      const window = BrowserWindow.fromWebContents(event.sender) ?? null;
+      if (disposition === "window") {
+        for (const folderPath of folderPaths) {
+          const newWindow = createWindow();
+          windowOpenPaths.set(newWindow, folderPath);
+        }
+        return null;
+      }
+      let project = projectId ? openProjects.get(projectId) : undefined;
+      if (projectId && !project) throw new Error("The requested project is not open.");
+      if (!project) {
+        const options: Electron.MessageBoxOptions = {
+          type: "question",
+          message: "Choose a Research Space",
+          detail: "Add the dropped folders to an existing space or create a new one.",
+          buttons: ["Choose Existing Space", "Create New Space", "Cancel"],
+          defaultId: 0,
+          cancelId: 2,
+        };
+        const choice = window
+          ? await dialog.showMessageBox(window, options)
+          : await dialog.showMessageBox(options);
+        if (choice.response === 2) return null;
+        if (choice.response === 1) {
+          const filePath = await chooseResearchSpaceFile(
+            window,
+            path.basename(folderPaths[0]),
+          );
+          if (!filePath) return null;
+          for (const folderPath of folderPaths) await trustWorkspace(folderPath);
+          const space = await createResearchSpaceFile(filePath, folderPaths);
+          await trustWorkspace(path.dirname(space.filePath));
+          return finishOpeningProject(registerResearchSpace(space));
+        }
+        const openOptions: Electron.OpenDialogOptions = {
+          title: "Choose a Research Space",
+          properties: ["openFile"],
+          filters: [
+            {
+              name: "LatexDo Research Spaces",
+              extensions: [researchSpacePrimaryExtension, "latexdo-workspace"],
+            },
+          ],
+        };
+        const selection = window
+          ? await dialog.showOpenDialog(window, openOptions)
+          : await dialog.showOpenDialog(openOptions);
+        if (selection.canceled || !selection.filePaths[0]) return null;
+        project =
+          (await registerResearchSpaceFileIfTrusted(window, selection.filePaths[0])) ??
+          undefined;
+        if (!project) return null;
+      }
+      return addFoldersToResearchSpace(window, project, folderPaths);
+    },
+  );
   ipcMain.handle("project:create", async (event, ...rawArgs: unknown[]) => {
     const channel = "project:create";
     const [rawOptions] = expectIpcArgRange(channel, rawArgs, 0, 1);
@@ -6837,51 +6973,7 @@ async function startApp(): Promise<void> {
     if (openResult.canceled || openResult.filePaths.length === 0) {
       return null;
     }
-    for (const folderPath of openResult.filePaths) {
-      await trustWorkspace(folderPath);
-    }
-
-    if (!isResearchSpaceProject(project)) {
-      // A plain folder becomes a space holding it and the new folders, like
-      // adding a folder to a Visual Studio Code window.
-      const filePath = await chooseResearchSpaceFile(window, project.name);
-      if (!filePath) {
-        return null;
-      }
-      const folderPaths = [
-        project.rootPath,
-        ...openResult.filePaths.filter(
-          (folderPath) => path.resolve(folderPath) !== path.resolve(project.rootPath),
-        ),
-      ];
-      const space = await createResearchSpaceFile(filePath, folderPaths);
-      await trustWorkspace(path.dirname(space.filePath));
-      return finishOpeningProject(registerResearchSpace(space));
-    }
-
-    const current = project.researchSpace;
-    const known = new Set(current.folders.map((folder) => path.resolve(folder.path)));
-    const usedNames = new Set(current.folders.map((folder) => folder.name));
-    const folders = [...current.folders];
-    for (const folderPath of openResult.filePaths) {
-      const resolvedFolderPath = path.resolve(folderPath);
-      const folderStats = await stat(resolvedFolderPath).catch(() => null);
-      if (known.has(resolvedFolderPath) || !folderStats?.isDirectory()) {
-        continue;
-      }
-      known.add(resolvedFolderPath);
-      const fallback = path.basename(resolvedFolderPath) || "Folder";
-      folders.push({
-        name: uniqueResearchSpaceFolderName(fallback, fallback, usedNames),
-        path: resolvedFolderPath,
-        kind: normalizeResearchSpaceFolderKind(undefined, resolvedFolderPath),
-      });
-    }
-    if (folders.length === current.folders.length) {
-      throw new Error("Those folders are already in this Research Space.");
-    }
-    const space = await writeResearchSpaceFile({ ...current, folders });
-    return finishOpeningProject(registerResearchSpace(space));
+    return addFoldersToResearchSpace(window, project, openResult.filePaths);
   });
   ipcMain.handle("app:menu-shortcuts", async (_event, ...rawArgs: unknown[]) => {
     expectIpcArgs("app:menu-shortcuts", rawArgs, 0);

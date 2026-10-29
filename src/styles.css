@@ -31214,3 +31214,33 @@ body.pane-resizing-row .preview-pane > * {
     transform: none;
   }
 }
+
+.folder-drop-dialog {
+  width: min(480px, calc(100vw - 48px));
+  padding: 24px;
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  background: var(--bg-settings-row);
+  color: var(--text-primary);
+  box-shadow: 0 16px 60px rgb(0 0 0 / 35%);
+}
+
+.folder-drop-dialog::backdrop {
+  background: rgb(0 0 0 / 50%);
+}
+
+.folder-drop-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.folder-drop-dialog p {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.folder-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}

@@ -1,3 +1,4 @@
+import { useFolderDrop } from "./app/useFolderDrop";
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
 import { Check, ChevronDown, Download, LoaderCircle, RefreshCw } from "lucide-react";
@@ -114,6 +115,7 @@ export default function App() {
   const s20 = { ...s19, ...useAppViewLayout(s19) };
   const s21 = { ...s20, ...useAppMenuCommands(s20) };
   const ctx = s21;
+  const folderDrop = useFolderDrop(ctx);
   const {
     openInstalledExtension,
     openExtensionDetails,
@@ -243,10 +245,16 @@ export default function App() {
   return (
     <div
       className="app-shell"
+      onDropCapture={folderDrop.onDropCapture}
+      onDragOverCapture={(event) => {
+        if (Array.from(event.dataTransfer.types).includes("Files"))
+          event.preventDefault();
+      }}
       data-theme={settings.colorTheme}
       data-appearance={settings.appearanceMode}
       data-resolved-appearance={resolvedAppearance}
     >
+      {folderDrop.dialog}
       <input
         ref={pdfReviewInputRef}
         type="file"
