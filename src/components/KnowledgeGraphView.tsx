@@ -5,6 +5,9 @@ import {
   FilePlus2,
   Globe2,
   LoaderCircle,
+  Minus,
+  Plus,
+  Maximize,
   Quote,
   RefreshCw,
   Search,
@@ -120,9 +123,14 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
     [updateViewState],
   );
   const setQuery = (query: string) => updateViewState({ query });
-  const setCitedOnly = (citedOnly: boolean) => updateViewState({ citedOnly });
+  const setCitedOnly = (citedOnly: boolean) =>
+    updateViewState({ citedOnly, selectedKey: null });
   const [showControls, setShowControls] = useState(false);
   const [onlineDiscovery, setOnlineDiscovery] = useState(false);
+  const [discoveryQuery, setDiscoveryQuery] = useState("");
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const addingRef = useRef(false);
+  const [addError, setAddError] = useState("");
   const [onlineResult, setOnlineResult] = useState<ScholarlyDiscoveryResult>({
     papers: [],
     queries: [],
@@ -168,6 +176,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   const frame = useRef<number | null>(null);
   const discoveryAbort = useRef<AbortController | null>(null);
   const discoveryRunId = useRef(0);
+  const lastDiscoverySource = useRef<typeof refreshOnlineDiscovery | null>(null);
 
   useEffect(() => {
     if (!bibFiles.length) {
@@ -193,6 +202,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
 
   // Force simulation loop.
   useEffect(() => {
+    if (onlineDiscovery) return;
     const edges = rendered.edges;
     const nodes = rendered.nodes;
     const pos = positions.current;
@@ -268,7 +278,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
     return () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
-  }, [rendered]);
+  }, [rendered, onlineDiscovery]);
 
   const reheat = useCallback(() => {
     alpha.current = Math.max(alpha.current, 0.6);
@@ -326,32 +336,50 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   }, [entriesByKey, graph, onPlanDiscoveryWithAi]);
 
   useEffect(() => {
-    if (!onlineDiscovery) {
-      discoveryAbort.current?.abort();
-      discoveryAbort.current = null;
-      setOnlineState("idle");
-      setOnlineError("");
-      setAiPlan(null);
-      setAiPlanState("idle");
+    if (!onlineDiscovery || lastDiscoverySource.current === refreshOnlineDiscovery)
       return;
-    }
+    lastDiscoverySource.current = refreshOnlineDiscovery;
     void refreshOnlineDiscovery();
-    return () => {
-      discoveryAbort.current?.abort();
-    };
   }, [onlineDiscovery, refreshOnlineDiscovery]);
 
-  const toScene = useCallback((clientX: number, clientY: number) => {
-    const svg = svgRef.current;
-    if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    const sx = ((clientX - rect.left) / rect.width) * width;
-    const sy = ((clientY - rect.top) / rect.height) * height;
+  useEffect(() => () => discoveryAbort.current?.abort(), []);
+
+  const toViewport = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect?.width || !rect.height) return { x: width / 2, y: height / 2 };
+    const scale = Math.min(rect.width / width, rect.height / height);
     return {
-      x: (sx - view.current.x) / view.current.k,
-      y: (sy - view.current.y) / view.current.k,
+      x: (clientX - rect.left - (rect.width - width * scale) / 2) / scale,
+      y: (clientY - rect.top - (rect.height - height * scale) / 2) / scale,
     };
   }, []);
+  const toScene = useCallback(
+    (clientX: number, clientY: number) => {
+      const point = toViewport(clientX, clientY);
+      return {
+        x: (point.x - view.current.x) / view.current.k,
+        y: (point.y - view.current.y) / view.current.k,
+      };
+    },
+    [toViewport],
+  );
+  const zoomBy = useCallback(
+    (factor: number, anchor = { x: width / 2, y: height / 2 }) => {
+      const previous = view.current;
+      const k = Math.max(0.3, Math.min(3, previous.k * factor));
+      view.current = {
+        x: anchor.x - ((anchor.x - previous.x) * k) / previous.k,
+        y: anchor.y - ((anchor.y - previous.y) * k) / previous.k,
+        k,
+      };
+      forceTick((value) => value + 1);
+    },
+    [],
+  );
+  const resetView = () => {
+    view.current = { x: 0, y: 0, k: 1 };
+    forceTick((value) => value + 1);
+  };
 
   const onNodePointerDown = useCallback(
     (event: React.PointerEvent, key: string) => {
@@ -359,6 +387,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
       (event.target as Element).setPointerCapture?.(event.pointerId);
       dragging.current = key;
       setSelectedKey(key);
+      setShowControls(false);
       reheat();
     },
     [reheat, setSelectedKey],
@@ -377,13 +406,14 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
         }
         reheat();
       } else if (panning.current) {
-        view.current.x += event.clientX - panning.current.x;
-        view.current.y += event.clientY - panning.current.y;
-        panning.current = { x: event.clientX, y: event.clientY };
+        const point = toViewport(event.clientX, event.clientY);
+        view.current.x += point.x - panning.current.x;
+        view.current.y += point.y - panning.current.y;
+        panning.current = point;
         forceTick((value) => (value + 1) % 1_000_000);
       }
     },
-    [reheat, toScene],
+    [reheat, toScene, toViewport],
   );
 
   const endDrag = useCallback(() => {
@@ -393,18 +423,22 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
 
   const onBackgroundPointerDown = useCallback(
     (event: React.PointerEvent) => {
-      panning.current = { x: event.clientX, y: event.clientY };
-      setSelectedKey(null);
+      if (event.button !== 0) return;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      panning.current = toViewport(event.clientX, event.clientY);
     },
-    [setSelectedKey],
+    [toViewport],
   );
 
-  const onWheel = useCallback((event: React.WheelEvent) => {
-    const delta = -event.deltaY * 0.0015;
-    const nextK = Math.max(0.3, Math.min(3, view.current.k * (1 + delta)));
-    view.current.k = nextK;
-    forceTick((value) => (value + 1) % 1_000_000);
-  }, []);
+  const onWheel = useCallback(
+    (event: React.WheelEvent) => {
+      zoomBy(
+        Math.exp(-event.deltaY * 0.0015),
+        toViewport(event.clientX, event.clientY),
+      );
+    },
+    [zoomBy, toViewport],
+  );
 
   const highlight = query.trim().toLowerCase();
   const matches = useCallback(
@@ -422,9 +456,10 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   );
 
   const selectedNeighbors = selectedKey ? neighborsOf(graph, selectedKey) : [];
-  const selectedNode = selectedKey
-    ? graph.nodes.find((n) => n.key === selectedKey)
-    : null;
+  const selectedNode =
+    selectedKey && rendered.keySet.has(selectedKey)
+      ? graph.nodes.find((n) => n.key === selectedKey)
+      : null;
   const selectedEntry = selectedKey ? entriesByKey.get(selectedKey) : undefined;
 
   const maxDegree = Math.max(1, ...rendered.nodes.map((n) => n.degree));
@@ -444,9 +479,21 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   };
 
   const addOnlineBibEntry = async (paper: DiscoveredPaper) => {
-    if (!onAppendBibEntry || !targetBibFile) return;
-    await onAppendBibEntry(targetBibFile, paper.bibtex);
-    setAddedOnlineIds((current) => new Set(current).add(paper.id));
+    if (!onAppendBibEntry || !targetBibFile || addingRef.current) return;
+    addingRef.current = true;
+    setAddingId(paper.id);
+    setAddError("");
+    try {
+      await onAppendBibEntry(targetBibFile, paper.bibtex);
+      setAddedOnlineIds((current) => new Set(current).add(paper.id));
+    } catch (error) {
+      setAddError(
+        error instanceof Error ? error.message : "Could not add this paper. Try again.",
+      );
+    } finally {
+      addingRef.current = false;
+      setAddingId(null);
+    }
   };
 
   const onlineSummary =
@@ -464,7 +511,91 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
 
   return (
     <div className="kg-view">
-      {filter?.keys !== null && filter?.keys !== undefined ? (
+      <header className="kg-header">
+        <div>
+          <h2>Research library</h2>
+          <p>Explore connections. Find your next reference.</p>
+        </div>
+        <div className="kg-view-switch" role="group" aria-label="Library view">
+          <button
+            type="button"
+            aria-pressed={!onlineDiscovery}
+            onClick={() => setOnlineDiscovery(false)}
+          >
+            Graph
+          </button>
+          <button
+            type="button"
+            aria-pressed={onlineDiscovery}
+            onClick={() => setOnlineDiscovery(true)}
+          >
+            Discover
+          </button>
+        </div>
+      </header>
+      {!onlineDiscovery ? (
+        <div className="kg-toolbar">
+          <div className="kg-search">
+            <Search size={13} />
+            <input
+              type="text"
+              value={query}
+              aria-label="Find paper or author"
+              placeholder="Find paper, author…"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            {query ? (
+              <button
+                type="button"
+                className="kg-icon"
+                aria-label="Clear graph search"
+                onClick={() => setQuery("")}
+              >
+                <X size={13} />
+              </button>
+            ) : null}
+          </div>
+          <label
+            className={`kg-pill ${citedOnly ? "on" : ""}`}
+            title="Show only papers cited in your text"
+          >
+            <input
+              type="checkbox"
+              aria-label="Cited only"
+              checked={citedOnly}
+              onChange={(event) => setCitedOnly(event.target.checked)}
+            />
+            Cited
+          </label>
+          <button
+            type="button"
+            className={`kg-btn ${showControls ? "active" : ""}`}
+            onClick={() => {
+              setShowControls((value) => !value);
+              setSelectedKey(null);
+            }}
+            title="Graph parameters"
+            aria-label="Graph parameters"
+            aria-expanded={showControls}
+            aria-controls="knowledge-graph-parameters"
+          >
+            <SlidersHorizontal size={14} /> Connections
+          </button>
+          {onRecommendForSelection ? (
+            <button
+              type="button"
+              className="kg-icon-btn"
+              onClick={onRecommendForSelection}
+              title="Recommend citations for the selected text"
+              aria-label="Recommend citations"
+            >
+              <AiIcon size={14} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!onlineDiscovery && filter?.keys !== null && filter?.keys !== undefined ? (
         <div className="kg-filter-banner" role="status">
           <span>
             {filter.label} · {rendered.nodes.length} of {graph.nodes.length} entries
@@ -481,68 +612,6 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
           </button>
         </div>
       ) : null}
-      <div className="kg-toolbar">
-        <div className="kg-search">
-          <Search size={13} />
-          <input
-            type="text"
-            value={query}
-            placeholder="Find paper, author…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <label
-          className={`kg-pill ${citedOnly ? "on" : ""}`}
-          title="Show only papers cited in your text"
-        >
-          <input
-            type="checkbox"
-            aria-label="Cited only"
-            checked={citedOnly}
-            onChange={(event) => setCitedOnly(event.target.checked)}
-          />
-          Cited
-        </label>
-        <label
-          className={`kg-pill ${onlineDiscovery ? "on" : ""}`}
-          title="Find related papers online (OpenAlex, Crossref)"
-        >
-          <input
-            type="checkbox"
-            aria-label="Search online"
-            checked={onlineDiscovery}
-            onChange={(event) => setOnlineDiscovery(event.target.checked)}
-          />
-          Online
-        </label>
-        <span className="kg-stats">
-          {graph.stats.nodeCount} papers · {graph.stats.edgeCount} links ·{" "}
-          {graph.stats.citedCount} cited · {graph.stats.componentCount} clusters
-        </span>
-        <button
-          type="button"
-          className={`kg-icon-btn ${showControls ? "active" : ""}`}
-          onClick={() => setShowControls((value) => !value)}
-          title="Graph parameters"
-          aria-label="Graph parameters"
-          aria-expanded={showControls}
-          aria-controls="knowledge-graph-parameters"
-        >
-          <SlidersHorizontal size={14} />
-        </button>
-        {onRecommendForSelection ? (
-          <button
-            type="button"
-            className="kg-icon-btn"
-            onClick={onRecommendForSelection}
-            title="Recommend citations for the selected text"
-            aria-label="Recommend citations"
-          >
-            <AiIcon size={14} />
-          </button>
-        ) : null}
-      </div>
-
       {onlineDiscovery ? (
         <div className="kg-online-panel">
           <div className="kg-online-head">
@@ -551,29 +620,23 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
                 <Globe2 size={14} /> Online paper discovery
               </strong>
               <span>{onlineSummary}</span>
-              {aiPlanState === "used" && aiPlan ? (
-                <span className="kg-online-ai">
-                  AI-assisted: {aiPlan.queries.slice(0, 2).join(" · ")}
-                </span>
-              ) : aiPlanState === "unavailable" ? (
-                <span className="kg-online-ai">
-                  AI planning unavailable; using graph fingerprint.
-                </span>
-              ) : null}
             </div>
             <div className="kg-online-actions">
               {bibFiles.length ? (
-                <select
-                  value={targetBibFile}
-                  onChange={(event) => setTargetBibFile(event.target.value)}
-                  aria-label="Target BibTeX file"
-                >
-                  {bibFiles.map((file) => (
-                    <option key={file} value={file}>
-                      {file}
-                    </option>
-                  ))}
-                </select>
+                <label className="kg-save-target">
+                  Save to{" "}
+                  <select
+                    value={targetBibFile}
+                    onChange={(event) => setTargetBibFile(event.target.value)}
+                    aria-label="Target BibTeX file"
+                  >
+                    {bibFiles.map((file) => (
+                      <option key={file} value={file}>
+                        {file}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               ) : null}
               <button
                 type="button"
@@ -591,306 +654,446 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
             </div>
           </div>
 
-          {onlineResult.queries.length ? (
-            <div className="kg-online-query">
-              Search fingerprint: {onlineResult.queries.slice(0, 2).join(" · ")}
+          <div className="kg-discovery-tools">
+            <div className="kg-search">
+              <Search size={14} />
+              <input
+                aria-label="Filter discovered papers"
+                placeholder="Filter results by title or author…"
+                value={discoveryQuery}
+                onChange={(event) => setDiscoveryQuery(event.target.value)}
+              />
             </div>
+            <details className="kg-search-details">
+              <summary>About this search</summary>
+              <p>
+                Related papers from OpenAlex and Crossref, based on your bibliography.
+              </p>
+              {aiPlanState === "used" && aiPlan ? (
+                <span className="kg-online-ai">
+                  AI-assisted: {aiPlan.queries.slice(0, 2).join(" · ")}
+                </span>
+              ) : aiPlanState === "unavailable" ? (
+                <span className="kg-online-ai">
+                  Based on the titles and authors in your library.
+                </span>
+              ) : null}
+
+              {onlineResult.queries.length ? (
+                <p>Search terms: {onlineResult.queries.join(" · ")}</p>
+              ) : null}
+            </details>
+          </div>
+          {!bibFiles.length ? (
+            <p className="kg-online-warning">
+              Add a .bib file to your project to save discovered papers.
+            </p>
+          ) : null}
+          {addError ? (
+            <p className="kg-online-warning" role="alert">
+              {addError}
+            </p>
           ) : null}
 
-          <div className="kg-online-results">
+          <div className="kg-online-results" aria-busy={onlineState === "loading"}>
+            {onlineResult.papers.length > 0 &&
+            !onlineResult.papers.some((paper) =>
+              `${paper.title} ${formatDiscoveredPaperAuthors(paper)}`
+                .toLowerCase()
+                .includes(discoveryQuery.trim().toLowerCase()),
+            ) ? (
+              <div className="kg-online-empty">
+                No papers match this search.{" "}
+                <button
+                  type="button"
+                  className="kg-btn"
+                  onClick={() => setDiscoveryQuery("")}
+                >
+                  Clear search
+                </button>
+              </div>
+            ) : null}
             {onlineState === "loading" && onlineResult.papers.length === 0 ? (
               <div className="kg-online-empty">Searching OpenAlex and Crossref...</div>
             ) : onlineResult.papers.length ? (
-              onlineResult.papers.slice(0, 10).map((paper) => {
-                const added = addedOnlineIds.has(paper.id);
-                return (
-                  <article key={paper.id} className="kg-online-card">
-                    <div className="kg-online-card-main">
-                      <div className="kg-online-card-meta">
-                        <span>{paper.source}</span>
-                        <span>{Math.round(paper.score * 100)}% match</span>
-                        {paper.year ? <span>{paper.year}</span> : null}
+              onlineResult.papers
+                .filter((paper) =>
+                  `${paper.title} ${formatDiscoveredPaperAuthors(paper)}`
+                    .toLowerCase()
+                    .includes(discoveryQuery.trim().toLowerCase()),
+                )
+                .map((paper) => {
+                  const added = addedOnlineIds.has(paper.id);
+                  return (
+                    <article key={paper.id} className="kg-online-card">
+                      <div className="kg-online-card-main">
+                        <div className="kg-online-card-meta">
+                          <span>{paper.source}</span>
+                          <span>{Math.round(paper.score * 100)}% match</span>
+                          {paper.year ? <span>{paper.year}</span> : null}
+                        </div>
+                        <h3>{paper.title}</h3>
+                        <p>
+                          {formatDiscoveredPaperAuthors(paper)}
+                          {paper.venue ? ` · ${paper.venue}` : ""}
+                        </p>
+                        {paper.reasons.length ? (
+                          <details className="kg-paper-reasons">
+                            <summary>Why this paper?</summary>
+                            <p>{paper.reasons.join(" · ")}</p>
+                          </details>
+                        ) : null}
                       </div>
-                      <h3>{paper.title}</h3>
-                      <p>
-                        {formatDiscoveredPaperAuthors(paper)}
-                        {paper.venue ? ` · ${paper.venue}` : ""}
-                      </p>
-                      {paper.reasons.length ? (
-                        <small>{paper.reasons.slice(0, 3).join(" · ")}</small>
-                      ) : null}
-                    </div>
-                    <div className="kg-online-card-actions">
-                      <button
-                        type="button"
-                        onClick={() => openPaper(paper)}
-                        disabled={!paper.url && !paper.pdfUrl}
-                        aria-label={`Open ${paper.title}`}
-                      >
-                        <ExternalLink size={12} /> Open
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void addOnlineBibEntry(paper)}
-                        disabled={
-                          added ||
-                          !onAppendBibEntry ||
-                          !targetBibFile ||
-                          !bibFiles.length
-                        }
-                        aria-label={`Add BibTeX for ${paper.title}`}
-                      >
-                        <FilePlus2 size={12} /> {added ? "Added" : "Add BibTeX"}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })
+                      <div className="kg-online-card-actions">
+                        <button
+                          type="button"
+                          onClick={() => openPaper(paper)}
+                          disabled={!paper.url && !paper.pdfUrl}
+                          aria-label={`Open ${paper.title}`}
+                        >
+                          <ExternalLink size={12} /> Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void addOnlineBibEntry(paper)}
+                          disabled={
+                            added ||
+                            addingId !== null ||
+                            !onAppendBibEntry ||
+                            !targetBibFile ||
+                            !bibFiles.length
+                          }
+                          aria-label={`Add BibTeX for ${paper.title}`}
+                        >
+                          <FilePlus2 size={12} />{" "}
+                          {added
+                            ? "Added"
+                            : addingId === paper.id
+                              ? "Adding…"
+                              : "Add to bibliography"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
             ) : (
               <div className="kg-online-empty">
                 {onlineState === "error"
                   ? onlineSummary
-                  : "Enable discovery or refresh after adding bibliography entries."}
+                  : "No related papers found. Add more bibliography entries or try refreshing."}
               </div>
             )}
           </div>
         </div>
       ) : null}
 
-      <div className="kg-canvas-wrap">
-        {showControls ? (
-          <div
-            className="kg-controls"
-            id="knowledge-graph-parameters"
-            role="region"
-            aria-label="Graph parameters"
-          >
-            <span className="kg-controls-title">Link papers that share</span>
-            <div className="kg-controls-relations">
-              {relationOrder.map((relation) => (
-                <label
-                  key={relation}
-                  className={`kg-pill ${params.relations[relation] ? "on" : ""}`}
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={edgeRelationLabels[relation]}
-                    checked={params.relations[relation]}
-                    onChange={(event) => setRelation(relation, event.target.checked)}
-                  />
-                  {edgeRelationLabels[relation]}
-                </label>
-              ))}
-            </div>
-            <label className="kg-slider">
-              <span>
-                Topic match
-                <output>{params.titleSimilarityThreshold.toFixed(2)}</output>
-              </span>
-              <input
-                type="range"
-                aria-label="Topic similarity threshold"
-                min={0.05}
-                max={0.6}
-                step={0.01}
-                value={params.titleSimilarityThreshold}
-                onChange={(event) =>
-                  onParamsChange({
-                    ...params,
-                    titleSimilarityThreshold: Number(event.target.value),
-                  })
-                }
-              />
-              <small>
-                <span>Loose</span>
-                <span>Strict</span>
-              </small>
-            </label>
-            <label className="kg-slider">
-              <span>
-                Links per paper
-                <output>{params.maxEdgesPerNode}</output>
-              </span>
-              <input
-                type="range"
-                aria-label="Max links per paper"
-                min={2}
-                max={12}
-                step={1}
-                value={params.maxEdgesPerNode}
-                onChange={(event) =>
-                  onParamsChange({
-                    ...params,
-                    maxEdgesPerNode: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-          </div>
-        ) : null}
-
-        {rendered.nodes.length === 0 ? (
-          <div className="kg-empty">
-            {graph.nodes.length ? (
-              "No entries match the current filters. Try showing all entries."
-            ) : (
-              <>
-                No bibliography entries yet. Add a <code>.bib</code> file (or citations)
-                to build the knowledge graph.
-              </>
-            )}
-          </div>
-        ) : (
-          <svg
-            ref={svgRef}
-            className="kg-canvas"
-            viewBox={`0 0 ${width} ${height}`}
-            onPointerDown={onBackgroundPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerLeave={endDrag}
-            onWheel={onWheel}
-          >
-            <g
-              transform={`translate(${view.current.x} ${view.current.y}) scale(${view.current.k})`}
-            >
-              {rendered.edges.map((edge) => {
-                const a = positions.current.get(edge.source);
-                const b = positions.current.get(edge.target);
-                if (!a || !b) return null;
-                const active =
-                  selectedKey === edge.source || selectedKey === edge.target;
-                return (
-                  <line
-                    key={`${edge.source}--${edge.target}`}
-                    x1={a.x}
-                    y1={a.y}
-                    x2={b.x}
-                    y2={b.y}
-                    className={`kg-edge ${active ? "active" : ""}`}
-                    strokeWidth={Math.min(4, 0.6 + edge.weight * 0.25)}
-                  />
-                );
-              })}
-              {rendered.nodes.map((node) => {
-                const p = positions.current.get(node.key);
-                if (!p) return null;
-                const radius = 6 + (node.degree / maxDegree) * 12;
-                const isSelected = selectedKey === node.key;
-                const isMatch = matches(node.key);
-                const dim = highlight && !isMatch;
-                return (
-                  <g
-                    key={node.key}
-                    transform={`translate(${p.x} ${p.y})`}
-                    className={`kg-node ${node.cited ? "cited" : "uncited"} ${
-                      isSelected ? "selected" : ""
-                    } ${dim ? "dim" : ""} ${isMatch ? "match" : ""}`}
-                    onPointerDown={(event) => onNodePointerDown(event, node.key)}
-                  >
-                    <circle r={radius} />
-                    {radius > 9 || isSelected || isMatch ? (
-                      <text y={-radius - 4} className="kg-label">
-                        {node.label}
-                      </text>
-                    ) : null}
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
-        )}
-
-        {selectedNode ? (
-          <aside className="kg-inspector">
-            <div className="kg-inspector-head">
-              <strong>{selectedNode.label}</strong>
-              <button
-                type="button"
-                className="kg-icon"
-                onClick={() => setSelectedKey(null)}
-                aria-label="Close"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="kg-inspector-body">
-              {selectedNode.title ? (
-                <p className="kg-title">{selectedNode.title}</p>
-              ) : null}
-              <dl className="kg-meta">
-                {selectedEntry?.author ? (
+      {!onlineDiscovery ? (
+        <div className="kg-canvas-wrap">
+          <div className="kg-stage">
+            {rendered.nodes.length === 0 ? (
+              <div className="kg-empty">
+                {graph.nodes.length ? (
                   <>
-                    <dt>Authors</dt>
-                    <dd>{selectedEntry.author}</dd>
+                    <strong>No papers match these filters</strong>
+                    <span>
+                      Clear the selection and cited-only filter to see your library.
+                    </span>
+                    <button
+                      type="button"
+                      className="kg-btn"
+                      onClick={() => {
+                        setCitedOnly(false);
+                        onClearFilter?.();
+                      }}
+                    >
+                      Reset filters
+                    </button>
                   </>
-                ) : null}
-                {selectedNode.year ? (
-                  <>
-                    <dt>Year</dt>
-                    <dd>{selectedNode.year}</dd>
-                  </>
-                ) : null}
-                {selectedNode.venue ? (
-                  <>
-                    <dt>Venue</dt>
-                    <dd>{selectedNode.venue}</dd>
-                  </>
-                ) : null}
-                <dt>Key</dt>
-                <dd>
-                  <code>{selectedNode.key}</code>
-                </dd>
-                <dt>Status</dt>
-                <dd>{selectedNode.cited ? "Cited in text" : "Not cited yet"}</dd>
-              </dl>
-              <button
-                type="button"
-                className="kg-cite-btn"
-                onClick={() => onInsertCitation?.(selectedNode.key)}
-                disabled={!onInsertCitation}
-                title={
-                  !onInsertCitation
-                    ? "Open a LaTeX document to insert a citation"
-                    : undefined
-                }
-              >
-                <Quote size={13} /> Insert citation
-              </button>
-
-              <div className="kg-neighbors">
-                <span className="kg-neighbors-head">
-                  Connections ({selectedNeighbors.length})
-                </span>
-                {selectedNeighbors.length === 0 ? (
-                  <p className="kg-muted">No connections with current parameters.</p>
                 ) : (
-                  selectedNeighbors.slice(0, 12).map(({ key, edge }) => {
-                    const neighbor = graph.nodes.find((n) => n.key === key);
-                    return (
-                      <button
-                        type="button"
-                        key={key}
-                        className="kg-neighbor"
-                        onClick={() => setSelectedKey(key)}
-                      >
-                        <span className="kg-neighbor-label">
-                          {neighbor?.label ?? key}
-                        </span>
-                        <span className="kg-neighbor-why">
-                          {edge.relations
-                            .map((relation) => edgeRelationLabels[relation])
-                            .join(" · ")}
-                        </span>
-                      </button>
-                    );
-                  })
+                  <>
+                    No bibliography entries yet. Add a <code>.bib</code> file (or
+                    citations) to build the knowledge graph.
+                  </>
                 )}
               </div>
+            ) : (
+              <svg
+                ref={svgRef}
+                className="kg-canvas"
+                viewBox={`0 0 ${width} ${height}`}
+                onPointerDown={onBackgroundPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onPointerLeave={endDrag}
+                onWheel={onWheel}
+              >
+                <g
+                  transform={`translate(${view.current.x} ${view.current.y}) scale(${view.current.k})`}
+                >
+                  {rendered.edges.map((edge) => {
+                    const a = positions.current.get(edge.source);
+                    const b = positions.current.get(edge.target);
+                    if (!a || !b) return null;
+                    const active =
+                      selectedKey === edge.source || selectedKey === edge.target;
+                    return (
+                      <line
+                        key={`${edge.source}--${edge.target}`}
+                        x1={a.x}
+                        y1={a.y}
+                        x2={b.x}
+                        y2={b.y}
+                        className={`kg-edge ${active ? "active" : ""}`}
+                        strokeWidth={Math.min(4, 0.6 + edge.weight * 0.25)}
+                      />
+                    );
+                  })}
+                  {rendered.nodes.map((node) => {
+                    const p = positions.current.get(node.key);
+                    if (!p) return null;
+                    const radius = 6 + (node.degree / maxDegree) * 12;
+                    const isSelected = selectedKey === node.key;
+                    const isMatch = matches(node.key);
+                    const dim = highlight && !isMatch;
+                    return (
+                      <g
+                        key={node.key}
+                        transform={`translate(${p.x} ${p.y})`}
+                        className={`kg-node ${node.cited ? "cited" : "uncited"} ${
+                          isSelected ? "selected" : ""
+                        } ${dim ? "dim" : ""} ${isMatch ? "match" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={node.title || node.label}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedKey(node.key);
+                            setShowControls(false);
+                          }
+                        }}
+                        onPointerDown={(event) => onNodePointerDown(event, node.key)}
+                      >
+                        <circle r={radius} />
+                        {radius > 9 || isSelected || isMatch ? (
+                          <text y={-radius - 4} className="kg-label">
+                            {node.label}
+                          </text>
+                        ) : null}
+                      </g>
+                    );
+                  })}
+                </g>
+              </svg>
+            )}
+
+            {rendered.nodes.length > 0 ? (
+              <div className="kg-zoom" aria-label="Graph navigation">
+                <button
+                  type="button"
+                  className="kg-icon-btn"
+                  aria-label="Zoom out"
+                  onClick={() => zoomBy(0.8)}
+                >
+                  <Minus size={14} />
+                </button>
+                <button type="button" className="kg-btn" onClick={resetView}>
+                  <Maximize size={13} /> Reset view
+                </button>
+                <button
+                  type="button"
+                  className="kg-icon-btn"
+                  aria-label="Zoom in"
+                  onClick={() => zoomBy(1.25)}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {showControls ? (
+            <div
+              className="kg-controls"
+              id="knowledge-graph-parameters"
+              role="region"
+              aria-label="Graph parameters"
+            >
+              <div className="kg-inspector-head">
+                <strong>Connections</strong>
+                <button
+                  type="button"
+                  className="kg-icon"
+                  aria-label="Close connection settings"
+                  onClick={() => setShowControls(false)}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <span className="kg-controls-title">Connect papers by</span>
+              <div className="kg-controls-relations">
+                {relationOrder.map((relation) => (
+                  <label
+                    key={relation}
+                    className={`kg-pill ${params.relations[relation] ? "on" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={edgeRelationLabels[relation]}
+                      checked={params.relations[relation]}
+                      onChange={(event) => setRelation(relation, event.target.checked)}
+                    />
+                    {edgeRelationLabels[relation]}
+                  </label>
+                ))}
+              </div>
+              <label className="kg-slider">
+                <span>
+                  Topic match
+                  <output>{params.titleSimilarityThreshold.toFixed(2)}</output>
+                </span>
+                <input
+                  type="range"
+                  aria-label="Topic similarity threshold"
+                  min={0.05}
+                  max={0.6}
+                  step={0.01}
+                  value={params.titleSimilarityThreshold}
+                  onChange={(event) =>
+                    onParamsChange({
+                      ...params,
+                      titleSimilarityThreshold: Number(event.target.value),
+                    })
+                  }
+                />
+                <small>
+                  <span>Loose</span>
+                  <span>Strict</span>
+                </small>
+              </label>
+              <label className="kg-slider">
+                <span>
+                  Links per paper
+                  <output>{params.maxEdgesPerNode}</output>
+                </span>
+                <input
+                  type="range"
+                  aria-label="Max links per paper"
+                  min={2}
+                  max={12}
+                  step={1}
+                  value={params.maxEdgesPerNode}
+                  onChange={(event) =>
+                    onParamsChange({
+                      ...params,
+                      maxEdgesPerNode: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
             </div>
-          </aside>
-        ) : null}
-      </div>
+          ) : null}
+
+          {selectedNode && !showControls ? (
+            <aside className="kg-inspector">
+              <div className="kg-inspector-head">
+                <strong>{selectedNode.label}</strong>
+                <button
+                  type="button"
+                  className="kg-icon"
+                  onClick={() => setSelectedKey(null)}
+                  aria-label="Close"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="kg-inspector-body">
+                {selectedNode.title ? (
+                  <p className="kg-title">{selectedNode.title}</p>
+                ) : null}
+                <dl className="kg-meta">
+                  {selectedEntry?.author ? (
+                    <>
+                      <dt>Authors</dt>
+                      <dd>{selectedEntry.author}</dd>
+                    </>
+                  ) : null}
+                  {selectedNode.year ? (
+                    <>
+                      <dt>Year</dt>
+                      <dd>{selectedNode.year}</dd>
+                    </>
+                  ) : null}
+                  {selectedNode.venue ? (
+                    <>
+                      <dt>Venue</dt>
+                      <dd>{selectedNode.venue}</dd>
+                    </>
+                  ) : null}
+                  <dt>Key</dt>
+                  <dd>
+                    <code>{selectedNode.key}</code>
+                  </dd>
+                  <dt>Status</dt>
+                  <dd>{selectedNode.cited ? "Cited in text" : "Not cited yet"}</dd>
+                </dl>
+                <button
+                  type="button"
+                  className="kg-cite-btn"
+                  onClick={() => onInsertCitation?.(selectedNode.key)}
+                  disabled={!onInsertCitation}
+                  title={
+                    !onInsertCitation
+                      ? "Open a LaTeX document to insert a citation"
+                      : undefined
+                  }
+                >
+                  <Quote size={13} /> Insert citation
+                </button>
+
+                <div className="kg-neighbors">
+                  <span className="kg-neighbors-head">
+                    Connections ({selectedNeighbors.length})
+                  </span>
+                  {selectedNeighbors.length === 0 ? (
+                    <p className="kg-muted">No connections with current parameters.</p>
+                  ) : (
+                    selectedNeighbors.slice(0, 12).map(({ key, edge }) => {
+                      const neighbor = graph.nodes.find((n) => n.key === key);
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          className="kg-neighbor"
+                          onClick={() => setSelectedKey(key)}
+                        >
+                          <span className="kg-neighbor-label">
+                            {neighbor?.label ?? key}
+                          </span>
+                          <span className="kg-neighbor-why">
+                            {edge.relations
+                              .map((relation) => edgeRelationLabels[relation])
+                              .join(" · ")}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </aside>
+          ) : null}
+        </div>
+      ) : null}
+      {!onlineDiscovery ? (
+        <footer className="kg-footer">
+          <span>
+            {rendered.nodes.length} of {graph.stats.nodeCount} papers ·{" "}
+            {graph.stats.edgeCount} links · {graph.stats.citedCount} cited
+          </span>
+          <span>Drag to move · Scroll to zoom</span>
+        </footer>
+      ) : null}
     </div>
   );
 };
