@@ -77,6 +77,13 @@ export function markAllNotificationsRead(): void {
   emit();
 }
 
+export function deleteNotification(id: number): void {
+  const remaining = notifications.filter((entry) => entry.id !== id);
+  if (remaining.length === notifications.length) return;
+  notifications = remaining;
+  emit();
+}
+
 export function clearNotifications(): void {
   if (!notifications.length) return;
   notifications = [];

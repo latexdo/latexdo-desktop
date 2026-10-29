@@ -28368,7 +28368,26 @@ body.pane-resizing .preview-pane > * {
   color: var(--warning);
 }
 .notification-body {
+  flex: 1;
   min-width: 0;
+}
+.notification-delete {
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+}
+.notification-item:hover .notification-delete,
+.notification-item:focus-within .notification-delete,
+.notification-toast:hover .notification-delete,
+.notification-toast:focus-within .notification-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .notification-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .notification-body p {
   margin: 0;
