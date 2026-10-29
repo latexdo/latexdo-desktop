@@ -67,6 +67,8 @@ export function registerInlineCompletion({
 
       if (!explicit && !(await wait(delayMs, token))) return { items: [] };
 
+      if (getClient() !== client || token.isCancellationRequested) return { items: [] };
+
       const controller = new AbortController();
       token.onCancellationRequested(() => controller.abort());
       const fileName = model.uri.path.split("/").pop() ?? "";
@@ -77,7 +79,12 @@ export function registerInlineCompletion({
         },
         controller.signal,
       );
-      if (!reply || token.isCancellationRequested || model.isDisposed()) {
+      if (
+        !reply ||
+        token.isCancellationRequested ||
+        model.isDisposed() ||
+        getClient() !== client
+      ) {
         return { items: [] };
       }
       const insertText = cleanInlineCompletion(reply, completionContext);

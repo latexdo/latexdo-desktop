@@ -251,10 +251,9 @@ describe("registerInlineCompletion edge cases", () => {
         ) {}
       },
     };
-    const client = options.client === undefined ? null : options.client;
     registerInlineCompletion({
       monaco: monaco as never,
-      getClient: () => client as never,
+      getClient: () => options.client as never,
       delayMs: options.delayMs ?? 0,
     });
     const text = options.text ?? prose;
@@ -289,6 +288,25 @@ describe("registerInlineCompletion edge cases", () => {
     const { request, provider } = harness({ client: null });
     expect((await request(1)).items).toEqual([]);
     expect(provider.freeInlineCompletions()).toBeUndefined();
+  });
+
+  it("discards a reply when intelligent completion is switched off mid-flight", async () => {
+    let finish!: (reply: string) => void;
+    const options: { client: { complete: ReturnType<typeof vi.fn> } | null } = {
+      client: {
+        complete: vi.fn(
+          () =>
+            new Promise<string>((resolve) => {
+              finish = resolve;
+            }),
+        ),
+      },
+    };
+    const { request } = harness(options);
+    const pending = request(1);
+    options.client = null;
+    finish("outperforms them.");
+    expect((await pending).items).toEqual([]);
   });
 
   it("offers nothing where ghost text does not belong", async () => {

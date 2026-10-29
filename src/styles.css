@@ -5453,6 +5453,48 @@ button {
   font-weight: 500;
 }
 
+.settings-about-social {
+  padding: 18px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-about-social h3 {
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-about-social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.settings-about-social-links a {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.settings-about-social-links svg {
+  width: 28px;
+  height: 28px;
+}
+
+.settings-about-social-links a:hover {
+  color: var(--text-primary);
+  background: var(--bg-settings-row);
+}
+
+.settings-about-social-links a:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
 .settings-about-license {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);

@@ -380,12 +380,15 @@ export function renderEditorDropZone(ctx: AppCtx) {
                 ? "off"
                 : "currentDocument",
               // Copilot-style ghost text, with its hover toolbar.
-              inlineSuggest: { enabled: true, showToolbar: "onHover" },
+              inlineSuggest: {
+                enabled: settings.intelligentCompletion,
+                showToolbar: "onHover",
+              },
               suggest: {
                 showSnippets: true,
                 showStatusBar: true,
                 showInlineDetails: true,
-                preview: true,
+                preview: false,
               },
             }}
           />

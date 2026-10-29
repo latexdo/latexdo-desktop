@@ -1,3 +1,4 @@
+import { associationSocialLinks } from "../../features/settings/associationSocialLinks";
 import { supportLatexDoUrl } from "../../features/settings/settings";
 import { Check, Download, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { defaultSettings } from "../../features/settings/settings";
@@ -233,6 +234,36 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
           <summary>Read the MIT License</summary>
           <pre>{mitLicense.trim()}</pre>
         </details>
+      </section>
+
+      <section
+        className="settings-about-social"
+        aria-label="Follow the LatexDo Association"
+      >
+        <h3>Follow the association</h3>
+        <nav
+          className="settings-about-social-links"
+          aria-label="Association social links"
+        >
+          {associationSocialLinks.map(({ name, url, path }) => (
+            <a
+              key={name}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`LatexDo on ${name}`}
+              title={`LatexDo on ${name}`}
+              onClick={(event) => {
+                event.preventDefault();
+                openExternalLink(url);
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d={path} fill="currentColor" fillRule="evenodd" />
+              </svg>
+            </a>
+          ))}
+        </nav>
       </section>
 
       <div className="settings-section-heading">
