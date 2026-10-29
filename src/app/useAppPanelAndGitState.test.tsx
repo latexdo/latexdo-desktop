@@ -38,6 +38,36 @@ function setup(extra = {}) {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("workspace settings command integration", () => {
+  it("uses unsaved prose for file and project counts without counting an open file twice", () => {
+    const document = {
+      kind: "text",
+      path: "/p/main.tex",
+      relativePath: "main.tex",
+      name: "main.tex",
+      content: String.raw`\abstract{Two words}\section{Methods}New text`,
+      savedContent: "Old text",
+    };
+    const h = setup({
+      activeDocument: document,
+      activePath: document.path,
+      documents: [document],
+      citationProjectFiles: [
+        { path: "main.tex", content: "Old text" },
+        { path: "chapter.tex", content: "Other chapter text" },
+        { path: "refs.bib", content: "Not prose" },
+      ],
+    });
+    expect(h.result.current.documentWordCounts?.total).toBe(5);
+    expect(h.result.current.documentWordCounts?.abstract).toBe(2);
+    expect(h.result.current.projectWordCounts).toEqual([
+      { path: "main.tex", words: 5 },
+      { path: "chapter.tex", words: 3 },
+    ]);
+    expect(h.result.current.documentOutline.map((item) => item.label)).toEqual([
+      "Abstract",
+      "Methods",
+    ]);
+  });
   it("updates and resets compiler settings through the terminal command service", async () => {
     const h = setup();
     const command = h.result.current.latexDoCommandService;

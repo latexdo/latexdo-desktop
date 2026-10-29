@@ -1,3 +1,4 @@
+import { countLatexWords } from "../latex/wordCount";
 import type { OnMount } from "@monaco-editor/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
@@ -132,6 +133,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
 
   // The ghost-text provider is registered once per editor mount and
   // asks this ref for a client, so AI setting changes apply immediately.
+  const wordCountPositionRef = useRef<Monaco.IPosition | null>(null);
   const sentenceCompletionClientRef = useRef<NextEditModelClient | null>(null);
   useEffect(() => {
     sentenceCompletionClientRef.current =
@@ -279,6 +281,42 @@ export function useAppReviewActions(ctx: AppCtx13) {
       }),
     );
     editorActionDisposablesRef.current = [
+      monaco.languages.registerHoverProvider("latex", {
+        provideHover: (model, position) => {
+          if (editorRef.current?.getModel() !== model) return null;
+          const counts = countLatexWords(model.getValue());
+          const section = counts.sections.find(
+            (item) =>
+              item.line === position.lineNumber && position.column >= item.column,
+          );
+          if (!section) return null;
+          return {
+            contents: [
+              {
+                value: `**${section.kind === "abstract" ? "Abstract" : section.kind}: ${section.words.toLocaleString()} words**`,
+              },
+              {
+                value: `Current file: **${counts.total.toLocaleString()} words**. Section counts include subheadings and their text. Right-click → Word count for the breakdown and counting rules.`,
+              },
+            ],
+          };
+        },
+      }),
+      editor.addAction({
+        id: "latexdo.wordCount",
+        label: "Word count: abstract, sections and total",
+        contextMenuGroupId: "navigation",
+        contextMenuOrder: 2,
+        precondition: "editorLangId == latex",
+        run: () => {
+          const position = wordCountPositionRef.current ?? editor.getPosition();
+          wordCountPositionRef.current = null;
+          ctx.setWordCountOffset(
+            position ? (editor.getModel()?.getOffsetAt(position) ?? null) : null,
+          );
+          ctx.setWordCountOpen(true);
+        },
+      }),
       // LatexDo AI selection actions — visible only when there is a selection.
       editor.addAction({
         id: "latexdo.ai.reformulateSelection",
@@ -487,6 +525,9 @@ export function useAppReviewActions(ctx: AppCtx13) {
     ];
     applyBookmarkDecorations(editor, activeBookmarkLines);
     editorMouseDisposableRef.current = editor.onMouseDown((event) => {
+      wordCountPositionRef.current = event.event.rightButton
+        ? (event.target.position ?? null)
+        : null;
       if (
         event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN &&
         event.target.position &&

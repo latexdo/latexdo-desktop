@@ -1,3 +1,4 @@
+import { WordCountDialog } from "./components/WordCountDialog";
 import { useFolderDrop } from "./app/useFolderDrop";
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
@@ -256,6 +257,19 @@ export default function App() {
       data-resolved-appearance={resolvedAppearance}
     >
       {folderDrop.dialog}
+      {ctx.documentWordCounts && activeTextDocument ? (
+        <WordCountDialog
+          open={ctx.wordCountOpen}
+          fileName={activeTextDocument.relativePath}
+          counts={ctx.documentWordCounts}
+          projectFiles={ctx.projectWordCounts}
+          projectLoading={ctx.citationLibraryLoading}
+          offset={ctx.wordCountOffset}
+          abstractLimit={settings.maxAbstractWords}
+          onClose={() => ctx.setWordCountOpen(false)}
+          onNavigate={ctx.revealOutlineLine}
+        />
+      ) : null}
       <input
         ref={pdfReviewInputRef}
         type="file"
@@ -487,6 +501,25 @@ export default function App() {
             <span className="statusbar-item">
               {mode === "reviewer" ? "Reviewer mode" : "Rebuttal mode"}
             </span>
+          ) : null}
+          {ctx.documentWordCounts && activeTextDocument && !showWelcome ? (
+            <button
+              type="button"
+              className="statusbar-item"
+              title="Word count for this file, abstract, and sections"
+              aria-label="Open word count"
+              onClick={() => {
+                ctx.setWordCountOffset(null);
+                ctx.setWordCountOpen(true);
+              }}
+            >
+              {ctx.documentWordCounts.total.toLocaleString()} words
+              {ctx.documentWordCounts.sections.some(
+                (section) => section.kind === "abstract",
+              )
+                ? ` · Abstract ${ctx.documentWordCounts.abstract.toLocaleString()}`
+                : ""}
+            </button>
           ) : null}
           {activeTextDocument && !showWelcome ? <StatusBarCursor /> : null}
           {activeDocumentIsLatex ? (

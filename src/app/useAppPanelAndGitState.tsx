@@ -1,3 +1,4 @@
+import { countLatexWords, type LatexWordCount } from "../latex/wordCount";
 import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CitationSearchAnchor } from "../components/CitationSearchPopup";
@@ -445,13 +446,55 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
             ? "Connecting securely before editing is enabled."
             : ""
       : "";
-  const documentOutline = useMemo(
+  const wordCountSource = activeTextDocument?.content;
+  const documentWordCounts = useMemo(
     () =>
-      activeTextDocument && activeDocumentIsLatex
-        ? extractLatexOutline(activeTextDocument.content)
-        : [],
-    [activeDocumentIsLatex, activeTextDocument],
+      activeDocumentIsLatex && wordCountSource !== undefined
+        ? countLatexWords(wordCountSource)
+        : null,
+    [activeDocumentIsLatex, wordCountSource],
   );
+  const wordCountCache = useRef(
+    new Map<string, { content: string; result: LatexWordCount }>(),
+  );
+  const projectWordCounts = useMemo(() => {
+    const sources = new Map(
+      citationProjectFiles
+        .filter((file) => /\.tex$/i.test(file.path))
+        .map((file) => [file.path, file.content]),
+    );
+    for (const document of documents) {
+      if (isTextDocument(document) && /\.tex$/i.test(document.relativePath))
+        sources.set(document.relativePath, document.content);
+    }
+    const next = new Map<string, { content: string; result: LatexWordCount }>();
+    const counts = [...sources].map(([path, content]) => {
+      const cached = wordCountCache.current.get(path);
+      const result =
+        cached?.content === content ? cached.result : countLatexWords(content);
+      next.set(path, { content, result });
+      return { path, words: result.total };
+    });
+    wordCountCache.current = next;
+    return counts;
+  }, [citationProjectFiles, documents]);
+  const documentOutline = useMemo(() => {
+    if (!activeTextDocument || !documentWordCounts) return [];
+    const environments = extractLatexOutline(activeTextDocument.content).filter(
+      (item) => item.detail.startsWith("\\begin"),
+    );
+    const headings = documentWordCounts.sections.map((section) => ({
+      id: section.id,
+      label: section.title,
+      detail: `\\${section.kind}`,
+      line: section.line,
+      column: section.column,
+      level: section.level,
+    }));
+    return [...environments, ...headings].sort(
+      (a, b) => a.line - b.line || a.column - b.column,
+    );
+  }, [activeTextDocument, documentWordCounts]);
   const hasVisibleProject = Boolean(projectId) && !hideProjectEntries;
   const showWelcome = welcomeOpen && !activePath;
   const showBlankWorkspace = hideProjectEntries && !welcomeOpen && !activePath;
@@ -957,6 +1000,8 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     currentLineHasBookmark,
     activeCollaborationReadOnlyMessage,
     documentOutline,
+    documentWordCounts,
+    projectWordCounts,
     hasVisibleProject,
     showWelcome,
     showBlankWorkspace,
