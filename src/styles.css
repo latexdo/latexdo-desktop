@@ -26065,11 +26065,7 @@ button {
   display: block;
   touch-action: none;
   cursor: grab;
-  background: radial-gradient(
-    circle at 50% 40%,
-    var(--bg-surface),
-    var(--bg-panel)
-  );
+  background: radial-gradient(circle at 50% 40%, var(--bg-surface), var(--bg-panel));
 }
 .kg-empty {
   display: flex;
