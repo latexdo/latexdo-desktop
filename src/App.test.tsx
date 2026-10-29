@@ -1225,6 +1225,29 @@ describe("App critical UI controls", () => {
     );
   });
 
+  it("changes and remembers PDF reading themes from the preview toolbar", async () => {
+    installLatexDoMock();
+    const { container } = render(<App />);
+    await openProjectFromWelcome();
+    const picker = screen.getByRole("combobox", { name: "PDF reading theme" });
+    expect(picker).toHaveValue("original");
+    fireEvent.change(picker, { target: { value: "dark" } });
+    expect(container.querySelector(".app-shell")).toHaveAttribute(
+      "data-pdf-theme",
+      "dark",
+    );
+    await waitFor(() =>
+      expect(
+        JSON.parse(localStorage.getItem("latexdo.settings") || "{}").pdfReadingTheme,
+      ).toBe("dark"),
+    );
+    fireEvent.change(picker, { target: { value: "original" } });
+    expect(container.querySelector(".app-shell")).toHaveAttribute(
+      "data-pdf-theme",
+      "original",
+    );
+  });
+
   it("accepts visible Monaco completions with Enter and Tab", async () => {
     installLatexDoMock();
 

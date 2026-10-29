@@ -251,6 +251,7 @@ export default function App() {
           event.preventDefault();
       }}
       data-theme={settings.colorTheme}
+      data-pdf-theme={settings.pdfReadingTheme}
       data-appearance={settings.appearanceMode}
       data-resolved-appearance={resolvedAppearance}
     >

@@ -277,6 +277,10 @@ describe("editor and provider settings", () => {
     expect(current.projectTreeMaxEntries).toBe(5000);
     fireEvent.click(screen.getByRole("radio", { name: /Power/ }));
     expect(chooseWorkspacePreset).toHaveBeenCalledWith("power");
+    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(current.pdfReadingTheme).toBe("dark");
+    fireEvent.click(screen.getByRole("radio", { name: "Original" }));
+    expect(current.pdfReadingTheme).toBe("original");
   });
   it("saves, tests and removes cloud credentials and edits the endpoint", () => {
     const ctx = {

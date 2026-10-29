@@ -82,3 +82,18 @@ describe("completion settings", () => {
     });
   });
 });
+
+describe("PDF reading themes", () => {
+  it("keeps original PDF colors by default and validates saved themes", () => {
+    expect(loadSettings().pdfReadingTheme).toBe("original");
+    for (const pdfReadingTheme of ["original", "sepia", "dark", "midnight", "system"]) {
+      localStorage.setItem(settingsStorageKey, JSON.stringify({ pdfReadingTheme }));
+      expect(loadSettings().pdfReadingTheme).toBe(pdfReadingTheme);
+    }
+    localStorage.setItem(
+      settingsStorageKey,
+      JSON.stringify({ pdfReadingTheme: "invalid" }),
+    );
+    expect(loadSettings().pdfReadingTheme).toBe("original");
+  });
+});

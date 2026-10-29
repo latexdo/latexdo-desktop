@@ -3267,7 +3267,7 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: 35px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   background: #23262d;
   /* important: remove old flex behavior */
   flex: none;
@@ -3275,6 +3275,9 @@ button {
 
 .preview-header {
   display: flex;
+  flex-wrap: wrap;
+  min-height: 35px;
+  gap: 6px;
   align-items: center;
   justify-content: space-between;
   min-width: 0;
@@ -3309,6 +3312,8 @@ button {
 
 .preview-actions {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   flex: 0 0 auto;
   gap: 4px;
@@ -3359,6 +3364,85 @@ button {
     radial-gradient(circle at top, rgb(255 255 255 / 3%), transparent 45%), #282b32;
 }
 
+/* Reading colors are applied only to the page canvas, never the PDF bytes,
+   text-selection layer, annotations, or the rest of the interface. */
+.app-shell {
+  --pdf-page-filter: none;
+  --pdf-paper-background: #fff;
+  --pdf-stage-background: #282b32;
+}
+.app-shell[data-pdf-theme="sepia"] {
+  --pdf-page-filter: sepia(0.35) brightness(0.97);
+  --pdf-paper-background: #f7eedb;
+  --pdf-stage-background: #d8d0bf;
+}
+.app-shell[data-pdf-theme="dark"],
+.app-shell[data-pdf-theme="system"][data-resolved-appearance="dark"] {
+  --pdf-page-filter: invert(0.9) hue-rotate(180deg) brightness(0.93);
+  --pdf-paper-background: #181818;
+  --pdf-stage-background: #252830;
+}
+.app-shell[data-pdf-theme="midnight"] {
+  --pdf-page-filter: invert(0.9) sepia(0.5) saturate(2) hue-rotate(175deg)
+    brightness(0.9);
+  --pdf-paper-background: #17232e;
+  --pdf-stage-background: #101827;
+}
+.app-shell .pdf-surface,
+.app-shell .research-pdf-stage,
+.app-shell .asset-preview-pdf-pane {
+  background: var(--pdf-stage-background);
+}
+.pdf-theme-picker {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+.pdf-theme-picker select {
+  width: 94px;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 11px;
+}
+.pdf-theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pdf-theme-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-settings-row);
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pdf-theme-options button[aria-checked="true"] {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus);
+}
+.pdf-theme-swatch {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 52px;
+  border-radius: 4px;
+  font:
+    24px Georgia,
+    serif;
+}
+
 .pdf-document {
   display: flex;
   min-width: min-content;
@@ -3374,7 +3458,7 @@ button {
   position: relative;
   flex: 0 0 auto;
   overflow: hidden;
-  background: white;
+  background: var(--pdf-paper-background, white);
   box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
   transition: box-shadow 120ms ease;
 }
@@ -3390,6 +3474,7 @@ button {
 }
 
 .pdf-page canvas {
+  filter: var(--pdf-page-filter, none);
   position: absolute;
   inset: 0;
   display: block;
@@ -10642,7 +10727,7 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: 35px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   background: #23262d;
   flex: none;
 }
@@ -20344,7 +20429,7 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: 35px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   background: #23262d;
   flex: none;
 }

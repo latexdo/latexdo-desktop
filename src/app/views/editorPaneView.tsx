@@ -1,3 +1,4 @@
+import { PdfThemePicker } from "../../components/PdfThemePicker";
 import { supportLatexDoUrl } from "../../features/settings/settings";
 import {
   ArrowLeftToLine,
@@ -260,6 +261,10 @@ export function renderAssetPreviewPane(ctx: AppCtx) {
             agentContext={agentContext}
             isDesktop={aiIsDesktop}
             onOpenSettings={openAiSettings}
+            pdfReadingTheme={ctx.settings.pdfReadingTheme}
+            onPdfReadingThemeChange={(pdfReadingTheme) =>
+              ctx.setSettings((current) => ({ ...current, pdfReadingTheme }))
+            }
           />
         </Suspense>
       ) : activeDocument.assetMimeType === "application/pdf" ? (
@@ -548,6 +553,12 @@ export function renderSplitHandle(ctx: AppCtx) {
             <span>{fileName(rootFile).replace(/\.tex$/, ".pdf")}</span>
           </div>
           <div className="preview-actions">
+            <PdfThemePicker
+              value={ctx.settings.pdfReadingTheme}
+              onChange={(pdfReadingTheme) =>
+                ctx.setSettings((current) => ({ ...current, pdfReadingTheme }))
+              }
+            />
             <button
               onClick={() => void handlePdfPointToSource()}
               disabled={!pdfData || !(pdfTarget ?? lastPdfLocation)}

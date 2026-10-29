@@ -1,3 +1,5 @@
+import { PdfThemePicker } from "../../../components/PdfThemePicker";
+import type { PdfReadingTheme } from "../../pdf/readingThemes";
 import React from "react";
 import {
   Bot,
@@ -46,6 +48,8 @@ interface ResearchPdfReaderProps {
   agentContext: AgentContext;
   isDesktop: boolean;
   onOpenSettings: () => void;
+  pdfReadingTheme?: PdfReadingTheme;
+  onPdfReadingThemeChange?: (theme: PdfReadingTheme) => void;
 }
 
 interface ToolbarState {
@@ -240,6 +244,8 @@ export const ResearchPdfReader: React.FC<ResearchPdfReaderProps> = ({
   agentContext,
   isDesktop,
   onOpenSettings,
+  pdfReadingTheme = "original",
+  onPdfReadingThemeChange,
 }) => {
   const [annotations, setAnnotations] = React.useState<PdfAnnotation[]>(() =>
     loadPdfAnnotations(document.id),
@@ -449,6 +455,12 @@ export const ResearchPdfReader: React.FC<ResearchPdfReaderProps> = ({
           </small>
         </div>
         <div className="research-review-actions" aria-label="Review tools">
+          {onPdfReadingThemeChange ? (
+            <PdfThemePicker
+              value={pdfReadingTheme}
+              onChange={onPdfReadingThemeChange}
+            />
+          ) : null}
           <button
             type="button"
             disabled={!activeContext}
