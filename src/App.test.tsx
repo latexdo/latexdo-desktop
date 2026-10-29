@@ -590,7 +590,7 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 }
 
 function openOutputPanel() {
-  fireEvent.click(screen.getByRole("button", { name: "Open problems panel" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Show problems: \d+ errors?$/ }));
   fireEvent.click(screen.getByRole("button", { name: "OUTPUT" }));
 }
 
@@ -1237,8 +1237,9 @@ describe("App critical UI controls", () => {
       expect.objectContaining({
         acceptSuggestionOnEnter: "on",
         tabCompletion: "on",
+        inlineSuggest: expect.objectContaining({ enabled: false }),
         suggest: expect.objectContaining({
-          preview: true,
+          preview: false,
           showInlineDetails: true,
           showStatusBar: true,
         }),

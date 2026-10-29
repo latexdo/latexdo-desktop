@@ -3,16 +3,10 @@ import {
   BookOpenText,
   Box,
   Building2,
-  CircleAlert,
   Files,
   GitBranch,
   ImageUp,
   Link,
-  PanelBottom,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
   Pencil,
   Puzzle,
   RefreshCw,
@@ -40,23 +34,18 @@ import type { AppCtx } from "../appContext";
 
 export function renderTitlebar(ctx: AppCtx) {
   const {
-    activePanel,
-    diagnostics,
     focusMode,
     layoutMode,
     resetPaneSizes,
     setLayoutMode,
     toggleFocusMode,
-    openPanel,
     openShareDialog,
     panelVisible,
-    previewShown,
     projectId,
     projectName,
     shareButtonDisabled,
     sidebarVisible,
     togglePanel,
-    togglePreview,
     toggleSidebar,
   } = ctx;
   return (
@@ -98,52 +87,6 @@ export function renderTitlebar(ctx: AppCtx) {
             onResetSizes={resetPaneSizes}
           />
         ) : null}
-        <button
-          type="button"
-          className={`icon-button ${sidebarVisible ? "active" : ""}`}
-          onClick={toggleSidebar}
-          title="Toggle sidebar (Cmd/Ctrl+B)"
-          aria-label="Toggle sidebar"
-          aria-pressed={sidebarVisible}
-        >
-          {sidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-        </button>
-        <button
-          type="button"
-          className={`icon-button workbench-toggle ${
-            panelVisible && activePanel === "problems" ? "active" : ""
-          }`}
-          onClick={() => openPanel("problems")}
-          title="Open problems"
-          aria-label="Open problems panel"
-          aria-pressed={panelVisible && activePanel === "problems"}
-          data-tour-id="problems"
-        >
-          <CircleAlert size={16} />
-          {diagnostics.length ? (
-            <span className="icon-button-badge">{diagnostics.length}</span>
-          ) : null}
-        </button>
-        <button
-          type="button"
-          className={`icon-button ${panelVisible ? "active" : ""}`}
-          onClick={togglePanel}
-          title="Toggle bottom panel"
-          aria-label="Toggle bottom panel"
-          aria-pressed={panelVisible}
-        >
-          <PanelBottom size={16} />
-        </button>
-        <button
-          type="button"
-          className={`icon-button ${previewShown ? "active" : ""}`}
-          onClick={() => void togglePreview()}
-          title="Toggle PDF preview"
-          aria-label="Toggle PDF preview"
-          aria-pressed={previewShown}
-        >
-          {previewShown ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-        </button>
       </div>
     </header>
   );
