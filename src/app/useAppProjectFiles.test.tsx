@@ -299,6 +299,60 @@ describe("compile saves", () => {
 });
 
 describe("review persistence", () => {
+  it("automatically retries a transient load failure and preserves edits made during recovery", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result, ctx } = setup();
+    api.readFile.mockRejectedValueOnce(new Error("temporarily unavailable"));
+    await result.current.loadReviewData("p");
+    expect(ctx.reviewDataReadyRef.current).toBe(false);
+    const saved = {
+      id: "saved",
+      reviewerComment: "Stored",
+      authorComment: "",
+      modificationMade: "",
+      insertedInTex: false,
+    };
+    const draft = { ...saved, id: "draft", reviewerComment: "New" };
+    await result.current.saveReviewData([], [draft]);
+    expect(api.writeFile).not.toHaveBeenCalled();
+    api.readFile.mockResolvedValue(JSON.stringify({ chats: [], items: [saved] }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(ctx.reviewDataReadyRef.current).toBe(true);
+    expect(ctx.setRebuttalItems).toHaveBeenLastCalledWith([saved, draft]);
+    expect(api.writeFile).toHaveBeenCalledWith(
+      "p",
+      ".latexdo/review_data.json",
+      JSON.stringify({ chats: [], items: [saved, draft] }, null, 2),
+    );
+  });
+
+  it("ignores a late read from a project that has been closed", async () => {
+    const { result, ctx } = setup();
+    let finish!: (value: string) => void;
+    api.readFile.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const loading = result.current.loadReviewData("p");
+    await vi.waitFor(() => expect(api.readFile).toHaveBeenCalled());
+    ctx.projectIdRef.current = "other";
+    finish(JSON.stringify({ chats: [], items: [] }));
+    await loading;
+    expect(ctx.setReviewChats).not.toHaveBeenCalled();
+    expect(ctx.reviewDataReadyRef.current).toBe(false);
+  });
+
+  it("reads review JSON with a UTF-8 byte-order mark", async () => {
+    const { result, ctx } = setup();
+    api.readFile.mockResolvedValue('\uFEFF{"chats":[],"items":[]}');
+    await result.current.loadReviewData("p");
+    expect(ctx.reviewDataReadyRef.current).toBe(true);
+  });
+
   it("loads absent, valid and malformed review data without overwriting failures", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { result, ctx } = setup();
@@ -338,5 +392,15 @@ describe("review persistence", () => {
     ctx.projectIdRef.current = "";
     await result.current.saveReviewData([], []);
     expect(api.writeFile).toHaveBeenCalledTimes(2);
+  });
+  it("does not mark a failed write as saved", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { result, ctx } = setup();
+    ctx.reviewSavedSnapshotRef.current = "previous";
+    api.writeFile.mockRejectedValueOnce(new Error("disk full"));
+    await result.current.saveReviewData([], []);
+    expect(ctx.reviewSavedSnapshotRef.current).toBe("previous");
+    await result.current.saveReviewData([], []);
+    expect(ctx.reviewSavedSnapshotRef.current).toBe(reviewSnapshot([], []));
   });
 });
