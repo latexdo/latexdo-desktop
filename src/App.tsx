@@ -493,15 +493,18 @@ export default function App() {
       <footer
         className="statusbar"
         data-state={statusbarState}
+        data-mode={mode}
         aria-label="Project diagnostics"
       >
         {renderStatusbarGroup(ctx)}
         <div className="statusbar-group">
-          {mode !== "author" ? (
-            <span className="statusbar-item">
-              {mode === "reviewer" ? "Reviewer mode" : "Rebuttal mode"}
-            </span>
-          ) : null}
+          <span className="statusbar-item">
+            {mode === "author"
+              ? "Author mode"
+              : mode === "reviewer"
+                ? "Reviewer mode"
+                : "Rebuttal mode"}
+          </span>
           {ctx.documentWordCounts && activeTextDocument && !showWelcome ? (
             <button
               type="button"

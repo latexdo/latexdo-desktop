@@ -150,6 +150,9 @@
   --bg-activity-bar: var(--surface-chrome);
   --bg-titlebar: var(--surface-chrome);
   --bg-statusbar: var(--accent-bg);
+  --bg-statusbar-author: #355a7a;
+  --bg-statusbar-reviewer: #65537f;
+  --bg-statusbar-rebuttal: #346b73;
   /* Status bar colors for live states; white text stays readable on all. */
   --bg-statusbar-online: #13795b;
   --bg-statusbar-offline: #9a5b13;
