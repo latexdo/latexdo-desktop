@@ -62,6 +62,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
     lastAutoCompileSignatureRef: ref(""),
     legalAcceptanceRequired: true,
     loadReviewData: vi.fn(async () => undefined),
+    reviewDataReadyRef: ref(false),
     openDocument: vi.fn(async () => undefined),
     pdfPathRef: ref(""),
     projectIdRef: ref(""),

@@ -125,6 +125,9 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
   const loadProject = useCallback(
     async (project: OpenProject, openFirstDocument = false, hideEntries = false) => {
       setStatusMessage("Loading project…");
+      ctx.reviewDataReadyRef.current = false;
+      ctx.setReviewChats([]);
+      ctx.setRebuttalItems([]);
       setProjectId(project.id);
       projectIdRef.current = project.id;
       setProjectPath(project.rootPath);
@@ -160,12 +163,14 @@ export function useAppProjectLifecycle(ctx: AppCtx03) {
         project.id,
         projectListOptionsFromSettings(settingsRef.current),
       );
+      if (projectIdRef.current !== project.id) return;
       setProjectEntries(entries);
       const treeLimited = hasProjectTreeLimitEntry(entries);
       if (treeLimited) {
         setStatusMessage("Project tree was limited. Adjust tree limits in Settings.");
       }
       await loadReviewData(project.id);
+      if (projectIdRef.current !== project.id) return;
       const allFiles = flattenEntries(entries);
       const main =
         allFiles.find(

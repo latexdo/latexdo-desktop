@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ensureMetadataIgnore } from "../features/project/metadataIgnore";
 import { normalizeLatexDoReviewMarkup, usesLatexDoReviewMacros } from "../reviewMarkup";
 import type { OpenDocument, ProjectEntry, RebuttalItem, ReviewChat } from "../types";
@@ -664,6 +664,22 @@ ${macroEnd}
     }
   };
 
+  const reviewLoadGeneration = useRef(0);
+  const reviewRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failedReviewProject = useRef<string | null>(null);
+  const pendingReviewEdits = useRef<{
+    project: string;
+    chats: ReviewChat[];
+    items: RebuttalItem[];
+  } | null>(null);
+  useEffect(
+    () => () => {
+      reviewLoadGeneration.current++;
+      if (reviewRetryTimer.current) clearTimeout(reviewRetryTimer.current);
+    },
+    [],
+  );
+
   const saveReviewData = useCallback(
     async (chats: ReviewChat[], items: RebuttalItem[]) => {
       const currentProject = projectIdRef.current;
@@ -671,9 +687,12 @@ ${macroEnd}
       if (!reviewDataReadyRef.current) {
         // The stored review data never loaded for this project; writing now
         // would overwrite it with a partial view.
-        setStatusMessage(
-          "Review data could not be loaded — changes are not being saved. Reload the project to retry.",
-        );
+        if (failedReviewProject.current === currentProject) {
+          pendingReviewEdits.current = { project: currentProject, chats, items };
+          setStatusMessage(
+            "Review changes are kept in this window but are not being saved yet. Retrying the saved review file automatically.",
+          );
+        }
         return;
       }
 
@@ -688,6 +707,9 @@ ${macroEnd}
       reviewSaveQueueRef.current = write.catch(() => undefined);
       try {
         await write;
+        if (projectIdRef.current === currentProject) {
+          reviewSavedSnapshotRef.current = reviewSnapshot(chats, items);
+        }
       } catch (e) {
         console.error("Failed to save review data", e);
         setStatusMessage(
@@ -700,48 +722,83 @@ ${macroEnd}
 
   const loadReviewData = useCallback(
     async (id: string) => {
+      const generation = ++reviewLoadGeneration.current;
+      if (reviewRetryTimer.current) clearTimeout(reviewRetryTimer.current);
       reviewDataReadyRef.current = false;
-      try {
-        const filePath = resolveProjectDataPath(".latexdo/review_data.json");
-        const exists = await window.latexdo.fileExists(id, filePath);
-        if (!exists) {
-          reviewSavedSnapshotRef.current = reviewSnapshot([], []);
-          setReviewChats([]);
-          setRebuttalItems([]);
+      failedReviewProject.current = null;
+      pendingReviewEdits.current = null;
+      const current = () =>
+        generation === reviewLoadGeneration.current && projectIdRef.current === id;
+      const filePath = resolveProjectDataPath(".latexdo/review_data.json");
+      const attempt = async (retry: number): Promise<void> => {
+        try {
+          // Let an earlier save finish before reading the same file again.
+          await reviewSaveQueueRef.current;
+          const exists = await window.latexdo.fileExists(id, filePath);
+          if (!current()) return;
+          const content = exists ? await window.latexdo.readFile(id, filePath) : "{}";
+          if (!current()) return;
+          const parsed = JSON.parse(content.replace(/^\uFEFF/, ""));
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("The saved review file must contain a JSON object.");
+          }
+          const { chats, items } = parsed;
+          if (
+            (chats != null && !Array.isArray(chats)) ||
+            (items != null && !Array.isArray(items))
+          ) {
+            throw new Error("The saved review file has invalid chats or items.");
+          }
+          const nextItems = (items ?? []).map(normalizeRebuttalItem);
+          const normalizedChats = removeLegacyReviewPlaceholders(chats ?? []);
+          const pending = pendingReviewEdits.current;
+          const recovered = failedReviewProject.current === id;
+          const merge = <T extends { id: string }>(saved: T[], edited: T[]) => [
+            ...new Map([...saved, ...edited].map((item) => [item.id, item])).values(),
+          ];
+          const nextChats =
+            pending?.project === id
+              ? merge(normalizedChats.chats, pending.chats)
+              : normalizedChats.chats;
+          const mergedItems =
+            pending?.project === id ? merge(nextItems, pending.items) : nextItems;
+          reviewSavedSnapshotRef.current =
+            normalizedChats.changed || pending?.project === id
+              ? ""
+              : reviewSnapshot(nextChats, mergedItems);
+          setReviewChats(nextChats);
+          setRebuttalItems(mergedItems);
           reviewDataReadyRef.current = true;
-          return;
+          failedReviewProject.current = null;
+          pendingReviewEdits.current = null;
+          if (recovered)
+            setStatusMessage(
+              "Review data recovered. Review saving is available again.",
+            );
+          if (normalizedChats.changed || pending?.project === id)
+            await saveReviewData(nextChats, mergedItems);
+        } catch (e) {
+          if (!current()) return;
+          failedReviewProject.current = id;
+          if (retry === 0) {
+            console.error("Failed to load review data", e);
+            const detail = e instanceof Error ? e.message : String(e);
+            setStatusMessage(
+              `Could not read ${filePath}: ${detail}. Existing review data is preserved; retrying automatically. Keep this window open for unsaved review edits.`,
+            );
+          }
+          // Back off while offline; a later successful read restores saving without a reload.
+          reviewRetryTimer.current = setTimeout(
+            () => {
+              if (current()) void attempt(retry + 1);
+            },
+            Math.min(3000 * 2 ** Math.min(retry, 4), 30000),
+          );
         }
-        const content = await window.latexdo.readFile(id, filePath);
-        const { chats, items } = JSON.parse(content) as {
-          chats: ReviewChat[];
-          items: RebuttalItem[];
-        };
-        const nextItems = (Array.isArray(items) ? items : []).map(
-          normalizeRebuttalItem,
-        );
-        const normalizedChats = removeLegacyReviewPlaceholders(
-          Array.isArray(chats) ? chats : [],
-        );
-        // Cleaned-up legacy data differs from disk, so the save effect rewrites it.
-        reviewSavedSnapshotRef.current = normalizedChats.changed
-          ? ""
-          : reviewSnapshot(normalizedChats.chats, nextItems);
-        setReviewChats(normalizedChats.chats);
-        setRebuttalItems(nextItems);
-        reviewDataReadyRef.current = true;
-      } catch (e) {
-        // Keep reviewDataReadyRef false: saves are blocked so a transient
-        // load failure cannot lead to overwriting the stored review data.
-        console.error("Failed to load review data", e);
-        reviewSavedSnapshotRef.current = reviewSnapshot([], []);
-        setReviewChats([]);
-        setRebuttalItems([]);
-        setStatusMessage(
-          "Could not load saved review data — review changes will not be saved until the project reloads successfully.",
-        );
-      }
+      };
+      await attempt(0);
     },
-    [resolveProjectDataPath],
+    [resolveProjectDataPath, saveReviewData],
   );
 
   // One place saves review data, from the committed state. Handlers only
@@ -749,7 +806,6 @@ ${macroEnd}
   useEffect(() => {
     const snapshot = reviewSnapshot(reviewChats, rebuttalItems);
     if (snapshot === reviewSavedSnapshotRef.current) return;
-    reviewSavedSnapshotRef.current = snapshot;
     void saveReviewData(reviewChats, rebuttalItems);
   }, [rebuttalItems, reviewChats, saveReviewData]);
 

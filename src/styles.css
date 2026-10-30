@@ -31119,10 +31119,24 @@ body.pane-resizing .preview-pane > * {
   transform: none;
 }
 
-/* The status bar's color says how the project is doing:
-   green = shared and live, amber = offline, red = the last compile failed. */
+/* Calm mode colors; connection state and compile errors take priority. */
 .statusbar {
   transition: background-color 0.25s ease;
+}
+
+.statusbar[data-state="idle"][data-mode="author"] {
+  background: var(--bg-statusbar-author);
+  color: #fff;
+}
+
+.statusbar[data-state="idle"][data-mode="reviewer"] {
+  background: var(--bg-statusbar-reviewer);
+  color: #fff;
+}
+
+.statusbar[data-state="idle"][data-mode="rebuttal"] {
+  background: var(--bg-statusbar-rebuttal);
+  color: #fff;
 }
 
 .statusbar[data-state="online"] {
