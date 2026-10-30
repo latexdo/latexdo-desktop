@@ -1,3 +1,4 @@
+import { isPdfReadingTheme, type PdfReadingTheme } from "../pdf/readingThemes";
 import { productIsPro } from "../../productConfig";
 import {
   categoryLabel,
@@ -668,6 +669,7 @@ export interface AppSettings {
   legalPolicyVersion: string;
   colorTheme: ColorTheme;
   appearanceMode: AppearanceMode;
+  pdfReadingTheme: PdfReadingTheme;
   defaultEngine: Engine;
   livePreview: boolean;
   editorFontSize: number;
@@ -811,6 +813,7 @@ export const defaultSettings: AppSettings = {
   colorTheme: "graphite",
   // New users start on the white theme; anyone who chose a look keeps it.
   appearanceMode: "light",
+  pdfReadingTheme: "original",
   defaultEngine: "pdflatex",
   livePreview: false,
   editorFontSize: 13.5,
@@ -1209,6 +1212,9 @@ function readSavedSettings(): AppSettings {
         typeof saved.livePreview === "boolean"
           ? saved.livePreview
           : defaultSettings.livePreview,
+      pdfReadingTheme: isPdfReadingTheme(saved.pdfReadingTheme)
+        ? saved.pdfReadingTheme
+        : defaultSettings.pdfReadingTheme,
       editorFontSize:
         typeof saved.editorFontSize === "number" &&
         saved.editorFontSize >= minEditorFontSize &&

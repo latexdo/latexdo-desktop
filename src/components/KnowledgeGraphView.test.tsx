@@ -148,10 +148,10 @@ describe("KnowledgeGraphView", () => {
   it("reports discovery planning failures and clears them when discovery is disabled", async () => {
     const planner = vi.fn().mockRejectedValue(new Error("Planning unavailable"));
     renderGraph({ onPlanDiscoveryWithAi: planner });
-    fireEvent.click(screen.getByLabelText(/search online/i));
+    fireEvent.click(screen.getByRole("button", { name: "Discover" }));
     expect((await screen.findAllByText("Planning unavailable"))[0]).toBeVisible();
     expect(planner).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByLabelText(/search online/i));
+    fireEvent.click(screen.getByRole("button", { name: "Graph" }));
     expect(screen.queryByText("Planning unavailable")).toBeNull();
   });
 
@@ -220,7 +220,7 @@ describe("KnowledgeGraphView", () => {
     const { container } = renderGraph({ onInsertCitation });
     flushAnimationFrame();
 
-    const svg = container.querySelector("svg");
+    const svg = container.querySelector(".kg-canvas");
     expect(svg).not.toBeNull();
     stubSvgBounds(svg as SVGSVGElement);
 
@@ -270,12 +270,14 @@ describe("KnowledgeGraphView", () => {
     });
     fireEvent.wheel(svg as SVGSVGElement, { deltaY: -120 });
 
-    const viewport = container.querySelector("svg g");
+    const viewport = container.querySelector(".kg-canvas > g");
     expect(viewport?.getAttribute("transform")).toContain("scale(");
   });
 
   it("searches online from the graph checkbox and can add discovered BibTeX", async () => {
-    const onAppendBibEntry = vi.fn();
+    const onAppendBibEntry = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Could not save bibliography"));
     const onOpenExternal = vi.fn();
     const onPlanDiscoveryWithAi = vi.fn().mockResolvedValue({
       queries: ["graph transformers citation discovery"],
@@ -320,12 +322,13 @@ describe("KnowledgeGraphView", () => {
       onPlanDiscoveryWithAi,
     });
 
-    fireEvent.click(screen.getByLabelText(/search online/i));
+    fireEvent.click(screen.getByRole("button", { name: "Discover" }));
 
     expect(
       await screen.findByText("Graph transformers for citation discovery"),
     ).toBeVisible();
     expect(onPlanDiscoveryWithAi).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("About this search"));
     expect(screen.getByText(/ai-assisted/i)).toBeVisible();
 
     fireEvent.click(
@@ -341,6 +344,13 @@ describe("KnowledgeGraphView", () => {
       }),
     );
 
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save bibliography",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /add bibtex for graph transformers/i }),
+    );
+
     await waitFor(() => {
       expect(onAppendBibEntry).toHaveBeenCalledWith(
         "references.bib",
@@ -350,6 +360,46 @@ describe("KnowledgeGraphView", () => {
     expect(screen.getByRole("button", { name: /add bibtex/i })).toHaveTextContent(
       "Added",
     );
+    fireEvent.change(screen.getByLabelText("Filter discovered papers"), {
+      target: { value: "unmatched" },
+    });
+    expect(screen.queryByText("Graph transformers for citation discovery")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Graph" }));
+    expect(screen.queryByText("Online paper discovery")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Discover" }));
+    expect(screen.getByText("Graph transformers for citation discovery")).toBeVisible();
+    expect(onPlanDiscoveryWithAi).toHaveBeenCalledOnce();
+  });
+
+  it("keeps settings and paper details in a single dock and resets zoom", () => {
+    const { container } = renderGraph();
+    flushAnimationFrame();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(container.querySelector(".kg-canvas > g")).toHaveAttribute(
+      "transform",
+      expect.stringContaining("scale(1.25)"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(container.querySelector(".kg-canvas > g")).toHaveAttribute(
+      "transform",
+      "translate(0 0) scale(1)",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Graph parameters" }));
+    expect(screen.getByRole("region", { name: "Graph parameters" })).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("button", { name: entries[0].title }), {
+      key: "Enter",
+    });
+    expect(screen.queryByRole("region", { name: "Graph parameters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Insert citation" })).toBeVisible();
+  });
+
+  it("offers a direct recovery from an empty selection filter", () => {
+    const onClearFilter = vi.fn();
+    renderGraph({ filter: { keys: [], label: "Selected text" }, onClearFilter });
+    expect(screen.getByText("No papers match these filters")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(onClearFilter).toHaveBeenCalledOnce();
   });
 
   it("shows the empty state when no bibliography entries are available", () => {

@@ -32,7 +32,7 @@ export function registerWordCompletion({
   loadDictionary = loadEnglishDictionary,
 }: WordCompletionOptions): Monaco.IDisposable {
   let dictionary: DictionaryWord[] = [];
-  let dictionaryRequested = false;
+  let dictionaryPromise: Promise<DictionaryWord[]> | null = null;
   // Counting every word on each keystroke is wasteful; recount on change.
   let cached: {
     model: Monaco.editor.ITextModel;
@@ -51,12 +51,21 @@ export function registerWordCompletion({
   };
 
   const provider: Monaco.languages.CompletionItemProvider = {
-    async provideCompletionItems(model, position) {
+    async provideCompletionItems(model, position, _context, token) {
       if (!isEnabled()) return { suggestions: [] };
-      if (!dictionaryRequested) {
-        dictionaryRequested = true;
-        dictionary = await loadDictionary();
-      }
+      const version = model.getVersionId();
+      dictionaryPromise ??= loadDictionary().catch(() => {
+        dictionaryPromise = null;
+        return [];
+      });
+      dictionary = await dictionaryPromise;
+      if (
+        !isEnabled() ||
+        token.isCancellationRequested ||
+        model.isDisposed() ||
+        model.getVersionId() !== version
+      )
+        return { suggestions: [] };
       const word = model.getWordUntilPosition(position);
       if (word.word.length < MIN_PREFIX_LENGTH) return { suggestions: [] };
       const line = model.getLineContent(position.lineNumber);
@@ -70,20 +79,13 @@ export function registerWordCompletion({
         else counts.delete(word.word);
       }
       const wordEnd = model.getWordAtPosition(position)?.endColumn ?? position.column;
-      const range = {
-        insert: new monaco.Range(
-          position.lineNumber,
-          word.startColumn,
-          position.lineNumber,
-          position.column,
-        ),
-        replace: new monaco.Range(
-          position.lineNumber,
-          word.startColumn,
-          position.lineNumber,
-          wordEnd,
-        ),
-      };
+      // Replace the entire word even with Monaco's default insert mode.
+      const range = new monaco.Range(
+        position.lineNumber,
+        word.startColumn,
+        position.lineNumber,
+        wordEnd,
+      );
       const suggestions = rankWordCompletions(word.word, counts, dictionary).map(
         (suggestion, index): Monaco.languages.CompletionItem => ({
           label: suggestion.word,

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,6 +22,20 @@ describe("build info", () => {
     const written = await writeBuildInfo(directory, {});
     expect(written.commit).toMatch(/^[a-f0-9]{40}$/);
     expect(readBuildInfo(directory)).toEqual(written);
+    const index = JSON.parse(
+      await readFile(path.join(directory, "release-notes/index.json"), "utf8"),
+    );
+    expect(index.releases.length).toBeGreaterThan(0);
+    for (const entry of index.releases) {
+      const notes = JSON.parse(
+        await readFile(
+          path.join(directory, "release-notes", `${entry.version}.json`),
+          "utf8",
+        ),
+      );
+      expect(notes.version).toBe(entry.version);
+      expect(notes.highlights.length).toBeGreaterThan(0);
+    }
   });
 
   it("prefers the checked-out commit and falls back to CI variables", () => {

@@ -2,7 +2,7 @@
 // commit on main is published under the same package version, so the updater
 // tells builds apart by commit and build time instead of by version number.
 import { execFileSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,6 +57,40 @@ function gitLog() {
 }
 
 export async function writeBuildInfo(outputDirectory, env = process.env) {
+  // Ship the reviewed release summaries with the app, including older versions
+  // for users who skip updates. No network or website deployment is needed.
+  const rootDirectory = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+  );
+  const sourceDirectory = path.join(rootDirectory, "release-notes");
+  const index = JSON.parse(
+    await readFile(path.join(sourceDirectory, "index.json"), "utf8"),
+  );
+  const packageInfo = JSON.parse(
+    await readFile(path.join(rootDirectory, "package.json"), "utf8"),
+  );
+  if (!index.releases.some((entry) => entry.version === packageInfo.version)) {
+    throw new Error(
+      `Missing release notes for ${packageInfo.version}. Add them before building.`,
+    );
+  }
+  const notesDirectory = path.join(outputDirectory, "release-notes");
+  await mkdir(notesDirectory, { recursive: true });
+  for (const entry of index.releases) {
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(entry.version)) {
+      throw new Error("Invalid bundled release notes version.");
+    }
+    const file = `${entry.version}.json`;
+    const raw = await readFile(path.join(sourceDirectory, file), "utf8");
+    if (JSON.parse(raw).version !== entry.version)
+      throw new Error(`Release notes version mismatch: ${file}`);
+    await writeFile(path.join(notesDirectory, file), raw);
+  }
+  await writeFile(
+    path.join(notesDirectory, "index.json"),
+    `${JSON.stringify(index)}\n`,
+  );
   const info = {
     commit: resolveBuildCommit(env),
     builtAt: new Date().toISOString(),

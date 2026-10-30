@@ -8,6 +8,7 @@ import React from "react";
 import { AlertTriangle, Bell, CircleAlert, Info, Trash2, X } from "lucide-react";
 import {
   clearNotifications,
+  deleteNotification,
   markAllNotificationsRead,
   notify,
   useNotifications,
@@ -163,6 +164,15 @@ export function NotificationCenter() {
                       {formatTime(entry.at)}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    className="small-icon notification-delete"
+                    title="Delete notification"
+                    aria-label={`Delete notification: ${entry.message}`}
+                    onClick={() => deleteNotification(entry.id)}
+                  >
+                    <Trash2 size={13} aria-hidden="true" />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -191,13 +201,12 @@ export function NotificationCenter() {
               </button>
               <button
                 type="button"
-                className="small-icon"
-                aria-label="Dismiss notification"
-                onClick={() =>
-                  setToastIds((current) => current.filter((id) => id !== entry.id))
-                }
+                className="small-icon notification-delete"
+                title="Delete notification"
+                aria-label={`Delete notification: ${entry.message}`}
+                onClick={() => deleteNotification(entry.id)}
               >
-                <X size={13} />
+                <Trash2 size={13} aria-hidden="true" />
               </button>
             </div>
           ))}

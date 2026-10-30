@@ -65,12 +65,65 @@ describe("registerWordCompletion", () => {
   it("replaces the whole word when the cursor is inside it", async () => {
     const { provider, disposable } = setup();
     const list = await complete(provider, "resxyz", 4);
-    const range = list?.suggestions[0].range as {
-      insert: monaco.IRange;
-      replace: monaco.IRange;
-    };
-    expect(range.insert.endColumn).toBe(4);
-    expect(range.replace.endColumn).toBe(7);
+    const range = list?.suggestions[0].range as monaco.IRange;
+    expect(range.startColumn).toBe(1);
+    expect(range.endColumn).toBe(7);
+    const model = monaco.editor.createModel("resxyz", "latex");
+    const result = list!.suggestions.find((item) => item.label === "result")!;
+    model.applyEdits([
+      { range: result.range as monaco.IRange, text: result.insertText },
+    ]);
+    expect(model.getValue()).toBe("result");
+    model.dispose();
+    disposable.dispose();
+  });
+
+  it("shares dictionary loading and ignores stale, cancelled, or disabled requests", async () => {
+    let enabled = true;
+    let finish!: (words: ReturnType<typeof sortDictionary>) => void;
+    const loadDictionary = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof sortDictionary>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const register = vi.spyOn(monaco.languages, "registerCompletionItemProvider");
+    const disposable = registerWordCompletion({
+      monaco,
+      isEnabled: () => enabled,
+      getOtherDocuments: () => [],
+      loadDictionary,
+    });
+    const provider = register.mock.calls[0][1];
+    register.mockRestore();
+    const model = monaco.editor.createModel("res", "latex");
+    const token = new monaco.CancellationTokenSource();
+    const request = () =>
+      provider.provideCompletionItems(
+        model,
+        new monaco.Position(1, 4),
+        { triggerKind: monaco.languages.CompletionTriggerKind.Invoke },
+        token.token,
+      );
+    const first = request();
+    const second = request();
+    finish(sortDictionary([{ word: "result", key: "result", tier: 0 }]));
+    expect((await first)?.suggestions.map((item) => item.label)).toEqual(["result"]);
+    expect((await second)?.suggestions.map((item) => item.label)).toEqual(["result"]);
+    expect(loadDictionary).toHaveBeenCalledTimes(1);
+    const stale = request();
+    model.setValue("other");
+    expect((await stale)?.suggestions).toEqual([]);
+    model.setValue("res");
+    const disabled = request();
+    enabled = false;
+    expect((await disabled)?.suggestions).toEqual([]);
+    enabled = true;
+    const cancelled = request();
+    token.cancel();
+    expect((await cancelled)?.suggestions).toEqual([]);
+    token.dispose();
+    model.dispose();
     disposable.dispose();
   });
 

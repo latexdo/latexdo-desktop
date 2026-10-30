@@ -352,6 +352,60 @@ describe("trusted document resolution", () => {
 });
 
 describe("resolveReleaseNotes", () => {
+  it("shows bundled notes for skipped versions offline without any network request", async () => {
+    const bundledDirectory = await temporaryDirectory();
+    await writeFile(
+      path.join(bundledDirectory, "index.json"),
+      JSON.stringify(indexPayload()),
+    );
+    for (const version of ["0.3.0", "0.4.0"]) {
+      await writeFile(
+        path.join(bundledDirectory, `${version}.json`),
+        JSON.stringify(documentPayload(version)),
+      );
+    }
+    const fetch = vi.fn().mockRejectedValue(new Error("Offline"));
+    const result = await resolveReleaseNotesRange(
+      {
+        bundledDirectory,
+        dataDirectory: await temporaryDirectory(),
+        publicKeyPemPath: "unused-offline-key.pem",
+        baseUrl: testBaseUrl,
+        fetch,
+      },
+      "0.2.0",
+      "0.4.0",
+    );
+    expect(result.available).toBe(true);
+    expect(result.documents.map((document) => document.version)).toEqual([
+      "0.4.0",
+      "0.3.0",
+    ]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched bundled document and still verifies remote notes", async () => {
+    const bundledDirectory = await temporaryDirectory();
+    await writeFile(
+      path.join(bundledDirectory, "0.3.0.json"),
+      JSON.stringify(documentPayload("0.4.0")),
+    );
+    const fetch = vi.fn().mockResolvedValue(JSON.stringify(documentPayload("0.3.0")));
+    const result = await resolveReleaseNotes(
+      {
+        bundledDirectory,
+        dataDirectory: await temporaryDirectory(),
+        publicKeyPemPath: (await makeTestKeyPair()).publicKeyPemPath,
+        baseUrl: testBaseUrl,
+        fetch,
+      },
+      "0.3.0",
+      null,
+    );
+    expect(result).toBeNull();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it("fetches, verifies, and caches a signed document", async () => {
     const { publicKeyPemPath } = await makeTestKeyPair();
     const directory = await temporaryDirectory();

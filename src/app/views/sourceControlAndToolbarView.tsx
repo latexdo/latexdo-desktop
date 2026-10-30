@@ -312,11 +312,17 @@ export function renderSourceToolbar(ctx: AppCtx) {
               }}
             >
               <option value="">Outline</option>
-              {documentOutline.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {`${"  ".repeat(Math.max(0, item.level - 2))}${item.detail} ${item.label}`}
-                </option>
-              ))}
+              {documentOutline.map((item) => {
+                const count = ctx.documentWordCounts?.sections?.find(
+                  (section) =>
+                    section.line === item.line && section.column === item.column,
+                );
+                return (
+                  <option key={item.id} value={item.id}>
+                    {`${"  ".repeat(Math.max(0, item.level - 2))}${item.detail} ${item.label}${count ? ` — ${count.words} words` : ""}`}
+                  </option>
+                );
+              })}
             </select>
             <ChevronDown size={13} />
           </div>

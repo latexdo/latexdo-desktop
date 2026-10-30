@@ -20,6 +20,8 @@ function alteredValue(key: keyof AppSettings, value: unknown): unknown {
       return defaultSettings.colorTheme === "midnight" ? "graphite" : "midnight";
     case "appearanceMode":
       return defaultSettings.appearanceMode === "auto" ? "dark" : "auto";
+    case "pdfReadingTheme":
+      return defaultSettings.pdfReadingTheme === "dark" ? "sepia" : "dark";
     case "defaultEngine":
       return "xelatex";
     default:

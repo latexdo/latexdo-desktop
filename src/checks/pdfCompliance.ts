@@ -1,11 +1,8 @@
+import { countLatexWords } from "../latex/wordCount";
 import type { Diagnostic, PdfComplianceSettings } from "../types";
 
 function findLine(content: string, index: number): number {
   return content.substring(0, index).split("\n").length;
-}
-
-function countWords(text: string): number {
-  return text.split(/[\s\n]+/).filter(Boolean).length;
 }
 
 function makeDiagnostic(
@@ -173,28 +170,11 @@ function checkSectionsWithNoCitations(content: string): Diagnostic[] {
 function checkAbstractWordCount(content: string, maxWords: number): Diagnostic[] {
   const diag: Diagnostic[] = [];
 
-  let abstractText = "";
-  let abstractLine = 1;
-
-  const envMatch = content.match(
-    /\\begin\s*\{abstract\}\s*([\s\S]*?)\\end\s*\{abstract\}/,
-  );
-  const cmdMatch = content.match(/\\abstract\s*\{([^}]+)\}/);
-
-  if (envMatch) {
-    abstractText = envMatch[1];
-    abstractLine = findLine(content, envMatch.index!);
-  } else if (cmdMatch) {
-    abstractText = cmdMatch[1];
-    abstractLine = findLine(content, cmdMatch.index!);
-  }
-
-  if (!abstractText) return diag;
-
-  const cleaned = abstractText
-    .replace(/\\[a-zA-Z]+(?:\[[^\]]*\])?\{[^}]*\}/g, "")
-    .replace(/[{}]/g, "");
-  const wordCount = countWords(cleaned);
+  const counts = countLatexWords(content);
+  const abstract = counts.sections.find((section) => section.kind === "abstract");
+  if (!abstract) return diag;
+  const abstractLine = abstract.line;
+  const wordCount = counts.abstract;
 
   if (wordCount > maxWords) {
     diag.push(

@@ -1066,6 +1066,17 @@ const api = {
     const files = await fetchCloudProjectFiles(projectId);
     return ipcRenderer.invoke("research-space:save-as-cloud", projectName, files);
   },
+  openDroppedFolders: (
+    paths: string[],
+    projectId: string | null,
+    disposition: "space" | "window",
+  ): Promise<OpenProject | null> =>
+    ipcRenderer.invoke(
+      "project:open-dropped-folders",
+      paths,
+      projectId && !isCloudProject(projectId) ? projectId : null,
+      disposition,
+    ),
   addFolderToResearchSpace: async (projectId: string): Promise<OpenProject | null> => {
     if (isCloudProject(projectId)) {
       throw new Error(

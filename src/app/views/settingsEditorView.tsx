@@ -1,3 +1,4 @@
+import { pdfReadingThemes } from "../../features/pdf/readingThemes";
 import {
   AlertTriangle,
   Check,
@@ -219,6 +220,42 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
             setSettings((current) => ({ ...current, colorTheme, appearanceMode }))
           }
         />
+      </div>
+
+      <div className="settings-row settings-row-stack">
+        <span>
+          <strong>PDF reading theme</strong>
+          <small>
+            Choose the page appearance for reading. Exports keep the original PDF
+            colors.
+          </small>
+        </span>
+        <div
+          className="pdf-theme-options"
+          role="radiogroup"
+          aria-label="PDF reading theme"
+        >
+          {pdfReadingThemes.map((theme) => (
+            <button
+              type="button"
+              key={theme.id}
+              role="radio"
+              aria-checked={settings.pdfReadingTheme === theme.id}
+              onClick={() =>
+                setSettings((current) => ({ ...current, pdfReadingTheme: theme.id }))
+              }
+            >
+              <span
+                className="pdf-theme-swatch"
+                aria-hidden="true"
+                style={{ background: theme.paper, color: theme.ink }}
+              >
+                Aa
+              </span>
+              <span>{theme.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-row settings-row-stack">

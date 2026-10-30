@@ -723,6 +723,8 @@ export function useAppWorkspaceState() {
   const [tikzConverterOpen, setTikzConverterOpen] = useState(false);
   const [notationManagerOpen, setNotationManagerOpen] = useState(false);
   const [citationManagerOpen, setCitationManagerOpen] = useState(false);
+  const [wordCountOpen, setWordCountOpen] = useState(false);
+  const [wordCountOffset, setWordCountOffset] = useState<number | null>(null);
   /** The extension whose details page is open in a tab ("" when closed). */
   const [extensionDetailsId, setExtensionDetailsId] = useState("");
   const [citationProjectFiles, setCitationProjectFiles] = useState<
@@ -924,6 +926,10 @@ export function useAppWorkspaceState() {
     setNotationManagerOpen,
     citationManagerOpen,
     setCitationManagerOpen,
+    wordCountOpen,
+    setWordCountOpen,
+    wordCountOffset,
+    setWordCountOffset,
     extensionDetailsId,
     setExtensionDetailsId,
     citationProjectFiles,

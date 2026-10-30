@@ -532,10 +532,29 @@ export async function loadReleaseNotesCache(
 }
 
 export interface ReleaseNotesResolverOptions {
+  /** Trusted files shipped inside the app; never point this at user data. */
+  bundledDirectory?: string;
   dataDirectory: string;
   publicKeyPemPath: string;
   baseUrl: string;
   fetch?: TextFetcher;
+}
+
+async function bundledPayload(
+  options: ReleaseNotesResolverOptions,
+  name: string,
+): Promise<unknown> {
+  if (!options.bundledDirectory || (name !== "index" && !isReleaseNotesVersion(name)))
+    return null;
+  try {
+    const raw = await readFile(
+      path.join(options.bundledDirectory, `${name.replace(/^v/i, "")}.json`),
+      "utf8",
+    );
+    return raw.length <= releaseNotesMaxBytes ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function resolveReleaseNotes(
@@ -543,6 +562,8 @@ export async function resolveReleaseNotes(
   version: string,
   index: ReleaseNotesIndex | null,
 ): Promise<ReleaseNotesDocument | null> {
+  const bundled = parseReleaseNotesDocument(await bundledPayload(options, version));
+  if (bundled && versionsEquivalent(bundled.version, version)) return bundled;
   const fetchText = options.fetch ?? defaultReleaseNotesFetcher;
   const reference =
     index?.releases.find((entry) => versionsEquivalent(entry.version, version)) ?? null;
@@ -578,6 +599,8 @@ export async function resolveReleaseNotes(
 export async function fetchReleaseNotesIndex(
   options: ReleaseNotesResolverOptions,
 ): Promise<ReleaseNotesIndex | null> {
+  const bundled = parseReleaseNotesIndex(await bundledPayload(options, "index"));
+  if (bundled) return bundled;
   const fetchText = options.fetch ?? defaultReleaseNotesFetcher;
   const cachePath = releaseNotesCacheFilePath(options.dataDirectory, "index");
   try {

@@ -1,3 +1,4 @@
+import { countLatexWords } from "../latex/wordCount";
 import type { Diagnostic, StructureAssistantSettings } from "../types";
 import { looksLikeMachineLearning } from "./reproducibility";
 
@@ -61,7 +62,7 @@ function checkAbstractStructureImpl(content: string): Diagnostic[] {
   const cleaned = abstractText
     .replace(/\\[a-zA-Z]+(?:\[[^\]]*\])?\{[^}]*\}/g, "")
     .replace(/[{}]/g, "");
-  const wordCount = countWords(cleaned);
+  const wordCount = countLatexWords(content).abstract;
   const lc = cleaned.toLowerCase();
 
   if (wordCount < 50) {

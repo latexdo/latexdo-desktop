@@ -845,3 +845,31 @@ describe("sharing from this computer", () => {
     expect(handlers.onClose).toHaveBeenCalledExactlyOnceWith(1008, "Removed");
   });
 });
+
+describe("dropped folder routing", () => {
+  it("passes local folders and the selected destination to the main process", async () => {
+    await api.openDroppedFolders(["/papers"], "local", "space");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "project:open-dropped-folders",
+      ["/papers"],
+      "local",
+      "space",
+    );
+    await api.openDroppedFolders(["/papers"], null, "window");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "project:open-dropped-folders",
+      ["/papers"],
+      null,
+      "window",
+    );
+  });
+  it("chooses a local research space instead of changing an online project", async () => {
+    await api.openDroppedFolders(["/papers"], "project_online", "space");
+    expect(bridge.invoke).toHaveBeenCalledWith(
+      "project:open-dropped-folders",
+      ["/papers"],
+      null,
+      "space",
+    );
+  });
+});

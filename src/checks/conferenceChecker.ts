@@ -1,3 +1,4 @@
+import { countLatexWords } from "../latex/wordCount";
 import type {
   Diagnostic,
   ConferenceCheckerSettings,
@@ -6,10 +7,6 @@ import type {
 
 function findLine(content: string, index: number): number {
   return content.substring(0, index).split("\n").length;
-}
-
-function countWords(text: string): number {
-  return text.split(/[\s\n]+/).filter(Boolean).length;
 }
 
 function makeDiagnostic(
@@ -283,23 +280,10 @@ function checkFontSizeImpl(content: string, template: string): Diagnostic[] {
 function checkAbstractLengthImpl(content: string, template: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
-  const envMatch = content.match(
-    /\\begin\s*\{abstract\}\s*([\s\S]*?)\\end\s*\{abstract\}/,
-  );
-  const cmdMatch = content.match(/\\abstract\s*\{([^}]+)\}/);
-
-  let abstractText = "";
-  let abstractLine = 1;
-
-  if (envMatch) {
-    abstractText = envMatch[1].replace(/\\(?:no)?\w+/g, "").replace(/[{}]/g, "");
-    abstractLine = findLine(content, envMatch.index!);
-  } else if (cmdMatch) {
-    abstractText = cmdMatch[1].replace(/\\(?:no)?\w+/g, "").replace(/[{}]/g, "");
-    abstractLine = findLine(content, cmdMatch.index!);
-  }
-
-  if (!envMatch && !cmdMatch) {
+  const counts = countLatexWords(content);
+  const abstract = counts.sections.find((section) => section.kind === "abstract");
+  const abstractLine = abstract?.line ?? 1;
+  if (!abstract) {
     diagnostics.push(
       makeDiagnostic(
         1,
@@ -311,7 +295,7 @@ function checkAbstractLengthImpl(content: string, template: string): Diagnostic[
     return diagnostics;
   }
 
-  const wordCount = countWords(abstractText);
+  const wordCount = counts.abstract;
 
   let maxWords = 250;
   switch (template) {

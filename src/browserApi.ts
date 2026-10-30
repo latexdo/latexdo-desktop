@@ -450,6 +450,10 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       throw browserUnavailable("Saving a Research Space");
     },
 
+    async openDroppedFolders() {
+      throw browserUnavailable("Opening local folders");
+    },
+
     async addFolderToResearchSpace() {
       throw browserUnavailable("Adding folders to a Research Space");
     },
