@@ -3368,7 +3368,7 @@ describe("App critical UI controls", () => {
     await openProjectFromWelcome();
     fireEvent.click(screen.getByTitle("Source control"));
 
-    expect(await screen.findByText("SOURCE CONTROL")).toBeVisible();
+    expect(await screen.findByText("Source Control")).toBeVisible();
     // Commits live in the Graph section under the changes.
     const partialCommit = (
       await screen.findAllByText("Partial commit from older backend")

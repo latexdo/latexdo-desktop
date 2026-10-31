@@ -310,7 +310,7 @@ export function SourceControlView(props: SourceControlViewProps) {
     return (
       <div className="scm-view">
         <div className="sidebar-header scm-title">
-          <span>SOURCE CONTROL</span>
+          <span>Source Control</span>
           <span className="scm-title-actions">
             <IconButton
               icon="refresh"
@@ -353,53 +353,24 @@ export function SourceControlView(props: SourceControlViewProps) {
   const hasChanges = entries.length > 0;
   const commitState = props.commitState ?? (busy === "commit" ? "busy" : "idle");
 
-  // The primary button, as in VS Code: Commit while there is something to
-  // commit; otherwise the next step for the branch.
-  const primary: {
-    name: string;
-    icon: CodiconName;
-    text: string;
-    title: string;
-    run: () => void;
-  } =
-    hasChanges || !info?.hasCommits
-      ? {
-          name: "Commit",
-          icon:
-            commitState === "success"
-              ? "pass"
-              : commitState === "error"
-                ? "error"
-                : "check",
-          text:
-            commitState === "busy"
-              ? "Committing…"
-              : commitState === "success"
-                ? "Committed"
-                : commitState === "error"
-                  ? "Commit failed"
-                  : "Commit",
-          title: `Commit the staged changes on "${branch}" (${commitKey})`,
-          run: () => onCommit(),
-        }
-      : !hasUpstream
-        ? {
-            name: "Publish Branch",
-            icon: "cloud-upload",
-            text: "Publish Branch",
-            title: `Publish "${branch}" to a remote`,
-            run: props.onPublish,
-          }
-        : {
-            name: "Sync Changes",
-            icon: "sync",
-            text: `Sync Changes${behind ? ` ${behind}↓` : ""}${ahead ? ` ${ahead}↑` : ""}`,
-            title:
-              ahead || behind
-                ? `Pull ${behind} and push ${ahead} commits between "${branch}" and "${status.upstream}"`
-                : `"${branch}" is up to date with "${status.upstream}"`,
-            run: () => onAction({ kind: "sync" }),
-          };
+  const primary = {
+    name: "Commit",
+    icon: (commitState === "success"
+      ? "pass"
+      : commitState === "error"
+        ? "error"
+        : "check") as CodiconName,
+    text:
+      commitState === "busy"
+        ? "Committing…"
+        : commitState === "success"
+          ? "Committed"
+          : commitState === "error"
+            ? "Commit failed"
+            : "Commit",
+    title: `Commit the staged changes on "${branch}" (${commitKey})`,
+    run: () => onCommit(),
+  };
 
   const toggle = (id: string) =>
     setCollapsed((current) => {
@@ -608,7 +579,7 @@ export function SourceControlView(props: SourceControlViewProps) {
   return (
     <div className="scm-view" ref={viewRef}>
       <div className="sidebar-header scm-title">
-        <span>SOURCE CONTROL</span>
+        <span>Source Control</span>
       </div>
 
       <div className={`scm-changes-pane ${changesOpen ? "open" : ""}`}>
@@ -627,23 +598,6 @@ export function SourceControlView(props: SourceControlViewProps) {
               icon={viewMode === "list" ? "list-tree" : "list-flat"}
               label={viewMode === "list" ? "View as Tree" : "View as List"}
               onClick={() => setViewMode(viewMode === "list" ? "tree" : "list")}
-            />
-            <IconButton
-              icon="git-branch"
-              label="Checkout to…"
-              onClick={props.onPickBranch}
-            />
-            <IconButton
-              icon="check"
-              label={`Commit (${commitKey})`}
-              disabled={working}
-              onClick={() => onCommit()}
-            />
-            <IconButton
-              icon="refresh"
-              label="Refresh source control"
-              spin={props.loading}
-              onClick={props.onRefresh}
             />
             <span className="scm-menu-anchor">
               <IconButton
@@ -677,6 +631,68 @@ export function SourceControlView(props: SourceControlViewProps) {
               </div>
             ) : null}
 
+            <div className="scm-repository-toolbar" aria-label="Repository actions">
+              <button
+                type="button"
+                className="scm-branch-button"
+                title={`Switch branch (${branch})`}
+                aria-label={`Switch branch: ${branch}`}
+                onClick={props.onPickBranch}
+                disabled={working}
+              >
+                <Codicon name="git-branch" />
+                <span>{branch}</span>
+              </button>
+              <div className="scm-repository-actions">
+                <IconButton
+                  icon={hasUpstream ? "sync" : "cloud-upload"}
+                  label={hasUpstream ? "Sync Changes" : "Publish Branch"}
+                  title={
+                    hasUpstream
+                      ? `Sync ${behind} incoming and ${ahead} outgoing commits`
+                      : `Publish "${branch}"`
+                  }
+                  disabled={working}
+                  onClick={() =>
+                    hasUpstream ? onAction({ kind: "sync" }) : props.onPublish()
+                  }
+                />
+                {props.onSuggestMessage ? (
+                  <IconButton
+                    icon="sparkle"
+                    label="Generate commit message"
+                    disabled={working || props.suggestingMessage || !hasChanges}
+                    onClick={props.onSuggestMessage}
+                  />
+                ) : null}
+                <IconButton
+                  icon="repo-pull"
+                  label="Pull changes"
+                  disabled={working || !hasUpstream}
+                  onClick={() => onAction({ kind: "pull" })}
+                />
+                <IconButton
+                  icon="git-compare"
+                  label="Checkout to…"
+                  disabled={working}
+                  onClick={props.onPickBranch}
+                />
+                <IconButton
+                  icon="check"
+                  label={`Commit (${commitKey})`}
+                  disabled={working || !hasChanges || !message.trim()}
+                  onClick={() => onCommit()}
+                />
+                <IconButton
+                  icon="refresh"
+                  label="Refresh source control"
+                  spin={props.loading}
+                  disabled={working}
+                  onClick={props.onRefresh}
+                />
+              </div>
+            </div>
+
             <div className="scm-input">
               <textarea
                 ref={messageRef}
@@ -691,7 +707,7 @@ export function SourceControlView(props: SourceControlViewProps) {
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault();
-                    onCommit();
+                    if (!working && hasChanges && message.trim()) onCommit();
                     return;
                   }
                   // ↑ at the start of the box recalls earlier messages, as in VS Code.
@@ -734,14 +750,16 @@ export function SourceControlView(props: SourceControlViewProps) {
                 className={`scm-primary-button ${commitState}`}
                 aria-label={primary.name}
                 title={primary.title}
-                disabled={working || commitState === "busy"}
+                disabled={
+                  working || commitState === "busy" || !hasChanges || !message.trim()
+                }
                 onClick={primary.run}
               >
+                <span>{primary.text}</span>
                 <Codicon
                   name={commitState === "busy" ? "loading" : primary.icon}
                   spin={commitState === "busy"}
                 />
-                <span>{primary.text}</span>
               </button>
               {primary.name === "Commit" ? (
                 <span className="scm-menu-anchor">
