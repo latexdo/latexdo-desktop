@@ -31406,7 +31406,7 @@ body.pane-resizing-row .preview-pane > * {
   font-weight: 600;
 }
 
-.layout-menu-popup button {
+:is(.layout-menu-popup, .workspace-layout-options) button {
   display: flex;
   width: 100%;
   min-height: 32px;
@@ -31423,18 +31423,18 @@ body.pane-resizing-row .preview-pane > * {
   text-align: left;
 }
 
-.layout-menu-popup button:hover,
-.layout-menu-popup button:focus-visible {
+:is(.layout-menu-popup, .workspace-layout-options) button:hover,
+:is(.layout-menu-popup, .workspace-layout-options) button:focus-visible {
   outline: 0;
   background: var(--bg-row-active);
   color: var(--text-primary);
 }
 
-.layout-menu-popup button.checked {
+:is(.layout-menu-popup, .workspace-layout-options) button.checked {
   color: var(--text-primary);
 }
 
-.layout-menu-popup button.checked > svg:first-child {
+:is(.layout-menu-popup, .workspace-layout-options) button.checked > svg:first-child {
   color: var(--accent);
 }
 
@@ -31442,14 +31442,14 @@ body.pane-resizing-row .preview-pane > * {
   flex: 1;
 }
 
-.layout-menu-popup kbd {
+:is(.layout-menu-popup, .workspace-layout-options) kbd {
   color: var(--text-muted);
   font: inherit;
   font-size: 11px;
   letter-spacing: 0.04em;
 }
 
-.layout-menu-popup hr {
+:is(.layout-menu-popup, .workspace-layout-options) hr {
   width: calc(100% - 8px);
   height: 1px;
   margin: 5px 4px;
@@ -31734,4 +31734,13 @@ body.pane-resizing-row .preview-pane > * {
 }
 .word-count-explanation li span {
   overflow-wrap: anywhere;
+}
+
+.workspace-layout-options {
+  width: 100%;
+  max-width: 560px;
+  padding: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-panel);
 }

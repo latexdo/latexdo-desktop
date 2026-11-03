@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LayoutMenu } from "./LayoutMenu";
+import { LayoutMenu, LayoutOptions } from "./LayoutMenu";
 
 afterEach(cleanup);
 
@@ -21,6 +21,65 @@ function renderMenu() {
 }
 
 describe("LayoutMenu", () => {
+  it("exposes the same choices and live state in Settings", () => {
+    const select = vi.fn(),
+      focus = vi.fn(),
+      sidebar = vi.fn(),
+      panel = vi.fn(),
+      reset = vi.fn();
+    const { rerender } = render(
+      <LayoutOptions
+        mode="editor"
+        focusMode={false}
+        sidebarVisible
+        panelVisible={false}
+        onSelectMode={select}
+        onToggleFocusMode={focus}
+        onToggleSidebar={sidebar}
+        onTogglePanel={panel}
+        onResetSizes={reset}
+      />,
+    );
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getByRole("radio", { name: /Editor only/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("radio", { name: /PDF only/ }));
+    expect(select).toHaveBeenCalledWith("pdf");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Focus mode/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Sidebar/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Bottom panel/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Reset pane sizes/ }));
+    for (const action of [focus, sidebar, panel, reset])
+      expect(action).toHaveBeenCalledOnce();
+    rerender(
+      <LayoutOptions
+        mode="pdf"
+        focusMode
+        sidebarVisible={false}
+        panelVisible={false}
+        onSelectMode={select}
+        onToggleFocusMode={focus}
+        onToggleSidebar={sidebar}
+        onTogglePanel={panel}
+        onResetSizes={reset}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: /PDF only/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("checkbox", { name: /Focus mode/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("checkbox", { name: /Sidebar/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
   it("opens, marks the current layout and closes after a choice", () => {
     const props = renderMenu();
     fireEvent.click(screen.getByRole("button", { name: "Layout options" }));

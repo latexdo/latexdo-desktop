@@ -1299,34 +1299,32 @@ describe("App critical UI controls", () => {
     fireEvent.click(screen.getByLabelText(/open settings/i));
     const dialog = await screen.findByRole("dialog", { name: /settings/i });
 
-    fireEvent.click(within(dialog).getByRole("radio", { name: /Power/i }));
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Editor only/i }));
+    await waitFor(() =>
+      expect(document.querySelector(".preview-pane")).not.toBeInTheDocument(),
+    );
+    expect(within(dialog).getByRole("radio", { name: /Editor only/i })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Split view/i }));
+    await waitFor(() =>
+      expect(document.querySelector(".preview-pane")).toBeInTheDocument(),
+    );
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Focus mode/i }));
     await waitFor(() => {
-      expect(document.querySelector(".workbench")).toHaveAttribute(
-        "data-layout-preset",
-        "power",
-      );
-      expect(document.querySelector(".sidebar")).toBeInTheDocument();
-      expect(document.querySelector(".bottom-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(within(dialog).getByRole("radio", { name: /Focus/i }));
-    await waitFor(() => {
-      expect(document.querySelector(".workbench")).toHaveAttribute(
-        "data-layout-preset",
-        "focus",
-      );
       expect(document.querySelector(".sidebar")).not.toBeInTheDocument();
       expect(document.querySelector(".bottom-panel")).not.toBeInTheDocument();
-      expect(editorOptionsByPath.get(entries[0].path)).toEqual(
-        expect.objectContaining({
-          minimap: expect.objectContaining({ enabled: false }),
-        }),
-      );
     });
-
     expect(
-      JSON.parse(window.localStorage.getItem(aiConfigStorageKey) ?? "{}").layoutPreset,
-    ).toBe("focus");
+      within(dialog).getByRole("checkbox", { name: /Focus mode/i }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /^Sidebar/i }));
+    await waitFor(() => expect(document.querySelector(".sidebar")).toBeInTheDocument());
+    expect(
+      within(dialog).getByRole("checkbox", { name: /Focus mode/i }),
+    ).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Reset pane sizes/i }));
   });
 
   it("does not compile while typing by default", async () => {
