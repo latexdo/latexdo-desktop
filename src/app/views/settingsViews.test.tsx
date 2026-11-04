@@ -54,11 +54,18 @@ function changedKeys(before: Settings, after: Settings): string[] {
 }
 
 function exerciseCheckboxes() {
-  const count = screen.getAllByRole("checkbox").length;
+  // Saved preferences use native inputs; workspace visibility uses live actions.
+  const boxes = () =>
+    screen
+      .getAllByRole("checkbox")
+      .filter(
+        (element): element is HTMLInputElement => element instanceof HTMLInputElement,
+      );
+  const count = boxes().length;
   expect(count).toBeGreaterThan(0);
   for (let index = 0; index < count; index += 1) {
     const before = current;
-    const box = screen.getAllByRole("checkbox")[index] as HTMLInputElement;
+    const box = boxes()[index] as HTMLInputElement;
     const wasChecked = box.checked;
     fireEvent.click(box);
     const changed = changedKeys(before, current);
@@ -66,10 +73,8 @@ function exerciseCheckboxes() {
     expect((current as unknown as Record<string, unknown>)[changed[0]]).toBe(
       !wasChecked,
     );
-    expect((screen.getAllByRole("checkbox")[index] as HTMLInputElement).checked).toBe(
-      !wasChecked,
-    );
-    fireEvent.click(screen.getAllByRole("checkbox")[index]);
+    expect((boxes()[index] as HTMLInputElement).checked).toBe(!wasChecked);
+    fireEvent.click(boxes()[index]);
     expect(changedKeys(before, current)).toEqual([]);
   }
 }
@@ -243,7 +248,11 @@ describe("settings footer", () => {
 describe("editor and provider settings", () => {
   it("changes editor options, compiler, and project-tree limits", () => {
     const setEngine = vi.fn();
-    const chooseWorkspacePreset = vi.fn();
+    const setLayoutMode = vi.fn();
+    const toggleFocusMode = vi.fn();
+    const toggleSidebar = vi.fn();
+    const togglePanel = vi.fn();
+    const resetPaneSizes = vi.fn();
     render(
       <Harness
         view={renderSettingsSectionHeading}
@@ -251,7 +260,15 @@ describe("editor and provider settings", () => {
           aiConfig: defaultAiConfig,
           resolvedAppearance: "dark",
           setEngine,
-          chooseWorkspacePreset,
+          layoutMode: "split",
+          focusMode: false,
+          sidebarVisible: true,
+          panelVisible: false,
+          setLayoutMode,
+          toggleFocusMode,
+          toggleSidebar,
+          togglePanel,
+          resetPaneSizes,
         }}
       />,
     );
@@ -275,8 +292,20 @@ describe("editor and provider settings", () => {
       target: { value: "5000" },
     });
     expect(current.projectTreeMaxEntries).toBe(5000);
-    fireEvent.click(screen.getByRole("radio", { name: /Power/ }));
-    expect(chooseWorkspacePreset).toHaveBeenCalledWith("power");
+    fireEvent.click(screen.getByRole("radio", { name: /Editor only/ }));
+    expect(setLayoutMode).toHaveBeenCalledWith("editor");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Focus mode/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Sidebar/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Bottom panel/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Reset pane sizes/ }));
+    for (const action of [
+      toggleFocusMode,
+      toggleSidebar,
+      togglePanel,
+      resetPaneSizes,
+    ]) {
+      expect(action).toHaveBeenCalledOnce();
+    }
     fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
     expect(current.pdfReadingTheme).toBe("dark");
     fireEvent.click(screen.getByRole("radio", { name: "Original" }));
