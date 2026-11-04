@@ -85,18 +85,34 @@ describe("SourceControlView", () => {
     expect(props.onCommit).toHaveBeenCalledWith({ push: true });
   });
 
-  it("turns the button into Sync Changes with counts once everything is committed", () => {
+  it("keeps Commit disabled on a clean branch and provides sync in the repository toolbar", () => {
     const props = view({ upstream: "origin/main", ahead: 2, behind: 1 });
     const sync = screen.getByRole("button", { name: "Sync Changes" });
-    expect(sync).toHaveTextContent("Sync Changes 1↓ 2↑");
+    expect(sync).toHaveAttribute("title", "Sync 1 incoming and 2 outgoing commits");
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "More commit actions" })).toBeEnabled();
     fireEvent.click(sync);
     expect(props.onAction).toHaveBeenCalledWith({ kind: "sync" });
   });
 
-  it("turns the button into Publish Branch without an upstream", () => {
+  it("provides Publish Branch in the toolbar without an upstream", () => {
     const props = view({});
     fireEvent.click(screen.getByRole("button", { name: "Publish Branch" }));
     expect(props.onPublish).toHaveBeenCalled();
+  });
+
+  it("keeps branch and pull actions accessible and prevents empty commits", () => {
+    const props = view({ upstream: "origin/main", entries: [modified] });
+    fireEvent.click(screen.getByRole("button", { name: "Switch branch: main" }));
+    expect(props.onPickBranch).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Pull changes" }));
+    expect(props.onAction).toHaveBeenCalledWith({ kind: "pull" });
+    expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Commit message" }), {
+      key: "Enter",
+      ctrlKey: true,
+    });
+    expect(props.onCommit).not.toHaveBeenCalled();
   });
 
   it("shows status letters and VS Code's row actions", () => {

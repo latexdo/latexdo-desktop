@@ -87,26 +87,6 @@ export const LayoutMenu: React.FC<LayoutMenuProps> = ({
     items[(index + step + items.length) % items.length]?.focus();
   };
 
-  const toggleItem = (
-    label: string,
-    Icon: LucideIcon,
-    checked: boolean,
-    onToggle: () => void,
-    keys?: string,
-  ) => (
-    <button
-      type="button"
-      role="menuitemcheckbox"
-      aria-checked={checked}
-      className={checked ? "checked" : undefined}
-      onClick={() => run(onToggle)}
-    >
-      <Icon size={15} aria-hidden="true" />
-      <span className="layout-menu-label">{label}</span>
-      {keys ? <kbd>{keys}</kbd> : null}
-    </button>
-  );
-
   return (
     <div className="layout-menu" ref={rootRef}>
       <button
@@ -131,56 +111,109 @@ export const LayoutMenu: React.FC<LayoutMenuProps> = ({
           onKeyDown={handleMenuKeyDown}
         >
           <div className="layout-menu-heading">Layout options</div>
-          {modes.map(({ id, label, icon: Icon, keys }) => (
-            <button
-              key={id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={mode === id}
-              className={mode === id ? "checked" : undefined}
-              onClick={() => run(() => onSelectMode(id))}
-            >
-              {mode === id ? (
-                <Check size={15} aria-hidden="true" />
-              ) : (
-                <Icon size={15} aria-hidden="true" />
-              )}
-              <span className="layout-menu-label">{label}</span>
-              <kbd>{keys}</kbd>
-            </button>
-          ))}
-          <hr />
-          {toggleItem(
-            "Focus mode",
-            Maximize,
-            focusMode,
-            onToggleFocusMode,
-            shortcut("↑"),
-          )}
-          {toggleItem(
-            "Sidebar",
-            PanelLeft,
-            sidebarVisible,
-            onToggleSidebar,
-            isMac ? "⌘B" : "Ctrl+B",
-          )}
-          {toggleItem(
-            "Bottom panel",
-            PanelBottom,
-            panelVisible,
-            onTogglePanel,
-            isMac ? "⌘J" : "Ctrl+J",
-          )}
-          <hr />
-          <button type="button" role="menuitem" onClick={() => run(onResetSizes)}>
-            <RotateCcw size={15} aria-hidden="true" />
-            <span className="layout-menu-label">Reset pane sizes</span>
-          </button>
-          <p className="layout-menu-hint">
-            Drag the edge between two panes to resize them. Double-click it to reset.
-          </p>
+          <LayoutOptions
+            mode={mode}
+            focusMode={focusMode}
+            sidebarVisible={sidebarVisible}
+            panelVisible={panelVisible}
+            onSelectMode={onSelectMode}
+            onToggleFocusMode={onToggleFocusMode}
+            onToggleSidebar={onToggleSidebar}
+            onTogglePanel={onTogglePanel}
+            onResetSizes={onResetSizes}
+            menu
+            run={run}
+          />
         </div>
       ) : null}
     </div>
   );
 };
+
+/** The same live options in the toolbar menu and Settings. */
+export function LayoutOptions({
+  mode,
+  focusMode,
+  sidebarVisible,
+  panelVisible,
+  onSelectMode,
+  onToggleFocusMode,
+  onToggleSidebar,
+  onTogglePanel,
+  onResetSizes,
+  menu = false,
+  run = (action) => action(),
+}: LayoutMenuProps & { menu?: boolean; run?: (action: () => void) => void }) {
+  const toggleItem = (
+    label: string,
+    Icon: LucideIcon,
+    checked: boolean,
+    onToggle: () => void,
+    keys?: string,
+  ) => (
+    <button
+      type="button"
+      role={menu ? "menuitemcheckbox" : "checkbox"}
+      aria-checked={checked}
+      className={checked ? "checked" : undefined}
+      onClick={() => run(onToggle)}
+    >
+      <Icon size={15} aria-hidden="true" />
+      <span className="layout-menu-label">{label}</span>
+      {keys ? <kbd>{keys}</kbd> : null}
+    </button>
+  );
+
+  return (
+    <>
+      <div role={menu ? "group" : "radiogroup"} aria-label="View mode">
+        {modes.map(({ id, label, icon: Icon, keys }) => (
+          <button
+            key={id}
+            type="button"
+            role={menu ? "menuitemradio" : "radio"}
+            aria-checked={mode === id}
+            className={mode === id ? "checked" : undefined}
+            onClick={() => run(() => onSelectMode(id))}
+          >
+            {mode === id ? (
+              <Check size={15} aria-hidden="true" />
+            ) : (
+              <Icon size={15} aria-hidden="true" />
+            )}
+            <span className="layout-menu-label">{label}</span>
+            <kbd>{keys}</kbd>
+          </button>
+        ))}
+      </div>
+      <hr />
+      {toggleItem("Focus mode", Maximize, focusMode, onToggleFocusMode, shortcut("↑"))}
+      {toggleItem(
+        "Sidebar",
+        PanelLeft,
+        sidebarVisible,
+        onToggleSidebar,
+        isMac ? "⌘B" : "Ctrl+B",
+      )}
+      {toggleItem(
+        "Bottom panel",
+        PanelBottom,
+        panelVisible,
+        onTogglePanel,
+        isMac ? "⌘J" : "Ctrl+J",
+      )}
+      <hr />
+      <button
+        type="button"
+        role={menu ? "menuitem" : undefined}
+        onClick={() => run(onResetSizes)}
+      >
+        <RotateCcw size={15} aria-hidden="true" />
+        <span className="layout-menu-label">Reset pane sizes</span>
+      </button>
+      <p className="layout-menu-hint">
+        Drag the edge between two panes to resize them. Double-click it to reset.
+      </p>
+    </>
+  );
+}

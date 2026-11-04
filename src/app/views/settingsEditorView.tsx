@@ -7,7 +7,7 @@ import {
   KeyRound,
   LoaderCircle,
 } from "lucide-react";
-import { layoutPresetInfo } from "../../features/ai/aiConfig";
+import { LayoutOptions } from "../../components/LayoutMenu";
 import type { Engine } from "../../types";
 import {
   boundedInteger,
@@ -19,7 +19,6 @@ import {
   parseProjectTreeIgnoredNamesText,
 } from "../../features/settings/settings";
 import { supportsProofreading } from "../../features/proofreading/proofreading";
-import { WorkspaceLayoutPreview } from "../appShared";
 import { ThemePicker } from "../../components/ThemePicker";
 import type { AppCtx } from "../appContext";
 
@@ -193,14 +192,7 @@ export function renderCloudForm2(ctx: AppCtx) {
 }
 
 export function renderSettingsSectionHeading(ctx: AppCtx) {
-  const {
-    aiConfig,
-    chooseWorkspacePreset,
-    resolvedAppearance,
-    setEngine,
-    setSettings,
-    settings,
-  } = ctx;
+  const { resolvedAppearance, setEngine, setSettings, settings } = ctx;
   return (
     <>
       <div className="settings-section-heading">
@@ -261,37 +253,27 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
       <div className="settings-row settings-row-stack">
         <span>
           <strong>Workspace layout</strong>
-          <small>Apply the same Focus, Balanced, or Power workspace from setup.</small>
+          <small>
+            The same view and panel controls as the Layout menu. Changes apply
+            immediately.
+          </small>
         </span>
         <div
-          className="settings-workspace-grid"
-          role="radiogroup"
+          className="workspace-layout-options"
+          role="group"
           aria-label="Workspace layout"
         >
-          {layoutPresetInfo.map((preset) => {
-            const selected = aiConfig.layoutPreset === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                className={`settings-workspace-card ${selected ? "active" : ""}`}
-                onClick={() => chooseWorkspacePreset(preset.id)}
-                role="radio"
-                aria-checked={selected}
-              >
-                <WorkspaceLayoutPreview preset={preset.id} />
-                <span className="settings-workspace-card-copy">
-                  <strong>{preset.name}</strong>
-                  <small>{preset.description}</small>
-                </span>
-                {selected ? (
-                  <span className="settings-workspace-selected">
-                    <Check size={12} /> Active
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
+          <LayoutOptions
+            mode={ctx.layoutMode}
+            focusMode={ctx.focusMode}
+            sidebarVisible={ctx.sidebarVisible}
+            panelVisible={ctx.panelVisible}
+            onSelectMode={(mode) => void ctx.setLayoutMode(mode)}
+            onToggleFocusMode={ctx.toggleFocusMode}
+            onToggleSidebar={ctx.toggleSidebar}
+            onTogglePanel={ctx.togglePanel}
+            onResetSizes={ctx.resetPaneSizes}
+          />
         </div>
       </div>
 

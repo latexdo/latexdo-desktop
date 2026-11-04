@@ -96,10 +96,10 @@
     "electron-winstaller": "5.4.4",
     "fast-uri": "4.2.3",
     "filelist": "2.0.2",
-    "glob": "13.0.2",
-    "joi": "18.2.9",
+    "glob": "14.0.2",
+    "joi": "18.3.1",
     "js-yaml": "5.4.2",
-    "minimatch": "10.2.5",
+    "minimatch": "11.0.1",
     "node-llama-cpp": {
       "simple-git": "4.0.2"
     },
