@@ -49,6 +49,9 @@ import type {
   GitActionResult,
   GitRepositoryInfo,
 } from "./gitActions.js" with { "resolution-mode": "import" };
+import type { TikzPreviewResult } from "./tikzPreview.js" with {
+  "resolution-mode": "import",
+};
 import type { RevisionPdfResult } from "./gitRevisionPdf.js" with {
   "resolution-mode": "import",
 };
@@ -1903,6 +1906,11 @@ const api = {
   /** Lets the user choose any PDF on disk to compare. */
   pickPdfForComparison: (): Promise<{ name: string; data: Uint8Array } | null> =>
     ipcRenderer.invoke("pdf-diff:pick-file"),
+  /** Compiles a TikZ snippet with LaTeX for the TikZ tool's preview. */
+  compileTikz: (
+    code: string,
+    engine: CompileRequest["engine"] = "pdflatex",
+  ): Promise<TikzPreviewResult> => ipcRenderer.invoke("tikz:compile", code, engine),
   readPdf: (projectId: string, pdfRelativePath: string): Promise<Uint8Array> =>
     ipcRenderer.invoke("pdf:read", projectId, pdfRelativePath),
   collectGarbage: (

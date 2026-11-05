@@ -32785,3 +32785,196 @@ body.pane-resizing-row .preview-pane > * {
     display: none;
   }
 }
+
+/* TikZ tool: the code as LaTeX renders it, or LaTeX's errors */
+.tikz-svg-container {
+  position: relative;
+}
+
+.tikz-render-panel {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-root);
+  inset: 0;
+}
+
+.tikz-render-header {
+  display: flex;
+  height: 35px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.tikz-render-header strong {
+  font-weight: 600;
+}
+
+.tikz-render-header small {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tikz-render-back {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tikz-render-back:hover {
+  color: var(--text-primary);
+}
+
+.tikz-render-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.tikz-render-figure {
+  display: grid;
+  overflow: auto;
+  flex: 1;
+  padding: 24px;
+  place-items: center;
+}
+
+.tikz-render-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 25%);
+}
+
+.tikz-render-errors {
+  overflow: auto;
+  flex: 1;
+  padding: 14px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tikz-render-errors-title {
+  margin: 0 0 10px;
+  color: var(--error);
+  font-weight: 600;
+}
+
+.tikz-render-errors ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tikz-render-error {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--error);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.tikz-render-line {
+  justify-self: start;
+  padding: 1px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-button-secondary);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tikz-render-line:hover {
+  border-color: var(--accent);
+}
+
+.tikz-render-error-message {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.tikz-render-source {
+  display: block;
+  overflow-x: auto;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-panel);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  white-space: pre;
+}
+
+.tikz-render-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tikz-render-hint::before {
+  color: var(--accent);
+  content: "How to fix: ";
+  font-weight: 600;
+}
+
+.tikz-render-log {
+  margin-top: 12px;
+}
+
+.tikz-render-log summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tikz-render-log pre {
+  overflow: auto;
+  max-height: 280px;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.tikz-render-note {
+  flex: none;
+  margin: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tikz-render-note code {
+  font-size: 11px;
+}

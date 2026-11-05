@@ -308,6 +308,9 @@ describe("desktop startup and trusted IPC", () => {
     ["pdf-diff:read-revision", ["unknown", "paper.pdf", { kind: "branch" }]],
     ["pdf-diff:compile-revision", [{}, { kind: "index" }]],
     ["pdf-diff:pick-file", ["extra"]],
+    ["tikz:compile", [42, "pdflatex"]],
+    ["tikz:compile", ["x".repeat(200_001), "pdflatex"]],
+    ["tikz:compile", ["\\draw (0,0);", "shell"]],
     ["synctex:forward", ["unknown", "main.pdf", "main.tex", 0, 1]],
     ["synctex:backward", ["unknown", "main.pdf", 1, Infinity, 0]],
     ["workspace:collect-garbage", ["unknown", { maxBuildBytes: -1 }]],
@@ -1208,6 +1211,22 @@ describe("desktop Git data preservation", () => {
     await expect(
       call("pdf-diff:compile-revision", request, { kind: "working-tree" }),
     ).rejects.toThrow();
+  });
+  it("compiles a TikZ snippet in a scratch folder for the TikZ tool", async () => {
+    native.compile.mockImplementationOnce(
+      async (request: { projectPath: string; rootFile: string }) => {
+        expect(request.rootFile).toBe("figure.tex");
+        expect(
+          request.projectPath.startsWith(path.join(native.path, "latexdo-tikz")),
+        ).toBe(true);
+        const pdfPath = path.join(request.projectPath, "figure.pdf");
+        await writeFile(pdfPath, "%PDF tikz");
+        return { ok: true, pdfPath, durationMs: 3, diagnostics: [], output: "ok" };
+      },
+    );
+    const result = await call("tikz:compile", "\\draw (0,0) circle (1);", "pdflatex");
+    expect(result.ok).toBe(true);
+    expect(Buffer.from(result.pdf).toString()).toBe("%PDF tikz");
   });
   it("lets the user pick any PDF on disk to compare", async () => {
     expect(await call("pdf-diff:pick-file")).toBeNull();

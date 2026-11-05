@@ -832,6 +832,21 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return null;
     },
 
+    async compileTikz() {
+      return {
+        ok: false,
+        errors: [
+          {
+            line: null,
+            message: "Rendering TikZ with LaTeX is available in the desktop app.",
+          },
+        ],
+        output: "",
+        source: "",
+        durationMs: 0,
+      };
+    },
+
     async revealGitFile() {
       throw browserUnavailable("Reveal file");
     },

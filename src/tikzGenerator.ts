@@ -879,6 +879,37 @@ export function parseTikzCode(
   return shapes;
 }
 
+export interface TikzParseReport {
+  shapes: DrawShape[];
+  /** Lines (1-based, in the given code) the drawing canvas cannot represent. */
+  unsupported: Array<{ line: number; text: string }>;
+}
+
+/**
+ * Like parseTikzCode, but also lists the lines it could not turn into canvas
+ * shapes (\foreach, styles, multi-line paths…), so callers never replace
+ * code with a partial copy of it.
+ */
+export function parseTikzCodeWithReport(
+  code: string,
+  canvasWidth: number,
+  canvasHeight: number,
+): TikzParseReport {
+  const unsupported: TikzParseReport["unsupported"] = [];
+  code.split("\n").forEach((raw, index) => {
+    const text = raw.trim();
+    if (!text || text.startsWith("%")) return;
+    if (/^\\(?:begin|end)\{tikzpicture\}/.test(text)) return;
+    const parsed = text.startsWith("\\node")
+      ? parseTikzNode(text, canvasHeight)
+      : text.startsWith("\\draw") || text.startsWith("\\fill")
+        ? parseTikzDraw(text, canvasHeight)
+        : null;
+    if (!parsed) unsupported.push({ line: index + 1, text });
+  });
+  return { shapes: parseTikzCode(code, canvasWidth, canvasHeight), unsupported };
+}
+
 /** Full document wrapper that can be compiled standalone */
 export function generateFullDocument(
   shapes: DrawShape[],

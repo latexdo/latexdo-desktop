@@ -188,6 +188,9 @@ describe("browser capabilities are explicit", () => {
       ),
     ).toMatchObject({ ok: false, error: expect.stringContaining("desktop app") });
     expect(await api.pickPdfForComparison()).toBeNull();
+    expect((await api.compileTikz("\\draw (0,0);")).errors[0].message).toContain(
+      "desktop app",
+    );
     expect((await api.getCollaborationState(id)).enabled).toBe(false);
     expect((await api.updateCollaborationPresence(id)).users).toEqual([]);
     expect(await api.isProjectAdmin(id)).toBe(false);

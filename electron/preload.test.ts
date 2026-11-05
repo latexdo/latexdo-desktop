@@ -177,6 +177,7 @@ describe("isolated desktop bridge", () => {
       ],
     ],
     ["pickPdfForComparison", "pdf-diff:pick-file", []],
+    ["compileTikz", "tikz:compile", ["\\draw (0,0);", "pdflatex"]],
     ["collectGarbage", "workspace:collect-garbage", ["local"]],
     ["collectGarbage", "workspace:collect-garbage", ["local", { maxBuildBytes: 100 }]],
     ["forwardSyncTex", "synctex:forward", ["local", "main.pdf", "main.tex", 2, 4]],

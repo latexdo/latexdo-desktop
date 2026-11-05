@@ -110,6 +110,7 @@ import {
   runGitText,
 } from "./git.js";
 import { runGitExclusive } from "./gitErrors.js";
+import { compileTikzPreview, maxTikzSnippetLength } from "./tikzPreview.js";
 import {
   compileRevisionPdf,
   maxRevisionPdfBytes,
@@ -8169,6 +8170,28 @@ async function startApp(): Promise<void> {
       untrack();
       projectGarbageCollector.schedule(request.projectId);
     }
+  });
+  ipcMain.handle("tikz:compile", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "tikz:compile";
+    const [rawCode, rawEngine] = expectIpcArgs(channel, rawArgs, 2);
+    if (typeof rawCode !== "string" || rawCode.length > maxTikzSnippetLength) {
+      invalidIpcInput(channel);
+    }
+    const engine = parseString(channel, rawEngine, {
+      maxLength: 16,
+      rejectControlChars: true,
+    }) as CompileRequest["engine"];
+    if (!compileEngines.has(engine)) {
+      invalidIpcInput(channel);
+    }
+    // Typed by the user in the TikZ tool and built in the app's own scratch
+    // folder: no project files are read or written.
+    return compileTikzPreview({
+      code: rawCode,
+      engine,
+      scratchRoot: path.join(app.getPath("temp"), "latexdo-tikz"),
+      compile: (request, signal) => compileLatex(request, { signal }),
+    });
   });
   ipcMain.handle("pdf:read", async (_event, ...rawArgs: unknown[]) => {
     const channel = "pdf:read";
