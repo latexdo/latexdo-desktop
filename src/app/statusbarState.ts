@@ -3,7 +3,12 @@ import type { CompileResult } from "../types";
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 
 /** What the status bar's color says, most urgent first. */
-export type StatusbarState = "compile-error" | "offline" | "online" | "idle";
+export type StatusbarState =
+  | "compile-error"
+  | "reading"
+  | "offline"
+  | "online"
+  | "idle";
 
 export function statusbarStateFor(input: {
   compileResult: CompileResult | null | undefined;
@@ -14,6 +19,8 @@ export function statusbarStateFor(input: {
   onlineBusy?: boolean;
   liveConnection: CollaborationConnectionStatus;
   online: boolean;
+  /** A paper is being read aloud. */
+  reading?: boolean;
 }): StatusbarState {
   const { compileResult } = input;
   if (
@@ -23,6 +30,8 @@ export function statusbarStateFor(input: {
   ) {
     return "compile-error";
   }
+  // Listening is something the reader just started; the bar shows it plainly.
+  if (input.reading) return "reading";
   if (!input.online) return "offline";
   // Anything touching the online copy colors the bar, so it is always clear
   // when work leaves this computer.

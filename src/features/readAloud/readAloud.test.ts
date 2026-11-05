@@ -5,7 +5,7 @@ import {
   pauseBefore,
   speechParts,
 } from "./readAloudSettings";
-import { remapPosition } from "./useReadAloud";
+import { cloudConfig, remapPosition } from "./useReadAloud";
 import {
   pickVoice,
   rankVoices,
@@ -132,5 +132,48 @@ describe("remapPosition", () => {
     expect(remapPosition(s(1, "B."), next)).toBe(1);
     expect(remapPosition(s(2, "Changed."), next)).toBe(2);
     expect(remapPosition(undefined, next)).toBe(0);
+  });
+});
+
+describe("cloud voices", () => {
+  it("keeps cloud choices valid", () => {
+    expect(
+      normalizeReadAloudSettings({
+        engine: "openai",
+        openaiVoice: "sage",
+        openaiModel: "made-up",
+        elevenLabsVoice: "../x",
+      }),
+    ).toMatchObject({
+      engine: "openai",
+      openaiVoice: "sage",
+      openaiModel: "gpt-4o-mini-tts",
+      elevenLabsVoice: "",
+    });
+  });
+
+  it("chooses the request for each voice source", () => {
+    const base = defaultReadAloudSettings;
+    expect(cloudConfig(base)).toBeNull();
+    expect(
+      cloudConfig({ ...base, engine: "openai", openaiVoice: "sage" }),
+    ).toMatchObject({
+      provider: "openai",
+      voice: "sage",
+      model: "gpt-4o-mini-tts",
+    });
+    // tts-1 has no "sage": fall back to a voice it knows.
+    expect(
+      cloudConfig({
+        ...base,
+        engine: "openai",
+        openaiVoice: "sage",
+        openaiModel: "tts-1",
+      })?.voice,
+    ).toBe("alloy");
+    expect(cloudConfig({ ...base, engine: "elevenlabs" })).toBeNull();
+    expect(
+      cloudConfig({ ...base, engine: "elevenlabs", elevenLabsVoice: "v1" }),
+    ).toMatchObject({ provider: "elevenlabs", voice: "v1" });
   });
 });

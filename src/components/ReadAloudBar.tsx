@@ -1,5 +1,7 @@
 import {
   ChevronsLeft,
+  KeyRound,
+  RefreshCw,
   ChevronsRight,
   LoaderCircle,
   Pause,
@@ -15,14 +17,29 @@ import React from "react";
 import type { PdfPreviewOverlay } from "../PdfPreview";
 import { rotateRect, type PaperSentence } from "../features/readAloud/paperText";
 import {
+  elevenLabsModels,
   maxReadAloudPitch,
   minReadAloudPitch,
+  openAiClassicVoices,
+  openAiModels,
+  openAiVoices,
+  readAloudCloudStyles,
+  readAloudEngines,
   readAloudPauseStyles,
   readAloudRates,
   type ReadAloudSettings,
 } from "../features/readAloud/readAloudSettings";
 import {
-  speechSupported,
+  cloudKeyConfigured,
+  fetchCloudVoices,
+  removeCloudKey,
+  saveCloudKey,
+  type CloudProvider,
+  type CloudVoice,
+} from "../features/readAloud/cloudSpeech";
+import { publishReadAloudStatus } from "../features/readAloud/readAloudStatus";
+import {
+  engineUnavailable,
   useReadAloud,
   useReadAloudSettings,
   useSpeechVoices,
@@ -43,6 +60,123 @@ export interface PdfReadAloud {
   setSettings: (next: ReadAloudSettings) => void;
   voices: SpeechSynthesisVoice[];
   overlays: PdfPreviewOverlay[];
+  cloud: CloudState;
+}
+
+interface CloudState {
+  /** null while unknown. */
+  keys: Record<CloudProvider, boolean | null>;
+  saveKey: (provider: CloudProvider, key: string) => Promise<boolean>;
+  removeKey: (provider: CloudProvider) => Promise<void>;
+  elevenLabsVoices: CloudVoice[];
+  elevenLabsVoicesState: "idle" | "loading" | "ready" | "error";
+  elevenLabsVoicesError: string;
+  reloadElevenLabsVoices: () => void;
+}
+
+/** A short name for the current voice, shown in the bar. */
+function voiceSummary(readAloud: PdfReadAloud): string {
+  const { settings, voices, cloud } = readAloud;
+  if (settings.engine === "openai") {
+    const voice = openAiVoices.find((option) => option.id === settings.openaiVoice);
+    return `${voice?.label ?? settings.openaiVoice} · OpenAI`;
+  }
+  if (settings.engine === "elevenlabs") {
+    const voice = cloud.elevenLabsVoices.find(
+      (option) => option.id === settings.elevenLabsVoice,
+    );
+    return voice ? `${voice.name} · ElevenLabs` : "ElevenLabs";
+  }
+  const voice = pickVoice(voices, settings.voiceURI);
+  return voice ? voiceDisplayName(voice) : "";
+}
+
+function useCloudVoices(
+  settings: ReadAloudSettings,
+  setSettings: (next: ReadAloudSettings) => void,
+  open: boolean,
+): CloudState {
+  const [keys, setKeys] = React.useState<Record<CloudProvider, boolean | null>>({
+    openai: null,
+    elevenlabs: null,
+  });
+  const [elevenLabsVoices, setElevenLabsVoices] = React.useState<CloudVoice[]>([]);
+  const [elevenLabsVoicesState, setVoicesState] =
+    React.useState<CloudState["elevenLabsVoicesState"]>("idle");
+  const [elevenLabsVoicesError, setVoicesError] = React.useState("");
+  const [reloadToken, setReloadToken] = React.useState(0);
+  const cloudEngine = settings.engine !== "system" ? settings.engine : null;
+
+  React.useEffect(() => {
+    if (!open || !cloudEngine) return;
+    let cancelled = false;
+    void cloudKeyConfigured(cloudEngine).then((configured) => {
+      if (!cancelled) setKeys((current) => ({ ...current, [cloudEngine]: configured }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudEngine, open]);
+
+  const needVoices = open && cloudEngine === "elevenlabs" && keys.elevenlabs === true;
+  const latest = React.useRef({ settings, setSettings });
+  React.useEffect(() => {
+    latest.current = { settings, setSettings };
+  });
+  React.useEffect(() => {
+    if (!needVoices) return;
+    let cancelled = false;
+    setVoicesState("loading");
+    fetchCloudVoices("elevenlabs")
+      .then((list) => {
+        if (cancelled) return;
+        setElevenLabsVoices(list);
+        setVoicesState("ready");
+        setVoicesError("");
+        // Pick the first voice when none (or a deleted one) is selected.
+        const { settings: now, setSettings: save } = latest.current;
+        if (list.length && !list.some((voice) => voice.id === now.elevenLabsVoice)) {
+          save({ ...now, elevenLabsVoice: list[0].id });
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setVoicesState("error");
+        setVoicesError(
+          error instanceof Error ? error.message : "Could not load ElevenLabs voices.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needVoices, reloadToken]);
+
+  const saveKey = React.useCallback(async (provider: CloudProvider, key: string) => {
+    const saved = await saveCloudKey(provider, key);
+    if (saved) {
+      setKeys((current) => ({ ...current, [provider]: true }));
+      setReloadToken((token) => token + 1);
+    }
+    return saved;
+  }, []);
+  const removeKey = React.useCallback(async (provider: CloudProvider) => {
+    await removeCloudKey(provider);
+    setKeys((current) => ({ ...current, [provider]: false }));
+    if (provider === "elevenlabs") {
+      setElevenLabsVoices([]);
+      setVoicesState("idle");
+    }
+  }, []);
+
+  return {
+    keys,
+    saveKey,
+    removeKey,
+    elevenLabsVoices,
+    elevenLabsVoicesState,
+    elevenLabsVoicesError,
+    reloadElevenLabsVoices: () => setReloadToken((token) => token + 1),
+  };
 }
 
 function visiblePage(surface: HTMLElement | null): number {
@@ -76,11 +210,28 @@ export function usePdfReadAloud({
     [surfaceRef],
   );
   const controller = useReadAloud({ pdfData, settings, voices, currentPage });
-  const { current, status, stop } = controller;
+  const cloud = useCloudVoices(settings, setSettings, open);
+  const { current, status, stop, play, pause } = controller;
 
   React.useEffect(() => {
     if (!open) stop();
   }, [open, stop]);
+
+  // Tell the status bar, which colors itself while a paper is being read.
+  const togglePlayback = React.useCallback(() => {
+    if (status === "playing" || status === "preparing") pause();
+    else void play();
+  }, [pause, play, status]);
+  const voiceSource =
+    readAloudEngines.find((engine) => engine.id === settings.engine)?.label ?? "";
+  React.useEffect(() => {
+    publishReadAloudStatus(
+      open
+        ? { status, page: current?.page ?? null, voiceSource, toggle: togglePlayback }
+        : null,
+    );
+  }, [current?.page, open, status, togglePlayback, voiceSource]);
+  React.useEffect(() => () => publishReadAloudStatus(null), []);
 
   // Hands off the page while the reader scrolls on their own.
   const userScrolledAt = React.useRef(0);
@@ -141,7 +292,7 @@ export function usePdfReadAloud({
     return [...byPage.values()];
   }, [active, current, rotation]);
 
-  return { controller, settings, setSettings, voices, overlays };
+  return { controller, settings, setSettings, voices, overlays, cloud };
 }
 
 const wordsPerMinute = 165;
@@ -256,6 +407,318 @@ function Toggle({
   );
 }
 
+function CloudKeyField({
+  provider,
+  readAloud,
+}: {
+  provider: CloudProvider;
+  readAloud: PdfReadAloud;
+}) {
+  const { cloud } = readAloud;
+  const [draft, setDraft] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [message, setMessage] = React.useState("");
+  const name = provider === "openai" ? "OpenAI" : "ElevenLabs";
+  const configured = cloud.keys[provider];
+
+  if (configured === null) {
+    return <p className="read-aloud-help">Checking for your {name} API key…</p>;
+  }
+  if (configured) {
+    return (
+      <div className="read-aloud-key is-saved">
+        <KeyRound size={13} aria-hidden="true" />
+        <span>{name} API key saved in your system keychain.</span>
+        <button
+          type="button"
+          className="read-aloud-link"
+          onClick={() => void cloud.removeKey(provider)}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="read-aloud-key"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!draft.trim()) return;
+        setSaving(true);
+        void cloud.saveKey(provider, draft).then((saved) => {
+          setSaving(false);
+          setDraft("");
+          setMessage(
+            saved ? "" : "The key could not be saved securely on this computer.",
+          );
+        });
+      }}
+    >
+      <input
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={`${name} API key`}
+        aria-label={`${name} API key`}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button
+        type="submit"
+        className="read-aloud-secondary"
+        disabled={!draft.trim() || saving}
+      >
+        Save
+      </button>
+      {message ? <p className="read-aloud-help is-error">{message}</p> : null}
+    </form>
+  );
+}
+
+function OpenAiVoiceSelect({
+  settings,
+  onChange,
+}: {
+  settings: ReadAloudSettings;
+  onChange: (voice: string) => void;
+}) {
+  const steerable = settings.openaiModel.startsWith("gpt-");
+  const options = openAiVoices.filter(
+    (voice) => steerable || openAiClassicVoices.has(voice.id),
+  );
+  const value = options.some((voice) => voice.id === settings.openaiVoice)
+    ? settings.openaiVoice
+    : "alloy";
+  return (
+    <select
+      className="read-aloud-voice"
+      aria-label="Voice"
+      title="Voice"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {options.map((voice) => (
+        <option key={voice.id} value={voice.id}>
+          {voice.label} · {voice.hint}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ElevenLabsVoiceSelect({
+  readAloud,
+  onChange,
+}: {
+  readAloud: PdfReadAloud;
+  onChange: (voice: string) => void;
+}) {
+  const { cloud, settings } = readAloud;
+  const voices = cloud.elevenLabsVoices;
+  return (
+    <select
+      className="read-aloud-voice"
+      aria-label="Voice"
+      title="Voice"
+      value={settings.elevenLabsVoice}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={!voices.length}
+    >
+      {!voices.length ? (
+        <option value={settings.elevenLabsVoice}>
+          {cloud.elevenLabsVoicesState === "loading"
+            ? "Loading voices…"
+            : cloud.keys.elevenlabs
+              ? "No voices"
+              : "Add your API key"}
+        </option>
+      ) : null}
+      {voices.map((voice) => (
+        <option key={voice.id} value={voice.id}>
+          {voice.name}
+          {voice.description ? ` · ${voice.description}` : ""}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** The voice picker that fits the chosen voice source. */
+function CurrentVoiceSelect({ readAloud }: { readAloud: PdfReadAloud }) {
+  const { settings, setSettings, voices } = readAloud;
+  if (settings.engine === "openai") {
+    return (
+      <OpenAiVoiceSelect
+        settings={settings}
+        onChange={(openaiVoice) => setSettings({ ...settings, openaiVoice })}
+      />
+    );
+  }
+  if (settings.engine === "elevenlabs") {
+    return (
+      <ElevenLabsVoiceSelect
+        readAloud={readAloud}
+        onChange={(elevenLabsVoice) => setSettings({ ...settings, elevenLabsVoice })}
+      />
+    );
+  }
+  return (
+    <VoiceSelect
+      voices={voices}
+      value={pickVoice(voices, settings.voiceURI)?.voiceURI ?? ""}
+      onChange={(voiceURI) => setSettings({ ...settings, voiceURI })}
+    />
+  );
+}
+
+function VoiceSourceSection({ readAloud }: { readAloud: PdfReadAloud }) {
+  const { settings, setSettings, controller, cloud } = readAloud;
+  const update = (patch: Partial<ReadAloudSettings>) =>
+    setSettings({ ...settings, ...patch });
+  const engine = readAloudEngines.find((option) => option.id === settings.engine);
+  const cloudEngine = settings.engine !== "system" ? settings.engine : null;
+  const keyMissing = cloudEngine ? cloud.keys[cloudEngine] === false : false;
+
+  return (
+    <section>
+      <h4>Voice</h4>
+      <div className="read-aloud-segmented" role="radiogroup" aria-label="Voice source">
+        {readAloudEngines.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={settings.engine === option.id}
+            onClick={() => update({ engine: option.id })}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {engine ? (
+        <p className={`read-aloud-help ${cloudEngine ? "is-cloud" : ""}`}>
+          {engine.description}
+        </p>
+      ) : null}
+
+      {cloudEngine ? (
+        <CloudKeyField provider={cloudEngine} readAloud={readAloud} />
+      ) : null}
+
+      {settings.engine === "openai" ? (
+        <label className="read-aloud-field">
+          <span>Model</span>
+          <select
+            value={settings.openaiModel}
+            onChange={(event) => update({ openaiModel: event.target.value })}
+          >
+            {openAiModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {settings.engine === "elevenlabs" ? (
+        <label className="read-aloud-field">
+          <span>Model</span>
+          <select
+            value={settings.elevenLabsModel}
+            onChange={(event) => update({ elevenLabsModel: event.target.value })}
+          >
+            {elevenLabsModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      <div className="read-aloud-row">
+        <CurrentVoiceSelect readAloud={readAloud} />
+        {settings.engine === "elevenlabs" && cloud.keys.elevenlabs ? (
+          <button
+            type="button"
+            onClick={cloud.reloadElevenLabsVoices}
+            title="Reload voices from your ElevenLabs account"
+            aria-label="Reload ElevenLabs voices"
+          >
+            <RefreshCw
+              size={13}
+              className={cloud.elevenLabsVoicesState === "loading" ? "spin" : undefined}
+            />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="read-aloud-secondary"
+          onClick={() => void controller.preview()}
+          disabled={keyMissing}
+        >
+          <Volume2 size={13} /> Preview
+        </button>
+      </div>
+      {settings.engine === "elevenlabs" && cloud.elevenLabsVoicesState === "error" ? (
+        <p className="read-aloud-help is-error">{cloud.elevenLabsVoicesError}</p>
+      ) : null}
+
+      {settings.engine === "openai" && settings.openaiModel.startsWith("gpt-") ? (
+        <label className="read-aloud-field">
+          <span>Delivery</span>
+          <div className="read-aloud-segmented" role="radiogroup" aria-label="Delivery">
+            {readAloudCloudStyles.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                role="radio"
+                aria-checked={settings.openaiStyle === style.id}
+                onClick={() => update({ openaiStyle: style.id })}
+              >
+                {style.label}
+              </button>
+            ))}
+          </div>
+        </label>
+      ) : null}
+
+      {settings.engine === "system" ? (
+        <>
+          <label className="read-aloud-slider">
+            <span>Tone</span>
+            <input
+              type="range"
+              min={minReadAloudPitch}
+              max={maxReadAloudPitch}
+              step={0.05}
+              value={settings.pitch}
+              onChange={(event) => update({ pitch: Number(event.target.value) })}
+              aria-valuetext={
+                settings.pitch === 1 ? "Normal" : settings.pitch.toFixed(2)
+              }
+            />
+            <output>
+              {settings.pitch === 1
+                ? "Normal"
+                : settings.pitch < 1
+                  ? "Deeper"
+                  : "Brighter"}
+            </output>
+          </label>
+          <p className="read-aloud-help">{voiceHelp()}</p>
+        </>
+      ) : (
+        <p className="read-aloud-help">
+          Audio for each sentence is downloaded once and reused, so going back does not
+          cost again.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function ReadAloudOptions({
   readAloud,
   onClose,
@@ -263,10 +726,9 @@ function ReadAloudOptions({
   readAloud: PdfReadAloud;
   onClose: () => void;
 }) {
-  const { settings, setSettings, voices, controller } = readAloud;
+  const { settings, setSettings } = readAloud;
   const update = (patch: Partial<ReadAloudSettings>) =>
     setSettings({ ...settings, ...patch });
-  const voice = pickVoice(voices, settings.voiceURI);
   const pauseStyle = readAloudPauseStyles.find(
     (style) => style.id === settings.pauseStyle,
   );
@@ -280,44 +742,7 @@ function ReadAloudOptions({
         </button>
       </div>
 
-      <section>
-        <h4>Voice</h4>
-        <div className="read-aloud-row">
-          <VoiceSelect
-            voices={voices}
-            value={voice?.voiceURI ?? ""}
-            onChange={(voiceURI) => update({ voiceURI })}
-          />
-          <button
-            type="button"
-            className="read-aloud-secondary"
-            onClick={() => controller.preview(voice)}
-            disabled={!voice}
-          >
-            <Volume2 size={13} /> Preview
-          </button>
-        </div>
-        <label className="read-aloud-slider">
-          <span>Tone</span>
-          <input
-            type="range"
-            min={minReadAloudPitch}
-            max={maxReadAloudPitch}
-            step={0.05}
-            value={settings.pitch}
-            onChange={(event) => update({ pitch: Number(event.target.value) })}
-            aria-valuetext={settings.pitch === 1 ? "Normal" : settings.pitch.toFixed(2)}
-          />
-          <output>
-            {settings.pitch === 1
-              ? "Normal"
-              : settings.pitch < 1
-                ? "Deeper"
-                : "Brighter"}
-          </output>
-        </label>
-        <p className="read-aloud-help">{voiceHelp()}</p>
-      </section>
+      <VoiceSourceSection readAloud={readAloud} />
 
       <section>
         <h4>Pauses</h4>
@@ -406,13 +831,13 @@ export function ReadAloudBar({
   readAloud: PdfReadAloud;
   onClose: () => void;
 }) {
-  const { controller, settings, setSettings, voices } = readAloud;
+  const { controller, settings, setSettings } = readAloud;
   const { status, sentences, index, current, error } = controller;
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const playing = status === "playing";
   const preparing = status === "preparing";
   const hasText = sentences.length > 0;
-  const voice = pickVoice(voices, settings.voiceURI);
+  const unavailable = engineUnavailable(settings);
 
   const toggle = () => {
     if (playing || preparing) controller.pause();
@@ -439,12 +864,15 @@ export function ReadAloudBar({
   };
 
   let caption: React.ReactNode;
-  if (!speechSupported()) {
-    caption = "Speech is not available on this system.";
-  } else if (status === "error") {
+  if (status === "error") {
     caption = error;
+  } else if (unavailable && status === "idle") {
+    caption = unavailable;
   } else if (preparing) {
-    caption = "Preparing the paper…";
+    caption =
+      settings.engine === "system" || !hasText
+        ? "Preparing the paper…"
+        : `Getting the ${voiceSummary(readAloud)} voice ready…`;
   } else if (status === "finished") {
     caption = "Finished reading. Press play to start again.";
   } else if (current && status !== "idle") {
@@ -459,6 +887,7 @@ export function ReadAloudBar({
   return (
     <div
       className="read-aloud-bar"
+      data-status={status}
       role="region"
       aria-label="Listen to paper"
       onKeyDown={onKeyDown}
@@ -490,7 +919,6 @@ export function ReadAloudBar({
             type="button"
             className="read-aloud-play"
             onClick={toggle}
-            disabled={!speechSupported()}
             title={playing ? "Pause (Space)" : "Listen (Space)"}
             aria-label={playing || preparing ? "Pause" : "Play"}
           >
@@ -549,9 +977,7 @@ export function ReadAloudBar({
           <span className="read-aloud-meta">
             {hasText && current
               ? `p. ${current.page} · ${remainingLabel(sentences, index, settings.rate)}`
-              : voice
-                ? voiceDisplayName(voice)
-                : ""}
+              : voiceSummary(readAloud)}
           </span>
         </div>
 
@@ -571,11 +997,7 @@ export function ReadAloudBar({
               </option>
             ))}
           </select>
-          <VoiceSelect
-            voices={voices}
-            value={voice?.voiceURI ?? ""}
-            onChange={(voiceURI) => setSettings({ ...settings, voiceURI })}
-          />
+          <CurrentVoiceSelect readAloud={readAloud} />
           <button
             type="button"
             onClick={() => setOptionsOpen((value) => !value)}

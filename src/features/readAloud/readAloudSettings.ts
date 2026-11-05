@@ -4,10 +4,20 @@ import { defaultPaperTextOptions, type PaperTextOptions } from "./paperText";
 
 export type ReadAloudPauseStyle = "natural" | "relaxed" | "deliberate";
 export type ReadAloudStart = "page" | "beginning";
+/** Where the voice comes from: the computer, or a cloud service. */
+export type ReadAloudEngine = "system" | "openai" | "elevenlabs";
+export type ReadAloudCloudStyle = "narrator" | "lecture" | "neutral";
 
 export interface ReadAloudSettings extends PaperTextOptions {
+  engine: ReadAloudEngine;
   /** Empty: the best installed voice. */
   voiceURI: string;
+  openaiVoice: string;
+  openaiModel: string;
+  openaiStyle: ReadAloudCloudStyle;
+  /** Empty: the first voice in the ElevenLabs account. */
+  elevenLabsVoice: string;
+  elevenLabsModel: string;
   rate: number;
   pitch: number;
   pauseStyle: ReadAloudPauseStyle;
@@ -20,6 +30,72 @@ export const readAloudSettingsChangedEvent = "latexdo:read-aloud-settings-change
 
 export const readAloudRates = [0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
 export const minReadAloudPitch = 0.8;
+
+export const readAloudEngines: Array<{
+  id: ReadAloudEngine;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "system",
+    label: "This computer",
+    description: "Free and offline. The text never leaves your computer.",
+  },
+  {
+    id: "openai",
+    label: "OpenAI",
+    description:
+      "Natural, expressive voices you can steer. Sends the text to OpenAI; billed to your API key.",
+  },
+  {
+    id: "elevenlabs",
+    label: "ElevenLabs",
+    description:
+      "Studio-quality narration, including your own voices. Sends the text to ElevenLabs; billed to your account.",
+  },
+];
+
+export const openAiVoices = [
+  { id: "coral", label: "Coral", hint: "warm, clear" },
+  { id: "sage", label: "Sage", hint: "calm, measured" },
+  { id: "ash", label: "Ash", hint: "confident" },
+  { id: "ballad", label: "Ballad", hint: "soft, expressive" },
+  { id: "onyx", label: "Onyx", hint: "deep" },
+  { id: "nova", label: "Nova", hint: "bright" },
+  { id: "alloy", label: "Alloy", hint: "neutral" },
+  { id: "echo", label: "Echo", hint: "even" },
+  { id: "fable", label: "Fable", hint: "storyteller" },
+  { id: "shimmer", label: "Shimmer", hint: "light" },
+  { id: "verse", label: "Verse", hint: "lively" },
+] as const;
+
+/** Voices the older tts-1 models offer. */
+export const openAiClassicVoices = new Set([
+  "alloy",
+  "echo",
+  "fable",
+  "onyx",
+  "nova",
+  "shimmer",
+]);
+
+export const openAiModels = [
+  { id: "gpt-4o-mini-tts", label: "GPT-4o mini TTS — steerable" },
+  { id: "tts-1-hd", label: "TTS-1 HD — high quality" },
+  { id: "tts-1", label: "TTS-1 — fastest" },
+] as const;
+
+export const elevenLabsModels = [
+  { id: "eleven_multilingual_v2", label: "Multilingual v2 — long-form narration" },
+  { id: "eleven_flash_v2_5", label: "Flash v2.5 — fast, lower cost" },
+  { id: "eleven_v3", label: "Eleven v3 — most expressive" },
+] as const;
+
+export const readAloudCloudStyles: Array<{ id: ReadAloudCloudStyle; label: string }> = [
+  { id: "narrator", label: "Narrator" },
+  { id: "lecture", label: "Lecturer" },
+  { id: "neutral", label: "Neutral" },
+];
 export const maxReadAloudPitch = 1.2;
 
 export const readAloudPauseStyles: Array<{
@@ -47,7 +123,13 @@ export const readAloudPauseStyles: Array<{
 
 export const defaultReadAloudSettings: ReadAloudSettings = {
   ...defaultPaperTextOptions,
+  engine: "system",
   voiceURI: "",
+  openaiVoice: "coral",
+  openaiModel: "gpt-4o-mini-tts",
+  openaiStyle: "narrator",
+  elevenLabsVoice: "",
+  elevenLabsModel: "eleven_multilingual_v2",
   rate: 1,
   pitch: 1,
   pauseStyle: "natural",
@@ -63,8 +145,31 @@ export function normalizeReadAloudSettings(raw: unknown): ReadAloudSettings {
     Record<keyof ReadAloudSettings, unknown>
   >;
   const d = defaultReadAloudSettings;
+  const oneOf = <T extends string>(
+    value: unknown,
+    options: readonly { id: T }[],
+    fallback: T,
+  ) => (options.some((option) => option.id === value) ? (value as T) : fallback);
   return {
+    engine: oneOf(saved.engine, readAloudEngines, d.engine),
     voiceURI: typeof saved.voiceURI === "string" ? saved.voiceURI : d.voiceURI,
+    openaiVoice: oneOf(saved.openaiVoice, openAiVoices, d.openaiVoice as "coral"),
+    openaiModel: oneOf(
+      saved.openaiModel,
+      openAiModels,
+      d.openaiModel as "gpt-4o-mini-tts",
+    ),
+    openaiStyle: oneOf(saved.openaiStyle, readAloudCloudStyles, d.openaiStyle),
+    elevenLabsVoice:
+      typeof saved.elevenLabsVoice === "string" &&
+      /^[A-Za-z0-9._-]{0,64}$/.test(saved.elevenLabsVoice)
+        ? saved.elevenLabsVoice
+        : d.elevenLabsVoice,
+    elevenLabsModel: oneOf(
+      saved.elevenLabsModel,
+      elevenLabsModels,
+      d.elevenLabsModel as "eleven_multilingual_v2",
+    ),
     rate: readAloudRates.includes(saved.rate as (typeof readAloudRates)[number])
       ? (saved.rate as number)
       : d.rate,

@@ -2187,6 +2187,13 @@ const aiApi = {
 
   deleteCredential: (credentialId: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("ai:credential-delete", credentialId),
+
+  // Cloud voices for "Listen to paper"; main adds the stored key.
+  synthesizeSpeech: (request: unknown): Promise<unknown> =>
+    ipcRenderer.invoke("tts:synthesize", request),
+
+  listCloudVoices: (provider: string): Promise<unknown> =>
+    ipcRenderer.invoke("tts:voices", provider),
 };
 
 contextBridge.exposeInMainWorld("aiApi", aiApi);

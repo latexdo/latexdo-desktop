@@ -550,6 +550,8 @@ describe("terminal and AI bridges", () => {
     ["getCredential", "ai:credential-get", ["provider"]],
     ["hasCredential", "ai:credential-has", ["provider"]],
     ["deleteCredential", "ai:credential-delete", ["provider"]],
+    ["synthesizeSpeech", "tts:synthesize", [{ provider: "openai", text: "Hi." }]],
+    ["listCloudVoices", "tts:voices", ["elevenlabs"]],
   ] as [keyof AiApi, string, unknown[]][])(
     "%s uses %s",
     async (method, channel, args) => {

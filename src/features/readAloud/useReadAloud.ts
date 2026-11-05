@@ -13,9 +13,15 @@ import {
   readAloudSettingsChangedEvent,
   saveReadAloudSettings,
   speechParts,
+  openAiClassicVoices,
   type ReadAloudSettings,
 } from "./readAloudSettings";
 import { pickVoice, rankVoices } from "./voices";
+import {
+  CloudSpeechPlayer,
+  cloudSpeechAvailable,
+  type CloudSpeechConfig,
+} from "./cloudSpeech";
 
 export type ReadAloudStatus =
   | "idle"
@@ -110,6 +116,50 @@ async function loadPaperPages(data: Uint8Array): Promise<PaperPage[]> {
   }
 }
 
+const previewSentence =
+  "This is how your paper will sound, with natural pauses at commas, sentences, and new sections.";
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, Math.max(0, ms)));
+
+/** The cloud voice to use, or null for the computer's own voices. */
+export function cloudConfig(settings: ReadAloudSettings): CloudSpeechConfig | null {
+  if (settings.engine === "openai") {
+    const steerable = settings.openaiModel.startsWith("gpt-");
+    return {
+      provider: "openai",
+      model: settings.openaiModel,
+      // The older tts-1 models know only the classic voices.
+      voice:
+        steerable || openAiClassicVoices.has(settings.openaiVoice)
+          ? settings.openaiVoice
+          : "alloy",
+      style: settings.openaiStyle,
+    };
+  }
+  if (settings.engine === "elevenlabs" && settings.elevenLabsVoice) {
+    return {
+      provider: "elevenlabs",
+      model: settings.elevenLabsModel,
+      voice: settings.elevenLabsVoice,
+      style: settings.openaiStyle,
+    };
+  }
+  return null;
+}
+
+/** Why the chosen voice cannot read right now, if it cannot. */
+export function engineUnavailable(settings: ReadAloudSettings): string {
+  if (settings.engine === "system") {
+    return speechSupported() ? "" : "Speech is not available on this system.";
+  }
+  if (!cloudSpeechAvailable()) return "Cloud voices need the LatexDo desktop app.";
+  if (settings.engine === "elevenlabs" && !settings.elevenLabsVoice) {
+    return "Choose an ElevenLabs voice in Listening options.";
+  }
+  return "";
+}
+
 const textOptionsKey = (settings: PaperTextOptions) =>
   [
     settings.skipCitations,
@@ -161,12 +211,15 @@ export function useReadAloud({
     sentences: [] as PaperSentence[],
     index: 0,
     run: 0,
-    timer: undefined as number | undefined,
-    watchdog: undefined as number | undefined,
     utterance: null as SpeechSynthesisUtterance | null,
     loaded: null as { data: Uint8Array; key: string } | null,
     loading: null as Promise<PaperSentence[]> | null,
   });
+  const playerRef = React.useRef<CloudSpeechPlayer | null>(null);
+  const player = React.useCallback(
+    () => (playerRef.current ??= new CloudSpeechPlayer()),
+    [],
+  );
 
   React.useEffect(() => {
     live.current.settings = settings;
@@ -190,10 +243,9 @@ export function useReadAloud({
   const silence = React.useCallback(() => {
     const state = live.current;
     state.run += 1;
-    window.clearTimeout(state.timer);
-    window.clearInterval(state.watchdog);
     state.utterance = null;
     if (speechSupported()) window.speechSynthesis.cancel();
+    playerRef.current?.stop();
   }, []);
 
   const load = React.useCallback(async (): Promise<PaperSentence[]> => {
@@ -218,54 +270,13 @@ export function useReadAloud({
     return state.loading;
   }, [pdfData, setIndexLive, setSentencesLive]);
 
-  const speakFrom = React.useCallback(
-    (start: number) => {
-      const state = live.current;
-      silence();
-      const run = state.run;
-      const list = state.sentences;
-      if (start >= list.length) {
-        setIndexLive(Math.max(0, list.length - 1));
-        setStatusLive("finished");
-        return;
-      }
-      setIndexLive(start);
-      setStatusLive("playing");
-      setError("");
-      const sentence = list[start];
-      const { settings: current } = state;
-      const parts = speechParts(sentence.spoken, current.pauseStyle);
-      const voice = pickVoice(state.voices, current.voiceURI);
-      let part = 0;
-
-      const advance = () => {
-        if (run !== state.run) return;
-        window.clearInterval(state.watchdog);
-        part += 1;
-        const rate = state.settings.rate;
-        if (part < parts.length) {
-          state.timer = window.setTimeout(speakPart, clausePause / rate);
-          return;
-        }
-        // The list may have been rebuilt (recompile) while this sentence played.
-        const from = state.sentences === list ? start : state.index;
-        const nextList = state.sentences;
-        const pause = pauseBefore(
-          nextList[from + 1],
-          nextList[from],
-          state.settings.pauseStyle,
-        );
-        state.timer = window.setTimeout(
-          () => {
-            if (run === state.run) speakFrom(from + 1);
-          },
-          pause / Math.max(0.75, rate),
-        );
-      };
-
-      const speakPart = () => {
-        if (run !== state.run) return;
-        const utterance = new SpeechSynthesisUtterance(parts[part]);
+  /** Speaks one piece with a system voice; resolves when it ends or is stopped. */
+  const speakSystem = React.useCallback(
+    (text: string, run: number) =>
+      new Promise<void>((resolve, reject) => {
+        const state = live.current;
+        const voice = pickVoice(state.voices, state.settings.voiceURI);
+        const utterance = new SpeechSynthesisUtterance(text);
         if (voice) {
           utterance.voice = voice;
           utterance.lang = voice.lang;
@@ -273,48 +284,132 @@ export function useReadAloud({
         utterance.rate = state.settings.rate;
         utterance.pitch = state.settings.pitch;
         let done = false;
+        const timers = { watchdog: 0 };
         const finish = () => {
           if (done) return;
           done = true;
-          advance();
+          window.clearInterval(timers.watchdog);
+          resolve();
         };
         utterance.onend = finish;
         utterance.onerror = (event) => {
-          if (run !== state.run || done) return;
-          if (event.error === "interrupted" || event.error === "canceled") return;
+          if (event.error === "interrupted" || event.error === "canceled") {
+            finish();
+            return;
+          }
+          if (done) return;
           done = true;
-          silence();
-          setError(
-            event.error === "voice-unavailable" ||
-              event.error === "language-unavailable"
-              ? "This voice is not available. Choose another voice."
-              : "The speech engine stopped unexpectedly.",
+          window.clearInterval(timers.watchdog);
+          reject(
+            new Error(
+              event.error === "voice-unavailable" ||
+                event.error === "language-unavailable"
+                ? "This voice is not available. Choose another voice."
+                : "The speech engine stopped unexpectedly.",
+            ),
           );
-          setStatusLive("error");
         };
         // Keep a reference: an utterance that is garbage-collected never ends.
         state.utterance = utterance;
         window.speechSynthesis.speak(utterance);
         // Some engines drop the end event; notice when speech has gone quiet.
         let quiet = 0;
-        window.clearInterval(state.watchdog);
-        state.watchdog = window.setInterval(() => {
+        timers.watchdog = window.setInterval(() => {
           const synth = window.speechSynthesis;
+          if (run !== state.run) return finish();
           quiet = synth.speaking || synth.pending ? 0 : quiet + 1;
           if (quiet >= 3) finish();
         }, 500);
-      };
+      }),
+    [],
+  );
 
-      // A short gap after cancel() — some engines ignore a speak() right after it.
-      state.timer = window.setTimeout(speakPart, 40);
+  const speakFrom = React.useCallback(
+    async (start: number) => {
+      const state = live.current;
+      silence();
+      const run = state.run;
+      const active = () => run === state.run;
+      let list = state.sentences;
+      let at = start;
+      setError("");
+      setStatusLive("playing");
+      try {
+        // A short gap after cancel(): some engines ignore a speak() right after it.
+        await sleep(40);
+        let first = true;
+        while (active()) {
+          if (at >= list.length) {
+            setIndexLive(Math.max(0, list.length - 1));
+            setStatusLive("finished");
+            return;
+          }
+          setIndexLive(at);
+          const current = state.settings;
+          const sentence = list[at];
+          const parts = speechParts(sentence.spoken, current.pauseStyle);
+          const cloud = cloudConfig(current);
+          const next = list[at + 1];
+          for (let part = 0; part < parts.length; part += 1) {
+            if (!active()) return;
+            if (cloud) {
+              const context = {
+                previousText: parts[part - 1] ?? list[at - 1]?.spoken,
+                nextText: parts[part + 1] ?? next?.spoken,
+              };
+              if (first) {
+                // The first clip takes a moment to arrive; show it is coming.
+                setStatusLive("preparing");
+                await player().load(parts[part], cloud, context);
+                if (!active()) return;
+                setStatusLive("playing");
+                first = false;
+              }
+              // Ask for what comes next while this plays, so there is no gap.
+              const upcoming =
+                parts[part + 1] ??
+                (next ? speechParts(next.spoken, current.pauseStyle)[0] : undefined);
+              if (upcoming) {
+                player().prefetch(upcoming, cloud, {
+                  previousText: parts[part],
+                  nextText: parts[part + 2] ?? list[at + 2]?.spoken,
+                });
+              }
+              await player().speak(parts[part], cloud, current.rate, context);
+            } else {
+              await speakSystem(parts[part], run);
+            }
+            if (!active()) return;
+            if (part < parts.length - 1) await sleep(clausePause / current.rate);
+          }
+          // The list may have been rebuilt (recompile) while this sentence played.
+          const from = state.sentences === list ? at : state.index;
+          list = state.sentences;
+          const pause = pauseBefore(
+            list[from + 1],
+            list[from],
+            state.settings.pauseStyle,
+          );
+          await sleep(pause / Math.max(0.75, state.settings.rate));
+          at = from + 1;
+        }
+      } catch (error) {
+        if (!active()) return;
+        silence();
+        setError(
+          error instanceof Error ? error.message : "Reading stopped unexpectedly.",
+        );
+        setStatusLive("error");
+      }
     },
-    [setIndexLive, setStatusLive, silence],
+    [player, setIndexLive, setStatusLive, silence, speakSystem],
   );
 
   const play = React.useCallback(async () => {
     const state = live.current;
-    if (!speechSupported()) {
-      setError("Speech is not available on this system.");
+    const unavailable = engineUnavailable(state.settings);
+    if (unavailable) {
+      setError(unavailable);
       setStatusLive("error");
       return;
     }
@@ -341,7 +436,7 @@ export function useReadAloud({
       const found = list.findIndex((sentence) => sentence.page >= page);
       start = found >= 0 ? found : 0;
     }
-    speakFrom(Math.min(start, list.length - 1));
+    void speakFrom(Math.min(start, list.length - 1));
   }, [load, setStatusLive, speakFrom]);
 
   const pause = React.useCallback(() => {
@@ -362,8 +457,8 @@ export function useReadAloud({
       const state = live.current;
       const clamped = Math.max(0, Math.min(state.sentences.length - 1, target));
       if (!state.sentences.length) return;
-      if (state.status === "playing") {
-        speakFrom(clamped);
+      if (state.status === "playing" || state.status === "preparing") {
+        void speakFrom(clamped);
       } else {
         setIndexLive(clamped);
         if (state.status === "idle" || state.status === "finished")
@@ -397,34 +492,49 @@ export function useReadAloud({
     [seek],
   );
 
-  const preview = React.useCallback(
-    (voice: SpeechSynthesisVoice | null) => {
-      if (!speechSupported()) return;
-      const wasPlaying = live.current.status === "playing";
-      silence();
-      if (wasPlaying) setStatusLive("paused");
-      const utterance = new SpeechSynthesisUtterance(
-        "This is how your paper will sound, with natural pauses at commas, sentences, and new sections.",
-      );
-      if (voice) {
-        utterance.voice = voice;
-        utterance.lang = voice.lang;
-      }
-      utterance.rate = live.current.settings.rate;
-      utterance.pitch = live.current.settings.pitch;
-      live.current.utterance = utterance;
-      window.setTimeout(() => window.speechSynthesis.speak(utterance), 40);
-    },
-    [setStatusLive, silence],
-  );
+  /** A sample sentence in the chosen voice, so the reader can compare. */
+  const preview = React.useCallback(async () => {
+    const state = live.current;
+    const unavailable = engineUnavailable(state.settings);
+    if (unavailable) {
+      setError(unavailable);
+      setStatusLive("error");
+      return;
+    }
+    const wasActive = state.status === "playing" || state.status === "preparing";
+    silence();
+    if (wasActive) setStatusLive("paused");
+    const run = state.run;
+    const cloud = cloudConfig(state.settings);
+    try {
+      await sleep(40);
+      if (cloud) await player().speak(previewSentence, cloud, state.settings.rate);
+      else await speakSystem(previewSentence, run);
+    } catch (error) {
+      if (run !== state.run) return;
+      setError(error instanceof Error ? error.message : "The preview could not play.");
+      setStatusLive("error");
+    }
+  }, [player, setStatusLive, silence, speakSystem]);
 
   // A new voice, speed or pitch is heard at once: restart the current sentence.
-  const voiceKey = `${settings.voiceURI}|${settings.rate}|${settings.pitch}|${settings.pauseStyle}`;
+  const voiceKey = [
+    settings.engine,
+    settings.voiceURI,
+    settings.openaiVoice,
+    settings.openaiModel,
+    settings.openaiStyle,
+    settings.elevenLabsVoice,
+    settings.elevenLabsModel,
+    settings.rate,
+    settings.pitch,
+    settings.pauseStyle,
+  ].join("|");
   const lastVoiceKey = React.useRef(voiceKey);
   React.useEffect(() => {
     if (lastVoiceKey.current === voiceKey) return;
     lastVoiceKey.current = voiceKey;
-    if (live.current.status === "playing") speakFrom(live.current.index);
+    if (live.current.status === "playing") void speakFrom(live.current.index);
   }, [speakFrom, voiceKey]);
 
   // New text options or a recompiled PDF: rebuild the sentences and keep the place.
@@ -447,7 +557,7 @@ export function useReadAloud({
       .then(() => {
         // Skipping options change which sentences exist; start the found one over.
         if (wasPlaying && optionsChanged && live.current.status === "playing") {
-          speakFrom(live.current.index);
+          void speakFrom(live.current.index);
         }
       })
       .catch(() => undefined);

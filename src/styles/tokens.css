@@ -157,6 +157,8 @@
   --bg-statusbar-online: #13795b;
   --bg-statusbar-offline: #9a5b13;
   --bg-statusbar-error: #b42318;
+  /* While a paper is read aloud. */
+  --bg-statusbar-reading: #9b2c6f;
   --bg-modal-backdrop: light-dark(rgb(15 23 42 / 36%), rgb(5 7 11 / 62%));
   --bg-row-hover: var(--surface-raised-hover);
   --bg-row-active: var(--selection-bg);

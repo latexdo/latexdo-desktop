@@ -2,7 +2,14 @@ import { WordCountDialog } from "./components/WordCountDialog";
 import { useFolderDrop } from "./app/useFolderDrop";
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
-import { Check, ChevronDown, Download, LoaderCircle, RefreshCw } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Download,
+  Headphones,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-react";
 import { productConfig } from "./productConfig";
 import { appVersion } from "./appVersion";
 import { ReviewSidebar } from "./components/ReviewSidebar";
@@ -36,6 +43,10 @@ import { useAppCitationSearch } from "./app/useAppCitationSearch";
 import { useAppMonacoSetup } from "./app/useAppMonacoSetup";
 import { useAppCollaboration } from "./app/useAppCollaboration";
 import { statusbarStateFor, useNetworkOnline } from "./app/statusbarState";
+import {
+  isReadingAloud,
+  useReadAloudStatus,
+} from "./features/readAloud/readAloudStatus";
 import { useAppProjectCreation } from "./app/useAppProjectCreation";
 import { useAppAiActions } from "./app/useAppAiActions";
 import { useAppWorkspaceLayout } from "./app/useAppWorkspaceLayout";
@@ -92,6 +103,7 @@ import {
 
 export default function App() {
   const networkOnline = useNetworkOnline();
+  const readAloud = useReadAloudStatus();
   // The component's state and handlers live in src/app, split by area. Each
   // hook receives what the earlier ones returned, so the hooks run in a fixed order.
   const s01 = useAppWorkspaceState();
@@ -235,6 +247,7 @@ export default function App() {
     onlineBusy: ctx.collaborationBusy,
     liveConnection: ctx.liveConnection,
     online: networkOnline,
+    reading: isReadingAloud(readAloud.status),
   });
   const projectHasFile = (relativePath: string) =>
     allProjectEntries.some(
@@ -498,6 +511,43 @@ export default function App() {
       >
         {renderStatusbarGroup(ctx)}
         <div className="statusbar-group">
+          {readAloud.status !== "idle" && readAloud.toggle ? (
+            <button
+              type="button"
+              className="statusbar-item statusbar-reading"
+              data-reading={isReadingAloud(readAloud.status)}
+              onClick={readAloud.toggle}
+              title={
+                isReadingAloud(readAloud.status)
+                  ? "Pause listening"
+                  : "Resume listening"
+              }
+              aria-label={
+                isReadingAloud(readAloud.status)
+                  ? "Pause listening"
+                  : "Resume listening"
+              }
+            >
+              {readAloud.status === "playing" ? (
+                <span className="statusbar-reading-wave" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : (
+                <Headphones size={12} aria-hidden="true" />
+              )}
+              {readAloud.status === "preparing"
+                ? "Preparing to read…"
+                : readAloud.status === "playing"
+                  ? `Reading aloud${readAloud.page ? ` · p. ${readAloud.page}` : ""}`
+                  : readAloud.status === "finished"
+                    ? "Finished reading"
+                    : readAloud.status === "error"
+                      ? "Listening stopped"
+                      : `Paused${readAloud.page ? ` · p. ${readAloud.page}` : ""}`}
+            </button>
+          ) : null}
           <span className="statusbar-item">
             {mode === "author"
               ? "Author mode"
