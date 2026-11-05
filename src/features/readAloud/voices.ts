@@ -63,7 +63,9 @@ function baseName(name: string): string {
         " ",
       )
       .replace(/^(?:microsoft|google)\s+/i, "")
-      .replace(/\s+online\s*\(natural\)/i, "")
+      // Keep a word boundary when removing metadata from a display label.
+      // This formats plain text; React escapes it when rendering the voice picker.
+      .replace(/\s+online\s*\(natural\)/gi, " ")
       .trim()
   );
 }

@@ -60,6 +60,13 @@ describe("voices", () => {
       ),
     ).toBe("Aria");
   });
+
+  it("keeps words separate when removing repeated online voice metadata", () => {
+    expect(
+      voiceDisplayName(voice("Microsoft Aria Online (Natural) Online (Natural)")),
+    ).toBe("Aria");
+    expect(voiceDisplayName(voice("Aria Online (Natural)Reader"))).toBe("Aria Reader");
+  });
 });
 
 describe("settings", () => {
