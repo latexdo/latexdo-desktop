@@ -25,6 +25,20 @@ describe("statusbarStateFor", () => {
     ).toBe("idle");
   });
 
+  it("takes the reading color while a paper is read aloud", () => {
+    expect(statusbarStateFor({ ...base, reading: true })).toBe("reading");
+    expect(statusbarStateFor({ ...base, reading: true, online: false })).toBe(
+      "reading",
+    );
+    expect(statusbarStateFor({ ...base, reading: true, sharing: true })).toBe(
+      "reading",
+    );
+    // A failed build still wins: it needs attention.
+    expect(
+      statusbarStateFor({ ...base, reading: true, compileResult: compiled(false) }),
+    ).toBe("compile-error");
+  });
+
   it("shows compile errors first, even offline", () => {
     expect(statusbarStateFor({ ...base, compileResult: compiled(false) })).toBe(
       "compile-error",

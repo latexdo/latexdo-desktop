@@ -15,6 +15,7 @@ import {
   FileImage,
   FolderPlus,
   FolderOpen,
+  Headphones,
   LoaderCircle,
   Lock,
   Plus,
@@ -46,6 +47,7 @@ import {
   formatAssetSize,
 } from "../appShared";
 import type { AppCtx } from "../appContext";
+import { ReadAloudBar, usePdfReadAloud } from "../../components/ReadAloudBar";
 import { toolTabIds, type ToolTabKey } from "../../features/workspace/toolTabs";
 import {
   renderKnowledgeGraphTab,
@@ -485,6 +487,26 @@ export function renderSourcePane(ctx: AppCtx) {
 }
 
 export function renderSplitHandle(ctx: AppCtx) {
+  const { nudgeSplit, setSplitPercent, startResize } = ctx;
+  return (
+    <>
+      <div
+        className="split-handle"
+        onPointerDown={startResize}
+        onDoubleClick={() => setSplitPercent(DEFAULT_SPLIT_PERCENT)}
+        onKeyDown={nudgeSplit}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize editor and PDF preview"
+        title="Drag to resize · double-click to reset"
+        tabIndex={0}
+      />
+      <PdfPreviewPane ctx={ctx} />
+    </>
+  );
+}
+
+function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
   const {
     compileResult,
     compiling,
@@ -493,7 +515,6 @@ export function renderSplitHandle(ctx: AppCtx) {
     handleEditorCursorToPdf,
     handlePdfPointToSource,
     lastPdfLocation,
-    nudgeSplit,
     pdfRotation,
     pdfScale,
     pdfSurfaceRef,
@@ -504,8 +525,6 @@ export function renderSplitHandle(ctx: AppCtx) {
     setPdfRotation,
     setPdfScale,
     setPdfTarget,
-    setSplitPercent,
-    startResize,
   } = ctx;
   const pdfData = ctx.pdfData!;
   const pdfStatus = compiling
@@ -522,20 +541,19 @@ export function renderSplitHandle(ctx: AppCtx) {
       : compileResult?.ok
         ? CircleCheck
         : FileText;
+  const [listening, setListening] = React.useState(false);
+  const readAloud = usePdfReadAloud({
+    pdfData: ctx.pdfData ?? null,
+    surfaceRef: pdfSurfaceRef,
+    rotation: pdfRotation,
+    open: listening,
+  });
   return (
     <>
-      <div
-        className="split-handle"
-        onPointerDown={startResize}
-        onDoubleClick={() => setSplitPercent(DEFAULT_SPLIT_PERCENT)}
-        onKeyDown={nudgeSplit}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize editor and PDF preview"
-        title="Drag to resize · double-click to reset"
-        tabIndex={0}
-      />
-      <section className="preview-pane" data-tour-id="pdf-preview">
+      <section
+        className={`preview-pane ${listening ? "has-read-aloud" : ""}`}
+        data-tour-id="pdf-preview"
+      >
         <div className="preview-header">
           <div>
             <span
@@ -559,6 +577,16 @@ export function renderSplitHandle(ctx: AppCtx) {
                 ctx.setSettings((current) => ({ ...current, pdfReadingTheme }))
               }
             />
+            <button
+              className={listening ? "is-active" : undefined}
+              onClick={() => setListening((open) => !open)}
+              disabled={!pdfData}
+              title={listening ? "Close listening" : "Listen to paper"}
+              aria-label="Listen to paper"
+              aria-pressed={listening}
+            >
+              <Headphones size={15} />
+            </button>
             <button
               onClick={() => void handlePdfPointToSource()}
               disabled={!pdfData || !(pdfTarget ?? lastPdfLocation)}
@@ -627,6 +655,7 @@ export function renderSplitHandle(ctx: AppCtx) {
                 scale={pdfScale}
                 rotation={pdfRotation}
                 target={pdfTarget}
+                overlays={readAloud.overlays}
                 onNavigate={(location) => {
                   setPdfTarget(null);
                   setLastPdfLocation(location);
@@ -653,6 +682,9 @@ export function renderSplitHandle(ctx: AppCtx) {
             </div>
           )}
         </div>
+        {listening && pdfData ? (
+          <ReadAloudBar readAloud={readAloud} onClose={() => setListening(false)} />
+        ) : null}
       </section>
     </>
   );

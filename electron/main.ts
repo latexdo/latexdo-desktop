@@ -123,6 +123,7 @@ import {
   sharedProjectSourceFolder,
 } from "./peerCollabIpc.js";
 import { registerAiIpc } from "./ai/aiIpc.js";
+import { registerCloudSpeechIpc } from "./cloudSpeech.js";
 import { stopBundledSpeechServer } from "./voiceStt.js";
 import { fetchOrcidProfile } from "./orcid.js";
 import { listProject } from "./projectTree.js";
@@ -6632,6 +6633,7 @@ async function startApp(): Promise<void> {
   registerPeerCollabIpc({ getProjectRoot, registerProject });
   console.log("[latexdo] app:terminal-registered");
   registerAiIpc();
+  registerCloudSpeechIpc();
   console.log("[latexdo] app:ai-registered");
   buildApplicationMenu();
   console.log("[latexdo] app:menu-built");
