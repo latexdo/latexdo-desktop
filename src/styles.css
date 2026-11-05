@@ -311,13 +311,14 @@ button {
 
 .sidebar-header {
   display: flex;
-  height: 42px;
+  height: 35px;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 16px;
-  color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  padding: 0 8px 0 14px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .sidebar-header > div {
@@ -332,28 +333,70 @@ button {
 
 .project-heading {
   display: flex;
-  width: 100%;
-  height: 27px;
+  height: 22px;
+  flex: none;
   align-items: center;
-  gap: 5px;
-  padding: 0 9px;
+  padding-right: 6px;
+}
+
+.project-heading:hover,
+.project-heading:focus-within {
+  background: var(--bg-row-hover);
+}
+
+.project-heading-name {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
   border: 0;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-button-secondary);
+  background: transparent;
   color: var(--text-primary);
-  cursor: default;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
   text-align: left;
 }
 
-.project-heading span {
+.project-heading-name span {
   overflow: hidden;
   flex: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Like VS Code, the folder's actions appear when the row is in use. */
+.project-heading-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  opacity: 0;
+}
+
+.project-heading:hover .project-heading-actions,
+.project-heading:focus-within .project-heading-actions {
+  opacity: 1;
+}
+
+.project-heading-actions .small-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+}
+
+.project-heading-actions .small-icon:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
 }
 
 .file-tree {
@@ -6966,7 +7009,7 @@ button {
   min-height: 80px;
   border-top: 1px solid #2c3038;
   background: var(--bg-panel);
-  grid-template-rows: 32px minmax(0, 1fr);
+  grid-template-rows: 35px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -6989,7 +7032,7 @@ button {
 .panel-tabs button {
   position: relative;
   display: flex;
-  height: 32px;
+  height: 35px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -6997,9 +7040,8 @@ button {
   background: transparent;
   color: #7d8490;
   cursor: pointer;
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .panel-tabs button.active {
@@ -16668,7 +16710,7 @@ button {
   min-height: 80px;
   border-top: 1px solid #2c3038;
   background: var(--bg-panel);
-  grid-template-rows: 32px minmax(0, 1fr);
+  grid-template-rows: 35px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -16691,7 +16733,7 @@ button {
 .panel-tabs button {
   position: relative;
   display: flex;
-  height: 32px;
+  height: 35px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -16699,9 +16741,8 @@ button {
   background: transparent;
   color: #7d8490;
   cursor: pointer;
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .panel-tabs button.active {
@@ -27271,10 +27312,10 @@ body.pane-resizing .preview-pane > * {
 }
 .scm-title {
   flex: none;
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 35px;
+  padding: 0 8px 0 14px;
   border-bottom: 0;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;

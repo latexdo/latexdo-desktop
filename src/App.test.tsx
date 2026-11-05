@@ -591,7 +591,7 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 
 function openOutputPanel() {
   fireEvent.click(screen.getByRole("button", { name: /^Show problems: \d+ errors?$/ }));
-  fireEvent.click(screen.getByRole("button", { name: "OUTPUT" }));
+  fireEvent.click(screen.getByRole("button", { name: "Output" }));
 }
 
 function createReviewPdfFile(name = "attention.pdf") {
