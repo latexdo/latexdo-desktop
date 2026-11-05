@@ -31562,11 +31562,25 @@ body.pane-resizing-row .preview-pane > * {
     transform 0.12s ease;
 }
 
+/* In a stacked row the control sits right under the name, so a popover
+   below would cover the very field it describes: open it beside the name. */
+.settings-row-stack > span > small:not(.settings-value) {
+  top: 50%;
+  left: calc(100% + 10px);
+  max-width: min(340px, 45vw);
+  transform: translate(-3px, -50%);
+}
+
 .settings-row > span:hover > small:not(.settings-value),
 .settings-row:has(:focus-visible) > span > small:not(.settings-value) {
   opacity: 1;
   transform: none;
   transition-delay: 0.25s;
+}
+
+.settings-row-stack > span:hover > small:not(.settings-value),
+.settings-row-stack:has(:focus-visible) > span > small:not(.settings-value) {
+  transform: translateY(-50%);
 }
 
 .settings-row > span:hover > strong::after,
@@ -31578,6 +31592,10 @@ body.pane-resizing-row .preview-pane > * {
   .settings-row > span > small:not(.settings-value) {
     transform: none;
     transition: none;
+  }
+
+  .settings-row-stack > span > small:not(.settings-value) {
+    transform: translateY(-50%);
   }
 }
 
