@@ -245,6 +245,12 @@ export function useAppMenuCommands(ctx: AppCtx20) {
           return;
         }
         case "view.toggleSidebar":
+          // The menu owns Cmd/Ctrl+B; while writing in the visual editor it
+          // means Bold, as in a word processor.
+          if (document.activeElement?.closest("[data-visual-editor]")) {
+            document.execCommand("bold");
+            return;
+          }
           c.toggleSidebar();
           return;
         case "view.togglePanel":

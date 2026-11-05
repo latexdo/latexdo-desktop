@@ -945,6 +945,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     openCreateDialogInDirectory,
     submitCreate,
     importExternalFiles,
+    importExternalFilePaths,
     chooseImportFiles,
     openPdfFileForReview,
     reviewPaper,

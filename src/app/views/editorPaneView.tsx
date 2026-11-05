@@ -39,7 +39,7 @@ import {
 } from "../../features/pdfDiff/revisionSources";
 import type { GitDiffSession } from "../../types";
 import { CitationManager } from "../../components/CitationManager";
-import { VisualLatexEditor } from "../../components/VisualLatexEditor";
+import { ProjectVisualEditor } from "../../components/visualEditor/ProjectVisualEditor";
 import { ResearchPdfReader } from "../../features/pdfResearch/reader/ResearchPdfReader";
 import { NotationManager } from "../../components/NotationManager";
 import { ExtensionDetailPanel } from "../../components/ExtensionsSidebar";
@@ -317,7 +317,12 @@ export function renderEditorDropZone(ctx: AppCtx) {
           event.preventDefault();
         }
       }}
-      onDropCapture={(event) => void handleEditorFileDrop(event)}
+      onDropCapture={
+        // The visual page places dropped images and files itself.
+        activeDocumentIsLatex && latexEditorView === "visual"
+          ? undefined
+          : (event) => void handleEditorFileDrop(event)
+      }
     >
       {activeCollaborationReadOnlyMessage ? (
         <div className="editor-readonly-banner" role="status">
@@ -326,10 +331,14 @@ export function renderEditorDropZone(ctx: AppCtx) {
         </div>
       ) : null}
       {activeDocumentIsLatex && latexEditorView === "visual" ? (
-        <VisualLatexEditor
+        <ProjectVisualEditor
           key={`${activeDocument.path}:visual`}
+          projectId={ctx.projectId || null}
+          documentPath={activeDocument.relativePath}
           content={activeDocument.content}
           readOnly={Boolean(activeCollaborationReadOnlyMessage)}
+          projectEntries={ctx.projectEntries}
+          importExternalFilePaths={ctx.importExternalFilePaths}
           onChange={(value) => handleEditorChange(activeDocument.path, value)}
         />
       ) : (
