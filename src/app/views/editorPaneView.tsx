@@ -7,6 +7,7 @@ import {
   CircleCheck,
   CircleAlert,
   FileText,
+  FileDiff,
   Code2,
   Command,
   Download,
@@ -30,6 +31,13 @@ import TikzCanvas from "../../TikzCanvas";
 import TableCanvas from "../../TableCanvas";
 import { FigureToTikzConverter } from "../../components/FigureToTikzConverter";
 import { GitDiffWorkbench } from "../../components/GitDiffWorkbench";
+import { GitPdfDiffPane } from "../../components/GitPdfDiffPane";
+import { openPdfDiff } from "../../features/pdfDiff/pdfDiffStore";
+import {
+  compiledPdfSidesForSession,
+  isPdfPath,
+} from "../../features/pdfDiff/revisionSources";
+import type { GitDiffSession } from "../../types";
 import { CitationManager } from "../../components/CitationManager";
 import { VisualLatexEditor } from "../../components/VisualLatexEditor";
 import { ResearchPdfReader } from "../../features/pdfResearch/reader/ResearchPdfReader";
@@ -405,6 +413,24 @@ export function renderEditorDropZone(ctx: AppCtx) {
   );
 }
 
+/** Compiles both sides of a source diff and opens the PDF comparison. */
+function compareSessionPdfs(ctx: AppCtx, session: GitDiffSession) {
+  const projectId = ctx.projectId;
+  if (!projectId) return;
+  const context = {
+    projectId,
+    rootFile: ctx.rootFile,
+    engine: ctx.engine,
+    currentPdf: ctx.pdfData ?? null,
+  };
+  openPdfDiff({
+    kind: "compare",
+    title: `PDF: ${session.originalLabel} \u2194 ${session.modifiedLabel}`,
+    loadingMessage: `Compiling ${fileName(ctx.rootFile)} at ${session.originalLabel} and ${session.modifiedLabel}…`,
+    load: () => compiledPdfSidesForSession(window.latexdo, context, session),
+  });
+}
+
 export function renderSourcePane(ctx: AppCtx) {
   const {
     activeDocumentIsAssetPreview,
@@ -463,6 +489,12 @@ export function renderSourcePane(ctx: AppCtx) {
         renderAssetPreviewPane(ctx)
       ) : activeDocument ? (
         renderEditorDropZone(ctx)
+      ) : gitDiffSession && isPdfPath(gitDiffSession.relativePath) && ctx.projectId ? (
+        <GitPdfDiffPane
+          projectId={ctx.projectId}
+          session={gitDiffSession}
+          onClose={() => closeGitDiffSession()}
+        />
       ) : gitDiffSession ? (
         <GitDiffWorkbench
           session={gitDiffSession}
@@ -472,6 +504,19 @@ export function renderSourcePane(ctx: AppCtx) {
           beforeMount={configureMonaco}
           onOpenFile={(relativePath) => void openGitFile(relativePath)}
           onClose={() => closeGitDiffSession()}
+          toolbarActions={
+            ctx.projectId && ctx.rootFile ? (
+              <button
+                type="button"
+                className="git-diff-toolbar-button git-diff-compare-pdf"
+                onClick={() => compareSessionPdfs(ctx, gitDiffSession)}
+                title="Compile both versions and compare the PDFs"
+                aria-label="Compare the compiled PDFs of these versions"
+              >
+                <FileDiff size={14} />
+              </button>
+            ) : null
+          }
         />
       ) : (
         <div className="empty-editor">
@@ -623,6 +668,13 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
               aria-label="Rotate PDF"
             >
               <RotateCw size={15} />
+            </button>
+            <button
+              onClick={() => openPdfDiff({ kind: "picker" })}
+              title="Compare PDF versions"
+              aria-label="Compare PDF versions"
+            >
+              <FileDiff size={15} />
             </button>
             <button onClick={() => void downloadPdf()} title="Download PDF">
               <Download size={14} />

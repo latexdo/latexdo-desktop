@@ -111,6 +111,12 @@ import {
 } from "./git.js";
 import { runGitExclusive } from "./gitErrors.js";
 import {
+  compileRevisionPdf,
+  maxRevisionPdfBytes,
+  readRevisionFileBytes,
+  type RevisionSnapshotRef,
+} from "./gitRevisionPdf.js";
+import {
   parseGitAction,
   readDiffForCommitMessage,
   readGitRepositoryInfo,
@@ -3455,6 +3461,7 @@ function buildApplicationMenu(): void {
         menuCommand("Stop Compiling", "build.stop"),
         { type: "separator" },
         menuCommand("Toggle PDF Preview", "view.togglePreview"),
+        menuCommand("Compare PDF Versions...", "build.comparePdf"),
         menuCommand("Export PDF...", "build.downloadPdf"),
       ],
     },
@@ -7791,6 +7798,76 @@ async function startApp(): Promise<void> {
     const revision = parseGitRevisionRef(channel, rawRevision);
     const location = await resolveOpenProjectPath(projectId, relativePath);
     return readGitBlame(location.projectPath, location.relativePath, revision);
+  });
+  ipcMain.handle("pdf-diff:read-revision", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "pdf-diff:read-revision";
+    const [rawProjectId, rawRelativePath, rawRevision] = expectIpcArgs(
+      channel,
+      rawArgs,
+      3,
+    );
+    const projectId = parseProjectId(channel, rawProjectId);
+    const relativePath = parseRelativePath(channel, rawRelativePath, {
+      extensions: [".pdf"],
+    });
+    const revision = parseGitRevisionRef(channel, rawRevision);
+    const location = await resolveOpenProjectPath(projectId, relativePath);
+    return readRevisionFileBytes(location.projectPath, location.relativePath, revision);
+  });
+  ipcMain.handle("pdf-diff:compile-revision", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "pdf-diff:compile-revision";
+    const [rawRequest, rawRevision] = expectIpcArgs(channel, rawArgs, 2);
+    const request = parseCompileRequestInput(channel, rawRequest);
+    const revision = parseGitRevisionRef(channel, rawRevision);
+    if (revision.kind !== "commit" && revision.kind !== "index") {
+      invalidIpcInput(channel);
+    }
+    const location = await resolveOpenProjectPath(request.projectId, request.rootFile);
+    const controller = new AbortController();
+    const untrack = trackCompileController(request.projectId, controller);
+    try {
+      return await compileRevisionPdf({
+        projectRoot: location.projectPath,
+        rootFile: location.relativePath,
+        ref: revision as RevisionSnapshotRef,
+        engine: request.engine,
+        cacheRoot: path.join(app.getPath("temp"), "latexdo-revisions"),
+        signal: controller.signal,
+        materialize: materializeCloudCompileFiles,
+        compile: async (compileRequest, signal) => {
+          await assertCanonicalCompileInside(
+            compileRequest.projectPath,
+            path.join(compileRequest.projectPath, compileRequest.rootFile),
+          );
+          return compileLatex(compileRequest, { signal });
+        },
+      });
+    } finally {
+      untrack();
+    }
+  });
+  ipcMain.handle("pdf-diff:pick-file", async (event, ...rawArgs: unknown[]) => {
+    const channel = "pdf-diff:pick-file";
+    expectIpcArgs(channel, rawArgs, 0);
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: "Choose a PDF to compare",
+      properties: ["openFile"],
+      filters: [{ name: "PDF documents", extensions: ["pdf"] }],
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    const filePath = result.canceled ? undefined : result.filePaths[0];
+    if (!filePath) return null;
+    const fileStats = await stat(filePath);
+    if (!fileStats.isFile() || fileStats.size > maxRevisionPdfBytes) {
+      throw new Error("Choose a PDF smaller than 128 MB.");
+    }
+    return {
+      name: path.basename(filePath),
+      data: new Uint8Array(await readFile(filePath)),
+    };
   });
   ipcMain.handle("git:reveal-file", async (_event, ...rawArgs: unknown[]) => {
     const channel = "git:reveal-file";

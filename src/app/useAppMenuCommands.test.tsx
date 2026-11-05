@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { figureToTikzExtensionId } from "../extensions";
 import { toolTabIds } from "../features/workspace/toolTabs";
+import { closePdfDiff, getPdfDiffRequest } from "../features/pdfDiff/pdfDiffStore";
 import type { AppCtx20 } from "./appContext";
 import { useAppMenuCommands } from "./useAppMenuCommands";
 
@@ -231,6 +232,14 @@ describe("useAppMenuCommands", () => {
     mount(ctx);
     await send(command);
     expect(ctx[method as keyof typeof ctx]).toHaveBeenCalled();
+  });
+
+  it("opens the PDF version picker", async () => {
+    const { ctx } = makeCtx();
+    mount(ctx);
+    await send("build.comparePdf");
+    expect(getPdfDiffRequest()).toEqual({ kind: "picker" });
+    closePdfDiff();
   });
 
   it("opens settings, reloads from disk and opens the shortcuts dialog", async () => {

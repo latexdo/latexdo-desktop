@@ -35,6 +35,7 @@ import {
 import { QuickPick } from "../../components/QuickPick";
 import type { AppCtx } from "../appContext";
 import { renderSourcePane, renderSplitHandle } from "./editorPaneView";
+import { PdfDiffHost } from "../../components/PdfDiffHost";
 import { renderPanelContent, renderPanelTabs } from "./bottomPanelView";
 
 export function renderMainArea(ctx: AppCtx) {
@@ -109,6 +110,19 @@ export function renderMainArea(ctx: AppCtx) {
       ) : null}
 
       {ctx.quickPick ? <QuickPick request={ctx.quickPick} /> : null}
+
+      <PdfDiffHost
+        context={
+          projectId
+            ? {
+                projectId,
+                rootFile: ctx.rootFile,
+                engine: ctx.engine,
+                currentPdf: ctx.pdfData ?? null,
+              }
+            : null
+        }
+      />
 
       {panelVisible ? (
         <section className="bottom-panel" style={{ height: panelHeight }}>

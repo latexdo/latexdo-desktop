@@ -814,6 +814,24 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return [];
     },
 
+    async readGitRevisionPdf() {
+      return null;
+    },
+
+    async compileGitRevisionPdf() {
+      return {
+        ok: false,
+        output: "",
+        error: "Comparing PDF versions from Git is available in the desktop app.",
+        cached: false,
+        skipped: [],
+      };
+    },
+
+    async pickPdfForComparison() {
+      return null;
+    },
+
     async revealGitFile() {
       throw browserUnavailable("Reveal file");
     },
