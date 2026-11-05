@@ -304,6 +304,13 @@ describe("desktop startup and trusted IPC", () => {
     ],
     ["asymptote:compile", [{}]],
     ["pdf:read", ["unknown", "main.exe"]],
+    ["pdf-diff:read-revision", ["unknown", "paper.tex", { kind: "index" }]],
+    ["pdf-diff:read-revision", ["unknown", "paper.pdf", { kind: "branch" }]],
+    ["pdf-diff:compile-revision", [{}, { kind: "index" }]],
+    ["pdf-diff:pick-file", ["extra"]],
+    ["tikz:compile", [42, "pdflatex"]],
+    ["tikz:compile", ["x".repeat(200_001), "pdflatex"]],
+    ["tikz:compile", ["\\draw (0,0);", "shell"]],
     ["synctex:forward", ["unknown", "main.pdf", "main.tex", 0, 1]],
     ["synctex:backward", ["unknown", "main.pdf", 1, Infinity, 0]],
     ["workspace:collect-garbage", ["unknown", { maxBuildBytes: -1 }]],
@@ -1153,6 +1160,86 @@ describe("desktop Git data preservation", () => {
     ).toContain("+changed again");
     expect(await call("file:read", repo.id, "keep.tex")).toBe("keep");
     expect(await call("file:read", repo.id, "main.tex")).toContain("\\documentclass");
+  });
+  it("reads tracked PDFs at revisions and compiles a commit for comparison", async () => {
+    await call("file:write", repo.id, "paper.pdf", "%PDF committed");
+    await call("git:stage-all", repo.id);
+    await call("git:commit", repo.id, "Add the PDF");
+    const hash = (await call("git:history", repo.id)).commits[0].hash;
+    await call("file:write", repo.id, "paper.pdf", "%PDF edited");
+    const text = (bytes: Uint8Array | null) =>
+      bytes ? Buffer.from(bytes).toString() : null;
+    expect(
+      text(
+        await call("pdf-diff:read-revision", repo.id, "paper.pdf", {
+          kind: "commit",
+          hash,
+        }),
+      ),
+    ).toBe("%PDF committed");
+    expect(
+      text(
+        await call("pdf-diff:read-revision", repo.id, "paper.pdf", {
+          kind: "working-tree",
+        }),
+      ),
+    ).toBe("%PDF edited");
+
+    native.compile.mockImplementationOnce(async (request: { projectPath: string }) => {
+      const pdfPath = path.join(request.projectPath, "main.pdf");
+      await writeFile(pdfPath, "%PDF from the commit");
+      return { ok: true, pdfPath, durationMs: 1, diagnostics: [], output: "built" };
+    });
+    const request = { projectId: repo.id, rootFile: "main.tex", engine: "pdflatex" };
+    const result = await call("pdf-diff:compile-revision", request, {
+      kind: "commit",
+      hash,
+    });
+    expect(result).toMatchObject({ ok: true, cached: false });
+    expect(text(result.pdf)).toBe("%PDF from the commit");
+    // The scratch build happens outside the project folder.
+    const compiledIn = native.compile.mock.calls.at(-1)![0].projectPath as string;
+    expect(compiledIn.startsWith(path.join(native.path, "latexdo-revisions"))).toBe(
+      true,
+    );
+    // A second request reuses the cached PDF without compiling again.
+    const calls = native.compile.mock.calls.length;
+    expect(
+      await call("pdf-diff:compile-revision", request, { kind: "commit", hash }),
+    ).toMatchObject({ ok: true, cached: true });
+    expect(native.compile.mock.calls.length).toBe(calls);
+    await expect(
+      call("pdf-diff:compile-revision", request, { kind: "working-tree" }),
+    ).rejects.toThrow();
+  });
+  it("compiles a TikZ snippet in a scratch folder for the TikZ tool", async () => {
+    native.compile.mockImplementationOnce(
+      async (request: { projectPath: string; rootFile: string }) => {
+        expect(request.rootFile).toBe("figure.tex");
+        expect(
+          request.projectPath.startsWith(path.join(native.path, "latexdo-tikz")),
+        ).toBe(true);
+        const pdfPath = path.join(request.projectPath, "figure.pdf");
+        await writeFile(pdfPath, "%PDF tikz");
+        return { ok: true, pdfPath, durationMs: 3, diagnostics: [], output: "ok" };
+      },
+    );
+    const result = await call("tikz:compile", "\\draw (0,0) circle (1);", "pdflatex");
+    expect(result.ok).toBe(true);
+    expect(Buffer.from(result.pdf).toString()).toBe("%PDF tikz");
+  });
+  it("lets the user pick any PDF on disk to compare", async () => {
+    expect(await call("pdf-diff:pick-file")).toBeNull();
+    const file = path.join(root, "submitted.pdf");
+    await writeFile(file, "%PDF submitted");
+    native.open.mockResolvedValueOnce({ canceled: false, filePaths: [file] });
+    const picked = await call("pdf-diff:pick-file");
+    expect(picked.name).toBe("submitted.pdf");
+    expect(Buffer.from(picked.data).toString()).toBe("%PDF submitted");
+    native.open.mockResolvedValueOnce({ canceled: false, filePaths: [root] });
+    await expect(call("pdf-diff:pick-file")).rejects.toThrow(
+      "Choose a PDF smaller than 128 MB.",
+    );
   });
 });
 

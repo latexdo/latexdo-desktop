@@ -14,7 +14,7 @@ export function renderPanelTabs(ctx: AppCtx) {
         data-tour-id="problems"
       >
         <CircleAlert size={13} />
-        PROBLEMS
+        Problems
         {diagnostics.length ? (
           <span className="count-badge">{diagnostics.length}</span>
         ) : null}
@@ -24,14 +24,14 @@ export function renderPanelTabs(ctx: AppCtx) {
         onClick={() => openPanel("output")}
       >
         <Command size={13} />
-        OUTPUT
+        Output
       </button>
       <button
         className={activePanel === "terminal" ? "active" : ""}
         onClick={() => openPanel("terminal")}
       >
         <TerminalSquare size={13} />
-        TERMINAL
+        Terminal
       </button>
       <div />
       <button

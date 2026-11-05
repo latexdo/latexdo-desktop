@@ -49,6 +49,12 @@ import type {
   GitActionResult,
   GitRepositoryInfo,
 } from "./gitActions.js" with { "resolution-mode": "import" };
+import type { TikzPreviewResult } from "./tikzPreview.js" with {
+  "resolution-mode": "import",
+};
+import type { RevisionPdfResult } from "./gitRevisionPdf.js" with {
+  "resolution-mode": "import",
+};
 import type { GarbageCollectionStats } from "./garbageCollector.js" with {
   "resolution-mode": "import",
 };
@@ -1880,6 +1886,31 @@ const api = {
             "Local Asymptote compilation is not available for cloud collaboration projects.",
         })
       : ipcRenderer.invoke("asymptote:compile", request),
+  /** A PDF tracked in Git, at a revision; null when it does not exist there. */
+  readGitRevisionPdf: (
+    projectId: string,
+    relativePath: string,
+    revision: GitRevisionRef,
+  ): Promise<Uint8Array | null> =>
+    isCloudProject(projectId)
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
+      : ipcRenderer.invoke("pdf-diff:read-revision", projectId, relativePath, revision),
+  /** Compiles the project as it was at a commit (or in the index) to a PDF. */
+  compileGitRevisionPdf: (
+    request: CompileRequest,
+    revision: Extract<GitRevisionRef, { kind: "commit" | "index" }>,
+  ): Promise<RevisionPdfResult> =>
+    isCloudProject(request.projectId)
+      ? Promise.reject(new Error(gitInSharedCopyMessage))
+      : ipcRenderer.invoke("pdf-diff:compile-revision", request, revision),
+  /** Lets the user choose any PDF on disk to compare. */
+  pickPdfForComparison: (): Promise<{ name: string; data: Uint8Array } | null> =>
+    ipcRenderer.invoke("pdf-diff:pick-file"),
+  /** Compiles a TikZ snippet with LaTeX for the TikZ tool's preview. */
+  compileTikz: (
+    code: string,
+    engine: CompileRequest["engine"] = "pdflatex",
+  ): Promise<TikzPreviewResult> => ipcRenderer.invoke("tikz:compile", code, engine),
   readPdf: (projectId: string, pdfRelativePath: string): Promise<Uint8Array> =>
     ipcRenderer.invoke("pdf:read", projectId, pdfRelativePath),
   collectGarbage: (

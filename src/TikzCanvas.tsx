@@ -1,5 +1,6 @@
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowRight,
   ArrowUp,
   BringToFront,
@@ -19,6 +20,7 @@ import {
   Hand,
   Hexagon,
   Grid3x3,
+  LoaderCircle,
   Magnet,
   Minus,
   MousePointer2,
@@ -42,7 +44,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DrawShape, ShapeKind } from "./tikzGenerator";
-import { generateFullDocument, generateTikzCode, parseTikzCode } from "./tikzGenerator";
+import {
+  generateFullDocument,
+  generateTikzCode,
+  parseTikzCodeWithReport,
+} from "./tikzGenerator";
+import { TikzRenderedPreview } from "./components/TikzRenderedPreview";
 import React from "react";
 import type { ReactElement } from "react";
 
@@ -175,6 +182,36 @@ interface ShapeContextMenu {
   y: number;
 }
 
+type TikzPreviewResult = Awaited<ReturnType<Window["latexdo"]["compileTikz"]>>;
+
+type TikzRenderState =
+  | { status: "running"; canvasUpdated: boolean; unsupported: UnsupportedLines }
+  | {
+      status: "done";
+      result: TikzPreviewResult;
+      canvasUpdated: boolean;
+      unsupported: UnsupportedLines;
+    };
+
+type UnsupportedLines = Array<{ line: number; text: string }>;
+
+/** XeLaTeX for code that needs system fonts; pdfLaTeX otherwise. */
+function engineForTikz(code: string): "pdflatex" | "xelatex" {
+  return /\\usepackage(?:\[[^\]]*\])?\{(?:fontspec|unicode-math)\}/.test(code)
+    ? "xelatex"
+    : "pdflatex";
+}
+
+/** Character range of a 1-based line, to select it in the code box. */
+function lineRange(code: string, line: number): [number, number] {
+  const lines = code.split("\n");
+  let start = 0;
+  for (let index = 0; index < line - 1 && index < lines.length; index += 1) {
+    start += lines[index].length + 1;
+  }
+  return [start, start + (lines[line - 1]?.length ?? 0)];
+}
+
 export interface TikzCanvasProps {
   onInsertCode?: (code: string) => void;
   /** False while the tab is in the background: shortcuts then stay off. */
@@ -250,6 +287,9 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
   const [copied, setCopied] = useState(false);
   const [editableCode, setEditableCode] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
+  const [render, setRender] = useState<TikzRenderState | null>(null);
+  const renderRunRef = useRef(0);
+  const codeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [contextMenu, setContextMenu] = useState<ShapeContextMenu | null>(null);
   const manualEditRef = useRef(false);
 
@@ -743,20 +783,162 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
     }
   }, [tikzCode]);
 
-  // -- parse edited code back to shapes --
-  const handleApplyCode = () => {
-    manualEditRef.current = false;
-    try {
-      const parsed = parseTikzCode(editableCode, canvasSize.width, canvasSize.height);
-      if (parsed.length === 0 && editableCode.trim()) {
-        setParseError("Could not parse any shapes from the code.");
-        return;
-      }
-      setParseError(null);
-      commitShape(parsed);
-    } catch (e) {
-      setParseError(e instanceof Error ? e.message : "Failed to parse TikZ code.");
+  // -- Run: draw the code on the canvas when it can, and render it with LaTeX --
+  const handleApplyCode = async () => {
+    const code = editableCode;
+    if (!code.trim()) {
+      setParseError("Write or paste TikZ code first.");
+      return;
     }
+    let report: ReturnType<typeof parseTikzCodeWithReport>;
+    try {
+      report = parseTikzCodeWithReport(code, canvasSize.width, canvasSize.height);
+    } catch {
+      report = { shapes: [], unsupported: [{ line: 1, text: code.split("\n")[0] }] };
+    }
+    // The canvas only takes the code over when it understands all of it;
+    // otherwise the code is kept exactly as written.
+    const canvasCanShow = report.shapes.length > 0 && report.unsupported.length === 0;
+    setParseError(null);
+    if (canvasCanShow) {
+      manualEditRef.current = false;
+      commitShape(report.shapes);
+    } else {
+      manualEditRef.current = true;
+    }
+
+    if (typeof window.latexdo?.compileTikz !== "function") {
+      if (!canvasCanShow) setParseError("Could not parse any shapes from the code.");
+      return;
+    }
+    const run = ++renderRunRef.current;
+    setRender({
+      status: "running",
+      canvasUpdated: canvasCanShow,
+      unsupported: report.unsupported,
+    });
+    let result: TikzPreviewResult;
+    try {
+      result = await window.latexdo.compileTikz(code, engineForTikz(code));
+    } catch (error) {
+      result = {
+        ok: false,
+        errors: [
+          {
+            line: null,
+            message:
+              error instanceof Error ? error.message : "LaTeX could not be started.",
+          },
+        ],
+        output: "",
+        source: "",
+        durationMs: 0,
+      };
+    }
+    if (run !== renderRunRef.current) return;
+    setRender({
+      status: "done",
+      result,
+      canvasUpdated: canvasCanShow,
+      unsupported: report.unsupported,
+    });
+  };
+
+  const showCodeLine = (line: number) => {
+    const textarea = codeTextareaRef.current;
+    if (!textarea) return;
+    const [start, end] = lineRange(textarea.value, line);
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+    // Scroll the line into view: rows are one line-height apart.
+    const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 18;
+    textarea.scrollTop = Math.max(0, (line - 3) * lineHeight);
+  };
+
+  const renderLatexPreview = () => {
+    if (!render) return null;
+    const result = render.status === "done" ? render.result : null;
+    const errorCount = result && !result.ok ? result.errors.length : 0;
+    const firstUnsupported = render.unsupported[0];
+    return (
+      <section className="tikz-render-panel" aria-label="LaTeX preview">
+        <header className="tikz-render-header">
+          <strong>
+            {render.status === "running"
+              ? "Compiling with LaTeX…"
+              : result?.ok
+                ? "Rendered with LaTeX"
+                : "LaTeX could not draw this figure"}
+          </strong>
+          {result?.durationMs ? (
+            <small>{(result.durationMs / 1000).toFixed(1)} s</small>
+          ) : null}
+          <button
+            type="button"
+            className="tikz-render-back"
+            onClick={() => setRender(null)}
+            aria-label="Back to the canvas"
+            title="Back to the canvas"
+          >
+            <ArrowLeft size={13} />
+            <span>Canvas</span>
+          </button>
+        </header>
+        {render.status === "running" ? (
+          <div className="tikz-render-message" role="status">
+            <LoaderCircle size={16} className="spin" aria-hidden="true" />
+            <span>Compiling your code with LaTeX…</span>
+          </div>
+        ) : result?.ok && result.pdf ? (
+          <div className="tikz-render-figure">
+            <TikzRenderedPreview data={result.pdf} />
+          </div>
+        ) : result ? (
+          <div className="tikz-render-errors" role="alert">
+            <p className="tikz-render-errors-title">
+              {errorCount === 1 ? "1 problem" : `${errorCount} problems`} to fix:
+            </p>
+            <ol>
+              {result.errors.map((error, index) => (
+                <li key={`${error.line}-${index}`} className="tikz-render-error">
+                  {error.line ? (
+                    <button
+                      type="button"
+                      className="tikz-render-line"
+                      onClick={() => showCodeLine(error.line!)}
+                      title="Show this line in the code"
+                    >
+                      Line {error.line}
+                    </button>
+                  ) : null}
+                  <p className="tikz-render-error-message">{error.message}</p>
+                  {error.sourceLine ? (
+                    <code className="tikz-render-source">{error.sourceLine}</code>
+                  ) : null}
+                  {error.hint ? <p className="tikz-render-hint">{error.hint}</p> : null}
+                </li>
+              ))}
+            </ol>
+            {result.output ? (
+              <details className="tikz-render-log">
+                <summary>Full LaTeX log</summary>
+                <pre>{result.output.slice(-30_000)}</pre>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
+        {firstUnsupported && !render.canvasUpdated ? (
+          <p className="tikz-render-note">
+            The drawing canvas cannot edit{" "}
+            {render.unsupported.length === 1
+              ? "line"
+              : `${render.unsupported.length} lines, such as line`}{" "}
+            {firstUnsupported.line} (<code>{firstUnsupported.text.slice(0, 60)}</code>),
+            so it was left unchanged and your code is kept exactly as written.
+          </p>
+        ) : null}
+      </section>
+    );
   };
 
   // -- copy code --
@@ -1893,6 +2075,7 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
             {renderGrid()}
             {shapes.map(renderShape)}
           </svg>
+          {render ? renderLatexPreview() : null}
           {contextMenu && (
             <div
               className="tikz-context-menu"
@@ -2036,9 +2219,10 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
             )}
             <button
               className="tikz-code-action-btn tikz-apply-btn"
-              onClick={handleApplyCode}
-              aria-label="Apply edited code to canvas"
-              data-tip="Apply edited code to canvas"
+              onClick={() => void handleApplyCode()}
+              aria-label="Run: render the code with LaTeX"
+              data-tip="Run: render the code with LaTeX"
+              disabled={render?.status === "running"}
             >
               <Play size={14} />
             </button>
@@ -2047,6 +2231,7 @@ export default function TikzCanvas({ onInsertCode, active = true }: TikzCanvasPr
         <div className="tikz-code-body">
           {parseError && <div className="tikz-parse-error">{parseError}</div>}
           <textarea
+            ref={codeTextareaRef}
             className="tikz-code-textarea"
             value={editableCode}
             onChange={(e) => {

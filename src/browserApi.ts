@@ -814,6 +814,39 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return [];
     },
 
+    async readGitRevisionPdf() {
+      return null;
+    },
+
+    async compileGitRevisionPdf() {
+      return {
+        ok: false,
+        output: "",
+        error: "Comparing PDF versions from Git is available in the desktop app.",
+        cached: false,
+        skipped: [],
+      };
+    },
+
+    async pickPdfForComparison() {
+      return null;
+    },
+
+    async compileTikz() {
+      return {
+        ok: false,
+        errors: [
+          {
+            line: null,
+            message: "Rendering TikZ with LaTeX is available in the desktop app.",
+          },
+        ],
+        output: "",
+        source: "",
+        durationMs: 0,
+      };
+    },
+
     async revealGitFile() {
       throw browserUnavailable("Reveal file");
     },

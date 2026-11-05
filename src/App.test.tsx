@@ -591,7 +591,7 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 
 function openOutputPanel() {
   fireEvent.click(screen.getByRole("button", { name: /^Show problems: \d+ errors?$/ }));
-  fireEvent.click(screen.getByRole("button", { name: "OUTPUT" }));
+  fireEvent.click(screen.getByRole("button", { name: "Output" }));
 }
 
 function createReviewPdfFile(name = "attention.pdf") {
@@ -919,9 +919,12 @@ describe("App critical UI controls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Visual$/i }));
 
-    const paragraph = await screen.findByLabelText("Paragraph");
+    const page = await screen.findByRole("textbox", { name: "Document" });
+    const paragraph = Array.from(page.children).find(
+      (child) => child.textContent === "Original paragraph.",
+    )!;
     paragraph.textContent = "Updated paragraph.";
-    fireEvent.input(paragraph);
+    fireEvent.input(page);
 
     fireEvent.click(screen.getByRole("button", { name: /^Code$/i }));
 
@@ -3439,6 +3442,126 @@ describe("App critical UI controls", () => {
         name: /main\.tex \(head\).*main\.tex \(index\)/i,
       }),
     ).toBeVisible();
+  });
+
+  it("compiles both sides of a source diff to compare their PDFs", async () => {
+    const api = installLatexDoMock({
+      gitStatus: {
+        isRepo: true,
+        branch: "main",
+        entries: [
+          {
+            path: "main.tex",
+            indexStatus: "unmodified",
+            worktreeStatus: "modified",
+            staged: false,
+            unstaged: true,
+            untracked: false,
+            conflicted: false,
+          },
+        ],
+      },
+    });
+    const compileGitRevisionPdf = vi.fn().mockResolvedValue({
+      ok: false,
+      output: "! Undefined control sequence.",
+      error: "This revision did not compile.",
+      cached: false,
+      skipped: [],
+    });
+    Object.assign(api, { compileGitRevisionPdf });
+
+    render(<App />);
+    await openProjectFromWelcome();
+    fireEvent.click(screen.getByTitle("Source control"));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /open working tree diff for main\.tex/i,
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Compare the compiled PDFs of these versions",
+      }),
+    );
+    expect(
+      await screen.findByText("Index: This revision did not compile."),
+    ).toBeInTheDocument();
+    expect(compileGitRevisionPdf).toHaveBeenCalledWith(
+      { projectId: "project-1", rootFile: "main.tex", engine: "pdflatex" },
+      { kind: "index" },
+    );
+    expect(screen.getByText("! Undefined control sequence.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close comparison" }));
+    expect(
+      screen.queryByText("Index: This revision did not compile."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the Git diff of a tracked PDF as a PDF comparison", async () => {
+    const api = installLatexDoMock({
+      gitStatus: {
+        isRepo: true,
+        branch: "main",
+        entries: [
+          {
+            path: "paper.pdf",
+            indexStatus: "unmodified",
+            worktreeStatus: "modified",
+            staged: false,
+            unstaged: true,
+            untracked: false,
+            conflicted: false,
+          },
+        ],
+      },
+    });
+    api.getGitEditorDiff.mockResolvedValue({
+      ...workingTreeDiffSession,
+      id: "paper.pdf:index:working-tree",
+      relativePath: "paper.pdf",
+      originalContent: "",
+      modifiedContent: "",
+      language: "plaintext",
+      binary: true,
+      message: "Binary files differ",
+    });
+    const readGitRevisionPdf = vi
+      .fn()
+      .mockRejectedValue(new Error("This PDF is too large to compare."));
+    Object.assign(api, { readGitRevisionPdf });
+
+    render(<App />);
+    await openProjectFromWelcome();
+    fireEvent.click(screen.getByTitle("Source control"));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /open working tree diff for paper\.pdf/i,
+      }),
+    );
+    expect(
+      await screen.findByText("This PDF is too large to compare."),
+    ).toBeInTheDocument();
+    expect(readGitRevisionPdf).toHaveBeenCalledWith("project-1", "paper.pdf", {
+      kind: "index",
+    });
+    expect(screen.queryByText("Binary files differ")).not.toBeInTheDocument();
+  });
+
+  it("opens the PDF version picker from the preview toolbar", async () => {
+    installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Compare PDF versions" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Compare PDF Versions" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Compare PDF Versions" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses PDF inverse search to open the matching source line", async () => {

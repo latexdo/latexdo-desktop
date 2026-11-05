@@ -2,6 +2,7 @@ import { figureToTikzExtensionId } from "../extensions";
 import { useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { requestFind } from "../components/FindPanel";
+import { openPdfDiff } from "../features/pdfDiff/pdfDiffStore";
 import { flattenEntries } from "../features/project/projectUtils";
 import { toolTabIds, type ToolTabKey } from "../features/workspace/toolTabs";
 import type { LayoutPreset } from "../features/ai/aiConfig";
@@ -244,6 +245,12 @@ export function useAppMenuCommands(ctx: AppCtx20) {
           return;
         }
         case "view.toggleSidebar":
+          // The menu owns Cmd/Ctrl+B; while writing in the visual editor it
+          // means Bold, as in a word processor.
+          if (document.activeElement?.closest("[data-visual-editor]")) {
+            document.execCommand("bold");
+            return;
+          }
           c.toggleSidebar();
           return;
         case "view.togglePanel":
@@ -284,6 +291,9 @@ export function useAppMenuCommands(ctx: AppCtx20) {
           return;
         case "build.downloadPdf":
           await c.downloadPdf();
+          return;
+        case "build.comparePdf":
+          openPdfDiff({ kind: "picker" });
           return;
         case "tools.reviewPaper":
           await c.reviewPaperWithAi();

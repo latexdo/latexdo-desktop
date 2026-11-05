@@ -184,7 +184,7 @@ describe("TikzCanvas interactions", () => {
         target: { value: "unsupported code" },
       });
       fireEvent.click(
-        screen.getByRole("button", { name: "Apply edited code to canvas" }),
+        screen.getByRole("button", { name: "Run: render the code with LaTeX" }),
       );
       expect(
         screen.getByText("Could not parse any shapes from the code."),
@@ -264,7 +264,7 @@ describe("TikzCanvas interactions", () => {
       },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply edited code to canvas" }),
+      screen.getByRole("button", { name: "Run: render the code with LaTeX" }),
     );
     expect(screen.getByText("1 shape")).toBeVisible();
     expect(generatedCode(container)).toContain("rectangle");
