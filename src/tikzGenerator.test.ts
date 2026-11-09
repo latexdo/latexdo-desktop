@@ -3,6 +3,7 @@ import {
   generateFullDocument,
   generateTikzCode,
   parseTikzCode,
+  parseTikzCodeWithReport,
   type DrawShape,
   type ShapeKind,
 } from "./tikzGenerator";
@@ -292,5 +293,37 @@ describe("TikZ generator and parser edge cases", () => {
     expect(
       parseTikzCode("\\node at (1,1) {A};\n\\node at (2,2) {B};", 1200, 800),
     ).toHaveLength(2);
+  });
+});
+
+describe("parseTikzCodeWithReport", () => {
+  it("lists the lines the canvas cannot represent", () => {
+    const report = parseTikzCodeWithReport(
+      [
+        "\\begin{tikzpicture}",
+        "% a comment",
+        "\\draw (1,1) rectangle (2,2);",
+        "\\foreach \\i in {1,2} {",
+        "  \\draw (\\i,0) circle (1);",
+        "}",
+        "\\end{tikzpicture}",
+      ].join("\n"),
+      1200,
+      800,
+    );
+    expect(report.shapes.length).toBeGreaterThan(0);
+    expect(report.unsupported.map((entry) => entry.line)).toContain(4);
+    expect(report.unsupported.map((entry) => entry.line)).toContain(6);
+    expect(report.unsupported.map((entry) => entry.line)).not.toContain(3);
+  });
+
+  it("reports nothing for code the canvas fully understands", () => {
+    expect(
+      parseTikzCodeWithReport(
+        "\\draw (1,1) rectangle (2,2);\n\\node at (1,15) {A};",
+        1200,
+        800,
+      ).unsupported,
+    ).toEqual([]);
   });
 });

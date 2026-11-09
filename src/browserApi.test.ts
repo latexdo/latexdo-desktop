@@ -180,6 +180,17 @@ describe("browser capabilities are explicit", () => {
     );
     expect((await api.getGitCommitDetails(id, "abc")).changedFiles).toEqual([]);
     expect(await api.getGitBlame(id, "main.tex", { kind: "empty" })).toEqual([]);
+    expect(await api.readGitRevisionPdf(id, "paper.pdf", { kind: "index" })).toBeNull();
+    expect(
+      await api.compileGitRevisionPdf(
+        { projectId: id, rootFile: "main.tex", engine: "pdflatex" },
+        { kind: "index" },
+      ),
+    ).toMatchObject({ ok: false, error: expect.stringContaining("desktop app") });
+    expect(await api.pickPdfForComparison()).toBeNull();
+    expect((await api.compileTikz("\\draw (0,0);")).errors[0].message).toContain(
+      "desktop app",
+    );
     expect((await api.getCollaborationState(id)).enabled).toBe(false);
     expect((await api.updateCollaborationPresence(id)).users).toEqual([]);
     expect(await api.isProjectAdmin(id)).toBe(false);

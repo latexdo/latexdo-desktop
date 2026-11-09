@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { figureToTikzExtensionId } from "../extensions";
 import { toolTabIds } from "../features/workspace/toolTabs";
+import { closePdfDiff, getPdfDiffRequest } from "../features/pdfDiff/pdfDiffStore";
 import type { AppCtx20 } from "./appContext";
 import { useAppMenuCommands } from "./useAppMenuCommands";
 
@@ -231,6 +232,36 @@ describe("useAppMenuCommands", () => {
     mount(ctx);
     await send(command);
     expect(ctx[method as keyof typeof ctx]).toHaveBeenCalled();
+  });
+
+  it("makes Cmd+B bold while writing in the visual editor", async () => {
+    const { ctx } = makeCtx();
+    mount(ctx);
+    const execCommand = vi.fn();
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand,
+    });
+    const page = document.createElement("div");
+    page.dataset.visualEditor = "true";
+    page.tabIndex = 0;
+    document.body.append(page);
+    page.focus();
+    await send("view.toggleSidebar");
+    expect(execCommand).toHaveBeenCalledWith("bold");
+    expect(ctx.toggleSidebar).not.toHaveBeenCalled();
+    page.blur();
+    page.remove();
+    await send("view.toggleSidebar");
+    expect(ctx.toggleSidebar).toHaveBeenCalled();
+  });
+
+  it("opens the PDF version picker", async () => {
+    const { ctx } = makeCtx();
+    mount(ctx);
+    await send("build.comparePdf");
+    expect(getPdfDiffRequest()).toEqual({ kind: "picker" });
+    closePdfDiff();
   });
 
   it("opens settings, reloads from disk and opens the shortcuts dialog", async () => {

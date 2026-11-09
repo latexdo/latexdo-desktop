@@ -163,6 +163,21 @@ describe("isolated desktop bridge", () => {
       [{ projectId: "local", relativePath: "plot.asy" }],
     ],
     ["readPdf", "pdf:read", ["local", "main.pdf"]],
+    [
+      "readGitRevisionPdf",
+      "pdf-diff:read-revision",
+      ["local", "paper.pdf", { kind: "index" }],
+    ],
+    [
+      "compileGitRevisionPdf",
+      "pdf-diff:compile-revision",
+      [
+        { projectId: "local", rootFile: "main.tex", engine: "pdflatex" },
+        { kind: "index" },
+      ],
+    ],
+    ["pickPdfForComparison", "pdf-diff:pick-file", []],
+    ["compileTikz", "tikz:compile", ["\\draw (0,0);", "pdflatex"]],
     ["collectGarbage", "workspace:collect-garbage", ["local"]],
     ["collectGarbage", "workspace:collect-garbage", ["local", { maxBuildBytes: 100 }]],
     ["forwardSyncTex", "synctex:forward", ["local", "main.pdf", "main.tex", 2, 4]],
@@ -394,6 +409,7 @@ describe("cloud routing and recovery", () => {
     "getGitCommitDetails",
     "getGitCommitFileDiff",
     "revealGitFile",
+    "readGitRevisionPdf",
     "importDocx",
     "importMarkdown",
     "importPdf",
@@ -428,6 +444,15 @@ describe("cloud routing and recovery", () => {
     expect(
       urls.some((url) => url.includes("files/binary?path=chapters%2Ffigs%2Fa.png")),
     ).toBe(true);
+  });
+  it("does not compile Git revisions of a cloud project", async () => {
+    await expect(
+      api.compileGitRevisionPdf(
+        { projectId: "project_a", rootFile: "main.tex", engine: "pdflatex" },
+        { kind: "index" },
+      ),
+    ).rejects.toThrow(/Back to my folder/);
+    expect(bridge.invoke).not.toHaveBeenCalled();
   });
   it("returns explicit empty git state for cloud documents", async () => {
     expect((await api.getGitStatus("project_a")).isRepo).toBe(false);

@@ -306,6 +306,9 @@ export function renderSidebar(ctx: AppCtx) {
       data-tour-id="ai-sidebar"
       onClickCapture={handleAiSidebarClickCapture}
     >
+      <div className="sidebar-header">
+        <span>LatexDo AI</span>
+      </div>
       <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
         {aiChats.map((chat) => {
           const active = chat.id === activeAiChatId;

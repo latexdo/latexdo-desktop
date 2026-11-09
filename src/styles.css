@@ -311,13 +311,14 @@ button {
 
 .sidebar-header {
   display: flex;
-  height: 42px;
+  height: 35px;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 0 16px;
-  color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  padding: 0 8px 0 14px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .sidebar-header > div {
@@ -332,28 +333,70 @@ button {
 
 .project-heading {
   display: flex;
-  width: 100%;
-  height: 27px;
+  height: 22px;
+  flex: none;
   align-items: center;
-  gap: 5px;
-  padding: 0 9px;
+  padding-right: 6px;
+}
+
+.project-heading:hover,
+.project-heading:focus-within {
+  background: var(--bg-row-hover);
+}
+
+.project-heading-name {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
   border: 0;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-button-secondary);
+  background: transparent;
   color: var(--text-primary);
-  cursor: default;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
   text-align: left;
 }
 
-.project-heading span {
+.project-heading-name span {
   overflow: hidden;
   flex: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Like VS Code, the folder's actions appear when the row is in use. */
+.project-heading-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  opacity: 0;
+}
+
+.project-heading:hover .project-heading-actions,
+.project-heading:focus-within .project-heading-actions {
+  opacity: 1;
+}
+
+.project-heading-actions .small-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+}
+
+.project-heading-actions .small-icon:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
 }
 
 .file-tree {
@@ -2939,219 +2982,7 @@ button {
   min-height: 0;
 }
 
-.visual-latex-editor {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 24px;
-  background: var(--editor-bg);
-  color: var(--text-primary);
-}
-
-.visual-latex-page {
-  width: min(880px, 100%);
-  min-height: 100%;
-  margin: 0 auto;
-  padding: 30px 44px 80px;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  background: var(--bg-canvas);
-  box-shadow: 0 14px 34px rgb(0 0 0 / 18%);
-}
-
-.visual-latex-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.visual-latex-heading,
-.visual-latex-paragraph,
-.visual-latex-list-item,
-.visual-latex-math,
-.visual-latex-preserved {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  outline: none;
-  background: transparent;
-  color: var(--text-primary);
-}
-
-.visual-latex-heading:focus,
-.visual-latex-paragraph:focus,
-.visual-latex-list-item:focus,
-.visual-latex-math:focus {
-  border-color: var(--border-focus);
-  background: var(--bg-input);
-}
-
-.visual-latex-heading {
-  flex: 1;
-  padding: 4px 6px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.visual-latex-heading.level-1 {
-  font-size: 27px;
-}
-
-.visual-latex-heading.level-2 {
-  font-size: 23px;
-}
-
-.visual-latex-heading.level-3 {
-  font-size: 19px;
-}
-
-.visual-latex-heading.level-4 {
-  font-size: 16px;
-}
-
-.visual-latex-label {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--bg-row-active);
-  color: var(--accent);
-  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", Menlo, monospace;
-  font-size: 11px;
-}
-
-.visual-latex-paragraph,
-.visual-latex-list-item {
-  min-height: 32px;
-  padding: 3px 6px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 18px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.visual-latex-list {
-  margin: 8px 0 8px 28px;
-  padding: 0;
-  font-family: Georgia, "Times New Roman", serif;
-}
-
-.visual-latex-list li {
-  padding-left: 4px;
-}
-
-.visual-latex-list-item {
-  display: block;
-}
-
-.visual-latex-math,
-.visual-latex-preserved {
-  resize: vertical;
-  padding: 10px 12px;
-  border-color: var(--border-input);
-  background: var(--bg-panel);
-  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.visual-latex-math {
-  color: var(--accent);
-}
-
-.visual-latex-token,
-.visual-latex-inline-format {
-  display: inline-flex;
-  align-items: baseline;
-  max-width: 100%;
-  margin: 0 2px;
-  border-radius: 4px;
-  vertical-align: baseline;
-  white-space: normal;
-}
-
-.visual-latex-token {
-  padding: 1px 5px;
-  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
-  color: var(--accent);
-  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", Menlo, monospace;
-  font-size: 0.78em;
-  line-height: 1.45;
-}
-
-.visual-latex-token.token-latex {
-  border-color: transparent;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  font-size: 1em;
-  font-weight: 600;
-  padding-inline: 0;
-}
-
-.visual-latex-token.token-math {
-  color: var(--text-primary);
-  border-color: var(--border-card);
-  background: var(--bg-panel);
-  font-family: "SFMono-Regular", "Cascadia Code", "Fira Code", Menlo, monospace;
-}
-
-.visual-latex-token.token-link {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
-
-.visual-latex-preserved {
-  display: inline-flex;
-  width: auto;
-  align-items: center;
-  gap: 6px;
-  margin: 6px 0;
-  padding: 4px 8px;
-  resize: none;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.visual-latex-preserved span:first-child {
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 9px;
-  font-weight: 800;
-  padding: 1px 4px;
-}
-
-.visual-latex-spacer {
-  height: 13px;
-}
-
 @media (max-width: 780px) {
-  .visual-latex-editor {
-    padding: 10px;
-  }
-
-  .visual-latex-page {
-    padding: 20px 16px 56px;
-  }
-
-  .visual-latex-heading.level-1 {
-    font-size: 24px;
-  }
-
-  .visual-latex-heading.level-2 {
-    font-size: 21px;
-  }
-
-  .visual-latex-paragraph,
-  .visual-latex-list-item {
-    font-size: 16px;
-  }
-
   .latex-editor-view-toggle button {
     padding: 0 7px;
   }
@@ -6966,7 +6797,7 @@ button {
   min-height: 80px;
   border-top: 1px solid #2c3038;
   background: var(--bg-panel);
-  grid-template-rows: 32px minmax(0, 1fr);
+  grid-template-rows: 35px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -6989,7 +6820,7 @@ button {
 .panel-tabs button {
   position: relative;
   display: flex;
-  height: 32px;
+  height: 35px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -6997,9 +6828,8 @@ button {
   background: transparent;
   color: #7d8490;
   cursor: pointer;
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .panel-tabs button.active {
@@ -16668,7 +16498,7 @@ button {
   min-height: 80px;
   border-top: 1px solid #2c3038;
   background: var(--bg-panel);
-  grid-template-rows: 32px minmax(0, 1fr);
+  grid-template-rows: 35px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -16691,7 +16521,7 @@ button {
 .panel-tabs button {
   position: relative;
   display: flex;
-  height: 32px;
+  height: 35px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -16699,9 +16529,8 @@ button {
   background: transparent;
   color: #7d8490;
   cursor: pointer;
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .panel-tabs button.active {
@@ -27271,10 +27100,10 @@ body.pane-resizing .preview-pane > * {
 }
 .scm-title {
   flex: none;
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 35px;
+  padding: 0 8px 0 14px;
   border-bottom: 0;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
@@ -31521,11 +31350,25 @@ body.pane-resizing-row .preview-pane > * {
     transform 0.12s ease;
 }
 
+/* In a stacked row the control sits right under the name, so a popover
+   below would cover the very field it describes: open it beside the name. */
+.settings-row-stack > span > small:not(.settings-value) {
+  top: 50%;
+  left: calc(100% + 10px);
+  max-width: min(340px, 45vw);
+  transform: translate(-3px, -50%);
+}
+
 .settings-row > span:hover > small:not(.settings-value),
 .settings-row:has(:focus-visible) > span > small:not(.settings-value) {
   opacity: 1;
   transform: none;
   transition-delay: 0.25s;
+}
+
+.settings-row-stack > span:hover > small:not(.settings-value),
+.settings-row-stack:has(:focus-visible) > span > small:not(.settings-value) {
+  transform: translateY(-50%);
 }
 
 .settings-row > span:hover > strong::after,
@@ -31537,6 +31380,10 @@ body.pane-resizing-row .preview-pane > * {
   .settings-row > span > small:not(.settings-value) {
     transform: none;
     transition: none;
+  }
+
+  .settings-row-stack > span > small:not(.settings-value) {
+    transform: translateY(-50%);
   }
 }
 
@@ -32092,4 +31939,1532 @@ body.pane-resizing-row .preview-pane > * {
 }
 .read-aloud-help.is-error {
   color: var(--status-error, #e5534b);
+}
+
+/* PDF comparison (Compare PDF Versions, Git diff of PDFs) */
+.pdf-diff-host {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  background: var(--bg-modal-backdrop);
+  inset: 0;
+  padding: 24px;
+}
+
+.pdf-diff-host > .pdf-diff-view {
+  overflow: hidden;
+  border: 1px solid var(--border-dialog);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 30%);
+}
+
+.pdf-diff-view {
+  --pdf-diff-removed: var(--error);
+  --pdf-diff-added: var(--success);
+  --pdf-diff-removed-fill: color-mix(in srgb, var(--error) 26%, transparent);
+  --pdf-diff-added-fill: color-mix(in srgb, var(--success) 26%, transparent);
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--editor-bg);
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.source-pane.git-diff-active > .pdf-diff-view {
+  grid-row: 1;
+}
+
+.pdf-diff-toolbar {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 4px 8px 4px 14px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.pdf-diff-title {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 180px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pdf-diff-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-diff-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pdf-diff-summary strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pdf-diff-count.is-added {
+  color: var(--pdf-diff-added);
+  font-weight: 600;
+}
+
+.pdf-diff-count.is-removed {
+  color: var(--pdf-diff-removed);
+  font-weight: 600;
+}
+
+.pdf-diff-pages-changed {
+  color: var(--text-muted);
+}
+
+.pdf-diff-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.pdf-diff-actions > button,
+.pdf-diff-segmented > button {
+  display: inline-flex;
+  height: 26px;
+  min-width: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pdf-diff-actions > button:hover:not(:disabled),
+.pdf-diff-segmented > button:hover {
+  background: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+
+.pdf-diff-actions > button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.pdf-diff-actions > button.is-active,
+.pdf-diff-segmented > button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pdf-diff-actions button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.pdf-diff-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  gap: 2px;
+}
+
+.pdf-diff-segmented > button {
+  height: 22px;
+}
+
+.pdf-diff-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border-default);
+}
+
+.pdf-diff-position {
+  min-width: 46px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pdf-diff-actions > .pdf-diff-zoom {
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-diff-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pdf-diff-state.is-error {
+  color: var(--error);
+}
+
+.pdf-diff-state.is-error strong {
+  max-width: 640px;
+  font-weight: 600;
+}
+
+.pdf-diff-log {
+  width: min(760px, 100%);
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.pdf-diff-log pre {
+  overflow: auto;
+  max-height: 260px;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.pdf-diff-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-button-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pdf-diff-body {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pdf-diff-body.with-list {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.pdf-diff-list {
+  overflow: auto;
+  min-height: 0;
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.pdf-diff-list-empty {
+  margin: 0;
+  padding: 16px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pdf-diff-hunk-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.pdf-diff-hunk {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-left: 3px solid var(--border-default);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.pdf-diff-hunk:hover {
+  background: var(--bg-row-hover);
+}
+
+.pdf-diff-hunk.is-active {
+  border-color: var(--border-focus);
+  background: var(--accent-soft);
+}
+
+.pdf-diff-hunk.is-added {
+  border-left-color: var(--pdf-diff-added);
+}
+
+.pdf-diff-hunk.is-removed {
+  border-left-color: var(--pdf-diff-removed);
+}
+
+.pdf-diff-hunk.is-changed {
+  border-left-color: var(--warning);
+}
+
+.pdf-diff-hunk-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-diff-hunk-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow-wrap: anywhere;
+}
+
+.pdf-diff-context {
+  color: var(--text-muted);
+}
+
+.pdf-diff-hunk del {
+  border-radius: 2px;
+  background: var(--pdf-diff-removed-fill);
+  color: var(--text-primary);
+  text-decoration-color: var(--pdf-diff-removed);
+}
+
+.pdf-diff-hunk ins {
+  border-radius: 2px;
+  background: var(--pdf-diff-added-fill);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.pdf-diff-columns {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.pdf-diff-column {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.pdf-diff-column.is-original {
+  border-right: 1px solid var(--border-default);
+}
+
+.pdf-diff-column-header {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+  height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pdf-diff-column-header strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.pdf-diff-column-header small {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+}
+
+.pdf-diff-page-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-diff-side-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.pdf-diff-side-dot.is-original {
+  background: var(--pdf-diff-removed);
+}
+
+.pdf-diff-side-dot.is-modified {
+  background: var(--pdf-diff-added);
+}
+
+.pdf-diff-scroll {
+  overflow: auto;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+
+.pdf-diff-pages {
+  display: flex;
+  min-width: min-content;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pdf-diff-page {
+  position: relative;
+  flex: 0 0 auto;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 22%);
+}
+
+.pdf-diff-page > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pdf-diff-page-placeholder {
+  position: absolute;
+  background: #fff;
+  inset: 0;
+}
+
+.pdf-diff-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pdf-diff-mark {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  pointer-events: auto;
+}
+
+.pdf-diff-mark.is-removed {
+  background: color-mix(in srgb, #dc2626 30%, transparent);
+  box-shadow: inset 0 -2px 0 #dc2626;
+}
+
+.pdf-diff-mark.is-added {
+  background: color-mix(in srgb, #16a34a 30%, transparent);
+  box-shadow: inset 0 -2px 0 #16a34a;
+}
+
+.pdf-diff-mark.is-insert-point {
+  width: 3px;
+  margin-left: -1px;
+  background: #d97706;
+}
+
+.pdf-diff-mark.is-active {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  animation: pdf-diff-pulse 1.2s ease-out 1;
+}
+
+@keyframes pdf-diff-pulse {
+  0% {
+    outline-offset: 6px;
+    outline-color: rgb(37 99 235 / 0%);
+  }
+
+  100% {
+    outline-offset: 1px;
+    outline-color: rgb(37 99 235 / 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-diff-mark.is-active {
+    animation: none;
+  }
+}
+
+.pdf-diff-page-number {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.pdf-diff-empty-side {
+  padding: 40px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pdf-diff-overlay-page-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.pdf-diff-overlay-status {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.pdf-diff-legend {
+  gap: 14px;
+}
+
+.pdf-diff-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.pdf-diff-legend-item::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  content: "";
+}
+
+.pdf-diff-legend-item.is-removed::before {
+  background: #dc2626;
+}
+
+.pdf-diff-legend-item.is-added::before {
+  background: #16a34a;
+}
+
+.pdf-diff-legend-item.is-changed::before {
+  background: #d97706;
+}
+
+.pdf-diff-legend small {
+  margin-left: auto;
+}
+
+.pdf-compare-dialog {
+  width: min(560px, calc(100vw - 40px));
+}
+
+.pdf-compare-body {
+  display: grid;
+  gap: 10px;
+  padding: 4px 18px 16px;
+}
+
+.pdf-compare-help {
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pdf-compare-side {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+.pdf-compare-side-label {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pdf-compare-side select {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.pdf-compare-swap {
+  display: grid;
+  width: 28px;
+  height: 24px;
+  margin-left: 66px;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-button-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  place-items: center;
+}
+
+.pdf-compare-swap:hover {
+  color: var(--text-primary);
+}
+
+.pdf-compare-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 760px) {
+  .pdf-diff-host {
+    padding: 0;
+  }
+
+  .pdf-diff-body.with-list {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 160px minmax(0, 1fr);
+  }
+
+  .pdf-diff-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .pdf-diff-segmented > button > span {
+    display: none;
+  }
+}
+
+/* TikZ tool: the code as LaTeX renders it, or LaTeX's errors */
+.tikz-svg-container {
+  position: relative;
+}
+
+.tikz-render-panel {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-root);
+  inset: 0;
+}
+
+.tikz-render-header {
+  display: flex;
+  height: 35px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.tikz-render-header strong {
+  font-weight: 600;
+}
+
+.tikz-render-header small {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tikz-render-back {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tikz-render-back:hover {
+  color: var(--text-primary);
+}
+
+.tikz-render-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.tikz-render-figure {
+  display: grid;
+  overflow: auto;
+  flex: 1;
+  padding: 24px;
+  place-items: center;
+}
+
+.tikz-render-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 25%);
+}
+
+.tikz-render-errors {
+  overflow: auto;
+  flex: 1;
+  padding: 14px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tikz-render-errors-title {
+  margin: 0 0 10px;
+  color: var(--error);
+  font-weight: 600;
+}
+
+.tikz-render-errors ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tikz-render-error {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--error);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.tikz-render-line {
+  justify-self: start;
+  padding: 1px 7px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-button-secondary);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tikz-render-line:hover {
+  border-color: var(--accent);
+}
+
+.tikz-render-error-message {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.tikz-render-source {
+  display: block;
+  overflow-x: auto;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-panel);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  white-space: pre;
+}
+
+.tikz-render-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tikz-render-hint::before {
+  color: var(--accent);
+  content: "How to fix: ";
+  font-weight: 600;
+}
+
+.tikz-render-log {
+  margin-top: 12px;
+}
+
+.tikz-render-log summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tikz-render-log pre {
+  overflow: auto;
+  max-height: 280px;
+  padding: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.tikz-render-note {
+  flex: none;
+  margin: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tikz-render-note code {
+  font-size: 11px;
+}
+
+/* ===== Visual editor: a word-processor page over the LaTeX source ===== */
+.vl-editor {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.vl-ribbon {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.vl-ribbon-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 8px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.vl-ribbon-group:last-of-type {
+  border-right: 0;
+}
+
+.vl-ribbon button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  place-items: center;
+}
+
+.vl-ribbon button:hover:not(:disabled) {
+  background: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+
+.vl-ribbon button.is-active {
+  border-color: var(--border-focus);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.vl-ribbon button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.vl-style-select {
+  width: 128px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.vl-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  font-size: 12px;
+}
+
+.vl-prompt label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.vl-prompt input {
+  min-width: 0;
+  height: 26px;
+  flex: 1;
+  padding: 0 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.vl-prompt button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
+  background: var(--bg-button-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.vl-prompt button[type="submit"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* The page: white paper whatever the theme, like the PDF it becomes. */
+.vl-canvas {
+  position: relative;
+  overflow: auto;
+  min-height: 0;
+  padding: 28px 16px 64px;
+}
+
+.vl-sheet {
+  width: min(816px, 100%);
+  min-height: calc(100% - 8px);
+  margin: 0 auto;
+  padding: 72px 84px 96px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 6%),
+    0 2px 10px rgb(0 0 0 / 18%);
+  color: #1f1f1f;
+}
+
+.vl-root {
+  min-height: 60vh;
+  outline: none;
+  caret-color: #1f1f1f;
+  font-family:
+    "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.vl-root ::selection {
+  background: #b4d5fe;
+}
+
+.vl-root > * {
+  position: relative;
+}
+
+.vl-root p {
+  margin: 0 0 0.85em;
+}
+
+.vl-root h1,
+.vl-root h2,
+.vl-root h3,
+.vl-root h4,
+.vl-root h5 {
+  margin: 1.2em 0 0.45em;
+  color: #111;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.vl-root h1 {
+  font-size: 1.9em;
+}
+
+.vl-root h2 {
+  font-size: 1.45em;
+}
+
+.vl-root h3 {
+  font-size: 1.22em;
+}
+
+.vl-root h4 {
+  font-size: 1.06em;
+}
+
+.vl-root h5 {
+  display: inline;
+  font-size: 1em;
+}
+
+.vl-root h5::after {
+  content: " ";
+}
+
+.vl-root ul,
+.vl-root ol {
+  margin: 0 0 0.85em;
+  padding-left: 1.6em;
+}
+
+.vl-root li {
+  margin: 0.2em 0;
+}
+
+.vl-root ul.vl-description {
+  list-style: none;
+  padding-left: 0.4em;
+}
+
+.vl-root li[data-term]::before {
+  margin-right: 0.4em;
+  content: attr(data-term);
+  font-weight: 700;
+}
+
+.vl-root a {
+  color: #0b57d0;
+  text-decoration: underline;
+}
+
+.vl-root code {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #f1f3f4;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.vl-root .vl-smallcaps {
+  font-variant: small-caps;
+}
+
+.vl-abstract {
+  margin: 0 2.5em 1.4em;
+  font-size: 0.94em;
+}
+
+.vl-abstract::before {
+  display: block;
+  margin-bottom: 0.4em;
+  content: "Abstract";
+  font-weight: 700;
+  text-align: center;
+}
+
+.vl-abstract p {
+  margin-bottom: 0.6em;
+}
+
+/* Inline LaTeX shown as a unit: citations, references, math, notes. */
+.vl-token {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #eef2fb;
+  color: #2f4a8a;
+  cursor: default;
+  font-family: system-ui, sans-serif;
+  font-size: 0.82em;
+  line-height: 1.5;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.vl-token-citation,
+.vl-token-reference {
+  background: #e8f1ff;
+  color: #1a56b0;
+}
+
+.vl-token-label,
+.vl-token-comment,
+.vl-token-symbol,
+.vl-token-linebreak {
+  background: #f1f1f1;
+  color: #777;
+}
+
+.vl-token-footnote {
+  font-size: 0.7em;
+  vertical-align: super;
+}
+
+.vl-token-logo {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 1em;
+}
+
+.vl-token-math {
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+}
+
+.vl-token-math img {
+  height: 1.15em;
+  vertical-align: -0.25em;
+}
+
+.vl-token-math.is-display {
+  display: block;
+  text-align: center;
+}
+
+/* Objects inside the page. */
+.vl-island {
+  margin: 0.9em 0;
+  border-radius: 6px;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  user-select: none;
+}
+
+.vl-island-tools {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.vl-island:hover .vl-island-tools,
+.vl-island:focus-within .vl-island-tools {
+  opacity: 1;
+}
+
+.vl-island-tools button {
+  display: inline-flex;
+  height: 24px;
+  min-width: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #444;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.vl-island-tools button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.vl-island-tools button:disabled {
+  opacity: 0.35;
+}
+
+.vl-tool-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  color: #555;
+  font-size: 11px;
+}
+
+.vl-tool-select select {
+  height: 22px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  font-size: 11px;
+}
+
+.vl-inline-field {
+  min-width: 2em;
+  outline: none;
+  user-select: text;
+  cursor: text;
+}
+
+.vl-inline-field:empty::before {
+  color: #999;
+  content: attr(data-placeholder);
+}
+
+.vl-inline-field:focus {
+  box-shadow: 0 1px 0 #0b57d0;
+}
+
+.vl-chip {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #f1f1f1;
+  color: #666;
+  font-size: 11px;
+}
+
+.vl-figure {
+  margin: 0;
+  padding: 8px 0;
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.vl-figure.is-dropping {
+  border-color: #0b57d0;
+  background: #f2f7ff;
+}
+
+.vl-figure-frame {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.vl-figure-frame img,
+.vl-figure-frame canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.vl-figure-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #777;
+}
+
+.vl-figure figcaption,
+.vl-table-caption {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  color: #333;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 15px;
+}
+
+.vl-caption-prefix {
+  font-weight: 700;
+}
+
+.vl-table {
+  padding: 4px 0;
+  overflow-x: auto;
+}
+
+.vl-table table {
+  margin: 0 auto;
+  border-collapse: collapse;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 15px;
+}
+
+.vl-table td {
+  min-width: 70px;
+  padding: 5px 12px;
+  border: 1px solid #d8d8d8;
+}
+
+.vl-table tr.has-rule td {
+  border-top: 2px solid #333;
+}
+
+.vl-table tr:last-child td {
+  border-bottom: 2px solid #333;
+}
+
+.vl-math {
+  padding: 6px 0;
+}
+
+.vl-math-view {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 2.4em;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 48px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vl-math-view:hover {
+  border-color: #e3e3e3;
+  background: #fafafa;
+}
+
+.vl-math-view img {
+  max-width: 100%;
+}
+
+.vl-math-fallback {
+  color: #888;
+  font-style: italic;
+}
+
+.vl-math-number {
+  position: absolute;
+  right: 8px;
+  color: #666;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 15px;
+}
+
+.vl-math-editor {
+  display: grid;
+  gap: 6px;
+  margin: 4px 40px 0;
+}
+
+.vl-math-editor .vl-chip {
+  justify-self: start;
+}
+
+.vl-code-area {
+  display: block;
+  width: 100%;
+  min-height: 2em;
+  padding: 8px 10px;
+  border: 1px solid #e2e2e2;
+  border-radius: 5px;
+  background: #f8f9fa;
+  color: #24292f;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+  user-select: text;
+}
+
+.vl-code-area:focus {
+  border-color: #0b57d0;
+  outline: none;
+}
+
+.vl-code-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  color: #777;
+  font-size: 11px;
+}
+
+.vl-comment .vl-code-area {
+  border-style: dashed;
+  background: #fffdf3;
+  color: #8a6d1b;
+  font-size: 11.5px;
+}
+
+.vl-command {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #555;
+}
+
+.vl-command-pagebreak {
+  min-height: 22px;
+  border: 0;
+  border-top: 2px dashed #c9c9c9;
+  border-radius: 0;
+  background: transparent;
+  color: #999;
+  font-size: 11px;
+}
+
+.vl-title {
+  margin-bottom: 1.6em;
+  text-align: center;
+}
+
+.vl-title .vl-inline-field {
+  display: block;
+}
+
+.vl-title-main {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.vl-title-author {
+  margin-top: 10px;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 17px;
+}
+
+.vl-title-date {
+  margin-top: 4px;
+  color: #555;
+  font-size: 14px;
+}
+
+/* Moving blocks. */
+.vl-drag-handle {
+  position: absolute;
+  left: max(8px, calc(50% - 408px - 4px));
+  display: grid;
+  width: 18px;
+  height: 22px;
+  border-radius: 4px;
+  color: #9aa0a6;
+  cursor: grab;
+  font-size: 12px;
+  letter-spacing: -2px;
+  place-items: center;
+  user-select: none;
+}
+
+.vl-drag-handle:hover {
+  background: rgb(0 0 0 / 6%);
+  color: #444;
+}
+
+.vl-drop-line {
+  position: absolute;
+  right: calc(50% - 408px + 60px);
+  left: calc(50% - 408px + 60px);
+  height: 3px;
+  border-radius: 2px;
+  background: #0b57d0;
+  pointer-events: none;
+}
+
+.vl-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.vl-status-hint {
+  margin-left: auto;
+}
+
+@media (max-width: 860px) {
+  .vl-sheet {
+    padding: 40px 28px 64px;
+  }
+
+  .vl-drop-line {
+    right: 20px;
+    left: 20px;
+  }
+
+  .vl-drag-handle {
+    left: 2px;
+  }
+
+  .vl-status-hint {
+    display: none;
+  }
+}
+
+.vl-token-tie {
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }

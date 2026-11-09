@@ -6,6 +6,8 @@ import {
   Check,
   ChevronDown,
   Download,
+  FilePlus2,
+  FolderPlus,
   Headphones,
   LoaderCircle,
   RefreshCw,
@@ -368,10 +370,10 @@ export default function App() {
                 <div className="sidebar-header">
                   <span>
                     {activeSidebar === "explorer"
-                      ? "EXPLORER"
+                      ? "Explorer"
                       : activeSidebar === "enterprise"
-                        ? "ENTERPRISE"
-                        : "EXTENSIONS"}
+                        ? "Enterprise"
+                        : "Extensions"}
                   </span>
                   <div>
                     {activeSidebar === "enterprise" ? (
@@ -381,15 +383,6 @@ export default function App() {
                         title="Export compliance report"
                       >
                         <Download size={14} />
-                      </button>
-                    ) : activeSidebar === "explorer" ? (
-                      <button
-                        className="small-icon"
-                        onClick={() => void refreshProject()}
-                        title="Refresh"
-                        disabled={!hasVisibleProject}
-                      >
-                        <RefreshCw size={14} />
                       </button>
                     ) : activeSidebar === "extensions" ? (
                       renderSmallIcon(ctx)
@@ -410,10 +403,49 @@ export default function App() {
                 </div>
               ) : activeSidebar === "explorer" ? (
                 <>
-                  <button className="project-heading" onClick={openProject}>
-                    <ChevronDown size={13} />
-                    <span>{projectName.toUpperCase()}</span>
-                  </button>
+                  {/* One slim row, like VS Code: the folder name with its actions. */}
+                  <div className="project-heading">
+                    <button
+                      type="button"
+                      className="project-heading-name"
+                      onClick={openProject}
+                      title={`${projectName} — open another folder`}
+                    >
+                      <ChevronDown size={13} aria-hidden="true" />
+                      <span>{projectName}</span>
+                    </button>
+                    {hasVisibleProject ? (
+                      <div className="project-heading-actions">
+                        <button
+                          type="button"
+                          className="small-icon"
+                          onClick={() => ctx.openCreateDialog("file")}
+                          title="New File"
+                          aria-label="New File"
+                        >
+                          <FilePlus2 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="small-icon"
+                          onClick={() => ctx.openCreateDialog("folder")}
+                          title="New Folder"
+                          aria-label="New Folder"
+                        >
+                          <FolderPlus size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="small-icon"
+                          onClick={() => void refreshProject()}
+                          title="Refresh"
+                          aria-label="Refresh"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                   <div
                     className={`file-tree ${
                       hasVisibleProject && mode !== "author" ? "with-review" : ""

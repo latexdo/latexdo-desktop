@@ -66,12 +66,12 @@ describe("bottomPanelView", () => {
   it("renders tabs with the problem count and routes clicks", () => {
     const ctx = makeCtx();
     render(renderPanelTabs(ctx));
-    const problems = screen.getByRole("button", { name: /PROBLEMS/ });
+    const problems = screen.getByRole("button", { name: /Problems/ });
     expect(problems).toHaveClass("active");
     expect(problems).toHaveTextContent("1");
     fireEvent.click(problems);
-    fireEvent.click(screen.getByRole("button", { name: /OUTPUT/ }));
-    fireEvent.click(screen.getByRole("button", { name: /TERMINAL/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Output/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Terminal/ }));
     expect(ctx.openPanel).toHaveBeenNthCalledWith(1, "problems");
     expect(ctx.openPanel).toHaveBeenNthCalledWith(2, "output");
     expect(ctx.openPanel).toHaveBeenNthCalledWith(3, "terminal");
@@ -82,8 +82,8 @@ describe("bottomPanelView", () => {
   it("omits the badge with no diagnostics and highlights other tabs", () => {
     render(renderPanelTabs(makeCtx({ diagnostics: [], activePanel: "terminal" })));
     expect(screen.queryByText("0")).toBeNull();
-    expect(screen.getByRole("button", { name: /TERMINAL/ })).toHaveClass("active");
-    expect(screen.getByRole("button", { name: /PROBLEMS/ })).not.toHaveClass("active");
+    expect(screen.getByRole("button", { name: /Terminal/ })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: /Problems/ })).not.toHaveClass("active");
   });
 
   it("wires the problems panel callbacks and default output text", () => {
@@ -128,6 +128,6 @@ describe("bottomPanelView", () => {
 
   it("marks the output tab active", () => {
     render(renderPanelTabs(makeCtx({ activePanel: "output" })));
-    expect(screen.getByRole("button", { name: /OUTPUT/ })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: /Output/ })).toHaveClass("active");
   });
 });
