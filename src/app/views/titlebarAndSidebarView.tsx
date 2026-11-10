@@ -7,8 +7,8 @@ import {
   GitBranch,
   ImageUp,
   Link,
-  MessagesSquare,
-  MessageSquare,
+  ClipboardCheck,
+  MessageCircleMore,
   Pencil,
   Puzzle,
   RefreshCw,
@@ -146,7 +146,7 @@ export function renderActivityBar(ctx: AppCtx) {
           title="Reviews"
           aria-label="Reviews"
         >
-          <MessageSquare size={21} />
+          <ClipboardCheck size={21} />
           {ctx.reviewChats?.length > 0 ? (
             <span className="activity-change-badge" aria-hidden="true">
               {ctx.reviewChats.length}
@@ -169,7 +169,7 @@ export function renderActivityBar(ctx: AppCtx) {
               : ""
           }`}
         >
-          <MessagesSquare size={21} />
+          <MessageCircleMore size={21} />
           {discussionTotals.unread > 0 && (
             <span
               className={`activity-change-badge discussion-activity-badge ${

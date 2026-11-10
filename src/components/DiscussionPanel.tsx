@@ -29,7 +29,7 @@ import {
   Info,
   Lock,
   MessageCircle,
-  MessagesSquare,
+  MessageCircleMore,
   RefreshCw,
   SendHorizontal,
   Trash2,
@@ -882,7 +882,7 @@ export function DiscussionPanel({
       <div className="discussion-panel">
         <div className="discussion-empty">
           <span className="discussion-empty-icon" aria-hidden="true">
-            <MessagesSquare size={26} />
+            <MessageCircleMore size={26} />
           </span>
           <strong>Discuss with your co-authors</strong>
           <p>
@@ -1027,7 +1027,7 @@ export function DiscussionPanel({
                 <div className="discussion-empty is-inline">
                   <span className="discussion-empty-icon" aria-hidden="true">
                     {inGroup ? (
-                      <MessagesSquare size={24} />
+                      <MessageCircleMore size={24} />
                     ) : (
                       <MessageCircle size={24} />
                     )}
