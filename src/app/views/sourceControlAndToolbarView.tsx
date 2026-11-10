@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Code2,
   ExternalLink,
+  Hash,
   Heading1,
   Heading2,
   History,
@@ -484,7 +485,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
             onClick={() => applyLatexToolbarCommand("ref")}
             title={"Reference (\\ref{})"}
           >
-            <Link size={14} />
+            <Hash size={14} />
             <span>Ref</span>
           </button>
           <button
