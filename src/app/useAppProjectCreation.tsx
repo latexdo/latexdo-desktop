@@ -20,6 +20,7 @@ import type {
   ProjectEntry,
 } from "../types";
 import { pathForDisplay } from "../pathDisplay";
+import { useAttention } from "../collaboration/presence";
 import { figureBytesToDataUrl } from "../figurePreview";
 import { type WelcomeTemplate } from "../features/settings/settings";
 import {
@@ -230,6 +231,10 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     });
   }, [hostingAvailable, refreshCollaborationState]);
 
+  // Others see whether this person is really here or has LatexDo in the
+  // background; a change is sent at once.
+  const attentive = useAttention();
+
   useEffect(() => {
     if (
       !projectId ||
@@ -249,6 +254,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
         const state = await window.latexdo.updateCollaborationPresence(
           projectId,
           active?.relativePath ?? null,
+          attentive,
         );
         if (!cancelled) {
           setCollaborationState(state);
@@ -277,6 +283,7 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     };
   }, [
     activePath,
+    attentive,
     collaborationAvailable,
     collaborationState.apiBaseUrl,
     collaborationState.enabled,

@@ -3913,6 +3913,13 @@ describe("App critical UI controls", () => {
       token: "t",
       users: [
         { clientId: "client-bob", name: "Bob", currentFile: "main.tex", lastSeen: 1 },
+        {
+          clientId: "client-sara",
+          name: "Sara",
+          currentFile: null,
+          lastSeen: 1,
+          active: false,
+        },
       ],
       host: {
         active: true,
@@ -3928,9 +3935,122 @@ describe("App critical UI controls", () => {
 
     expect(await screen.findByRole("button", { name: "Sharing is on" })).toBeVisible();
     expect(
-      await screen.findByRole("button", { name: "Bob, in main.tex" }),
+      await screen.findByRole("button", { name: "Bob, active now, in main.tex" }),
     ).toBeVisible();
+    // Sara has LatexDo open but is not using it: a gray dot.
+    expect(
+      screen.getByRole("button", {
+        name: "Sara, away, LatexDo is open but not in use, not in a file",
+      }),
+    ).toHaveAttribute("data-presence", "away");
     expect(screen.queryByText("No repository")).not.toBeInTheDocument();
+  });
+
+  it("changes the mode from the status bar and the toolbar follows", async () => {
+    installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome();
+    const toolbarButton = (title: string) =>
+      document.querySelector<HTMLButtonElement>(`.mode-button-mini[title="${title}"]`)!;
+    expect(toolbarButton("Author Mode")).toHaveClass("active");
+
+    fireEvent.click(screen.getByRole("button", { name: "Author mode — change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Rebuttal/ }));
+    expect(toolbarButton("Rebuttal Mode")).toHaveClass("active");
+    expect(toolbarButton("Author Mode")).not.toHaveClass("active");
+
+    // And the other way round.
+    fireEvent.click(toolbarButton("Reviewer Mode"));
+    expect(
+      screen.getByRole("button", { name: "Reviewer mode — change mode" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the discussion of a shared project from the activity bar", async () => {
+    const api = installLatexDoMock() as ReturnType<typeof installLatexDoMock> &
+      Record<string, ReturnType<typeof vi.fn>>;
+    const shared = {
+      enabled: true,
+      token: "t",
+      users: [{ clientId: "client-bob", name: "Bob", currentFile: null, lastSeen: 1 }],
+    };
+    api.getCollaborationState.mockResolvedValue(shared);
+    api.updateCollaborationPresence.mockResolvedValue(shared);
+    const page = {
+      version: 1,
+      seq: 1,
+      hasMore: false,
+      messages: [
+        {
+          id: "msg-hello",
+          seq: 1,
+          from: "client-bob",
+          name: "Bob",
+          to: null,
+          recipients: ["client-me"],
+          body: "Can you check the intro, @Me?",
+          mentions: ["client-me"],
+          replyTo: null,
+          createdAt: Date.now(),
+        },
+      ],
+      receipts: {},
+      members: [
+        { clientId: "client-me", name: "Me", role: "admin", isCurrent: true },
+        { clientId: "client-bob", name: "Bob", role: "editor" },
+      ],
+    };
+    Object.assign(api, {
+      hasDiscussion: vi.fn(() => true),
+      collaborationClientId: vi.fn(() => "client-me"),
+      getDiscussion: vi.fn().mockResolvedValue(page),
+      updateDiscussionReceipt: vi.fn().mockResolvedValue({ seq: 1 }),
+      sendDiscussionMessage: vi.fn(
+        async (_id: string, input: { id: string; body: string }) => ({
+          seq: 2,
+          message: {
+            ...input,
+            seq: 2,
+            from: "client-me",
+            name: "Me",
+            to: null,
+            recipients: ["client-bob"],
+            mentions: [],
+            replyTo: null,
+            createdAt: Date.now(),
+          },
+        }),
+      ),
+    });
+    render(<App />);
+    await openProjectFromWelcome();
+
+    const button = await screen.findByRole("button", {
+      name: "Discussion (1 unread, 1 for you)",
+    });
+    // A mention also arrives as a notice that opens the conversation.
+    expect(await screen.findByText("mentioned you")).toBeVisible();
+    fireEvent.click(button);
+    expect(
+      await screen.findByRole("log", { name: "Messages to everyone" }),
+    ).toBeVisible();
+    expect(screen.getByText("@Me")).toHaveClass("is-me");
+    await waitFor(() =>
+      expect(api.updateDiscussionReceipt).toHaveBeenCalledWith(project.id, {
+        delivered: 1,
+      }),
+    );
+
+    const input = screen.getByLabelText("Message to everyone");
+    fireEvent.change(input, { target: { value: "On it" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(api.sendDiscussionMessage).toHaveBeenCalledWith(
+        project.id,
+        expect.objectContaining({ body: "On it", to: null }),
+      ),
+    );
+    expect(await screen.findByText("On it")).toBeVisible();
   });
 
   it("project workflow imports dropped files once and preserves their destination", async () => {
@@ -4587,7 +4707,7 @@ describe("App critical UI controls", () => {
       screen.getByRole("button", { name: /new.*thread|new.*conversation|add.*chat/i }),
     );
     expect(screen.getByTitle("Click to jump to selection")).toBeVisible();
-    fireEvent.change(screen.getByPlaceholderText("Write a review message..."), {
+    fireEvent.change(screen.getByPlaceholderText("Reply to this review..."), {
       target: { value: "Please clarify this claim." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send review message" }));
@@ -4599,8 +4719,18 @@ describe("App critical UI controls", () => {
         expect.stringContaining("Please clarify this claim."),
       ),
     );
+    fireEvent.click(screen.getByTitle("Author Mode"));
+    fireEvent.click(screen.getByTitle("Explorer"));
+    fireEvent.click(screen.getByRole("button", { name: /^Reviews$/ }));
+    expect(screen.getByText("Please clarify this claim.")).toBeVisible();
+    fireEvent.change(screen.getByPlaceholderText("Reply to this review..."), {
+      target: { value: "Added the explanation." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send review message" }));
+    expect(screen.getByText("Added the explanation.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /insert.*tex/i }));
     expect(h.model.getValue()).toContain("Please clarify this claim.");
+    expect(h.model.getValue()).toContain("Added the explanation.");
     fireEvent.click(screen.getByTitle("Delete review chat"));
     await waitFor(() =>
       expect(screen.queryByText("Please clarify this claim.")).not.toBeInTheDocument(),

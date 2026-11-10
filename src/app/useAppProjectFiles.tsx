@@ -1,3 +1,4 @@
+import { mergeReviewData } from "../../collaborations/reviewData.mjs";
 import { useCallback, useEffect, useRef } from "react";
 import { ensureMetadataIgnore } from "../features/project/metadataIgnore";
 import { normalizeLatexDoReviewMarkup, usesLatexDoReviewMacros } from "../reviewMarkup";
@@ -664,6 +665,9 @@ ${macroEnd}
     }
   };
 
+  const deletedReviewIds = useRef<string[]>([]);
+  const latestReviewState = useRef({ chats: reviewChats, items: rebuttalItems });
+  latestReviewState.current = { chats: reviewChats, items: rebuttalItems };
   const reviewLoadGeneration = useRef(0);
   const reviewRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failedReviewProject = useRef<string | null>(null);
@@ -700,7 +704,32 @@ ${macroEnd}
       // overwrite) a newer one.
       const write = reviewSaveQueueRef.current.then(async () => {
         await ensureMetadataIgnore(currentProject);
-        const data = JSON.stringify({ chats, items }, null, 2);
+        let previous: { chats?: ReviewChat[] } = {};
+        try {
+          previous = JSON.parse(reviewSavedSnapshotRef.current || "{}");
+        } catch {
+          /* No valid baseline yet. */
+        }
+        const remaining = new Set(chats.map((chat) => chat.id));
+        deletedReviewIds.current = [
+          ...new Set([
+            ...deletedReviewIds.current,
+            ...(previous.chats ?? [])
+              .filter((chat) => !remaining.has(chat.id))
+              .map((chat) => chat.id),
+          ]),
+        ];
+        const data = JSON.stringify(
+          {
+            chats,
+            items,
+            ...(deletedReviewIds.current.length
+              ? { deletedChatIds: deletedReviewIds.current }
+              : {}),
+          },
+          null,
+          2,
+        );
         const filePath = resolveProjectDataPath(".latexdo/review_data.json");
         await window.latexdo.writeFile(currentProject, filePath, data);
       });
@@ -723,6 +752,7 @@ ${macroEnd}
   const loadReviewData = useCallback(
     async (id: string) => {
       const generation = ++reviewLoadGeneration.current;
+      deletedReviewIds.current = [];
       if (reviewRetryTimer.current) clearTimeout(reviewRetryTimer.current);
       reviewDataReadyRef.current = false;
       failedReviewProject.current = null;
@@ -743,6 +773,9 @@ ${macroEnd}
             throw new Error("The saved review file must contain a JSON object.");
           }
           const { chats, items } = parsed;
+          deletedReviewIds.current = Array.isArray(parsed.deletedChatIds)
+            ? parsed.deletedChatIds
+            : [];
           if (
             (chats != null && !Array.isArray(chats)) ||
             (items != null && !Array.isArray(items))
@@ -800,6 +833,56 @@ ${macroEnd}
     },
     [resolveProjectDataPath, saveReviewData],
   );
+
+  // Review metadata is not an open editor document, so refresh it independently
+  // of the editor binding. Merge replies before updating state, preserving drafts.
+  useEffect(() => {
+    if (!projectId || !ctx.collaborationState?.enabled) return;
+    // The cleanup flips this while a sync awaits, so it is a property that each
+    // check reads afresh after an await.
+    const run = { stopped: false };
+    let reading = false;
+    const sync = async () => {
+      if (reading || !reviewDataReadyRef.current || run.stopped) return;
+      reading = true;
+      try {
+        await reviewSaveQueueRef.current;
+        if (run.stopped) return;
+        const path = resolveProjectDataPath(".latexdo/review_data.json");
+        if (!(await window.latexdo.fileExists(projectId, path))) return;
+        const remote = JSON.parse(await window.latexdo.readFile(projectId, path));
+        if (run.stopped || projectIdRef.current !== projectId) return;
+        const local = latestReviewState.current;
+        let previous: { chats?: ReviewChat[] } = {};
+        try {
+          previous = JSON.parse(reviewSavedSnapshotRef.current || "{}");
+        } catch {
+          /* No valid baseline yet. */
+        }
+        const removed = (previous.chats ?? [])
+          .filter((chat) => !local.chats.some((item) => item.id === chat.id))
+          .map((chat) => chat.id);
+        const merged = mergeReviewData(remote, {
+          ...local,
+          deletedChatIds: [...deletedReviewIds.current, ...removed],
+        });
+        deletedReviewIds.current = merged.deletedChatIds;
+        if (JSON.stringify(merged.chats) !== JSON.stringify(local.chats)) {
+          setReviewChats(merged.chats);
+        }
+      } catch {
+        // Keep local replies and retry after a transient disconnect.
+      } finally {
+        reading = false;
+      }
+    };
+    void sync();
+    const timer = window.setInterval(() => void sync(), 3000);
+    return () => {
+      run.stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [projectId, ctx.collaborationState?.enabled, resolveProjectDataPath]);
 
   // One place saves review data, from the committed state. Handlers only
   // update state, so a save can never write a stale copy of the other list.

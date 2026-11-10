@@ -37,6 +37,8 @@ export interface CollaborationClientOptions extends CollaborationRoomOptions {
   onProjectChanged?: (revision: number) => void;
   /** Admins only: who is waiting to join, pushed by the server. */
   onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
+  /** The project discussion changed (pushed by the server). */
+  onDiscussionChanged?: (seq: number) => void;
 }
 
 export interface CollaborationDocument {

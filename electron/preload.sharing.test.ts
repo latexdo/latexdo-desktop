@@ -1031,3 +1031,65 @@ describe("remaining desktop events", () => {
     expect(bridge.invoke).toHaveBeenCalledWith("project:open-requested");
   });
 });
+
+describe("project discussion", () => {
+  const server = "https://collab.example.org";
+
+  it("needs a shared copy, then reads, sends and reports receipts", async () => {
+    const api = await load({ VITE_LATEXDO_API_BASE_URL: server });
+    expect(api.hasDiscussion("project_a")).toBe(false);
+    expect(api.hasDiscussion("local")).toBe(false);
+    await expect(api.getDiscussion("project_a")).rejects.toThrow("not shared");
+    await expect(
+      api.sendDiscussionMessage("project_a", {
+        id: "msg-0001",
+        to: null,
+        body: "Hi",
+        mentions: [],
+        replyTo: null,
+      }),
+    ).rejects.toThrow("not shared");
+    await expect(
+      api.updateDiscussionReceipt("local", { delivered: 1 }),
+    ).rejects.toThrow("not shared");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setTokens({ project_a: "tok" });
+    expect(api.hasDiscussion("project_a")).toBe(true);
+    expect(api.collaborationClientId()).toMatch(/^client-/);
+    fetchMock.mockImplementation(async () =>
+      json({ version: 1, seq: 0, messages: [] }),
+    );
+    await api.getDiscussion("project_a");
+    await api.getDiscussion("project_a", { after: 3, before: -1, limit: 1.5 });
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `${server}/api/projects/project_a/discussion`,
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      `${server}/api/projects/project_a/discussion?after=3`,
+    );
+    expect(fetchMock.mock.calls[1][1].headers["x-latexdo-share-token"]).toBe("tok");
+
+    const input = {
+      id: "msg-0001",
+      to: "bob",
+      body: "Hi",
+      mentions: ["bob"],
+      replyTo: null,
+    };
+    await api.sendDiscussionMessage("project_a", input);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    await api.updateDiscussionReceipt("project_a", {
+      read: { conversation: "*", seq: 2 },
+    });
+    expect(String(fetchMock.mock.calls[3][0])).toBe(
+      `${server}/api/projects/project_a/discussion/receipts`,
+    );
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body)).toEqual({
+      read: { conversation: "*", seq: 2 },
+    });
+  });
+});

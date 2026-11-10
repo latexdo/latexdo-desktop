@@ -94,7 +94,11 @@ export interface AiSidebarApi {
    * Sends a prepared request: the model gets `prompt`, the chat shows
    * `displayText`. False when no provider is set up or a reply is running.
    */
-  sendPrompt(prompt: string, displayText: string): boolean;
+  sendPrompt(
+    prompt: string,
+    displayText: string,
+    onComplete?: (text: string) => void,
+  ): boolean;
 }
 
 interface AiSidebarProps {
@@ -503,9 +507,9 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
   }, [updateSuggestions]);
 
   const sendPrompt = React.useCallback(
-    (prompt: string, displayText: string) => {
+    (prompt: string, displayText: string, onComplete?: (text: string) => void) => {
       if (!configured || isRunning) return false;
-      void send(prompt, { displayText });
+      void send(prompt, { displayText, onComplete });
       return true;
     },
     [configured, isRunning, send],

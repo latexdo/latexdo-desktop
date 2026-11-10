@@ -715,6 +715,26 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return false;
     },
 
+    async getDiscussion() {
+      throw browserUnavailable("Project discussion");
+    },
+
+    async sendDiscussionMessage() {
+      throw browserUnavailable("Project discussion");
+    },
+
+    async updateDiscussionReceipt() {
+      throw browserUnavailable("Project discussion");
+    },
+
+    collaborationClientId() {
+      return "";
+    },
+
+    hasDiscussion() {
+      return false;
+    },
+
     async stageGitFile() {
       throw browserUnavailable("Git staging");
     },

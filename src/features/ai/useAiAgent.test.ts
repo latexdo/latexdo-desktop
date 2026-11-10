@@ -43,6 +43,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("AI conversation lifecycle", () => {
+  it("publishes completed answers but never failed runs", async () => {
+    const onComplete = vi.fn();
+    const { result } = setup();
+    await act(async () => result.current.send("Review", { onComplete }));
+    expect(onComplete).toHaveBeenCalledExactlyOnceWith("Answer");
+    onComplete.mockClear();
+    vi.mocked(generateStep).mockResolvedValueOnce({ type: "error", content: "Failed" });
+    await act(async () => result.current.send("Review again", { onComplete }));
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it.each(["local", "cloud"] as const)(
     "supports graph actions with the %s protocol and no text-editor target",
     async (provider) => {

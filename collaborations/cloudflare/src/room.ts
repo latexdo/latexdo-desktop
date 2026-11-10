@@ -35,6 +35,20 @@ import {
   type Role,
 } from "./shared";
 import type { UsageMeter } from "./usage";
+import {
+  DiscussionError,
+  advanceReceipt,
+  allowBurst,
+  audienceFor,
+  discussionLimits,
+  emptyDiscussion,
+  listMessages,
+  normalizeDiscussion,
+  postMessage,
+  receiptsFor,
+  type DiscussionMessage,
+  type DiscussionState,
+} from "../../discussion.mjs";
 
 /** Project presence (plaintext JSON: ids, roles and encrypted names). */
 const messageProjectPresence = 4;
@@ -48,6 +62,8 @@ const messageUpdate = 10;
 const messageLog = 11;
 /** An encrypted cursor/selection, relayed as is. */
 const messageCursor = 12;
+/** The discussion changed (plaintext JSON: the latest sequence number only). */
+const messageDiscussion = 7;
 
 interface Permission {
   clientId: string;
@@ -88,6 +104,8 @@ interface Presence {
   name: string;
   currentFile: string | null;
   lastSeen: number;
+  /** False while their LatexDo is open but not in use (background or idle). */
+  active: boolean;
 }
 
 interface SocketInfo {
@@ -178,6 +196,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   private readonly nextSeq = new Map<string, number>();
   private flushScheduled = false;
   private reportedBytes = -1;
+  /** The discussion, loaded on first use. Message bodies are ciphertext. */
+  private discussion: DiscussionState | null = null;
+  private readonly discussionBursts = new Map<string, number[]>();
 
   constructor(ctx: DurableObjectState, env: RoomEnv) {
     super(ctx, env);
@@ -204,6 +225,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         data BLOB NOT NULL,
         PRIMARY KEY (path, part)
       );
+      CREATE TABLE IF NOT EXISTS discussion (seq INTEGER PRIMARY KEY, data TEXT NOT NULL);
     `);
   }
 
@@ -405,6 +427,16 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       );
       return json(200, { relativePath: to });
     }
+    if (route === "discussion" || route === "discussion/receipts") {
+      try {
+        return await this.discussionRoute(request, url, route);
+      } catch (error) {
+        if (error instanceof DiscussionError) {
+          throw new HttpError(error.status, error.message, error.code);
+        }
+        throw error;
+      }
+    }
     if (route === "share" && (method === "GET" || method === "POST")) {
       const auth = await this.authorize(
         request,
@@ -452,7 +484,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         body.currentFile === null || body.currentFile === undefined
           ? null
           : normalizeRelativePath(body.currentFile);
-      this.touchPresence(auth, currentFile);
+      if (body.active !== undefined && typeof body.active !== "boolean") {
+        throw new HttpError(400, "Invalid presence.");
+      }
+      this.touchPresence(auth, currentFile, body.active);
       return json(200, this.state(auth));
     }
     if (route === "permissions" && method === "GET") {
@@ -556,6 +591,121 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       return empty();
     }
     throw new HttpError(404, "Share route not found.");
+  }
+
+  // --- Discussion ----------------------------------------------------------
+
+  private async discussionRoute(
+    request: Request,
+    url: URL,
+    route: string,
+  ): Promise<Response> {
+    const method = request.method;
+    // Viewers read the files but still take part in the discussion.
+    const auth = await this.authorize(request, url, "viewer");
+    const state = this.loadDiscussion();
+    const clientId = auth.identity.clientId;
+    if (route === "discussion" && method === "GET") {
+      const page = listMessages(state, clientId, {
+        after: url.searchParams.get("after") ?? undefined,
+        before: url.searchParams.get("before") ?? undefined,
+        limit: url.searchParams.get("limit") ?? undefined,
+      });
+      return json(200, {
+        version: 1,
+        seq: state.seq,
+        ...page,
+        receipts: receiptsFor(state, clientId),
+        members: this.permissionList(auth.meta, clientId),
+      });
+    }
+    if (route === "discussion" && method === "POST") {
+      if (!allowBurst(this.discussionBursts, clientId, now())) {
+        throw new HttpError(429, "You are sending messages too quickly.");
+      }
+      const members = new Map<string, string>();
+      for (const item of Object.values(auth.meta.permissions)) {
+        if (isRole(item.role)) members.set(item.clientId, item.name || "Anonymous");
+      }
+      const { message, created } = postMessage(state, {
+        identity: auth.identity,
+        members,
+        input: await this.body(request),
+        now: now(),
+        // The body arrives encrypted, so it is longer than the text typed.
+        maxBodyChars: discussionLimits.maxStoredBodyChars,
+      });
+      if (created) {
+        this.saveDiscussionMessage(state, message);
+        this.broadcastDiscussion(state.seq, audienceFor(message));
+      }
+      return json(200, { message, seq: state.seq });
+    }
+    if (route === "discussion/receipts" && method === "POST") {
+      if (advanceReceipt(state, clientId, await this.body(request))) {
+        this.saveDiscussionReceipts(state);
+        this.broadcastDiscussion(state.seq, null);
+      }
+      return json(200, { seq: state.seq });
+    }
+    throw new HttpError(404, "Project route not found.");
+  }
+
+  private loadDiscussion(): DiscussionState {
+    if (this.discussion) return this.discussion;
+    const row = this.sql
+      .exec<{ value: string }>("SELECT value FROM kv WHERE key = 'discussion'")
+      .toArray()[0];
+    if (!row) {
+      this.discussion = emptyDiscussion();
+      return this.discussion;
+    }
+    const saved = JSON.parse(row.value) as { seq?: unknown; receipts?: unknown };
+    const messages = this.sql
+      .exec<{ data: string }>("SELECT data FROM discussion ORDER BY seq")
+      .toArray()
+      .map((item) => JSON.parse(item.data) as DiscussionMessage);
+    this.discussion = normalizeDiscussion({
+      schemaVersion: 1,
+      seq: saved.seq,
+      messages,
+      receipts: saved.receipts,
+    });
+    return this.discussion;
+  }
+
+  private saveDiscussionReceipts(state: DiscussionState): void {
+    this.sql.exec(
+      "INSERT INTO kv (key, value) VALUES ('discussion', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      JSON.stringify({ seq: state.seq, receipts: state.receipts }),
+    );
+  }
+
+  private saveDiscussionMessage(
+    state: DiscussionState,
+    message: DiscussionMessage,
+  ): void {
+    this.sql.exec(
+      "INSERT OR REPLACE INTO discussion (seq, data) VALUES (?, ?)",
+      message.seq,
+      JSON.stringify(message),
+    );
+    // Messages past the limit were dropped from memory: drop them here too.
+    const oldest = state.messages[0]?.seq ?? message.seq;
+    this.sql.exec("DELETE FROM discussion WHERE seq < ?", oldest);
+    this.saveDiscussionReceipts(state);
+  }
+
+  /** Tells the people concerned to fetch the discussion again. */
+  private broadcastDiscussion(seq: number, audience: Set<string> | null): void {
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, messageDiscussion);
+    encoding.writeVarString(encoder, JSON.stringify({ version: 1, seq }));
+    const frame = encoding.toUint8Array(encoder);
+    for (const socket of this.ctx.getWebSockets()) {
+      const info = this.info(socket);
+      if (info && (!audience || audience.has(info.clientId))) this.send(socket, frame);
+    }
   }
 
   // --- Access --------------------------------------------------------------
@@ -781,12 +931,18 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   // --- Presence ------------------------------------------------------------
 
-  private touchPresence(auth: Auth, currentFile: string | null): void {
+  private touchPresence(
+    auth: Auth,
+    currentFile: string | null,
+    active?: boolean,
+  ): void {
+    const previous = this.presence.get(auth.identity.clientId);
     this.presence.set(auth.identity.clientId, {
       clientId: auth.identity.clientId,
       name: auth.identity.clientName,
       currentFile,
       lastSeen: now(),
+      active: active ?? previous?.active ?? true,
     });
     this.broadcastPresence();
   }
@@ -804,6 +960,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         name: info.name,
         currentFile: known?.currentFile ?? info.path,
         lastSeen: now(),
+        active: known?.active ?? true,
       });
     }
     for (const entry of this.presence.values()) {
@@ -1397,6 +1554,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       .catch(() => undefined);
     await this.ctx.storage.deleteAll();
     this.meta = null;
+    this.discussion = null;
   }
 
   /**
@@ -1473,6 +1631,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       name: auth.identity.clientName,
       currentFile: path,
       lastSeen: now(),
+      active: this.presence.get(auth.identity.clientId)?.active ?? true,
     });
     this.broadcastPresence();
     return new Response(null, { status: 101, webSocket: client });

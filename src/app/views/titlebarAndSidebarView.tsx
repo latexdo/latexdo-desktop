@@ -7,6 +7,8 @@ import {
   GitBranch,
   ImageUp,
   Link,
+  MessagesSquare,
+  MessageSquare,
   Pencil,
   Puzzle,
   RefreshCw,
@@ -110,6 +112,7 @@ export function renderActivityBar(ctx: AppCtx) {
   const changedFileCount = new Set(
     ctx.gitStatus?.entries?.map((entry) => entry.path) ?? [],
   ).size;
+  const discussionTotals = ctx.discussion.totals;
   return (
     <nav className="activity-bar">
       <ActivityItems>
@@ -137,6 +140,49 @@ export function renderActivityBar(ctx: AppCtx) {
             </span>
           )}
         </button>
+        <button
+          className={`activity-button ${sidebarVisible && activeSidebar === "reviews" ? "active" : ""}`}
+          onClick={() => openSidebar("reviews")}
+          title="Reviews"
+          aria-label="Reviews"
+        >
+          <MessageSquare size={21} />
+          {ctx.reviewChats?.length > 0 ? (
+            <span className="activity-change-badge" aria-hidden="true">
+              {ctx.reviewChats.length}
+            </span>
+          ) : null}
+        </button>
+        {ctx.discussion.available ? (
+          <button
+            className={`activity-button ${
+              sidebarVisible && activeSidebar === "discussion" ? "active" : ""
+            }`}
+            onClick={() => openSidebar("discussion")}
+            title="Discussion"
+            aria-label={`Discussion${
+              discussionTotals.unread
+                ? ` (${discussionTotals.unread} unread${
+                    discussionTotals.mentions
+                      ? `, ${discussionTotals.mentions} for you`
+                      : ""
+                  })`
+                : ""
+            }`}
+          >
+            <MessagesSquare size={21} />
+            {discussionTotals.unread > 0 && (
+              <span
+                className={`activity-change-badge discussion-activity-badge ${
+                  discussionTotals.mentions ? "is-mention" : ""
+                }`}
+                aria-hidden="true"
+              >
+                {discussionTotals.unread > 99 ? "99+" : discussionTotals.unread}
+              </span>
+            )}
+          </button>
+        ) : null}
         {productIsPro ? (
           <button
             className={`activity-button ${

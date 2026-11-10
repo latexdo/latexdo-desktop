@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { isReviewDataPath, mergeReviewContent } from "./reviewData.mjs";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   cp,
@@ -19,6 +20,17 @@ import * as awarenessProtocol from "y-protocols/awareness";
 import { Awareness } from "y-protocols/awareness";
 import * as syncProtocol from "y-protocols/sync";
 import * as Y from "yjs";
+import {
+  DiscussionError,
+  advanceReceipt,
+  allowBurst,
+  audienceFor,
+  emptyDiscussion,
+  listMessages,
+  normalizeDiscussion,
+  postMessage,
+  receiptsFor,
+} from "./discussion.mjs";
 import { accessLogPath, projectRole, sessionHash, withLock } from "./security.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -88,8 +100,13 @@ const messageProjectPresence = 4;
 const messageProjectChanged = 5;
 // Admins only: who is waiting to join, sent the moment it changes.
 const messageJoinRequests = 6;
+// The project discussion changed (a message or a receipt): clients refetch it.
+const messageDiscussion = 7;
 
 const rooms = new Map();
+// Each project's discussion, loaded on first use and saved on every change.
+const discussions = new Map();
+const discussionBursts = new Map();
 
 class HttpError extends Error {
   constructor(status, message, code) {
@@ -198,6 +215,10 @@ function projectFilesDir(projectId) {
 
 function projectMetaPath(projectId) {
   return path.join(projectDir(projectId), "project.json");
+}
+
+function projectDiscussionPath(projectId) {
+  return path.join(projectDir(projectId), "discussion.json");
 }
 
 function sharesIndexPath() {
@@ -685,6 +706,7 @@ function activePresence(meta) {
           ? user.currentFile
           : null,
       lastSeen: user.lastSeen,
+      active: user.active !== false,
       role: meta.permissions[user.clientId]?.role || "viewer",
     }));
 }
@@ -853,13 +875,19 @@ function isRole(value) {
   return value === "admin" || value === "editor" || value === "viewer";
 }
 
-function updatePresence(meta, identity, currentFile) {
+// `active` is false while the person's LatexDo is open but not in use (in
+// the background or idle); left out, the last known value is kept.
+function updatePresence(meta, identity, currentFile, active) {
+  const previous = Object.hasOwn(meta.presence, identity.clientId)
+    ? meta.presence[identity.clientId]
+    : undefined;
   Object.defineProperty(meta.presence, identity.clientId, {
     value: {
       clientId: identity.clientId,
       name: identity.clientName,
       currentFile: currentFile || null,
       lastSeen: now(),
+      active: typeof active === "boolean" ? active : previous?.active !== false,
     },
     enumerable: true,
     writable: true,
@@ -912,7 +940,34 @@ async function readProjectFile(projectId, relativePath) {
   return readFile(fullPath, "utf8");
 }
 
+const reviewWrites = new Map();
 async function writeProjectFile(projectId, relativePath, content) {
+  if (!isReviewDataPath(relativePath))
+    return writeProjectFileContent(projectId, relativePath, content);
+  const key = `${projectId}:${relativePath}`;
+  const previous = reviewWrites.get(key) ?? Promise.resolve();
+  const write = previous
+    .catch(() => {})
+    .then(async () => {
+      const saved = await readProjectFile(projectId, relativePath).catch((error) => {
+        if (error.status === 404) return "{}";
+        throw error;
+      });
+      await writeProjectFileContent(
+        projectId,
+        relativePath,
+        mergeReviewContent(saved, content),
+      );
+      await bumpRevision(projectId);
+    });
+  reviewWrites.set(key, write);
+  try {
+    await write;
+  } finally {
+    if (reviewWrites.get(key) === write) reviewWrites.delete(key);
+  }
+}
+async function writeProjectFileContent(projectId, relativePath, content) {
   if (typeof content !== "string") {
     throw new HttpError(400, "File content must be a string.");
   }
@@ -1223,6 +1278,7 @@ async function handleProjectRoute(request, response, url, parts) {
         room.closeAll(1012, "Project deleted");
       }
     }
+    discussions.delete(projectId);
     await rm(projectDir(projectId), { recursive: true, force: true });
     if (knownProjectCount !== null) {
       knownProjectCount = Math.max(0, knownProjectCount - 1);
@@ -1373,6 +1429,11 @@ async function handleProjectRoute(request, response, url, parts) {
     return;
   }
 
+  if (route === "discussion" || route === "discussion/receipts") {
+    await handleDiscussionRoute(request, response, url, projectId, route);
+    return;
+  }
+
   if (route === "files/collaborate") {
     throw new HttpError(426, "Use WebSocket upgrade for collaboration.");
   }
@@ -1413,7 +1474,10 @@ async function handleShareRoute(request, response, url, parts) {
       body.currentFile === null || body.currentFile === undefined
         ? null
         : normalizeRelativePath(body.currentFile);
-    updatePresence(meta, identity, currentFile);
+    if (body.active !== undefined && typeof body.active !== "boolean") {
+      throw new HttpError(400, "Invalid presence.");
+    }
+    updatePresence(meta, identity, currentFile, body.active);
     await writeProjectMeta(meta);
     const users = activePresence(meta);
     broadcastProjectPresence(meta.id, users);
@@ -1550,6 +1614,126 @@ async function handleShareRoute(request, response, url, parts) {
   }
 
   throw new HttpError(404, "Share route not found.");
+}
+
+// --- Discussion --------------------------------------------------------------
+
+async function loadDiscussion(projectId) {
+  const cached = discussions.get(projectId);
+  if (cached) return cached;
+  const raw = safeJsonParse(
+    await readFile(projectDiscussionPath(projectId), "utf8").catch(() => ""),
+    null,
+  );
+  const state = raw ? normalizeDiscussion(raw) : emptyDiscussion();
+  discussions.set(projectId, state);
+  return state;
+}
+
+async function saveDiscussion(projectId, state) {
+  await atomicWriteJson(projectDiscussionPath(projectId), state);
+}
+
+/** Everyone with access to the project, by client id. */
+function discussionMembers(meta) {
+  const members = new Map();
+  for (const permission of Object.values(meta.permissions)) {
+    if (
+      permission &&
+      isRole(permission.role) &&
+      typeof permission.clientId === "string"
+    ) {
+      members.set(permission.clientId, permission.name || "Anonymous");
+    }
+  }
+  return members;
+}
+
+function encodeDiscussionSignal(seq) {
+  const encoder = encoding.createEncoder();
+  encoding.writeVarUint(encoder, messageDiscussion);
+  encoding.writeVarString(encoder, JSON.stringify({ version: 1, seq }));
+  return encoding.toUint8Array(encoder);
+}
+
+// Tells the people concerned (everyone, or the two people in a private
+// conversation) to fetch the discussion again.
+function broadcastDiscussion(projectId, seq, audience) {
+  const frame = encodeDiscussionSignal(seq);
+  for (const room of rooms.values()) {
+    if (room.projectId !== projectId) continue;
+    for (const conn of room.conns) {
+      if (!audience || audience.has(conn.identity.clientId)) conn.sendBinary(frame);
+    }
+  }
+}
+
+async function handleDiscussionRoute(request, response, url, projectId, route) {
+  try {
+    if (route === "discussion" && request.method === "GET") {
+      const { meta, identity } = await authorizeProject(
+        request,
+        url,
+        projectId,
+        "viewer",
+      );
+      const state = await loadDiscussion(projectId);
+      const page = listMessages(state, identity.clientId, {
+        after: url.searchParams.get("after") ?? undefined,
+        before: url.searchParams.get("before") ?? undefined,
+        limit: url.searchParams.get("limit") ?? undefined,
+      });
+      sendJson(response, request, 200, {
+        version: 1,
+        seq: state.seq,
+        ...page,
+        receipts: receiptsFor(state, identity.clientId),
+        members: permissionList(meta, identity.clientId),
+      });
+      return;
+    }
+    if (route === "discussion" && request.method === "POST") {
+      // Viewers read the files but still take part in the discussion.
+      const { meta, identity } = await authorizeProject(
+        request,
+        url,
+        projectId,
+        "viewer",
+      );
+      if (!allowBurst(discussionBursts, identity.clientId, now())) {
+        throw new HttpError(429, "You are sending messages too quickly.");
+      }
+      const state = await loadDiscussion(projectId);
+      const { message, created } = postMessage(state, {
+        identity,
+        members: discussionMembers(meta),
+        input: await readJsonBody(request),
+        now: now(),
+      });
+      if (created) {
+        await saveDiscussion(projectId, state);
+        broadcastDiscussion(projectId, state.seq, audienceFor(message));
+      }
+      sendJson(response, request, 200, { message, seq: state.seq });
+      return;
+    }
+    if (route === "discussion/receipts" && request.method === "POST") {
+      const { identity } = await authorizeProject(request, url, projectId, "viewer");
+      const state = await loadDiscussion(projectId);
+      if (advanceReceipt(state, identity.clientId, await readJsonBody(request))) {
+        await saveDiscussion(projectId, state);
+        broadcastDiscussion(projectId, state.seq, null);
+      }
+      sendJson(response, request, 200, { seq: state.seq });
+      return;
+    }
+  } catch (error) {
+    if (error instanceof DiscussionError) {
+      throw new HttpError(error.status, error.message, error.code);
+    }
+    throw error;
+  }
+  throw new HttpError(404, "Project route not found.");
 }
 
 function roomKey(projectId, relativePath) {

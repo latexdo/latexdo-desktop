@@ -82,6 +82,8 @@ chmod 750 "${DATA_DIR}"
 log "Installing application into ${APP_DIR}..."
 install -m 0644 "${SRC_DIR}/server.mjs"  "${APP_DIR}/server.mjs"
 install -m 0644 "${SRC_DIR}/security.mjs" "${APP_DIR}/security.mjs"
+install -m 0644 "${SRC_DIR}/discussion.mjs" "${APP_DIR}/discussion.mjs"
+install -m 0644 "${SRC_DIR}/reviewData.mjs" "${APP_DIR}/reviewData.mjs"
 install -m 0644 "${SRC_DIR}/package.json" "${APP_DIR}/package.json"
 ( cd "${APP_DIR}" && npm install --omit=dev --no-audit --no-fund )
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"

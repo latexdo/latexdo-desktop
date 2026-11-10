@@ -61,7 +61,7 @@ describe("ReviewSidebar", () => {
     fireEvent.click(screen.getByText(/Needs a clearer claim/i));
     expect(onJumpToSelection).toHaveBeenCalledWith(chat);
 
-    const textarea = screen.getByPlaceholderText(/write a review message/i);
+    const textarea = screen.getByPlaceholderText(/reply to this review/i);
     fireEvent.change(textarea, { target: { value: "Add a citation here." } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 

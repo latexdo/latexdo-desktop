@@ -75,7 +75,10 @@ describe("CollaborationDialog", () => {
 
     expect(screen.getByRole("dialog", { name: "Share Project" })).toBeVisible();
     expect(screen.getAllByText("Reviewer One")).toHaveLength(1);
-    expect(screen.getByText("main.tex")).toHaveAttribute("title", "reports/main.tex");
+    expect(screen.getByText("main.tex")).toHaveAttribute(
+      "title",
+      "Active now · in main.tex",
+    );
 
     fireEvent.click(screen.getAllByRole("button", { name: "Copy" })[0]);
     expect(props.onCopy).toHaveBeenCalledWith("share-token");

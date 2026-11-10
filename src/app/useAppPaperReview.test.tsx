@@ -6,7 +6,9 @@ import { defaultAiConfig } from "../features/ai/aiConfig";
 const configured = vi.hoisted(() => vi.fn(() => true));
 vi.mock("../components/AiSidebar", () => ({ isAiConfigured: configured }));
 function setup(overrides: Record<string, unknown> = {}) {
-  const sendPrompt = vi.fn(() => true);
+  const sendPrompt = vi.fn<
+    (prompt: string, label: string, onComplete?: (text: string) => void) => boolean
+  >(() => true);
   const ctx = {
     projectId: "p",
     projectName: "Research",
@@ -28,6 +30,8 @@ function setup(overrides: Record<string, unknown> = {}) {
     reviewChats: [],
     requireLegalAcceptance: vi.fn(() => false),
     setStatusMessage: vi.fn(),
+    setReviewChats: vi.fn(),
+    openSidebar: vi.fn(),
     openAiSettings: vi.fn(),
     openAiSidebarApi: vi.fn().mockResolvedValue({ sendPrompt }),
     ...overrides,
@@ -116,12 +120,31 @@ describe("paper review", () => {
       "Choose an AI provider to review the paper.",
     );
   });
+  it("adds completed AI reviews to the Reviews panel without leaving the chat, and ignores results from a previous project", async () => {
+    const h = setup();
+    await h.result.current.reviewPaperWithAi();
+    const complete = h.sendPrompt.mock.calls[0][2]!;
+    complete("The evaluation needs a baseline.");
+    const update = h.ctx.setReviewChats.mock.calls[0][0];
+    expect(update([])[0]).toMatchObject({
+      kind: "paper",
+      filePath: "main.tex",
+      comments: [{ author: "LatexDo AI", text: "The evaluation needs a baseline." }],
+    });
+    expect(h.ctx.openSidebar).not.toHaveBeenCalled();
+    h.ctx.setReviewChats.mockClear();
+    h.ctx.projectId = "other";
+    h.rerender();
+    complete("Late result");
+    expect(h.ctx.setReviewChats).not.toHaveBeenCalled();
+  });
   it("sends the review prompt and distinguishes busy from unavailable chat", async () => {
     const h = setup();
     await h.result.current.reviewPaperWithAi("methods");
     expect(h.sendPrompt).toHaveBeenCalledWith(
       expect.stringContaining("methods"),
       expect.any(String),
+      expect.any(Function),
     );
     expect(h.ctx.setStatusMessage).toHaveBeenLastCalledWith(
       "Reviewing the paper with AI…",

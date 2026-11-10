@@ -3,7 +3,6 @@ import { useFolderDrop } from "./app/useFolderDrop";
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
 import {
-  Check,
   ChevronDown,
   Download,
   FilePlus2,
@@ -26,14 +25,10 @@ import { ProfileDialog } from "./components/ProfileDialog";
 import { WhatsNewModal } from "./components/WhatsNewModal";
 import { UpdateRestartCountdown } from "./components/UpdateRestartCountdown";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { StatusbarModeMenu } from "./components/StatusbarModeMenu";
 import { TourOverlay } from "./features/onboarding/presentation/TourOverlay";
 import { editorActivationTour } from "./features/onboarding/tours/editorActivation";
-import {
-  StatusBarCursor,
-  formatRam,
-  statusbarEngineNames,
-  tierAvailabilityLabel,
-} from "./app/appShared";
+import { StatusBarCursor, formatRam, statusbarEngineNames } from "./app/appShared";
 import "./features/editor/nextEdit/nextEdit.css";
 import { useAppWorkspaceState } from "./app/useAppWorkspaceState";
 import { useAppPanelAndGitState } from "./app/useAppPanelAndGitState";
@@ -61,6 +56,8 @@ import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
 import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { useAppDiscussion } from "./app/useAppDiscussion";
+import { DiscussionNotices, DiscussionPanel } from "./components/DiscussionPanel";
 import { SettingsShell } from "./components/SettingsShell";
 import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
 import {
@@ -129,7 +126,8 @@ export default function App() {
   const s19 = { ...s18, ...useAppPaperReview(s18) };
   const s20 = { ...s19, ...useAppViewLayout(s19) };
   const s21 = { ...s20, ...useAppMenuCommands(s20) };
-  const ctx = s21;
+  const s22 = { ...s21, ...useAppDiscussion(s21) };
+  const ctx = s22;
   const folderDrop = useFolderDrop(ctx);
   const {
     openInstalledExtension,
@@ -153,7 +151,6 @@ export default function App() {
     closeWhatsNewDialog,
     completeAiSetup,
     createDialog,
-    downloadLatexDoAiModel,
     engine,
     enterpriseState,
     exportEnterpriseReport,
@@ -208,12 +205,6 @@ export default function App() {
     revealActivationStep,
     reviewChats,
     selectedImportedCompatibility,
-    selectedLatexDoAiDownloadLabel,
-    selectedLatexDoAiModelDownloading,
-    selectedLatexDoAiTier,
-    selectedLatexDoAiTierAvailability,
-    selectedLatexDoAiTierCanRun,
-    selectedLatexDoAiTierDownloaded,
     setAiAccess,
     setAiConfig,
     setDismissedUpdateVersion,
@@ -373,7 +364,11 @@ export default function App() {
                       ? "Explorer"
                       : activeSidebar === "enterprise"
                         ? "Enterprise"
-                        : "Extensions"}
+                        : activeSidebar === "reviews"
+                          ? "Reviews"
+                          : activeSidebar === "discussion"
+                            ? "Discussion"
+                            : "Extensions"}
                   </span>
                   <div>
                     {activeSidebar === "enterprise" ? (
@@ -512,6 +507,21 @@ export default function App() {
                 />
               ) : activeSidebar === "sourceControl" ? (
                 renderSidebarPanel(ctx)
+              ) : activeSidebar === "reviews" ? (
+                <ReviewSidebar
+                  chats={reviewChats}
+                  onAddChat={handleAddReviewChat}
+                  onAddComment={handleAddReviewComment}
+                  onDeleteChat={(id) => void handleDeleteReviewChat(id)}
+                  onJumpToSelection={handleJumpToReviewSelection}
+                  onInsertIntoTex={(chat) => void handleInsertReviewChatIntoTex(chat)}
+                />
+              ) : activeSidebar === "discussion" ? (
+                <DiscussionPanel
+                  discussion={ctx.discussion}
+                  onOpenLink={openExternalLink}
+                  onOpenShare={ctx.openShareDialog}
+                />
               ) : null}
             </aside>
           )
@@ -534,6 +544,8 @@ export default function App() {
       </div>
 
       {updateBannerVisible && availableUpdateVersion ? renderUpdateBanner(ctx) : null}
+
+      <DiscussionNotices discussion={ctx.discussion} />
 
       <footer
         className="statusbar"
@@ -580,13 +592,7 @@ export default function App() {
                       : `Paused${readAloud.page ? ` · p. ${readAloud.page}` : ""}`}
             </button>
           ) : null}
-          <span className="statusbar-item">
-            {mode === "author"
-              ? "Author mode"
-              : mode === "reviewer"
-                ? "Reviewer mode"
-                : "Rebuttal mode"}
-          </span>
+          <StatusbarModeMenu mode={mode} onSelect={ctx.setMode} />
           {ctx.documentWordCounts && activeTextDocument && !showWelcome ? (
             <button
               type="button"
@@ -670,62 +676,6 @@ export default function App() {
                       <strong>Model</strong>
                     </div>
                     {renderAiSelectionCard(ctx)}
-
-                    {activeAiSelectionValue !== "customize" && selectedLatexDoAiTier ? (
-                      <div className="ai-tier-settings-card">
-                        <div className="ai-tier-settings-head">
-                          <div>
-                            <strong>{selectedLatexDoAiTier.name}</strong>
-                            <span>{selectedLatexDoAiTier.description}</span>
-                          </div>
-                          {selectedLatexDoAiTierDownloaded &&
-                          selectedLatexDoAiTierCanRun ? (
-                            <span className="ai-model-status ready">
-                              <Check size={13} /> Installed
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="settings-hint compact">
-                          {tierAvailabilityLabel(selectedLatexDoAiTierAvailability)}
-                        </p>
-                        <div className="ai-tier-actions">
-                          {selectedLatexDoAiTierAvailability.state ===
-                            "memory-pressure" ||
-                          selectedLatexDoAiTierAvailability.state ===
-                            "storage-pressure" ? (
-                            <button
-                              type="button"
-                              className="ai-wizard-ghost"
-                              onClick={() => void refreshAiSystemCapabilities()}
-                            >
-                              <RefreshCw size={13} /> Check again
-                            </button>
-                          ) : null}
-                          {selectedLatexDoAiTierCanRun &&
-                          !selectedLatexDoAiTierDownloaded ? (
-                            <button
-                              type="button"
-                              className="ai-model-action"
-                              onClick={() =>
-                                void downloadLatexDoAiModel(selectedLatexDoAiTier)
-                              }
-                              disabled={selectedLatexDoAiModelDownloading}
-                            >
-                              {selectedLatexDoAiModelDownloading ? (
-                                <>
-                                  <LoaderCircle size={13} className="spin" />{" "}
-                                  {selectedLatexDoAiDownloadLabel || "Download"}
-                                </>
-                              ) : (
-                                <>
-                                  <Download size={13} /> Download
-                                </>
-                              )}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
 
                     {activeAiSelectionValue === "customize"
                       ? renderAiCustomizePanel(ctx)

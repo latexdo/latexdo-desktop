@@ -1,3 +1,5 @@
+import { isReviewDataPath } from "../collaborations/reviewData.mjs";
+import { readReviewDocument, writeReviewDocument } from "./reviewDocument.js";
 /*
  * End-to-end encryption between this app and LatexDo's always-on server.
  *
@@ -9,6 +11,7 @@
  * - text files: a log of encrypted Yjs updates, merged here;
  * - binary files: one encrypted blob each;
  * - live edits and cursors: encrypted before they leave this computer;
+ * - discussion messages (text and mentions);
  * - the project's name and people's names.
  *
  * File paths stay readable to the server (it manages the tree) and so do the
@@ -64,6 +67,7 @@ const messageAwareness = 1;
 const messageProjectPresence = 4;
 const messageProjectChanged = 5;
 const messageJoinRequests = 6;
+const messageDiscussion = 7;
 const messageUpdate = 10;
 const messageLog = 11;
 const messageCursor = 12;
@@ -106,6 +110,18 @@ function bytesFromBase64(value: string): Uint8Array {
 function base64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
 }
+
+/** What a sealed discussion message carries, bound to where it belongs. */
+interface SealedMessage {
+  v: 1;
+  id: string;
+  from: string;
+  to: string | null;
+  body: string;
+  mentions: string[];
+}
+
+const undecryptableMessage = "This message could not be decrypted.";
 
 class KeyMissingError extends Error {
   constructor() {
@@ -190,6 +206,47 @@ export class CloudE2ee {
           : await this.openNames(item, ownKey);
     }
     return out;
+  }
+
+  /**
+   * Opens one discussion message. A body sealed for another message, sender
+   * or conversation (moved by the server) is refused like a damaged one.
+   */
+  private async openMessage(
+    key: string,
+    projectId: string,
+    value: unknown,
+  ): Promise<unknown> {
+    if (!value || typeof value !== "object") return value;
+    const message = (await this.openNames(value, key)) as Record<string, unknown>;
+    try {
+      const sealed = JSON.parse(
+        await decryptString(key, projectId, "message", String(message.body)),
+      ) as Partial<SealedMessage>;
+      if (
+        sealed.v !== 1 ||
+        sealed.id !== message.id ||
+        sealed.from !== message.from ||
+        (sealed.to ?? null) !== (message.to ?? null) ||
+        typeof sealed.body !== "string"
+      ) {
+        throw new Error("Message does not belong here.");
+      }
+      return {
+        ...message,
+        body: sealed.body,
+        mentions: Array.isArray(sealed.mentions)
+          ? sealed.mentions.filter((item) => typeof item === "string")
+          : [],
+      };
+    } catch {
+      return {
+        ...message,
+        body: undecryptableMessage,
+        mentions: [],
+        undecryptable: true,
+      };
+    }
   }
 
   private async withSealedName(
@@ -305,7 +362,11 @@ export class CloudE2ee {
       const live = this.liveSession(projectId, filePath);
       if (method === "GET") {
         if (live)
-          return reply(200, { content: live.doc.getText("content").toString() });
+          return reply(200, {
+            content: isReviewDataPath(filePath)
+              ? readReviewDocument(live.doc)
+              : live.doc.getText("content").toString(),
+          });
         const log = await send(
           `${projectBase}/files/log?${params}`,
           "GET",
@@ -318,7 +379,11 @@ export class CloudE2ee {
           projectId,
           (JSON.parse(log.text) as { entries: string[] }).entries,
         );
-        return reply(200, { content: doc.getText("content").toString() });
+        return reply(200, {
+          content: isReviewDataPath(filePath)
+            ? readReviewDocument(doc)
+            : doc.getText("content").toString(),
+        });
       }
       if (method === "PUT") {
         const content = (JSON.parse(body ?? "{}") as { content?: unknown }).content;
@@ -326,6 +391,7 @@ export class CloudE2ee {
           return reply(400, { error: "File content must be a string." });
         }
         const replace = (doc: Y.Doc) => {
+          if (isReviewDataPath(filePath)) return writeReviewDocument(doc, content);
           const text = doc.getText("content");
           if (text.toString() === content) return;
           doc.transact(() => {
@@ -418,6 +484,65 @@ export class CloudE2ee {
       }
     }
 
+    if (pathname === `${projectBase}/discussion`) {
+      if (method === "POST") {
+        const input = JSON.parse(body ?? "{}") as Record<string, unknown>;
+        const to = typeof input.to === "string" ? input.to : null;
+        const sealed: SealedMessage = {
+          v: 1,
+          id: String(input.id ?? ""),
+          from: headers["x-latexdo-client"] ?? "",
+          to,
+          body: typeof input.body === "string" ? input.body : "",
+          mentions: Array.isArray(input.mentions)
+            ? input.mentions.filter((item): item is string => typeof item === "string")
+            : [],
+        };
+        if (!sealed.body.trim()) {
+          return reply(400, { error: "A message cannot be empty." });
+        }
+        const response = await send(
+          path,
+          method,
+          sealedHeaders,
+          JSON.stringify({
+            id: input.id,
+            to,
+            replyTo: input.replyTo ?? null,
+            // Mentions travel inside the sealed body: the server never learns them.
+            mentions: [],
+            body: await encryptString(
+              key,
+              projectId,
+              "message",
+              JSON.stringify(sealed),
+            ),
+          }),
+        );
+        if (response.status !== 200) return response;
+        const result = JSON.parse(response.text) as { message?: unknown };
+        return reply(200, {
+          ...((await this.openNames(result, key)) as Record<string, unknown>),
+          message: await this.openMessage(key, projectId, result.message),
+        });
+      }
+      if (method === "GET") {
+        const response = await send(path, method, sealedHeaders);
+        if (response.status !== 200) return response;
+        const page = (await this.openNames(JSON.parse(response.text), key)) as {
+          messages?: unknown[];
+        };
+        return reply(200, {
+          ...page,
+          messages: await Promise.all(
+            (page.messages ?? []).map((message) =>
+              this.openMessage(key, projectId, message),
+            ),
+          ),
+        });
+      }
+    }
+
     if (pathname?.endsWith("/files/bundle") && method === "GET") {
       const response = await send(path, method, sealedHeaders);
       if (response.status !== 200) return response;
@@ -433,7 +558,9 @@ export class CloudE2ee {
             live?.doc ?? (await this.docFromEntries(key, projectId, file.entries));
           files.push({
             relativePath: file.relativePath,
-            content: doc.getText("content").toString(),
+            content: isReviewDataPath(file.relativePath)
+              ? readReviewDocument(doc)
+              : doc.getText("content").toString(),
           });
         } else if (typeof file.base64 === "string") {
           try {
@@ -649,7 +776,9 @@ export class CloudE2ee {
         }
         return;
       }
-      if (type === messageProjectChanged) sendToEditor(data);
+      if (type === messageProjectChanged || type === messageDiscussion) {
+        sendToEditor(data);
+      }
     };
 
     const shutdown = (code: number, reason: string) => {

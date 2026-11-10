@@ -643,7 +643,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
       const next = [...prev, newChat];
       return next;
     });
-    setStatusMessage("Started review conversation in sidebar.");
+    ctx.openSidebar("reviews");
+    setStatusMessage("Started a review thread. Add your comment in Reviews.");
   }, []);
 
   const handleAddRebuttalToSource = useCallback(() => {
@@ -803,6 +804,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
 
   const handleAddReviewComment = useCallback(
     (chatId: string, text: string) => {
+      text = text.trim();
+      if (!text) return;
       setReviewChats((prev) => {
         const next = prev.map((chat) => {
           if (chat.id === chatId) {
@@ -812,7 +815,9 @@ export function useAppReviewActions(ctx: AppCtx13) {
                 ...chat.comments,
                 {
                   id: createReviewId(),
-                  author: mode === "reviewer" ? "Reviewer" : "Author",
+                  author:
+                    ctx.collaborationDisplayName?.trim() ||
+                    (mode === "reviewer" ? "Reviewer" : "Author"),
                   text,
                   timestamp: Date.now(),
                 },
@@ -824,7 +829,7 @@ export function useAppReviewActions(ctx: AppCtx13) {
         return next;
       });
     },
-    [mode],
+    [mode, ctx.collaborationDisplayName],
   );
 
   const removeReviewChatFromTex = useCallback(

@@ -7,9 +7,65 @@ import {
 } from "../features/notifications/notifications";
 import { NotificationCenter } from "./NotificationCenter";
 
-beforeEach(() => clearNotifications());
+beforeEach(() => {
+  clearNotifications();
+  localStorage.removeItem("latexdo.notificationMode");
+});
 
 describe("NotificationCenter", () => {
+  it.each([
+    ["do-not-disturb", false, false, false],
+    ["writing", true, false, true],
+    ["reviewing", true, true, true],
+    ["reading", false, false, true],
+  ] as const)(
+    "applies %s mode and retains history",
+    (mode, errorToast, warningToast, badge) => {
+      render(<NotificationCenter />);
+      fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+      fireEvent.change(screen.getByLabelText("Mode"), { target: { value: mode } });
+      fireEvent.click(screen.getByRole("button", { name: "Close notifications" }));
+      act(() => {
+        notify("Compile failed", { severity: "error" });
+        notify("Missing citation", { severity: "warning" });
+      });
+      expect(Boolean(screen.queryByText("Compile failed"))).toBe(errorToast);
+      expect(Boolean(screen.queryByText("Missing citation"))).toBe(warningToast);
+      expect(
+        screen.getByRole("button", {
+          name: badge ? "Notifications, 2 unread" : "Notifications",
+        }),
+      ).toBeVisible();
+      expect(getNotifications()).toHaveLength(2);
+      expect(localStorage.getItem("latexdo.notificationMode")).toBe(mode);
+      fireEvent.click(screen.getByRole("button", { name: /^Notifications/ }));
+      expect(screen.getByText("Compile failed")).toBeVisible();
+      expect(screen.getByText("Missing citation")).toBeVisible();
+    },
+  );
+
+  it("restores the mode without replaying suppressed notifications when changed", () => {
+    localStorage.setItem("latexdo.notificationMode", "do-not-disturb");
+    const view = render(<NotificationCenter />);
+    act(() => {
+      notify("Compile failed");
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    expect(screen.getByLabelText("Mode")).toHaveValue("do-not-disturb");
+    fireEvent.change(screen.getByLabelText("Mode"), { target: { value: "writing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close notifications" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    act(() => {
+      notify("New error");
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("New error");
+    view.unmount();
+    render(<NotificationCenter />);
+    fireEvent.click(screen.getByRole("button", { name: /^Notifications/ }));
+    expect(screen.getByLabelText("Mode")).toHaveValue("writing");
+  });
+
   it("toasts errors, counts them on the bell and lists everything", () => {
     render(<NotificationCenter />);
     act(() => {

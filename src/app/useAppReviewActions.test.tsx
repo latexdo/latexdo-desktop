@@ -54,6 +54,7 @@ function setup(overrides = {}) {
       "refreshProject",
       "revealPendingSource",
       "saveReviewData",
+      "openSidebar",
     ],
   );
   return {
@@ -105,6 +106,7 @@ describe("review conversations", () => {
       selection: { text: "Fir" },
       comments: [],
     });
+    expect(h.ctx.openSidebar).toHaveBeenCalledWith("reviews");
     const id = h.state.reviewChats[0].id;
     h.result.current.handleAddReviewComment(id, "Check");
     expect(h.state.reviewChats[0].comments[0]).toMatchObject({

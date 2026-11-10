@@ -99,7 +99,9 @@ export type SidebarView =
   | "sourceControl"
   | "extensions"
   | "ai"
-  | "enterprise";
+  | "enterprise"
+  | "discussion"
+  | "reviews";
 
 export interface ActivationWorkspaceSnapshot {
   sidebarVisible: boolean;

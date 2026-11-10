@@ -384,10 +384,35 @@ describe("LatexDoWebsocketProvider", () => {
             lastSeen: 1_723_000_000_000,
             role: "editor",
           },
+          {
+            clientId: "client-2",
+            name: "Bo",
+            currentFile: null,
+            lastSeen: 1_723_000_000_000,
+            role: "viewer",
+            active: false,
+          },
+        ],
+      }),
+    );
+    // A malformed flag rejects the snapshot.
+    socket.receive(
+      presenceFrame({
+        version: 1,
+        users: [
+          {
+            clientId: "client-3",
+            name: "Cy",
+            currentFile: null,
+            lastSeen: 1,
+            role: "viewer",
+            active: "yes",
+          },
         ],
       }),
     );
 
+    expect(onPresenceChange).toHaveBeenCalledTimes(1);
     expect(onPresenceChange).toHaveBeenCalledWith([
       {
         clientId: "client-1",
@@ -395,6 +420,14 @@ describe("LatexDoWebsocketProvider", () => {
         currentFile: "main.tex",
         lastSeen: 1_723_000_000_000,
         role: "editor",
+      },
+      {
+        clientId: "client-2",
+        name: "Bo",
+        currentFile: null,
+        lastSeen: 1_723_000_000_000,
+        role: "viewer",
+        active: false,
       },
     ]);
 
@@ -434,6 +467,38 @@ describe("LatexDoWebsocketProvider", () => {
     expect(onJoinRequests).toHaveBeenCalledWith([
       { clientId: "web-1", name: "Ada", requestedAt: 1_723_000_000_000 },
     ]);
+
+    provider.destroy();
+    awareness.destroy();
+    doc.destroy();
+  });
+
+  it("signals discussion changes and ignores malformed signals", () => {
+    const onDiscussionChanged = vi.fn();
+    const doc = new Y.Doc();
+    const awareness = new Awareness(doc);
+    const provider = new LatexDoWebsocketProvider({
+      url: "wss://collab.example.org/socket",
+      doc,
+      awareness,
+      onDiscussionChanged,
+    });
+    const socket = FakeWebSocket.instances[0];
+    const frame = (text: string) => {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, 7);
+      encoding.writeVarString(encoder, text);
+      return encoding.toUint8Array(encoder).buffer as ArrayBuffer;
+    };
+
+    socket.receive(frame(JSON.stringify({ version: 1, seq: 4 })));
+    socket.receive(frame(JSON.stringify({ version: 1, seq: -1 })));
+    socket.receive(frame(JSON.stringify({ version: 1, seq: "4" })));
+    socket.receive(frame("{not json"));
+    socket.receive(frame(JSON.stringify({ seq: 1, pad: "x".repeat(130 * 1024) })));
+
+    expect(onDiscussionChanged).toHaveBeenCalledTimes(1);
+    expect(onDiscussionChanged).toHaveBeenCalledWith(4);
 
     provider.destroy();
     awareness.destroy();

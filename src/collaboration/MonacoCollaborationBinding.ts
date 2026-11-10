@@ -28,6 +28,7 @@ export interface MonacoCollaborationBindingOptions extends CollaborationRoomOpti
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
   onProjectChanged?: (revision: number) => void;
   onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
+  onDiscussionChanged?: (seq: number) => void;
 }
 
 export class MonacoCollaborationBinding {
@@ -64,6 +65,9 @@ export class MonacoCollaborationBinding {
       },
       onJoinRequests: (pending) => {
         if (!this.disposed) options.onJoinRequests?.(pending);
+      },
+      onDiscussionChanged: (seq) => {
+        if (!this.disposed) options.onDiscussionChanged?.(seq);
       },
     });
   }

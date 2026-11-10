@@ -124,6 +124,36 @@ afterAll(async () => {
 });
 
 describe("real collaboration HTTP service", () => {
+  it("keeps concurrent review replies and explicit thread deletions", async () => {
+    const { id } = await create();
+    const route = `/api/projects/${id}/files/content?path=.latexdo%2Freview_data.json`;
+    const chat = { id: "thread", comments: [] };
+    const writes = await Promise.all(
+      ["a", "b"].map((id) =>
+        request(route, owner, "PUT", {
+          content: JSON.stringify({
+            chats: [{ ...chat, comments: [{ id, timestamp: 1, text: id }] }],
+            items: [],
+          }),
+        }),
+      ),
+    );
+    expect(writes.map((r) => r.status)).toEqual([204, 204]);
+    const read = async () => JSON.parse((await (await request(route)).json()).content);
+    expect((await read()).chats[0].comments.map((c) => c.id)).toEqual(["a", "b"]);
+    expect(
+      (
+        await request(route, owner, "PUT", {
+          content: JSON.stringify({ chats: [], items: [], deletedChatIds: ["thread"] }),
+        })
+      ).status,
+    ).toBe(204);
+    await request(route, owner, "PUT", {
+      content: JSON.stringify({ chats: [chat], items: [] }),
+    });
+    expect((await read()).chats).toEqual([]);
+  });
+
   it("serves health, CORS preflight and explicit unavailable routes", async () => {
     expect(await (await request("/api/health", null)).json()).toMatchObject({
       ok: true,
@@ -327,8 +357,25 @@ describe("real collaboration HTTP service", () => {
       await request(base + "/presence", guest, "POST", { currentFile: "main.tex" })
     ).json();
     expect(presence.users).toEqual(
-      expect.arrayContaining([expect.objectContaining({ clientId: guest.client })]),
+      expect.arrayContaining([
+        expect.objectContaining({ clientId: guest.client, active: true }),
+      ]),
     );
+    // LatexDo in the background: still here, but away. Left out, it is kept.
+    const away = async (body) =>
+      (
+        await (await request(base + "/presence", guest, "POST", body)).json()
+      ).users.find((user) => user.clientId === guest.client);
+    expect(await away({ currentFile: "main.tex", active: false })).toMatchObject({
+      active: false,
+    });
+    expect(await away({ currentFile: null })).toMatchObject({ active: false });
+    expect(await away({ currentFile: null, active: true })).toMatchObject({
+      active: true,
+    });
+    expect(
+      (await request(base + "/presence", guest, "POST", { active: "no" })).status,
+    ).toBe(400);
     expect((await (await request(base + "/permissions")).json()).isAdmin).toBe(true);
     expect(
       (
@@ -756,5 +803,220 @@ describe("live collaboration room lifecycle", () => {
     expect((await closed).code).toBe(1008);
     expect(own.readyState).toBe(WebSocket.OPEN);
     own.close();
+  });
+});
+
+describe("project discussion", () => {
+  const third = { session: "third-private-session", client: "third-public-id" };
+  const outsider = {
+    session: "outsider-private-session",
+    client: "outsider-public-id",
+  };
+
+  async function sharedWithGuests() {
+    const project = await shared();
+    await approveGuest(project.token, guest);
+    await approveGuest(project.token, third);
+    return project;
+  }
+
+  async function post(id, identity, body) {
+    return request(`/api/projects/${id}/discussion`, identity, "POST", body);
+  }
+
+  async function page(id, identity, query = "") {
+    const response = await request(`/api/projects/${id}/discussion${query}`, identity);
+    expect(response.status).toBe(200);
+    return response.json();
+  }
+
+  it("shares group messages with every member and private ones only with the pair", async () => {
+    const { id } = await sharedWithGuests();
+    const group = await post(id, owner, {
+      id: "msg-group-001",
+      body: "Hello everyone @Ada",
+      mentions: [guest.client, "someone-who-left"],
+    });
+    expect(group.status).toBe(200);
+    const sent = (await group.json()).message;
+    expect(sent).toMatchObject({
+      seq: 1,
+      from: owner.client,
+      to: null,
+      mentions: [guest.client],
+      replyTo: null,
+    });
+    expect(sent.recipients.sort()).toEqual([guest.client, third.client].sort());
+
+    const secret = await post(id, owner, {
+      id: "msg-private-1",
+      to: guest.client,
+      body: "Just for you",
+      replyTo: "msg-group-001",
+    });
+    // A reply must stay in its conversation: a group message cannot be quoted here.
+    expect((await secret.json()).message).toMatchObject({
+      to: guest.client,
+      recipients: [guest.client],
+      replyTo: null,
+    });
+
+    const forGuest = await page(id, guest);
+    expect(forGuest.messages.map((message) => message.id)).toEqual([
+      "msg-group-001",
+      "msg-private-1",
+    ]);
+    expect(forGuest.members.map((member) => member.clientId).sort()).toEqual(
+      [owner.client, guest.client, third.client].sort(),
+    );
+    const forThird = await page(id, third);
+    expect(forThird.messages.map((message) => message.id)).toEqual(["msg-group-001"]);
+    expect(forThird.seq).toBe(2);
+
+    // Only newer messages, and older ones page by page.
+    expect((await page(id, guest, "?after=1")).messages.map((m) => m.id)).toEqual([
+      "msg-private-1",
+    ]);
+    const older = await page(id, guest, "?before=2&limit=1");
+    expect(older.messages.map((m) => m.id)).toEqual(["msg-group-001"]);
+    expect(older.hasMore).toBe(false);
+
+    expect((await request(`/api/projects/${id}/discussion`, outsider)).status).toBe(
+      403,
+    );
+  });
+
+  it("moves receipts forward and shows private read receipts only to the pair", async () => {
+    const { id } = await sharedWithGuests();
+    await post(id, owner, { id: "msg-receipt-1", body: "Group" });
+    await post(id, owner, { id: "msg-receipt-2", to: guest.client, body: "Private" });
+    const receipts = (identity, body) =>
+      request(`/api/projects/${id}/discussion/receipts`, identity, "POST", body);
+
+    expect((await receipts(guest, { delivered: 99 })).status).toBe(200);
+    expect(
+      (await receipts(guest, { read: { conversation: "*", seq: 1 } })).status,
+    ).toBe(200);
+    expect(
+      (await receipts(guest, { read: { conversation: owner.client, seq: 2 } })).status,
+    ).toBe(200);
+    // Watermarks never go back.
+    await receipts(guest, { delivered: 0 });
+
+    const seenByOwner = (await page(id, owner)).receipts;
+    expect(seenByOwner[guest.client]).toEqual({
+      delivered: 2,
+      read: { "*": 1, [owner.client]: 2 },
+    });
+    // The sender has read their own conversations.
+    expect(seenByOwner[owner.client].read).toEqual({ "*": 1, [guest.client]: 2 });
+    // Someone outside the private conversation does not learn about it.
+    const seenByThird = (await page(id, third)).receipts;
+    expect(seenByThird[guest.client]).toEqual({ delivered: 2, read: { "*": 1 } });
+    expect(seenByThird[owner.client].read).toEqual({ "*": 1 });
+
+    expect((await receipts(guest, { delivered: -1 })).status).toBe(400);
+    expect((await receipts(guest, { read: { conversation: "", seq: 1 } })).status).toBe(
+      400,
+    );
+  });
+
+  it("validates messages, accepts retries once and lets viewers take part", async () => {
+    const { id, token } = await sharedWithGuests();
+    expect((await post(id, guest, { id: "x", body: "Hi" })).status).toBe(400);
+    expect((await post(id, guest, { id: "msg-empty-1", body: "   " })).status).toBe(
+      400,
+    );
+    expect(
+      (await post(id, guest, { id: "msg-long-01", body: "a".repeat(4001) })).status,
+    ).toBe(413);
+    expect(
+      (await post(id, guest, { id: "msg-self-01", to: guest.client, body: "Me" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await post(id, guest, { id: "msg-ghost-1", to: "nobody", body: "Hi" })).status,
+    ).toBe(404);
+    expect(
+      (await post(id, guest, { id: "msg-ment-01", body: "Hi", mentions: "Ada" }))
+        .status,
+    ).toBe(400);
+
+    const first = await (
+      await post(id, guest, { id: "msg-retry-1", body: "Once" })
+    ).json();
+    const again = await (
+      await post(id, guest, { id: "msg-retry-1", body: "Once" })
+    ).json();
+    expect(again.message).toEqual(first.message);
+    // Someone else cannot reuse (or overwrite) that message.
+    expect((await post(id, third, { id: "msg-retry-1", body: "Mine" })).status).toBe(
+      409,
+    );
+    expect((await page(id, owner)).messages).toHaveLength(1);
+
+    await request(`/api/shares/${token}/permissions`, owner, "PUT", {
+      clientId: third.client,
+      role: "viewer",
+    });
+    expect(
+      (await post(id, third, { id: "msg-viewer1", body: "Viewers talk too" })).status,
+    ).toBe(200);
+    const replied = await (
+      await post(id, owner, { id: "msg-reply-01", body: "Yes", replyTo: "msg-viewer1" })
+    ).json();
+    expect(replied.message.replyTo).toBe("msg-viewer1");
+
+    // The discussion survives a restart of its cache (it is on disk).
+    const saved = JSON.parse(
+      await readFile(path.join(directory, "projects", id, "discussion.json"), "utf8"),
+    );
+    expect(saved.messages.map((message) => message.id)).toEqual([
+      "msg-retry-1",
+      "msg-viewer1",
+      "msg-reply-01",
+    ]);
+  });
+
+  it("signals the people concerned over their live connection", async () => {
+    const { id } = await sharedWithGuests();
+    await request(`/api/projects/${id}/files/content?path=main.tex`, owner, "PUT", {
+      content: "",
+    });
+    const listen = async (identity) => {
+      const url = new URL(`/api/projects/${id}/files/collaborate`, origin);
+      url.protocol = "ws:";
+      url.search = new URLSearchParams({
+        session: identity.session,
+        clientId: identity.client,
+        path: "main.tex",
+      }).toString();
+      const socket = new WebSocket(url);
+      socket.binaryType = "arraybuffer";
+      sockets.add(socket);
+      const signals = [];
+      socket.addEventListener("message", (event) => {
+        const decoder = decoding.createDecoder(new Uint8Array(event.data));
+        if (decoding.readVarUint(decoder) !== 7) return;
+        signals.push(JSON.parse(decoding.readVarString(decoder)).seq);
+      });
+      await new Promise((resolve, reject) => {
+        socket.addEventListener("open", resolve, { once: true });
+        socket.addEventListener("error", reject, { once: true });
+      });
+      return { socket, signals };
+    };
+    const forGuest = await listen(guest);
+    const forThird = await listen(third);
+    await post(id, owner, { id: "msg-live-001", to: guest.client, body: "Psst" });
+    await vi.waitFor(() => expect(forGuest.signals).toEqual([1]));
+    await post(id, owner, { id: "msg-live-002", body: "All" });
+    await vi.waitFor(() => expect(forThird.signals).toEqual([2]));
+    // The private message was never announced to the third person.
+    expect(forThird.signals).toEqual([2]);
+    for (const { socket } of [forGuest, forThird]) {
+      socket.close();
+      sockets.delete(socket);
+    }
   });
 });

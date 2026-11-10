@@ -512,10 +512,7 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
   return (
     <div className="kg-view">
       <header className="kg-header">
-        <div>
-          <h2>Research library</h2>
-          <p>Explore connections. Find your next reference.</p>
-        </div>
+        <h2>Research library</h2>
         <div className="kg-view-switch" role="group" aria-label="Library view">
           <button
             type="button"

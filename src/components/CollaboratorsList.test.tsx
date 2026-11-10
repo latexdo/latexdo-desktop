@@ -19,7 +19,7 @@ describe("CollaboratorsList", () => {
             lastSeen: 0,
             role: "admin",
           },
-          { clientId: "2", name: "bob", currentFile: null, lastSeen: 0 },
+          { clientId: "2", name: "bob", currentFile: null, lastSeen: 0, active: false },
           {
             clientId: "3",
             name: "cy",
@@ -33,9 +33,17 @@ describe("CollaboratorsList", () => {
     const items = container.querySelectorAll("li");
     expect(items).toHaveLength(3);
     expect(items[0].querySelector(".collaborator-avatar")?.textContent).toBe("A");
-    expect(screen.getByTitle("chapters/intro.tex").textContent).toBe("intro.tex");
+    // Active people show their file next to a green dot; away people say so.
+    expect(items[0]).toHaveAttribute("data-presence", "active");
+    expect(items[0].querySelector(".collaborator-presence")?.textContent).toBe(
+      "intro.tex",
+    );
     expect(screen.getByTitle("admin").querySelector("svg")).not.toBeNull();
-    expect(items[1].querySelector("small")).toBeNull();
+    expect(items[1]).toHaveAttribute("data-presence", "away");
+    expect(items[1].querySelector(".collaborator-presence")?.textContent).toBe("Away");
+    expect(items[1].querySelector(".presence-dot")?.getAttribute("data-presence")).toBe(
+      "away",
+    );
     expect(items[1].querySelector(".collaborator-role")).toBeNull();
     // An unknown role still shows a generic icon.
     expect(screen.getByTitle("owner").querySelector("svg")).not.toBeNull();
