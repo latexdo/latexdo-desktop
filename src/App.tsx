@@ -26,6 +26,7 @@ import { ProfileDialog } from "./components/ProfileDialog";
 import { WhatsNewModal } from "./components/WhatsNewModal";
 import { UpdateRestartCountdown } from "./components/UpdateRestartCountdown";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { StatusbarModeMenu } from "./components/StatusbarModeMenu";
 import { TourOverlay } from "./features/onboarding/presentation/TourOverlay";
 import { editorActivationTour } from "./features/onboarding/tours/editorActivation";
 import {
@@ -593,13 +594,7 @@ export default function App() {
                       : `Paused${readAloud.page ? ` · p. ${readAloud.page}` : ""}`}
             </button>
           ) : null}
-          <span className="statusbar-item">
-            {mode === "author"
-              ? "Author mode"
-              : mode === "reviewer"
-                ? "Reviewer mode"
-                : "Rebuttal mode"}
-          </span>
+          <StatusbarModeMenu mode={mode} onSelect={ctx.setMode} />
           {ctx.documentWordCounts && activeTextDocument && !showWelcome ? (
             <button
               type="button"

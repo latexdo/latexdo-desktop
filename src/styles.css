@@ -33468,3 +33468,53 @@ body.pane-resizing-row .preview-pane > * {
   padding: 0;
   background: transparent;
 }
+
+/* ===== Mode menu in the status bar =====
+   The status bar clips what overflows it, so the menu is fixed to the window,
+   just above its button. It undoes the status bar's own button styles. */
+.statusbar-mode-menu {
+  display: flex;
+}
+
+.statusbar-mode-button .statusbar-mode-chevron {
+  opacity: 0.75;
+  transition: transform var(--motion-fast, 120ms) var(--ease-out, ease);
+}
+
+.statusbar-mode-button[aria-expanded="true"] .statusbar-mode-chevron {
+  transform: rotate(180deg);
+}
+
+.statusbar .statusbar-mode-popup {
+  position: fixed;
+  top: auto;
+  right: auto;
+  min-width: 250px;
+  font-size: 12px;
+  user-select: none;
+  white-space: normal;
+}
+
+.statusbar .statusbar-mode-popup button {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+}
+
+.statusbar .statusbar-mode-popup button:hover,
+.statusbar .statusbar-mode-popup button:focus-visible {
+  outline: 0;
+  background: var(--bg-row-active);
+  color: var(--text-primary);
+}
+
+.statusbar-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.statusbar-mode-text small {
+  color: var(--text-muted);
+  font-size: 11px;
+}

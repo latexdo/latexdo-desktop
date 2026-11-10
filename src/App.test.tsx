@@ -3933,6 +3933,26 @@ describe("App critical UI controls", () => {
     expect(screen.queryByText("No repository")).not.toBeInTheDocument();
   });
 
+  it("changes the mode from the status bar and the toolbar follows", async () => {
+    installLatexDoMock();
+    render(<App />);
+    await openProjectFromWelcome();
+    const toolbarButton = (title: string) =>
+      document.querySelector<HTMLButtonElement>(`.mode-button-mini[title="${title}"]`)!;
+    expect(toolbarButton("Author Mode")).toHaveClass("active");
+
+    fireEvent.click(screen.getByRole("button", { name: "Author mode — change mode" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Rebuttal/ }));
+    expect(toolbarButton("Rebuttal Mode")).toHaveClass("active");
+    expect(toolbarButton("Author Mode")).not.toHaveClass("active");
+
+    // And the other way round.
+    fireEvent.click(toolbarButton("Reviewer Mode"));
+    expect(
+      screen.getByRole("button", { name: "Reviewer mode — change mode" }),
+    ).toBeInTheDocument();
+  });
+
   it("opens the discussion of a shared project from the activity bar", async () => {
     const api = installLatexDoMock() as ReturnType<typeof installLatexDoMock> &
       Record<string, ReturnType<typeof vi.fn>>;
