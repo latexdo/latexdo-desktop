@@ -37,7 +37,8 @@ export class RendererErrorBoundary extends Component<
           <h1>LatexDo hit a renderer error</h1>
           <p>
             The editor stopped rendering. A diagnostic entry was recorded; reload the
-            window to recover.
+            window to recover. After reloading, LatexDo will offer to send a report so
+            this can be fixed.
           </p>
           <button type="button" onClick={() => window.location.reload()}>
             Reload Editor

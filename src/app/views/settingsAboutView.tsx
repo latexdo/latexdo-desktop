@@ -3,6 +3,7 @@ import { supportLatexDoUrl } from "../../features/settings/settings";
 import { Check, Download, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { defaultSettings } from "../../features/settings/settings";
 import type { AppCtx } from "../appContext";
+import { CrashReportSettingsRow } from "../../components/CrashReportPrompt";
 import mitLicense from "../../../LICENSE?raw";
 
 export function renderSettingsSectionHeading11(ctx: AppCtx) {
@@ -340,6 +341,7 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
           </button>
         </div>
       </div>
+      <CrashReportSettingsRow />
     </>
   );
 }

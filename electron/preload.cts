@@ -54,6 +54,11 @@ import type {
   GitActionResult,
   GitRepositoryInfo,
 } from "./gitActions.js" with { "resolution-mode": "import" };
+import type {
+  CrashReportMode,
+  CrashReportSendResult,
+  CrashReportSettings,
+} from "./crashReports.js" with { "resolution-mode": "import" };
 import type { TikzPreviewResult } from "./tikzPreview.js" with {
   "resolution-mode": "import",
 };
@@ -1050,6 +1055,24 @@ const api = {
   hostsProjectsLocally,
   reportRendererIssue: (payload: RendererDiagnosticPayload): Promise<void> =>
     ipcRenderer.invoke("app:renderer-diagnostic", payload),
+  /** Problems waiting for the person to send, file on GitHub or dismiss. */
+  getCrashReports: (): Promise<CrashReportSettings> =>
+    ipcRenderer.invoke("crash-reports:settings"),
+  setCrashReportMode: (mode: CrashReportMode): Promise<CrashReportSettings> =>
+    ipcRenderer.invoke("crash-reports:set-mode", mode),
+  sendCrashReport: (id: string, note?: string): Promise<CrashReportSendResult> =>
+    ipcRenderer.invoke("crash-reports:send", id, note),
+  openCrashReportIssue: (id: string, note?: string): Promise<void> =>
+    ipcRenderer.invoke("crash-reports:open-github", id, note),
+  dismissCrashReport: (id: string): Promise<void> =>
+    ipcRenderer.invoke("crash-reports:dismiss", id),
+  onCrashReportsChanged: (callback: () => void) => {
+    const listener = (): void => callback();
+    ipcRenderer.on("crash-reports:changed", listener);
+    return () => {
+      ipcRenderer.removeListener("crash-reports:changed", listener);
+    };
+  },
   openProject: (): Promise<OpenProject | null> => ipcRenderer.invoke("project:open"),
   reopenLastProject: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("project:reopen-last"),
