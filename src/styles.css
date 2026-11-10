@@ -4619,6 +4619,55 @@ button {
   gap: 8px;
 }
 
+.share-choice-heading {
+  display: grid;
+  gap: 5px;
+}
+
+.share-choice-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.share-choice-heading p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-join-heading {
+  padding: 0 18px;
+}
+
+.share-join-row {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.share-join-row input {
+  height: 36px;
+}
+
+.share-join-row input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.share-join-row button {
+  grid-column: 1 / -1;
+  height: 36px;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.share-join-row button:disabled {
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
 .share-error {
   display: flex;
   min-height: 18px;

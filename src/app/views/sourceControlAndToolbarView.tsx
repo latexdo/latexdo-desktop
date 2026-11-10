@@ -1,6 +1,5 @@
 import {
   Bookmark,
-  BookOpenCheck,
   BookOpenText,
   Bold,
   ChevronDown,
@@ -252,7 +251,6 @@ export function renderSourceToolbar(ctx: AppCtx) {
     applyLatexPrettier,
     applyLatexToolbarCommand,
     cancelCompile,
-    collaborationState,
     compile,
     compileProgress,
     compiling,
@@ -262,16 +260,11 @@ export function renderSourceToolbar(ctx: AppCtx) {
     latexEditorView,
     mode,
     openLinkAtCursor,
-    openShareDialog,
     revealOutlineLine,
-    reviewPaperWithAi,
     rootFile,
     setLatexEditorView,
     setMode,
     setRootFile,
-    shareButtonDisabled,
-    shareButtonLabel,
-    shareButtonTitle,
     texFiles,
     toggleBookmarkAtCurrentLine,
   } = ctx;
@@ -383,20 +376,6 @@ export function renderSourceToolbar(ctx: AppCtx) {
           </button>
         </div>
       ) : null}
-
-      <div className="collaboration-control">
-        <button
-          type="button"
-          className={`collaboration-button ${collaborationState.enabled ? "active" : ""}`}
-          onClick={openShareDialog}
-          disabled={shareButtonDisabled}
-          title={shareButtonTitle}
-          aria-label={shareButtonTitle}
-        >
-          <Link size={14} />
-          <span>{shareButtonLabel}</span>
-        </button>
-      </div>
 
       {activeDocumentIsLatex && latexEditorView === "code" ? (
         <div
@@ -566,19 +545,6 @@ export function renderSourceToolbar(ctx: AppCtx) {
             <span>Tidy</span>
           </button>
         </div>
-      ) : null}
-
-      {rootFile ? (
-        <button
-          type="button"
-          className="ai-review-button"
-          onClick={() => void reviewPaperWithAi()}
-          title="Review this paper with AI: a full peer review that follows your language, AI and project settings (Cmd/Ctrl+Alt+R)"
-          aria-label="Review this paper with AI"
-        >
-          <BookOpenCheck size={14} />
-          <span>Review</span>
-        </button>
       ) : null}
 
       <button

@@ -1,5 +1,6 @@
 import { AiIcon } from "../../components/AiIcon";
 import {
+  BookOpenCheck,
   BookOpenText,
   Box,
   Building2,
@@ -36,9 +37,12 @@ import type { AppCtx } from "../appContext";
 
 export function renderTitlebar(ctx: AppCtx) {
   const {
+    collaborationState,
     focusMode,
     layoutMode,
     resetPaneSizes,
+    reviewPaperWithAi,
+    rootFile,
     setLayoutMode,
     toggleFocusMode,
     openShareDialog,
@@ -46,6 +50,8 @@ export function renderTitlebar(ctx: AppCtx) {
     projectId,
     projectName,
     shareButtonDisabled,
+    shareButtonLabel,
+    shareButtonTitle,
     sidebarVisible,
     togglePanel,
     toggleSidebar,
@@ -61,21 +67,30 @@ export function renderTitlebar(ctx: AppCtx) {
         </span>
       </div>
       <div className="title-actions">
-        {projectId ? null : (
-          // With a project open, Share lives in the editor toolbar; here it
-          // only joins someone else's project from the welcome screen.
+        {rootFile ? (
           <button
             type="button"
             className="title-history-button"
-            onClick={openShareDialog}
-            disabled={shareButtonDisabled}
-            title="Join shared project"
-            aria-label="Join shared project"
+            onClick={() => void reviewPaperWithAi()}
+            title="Review this paper with AI: a full peer review that follows your language, AI and project settings (Cmd/Ctrl+Alt+R)"
+            aria-label="Review this paper with AI"
           >
-            <Link size={15} aria-hidden="true" />
-            <span>Join</span>
+            <BookOpenCheck size={15} aria-hidden="true" />
+            <span>Review</span>
           </button>
-        )}
+        ) : null}
+
+        <button
+          type="button"
+          className={`title-history-button ${collaborationState.enabled ? "active" : ""}`}
+          onClick={openShareDialog}
+          disabled={shareButtonDisabled}
+          title={shareButtonTitle}
+          aria-label={shareButtonTitle}
+        >
+          <Link size={15} aria-hidden="true" />
+          <span>{projectId ? shareButtonLabel : "Join"}</span>
+        </button>
         {projectId ? (
           <LayoutMenu
             mode={layoutMode}

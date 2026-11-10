@@ -765,8 +765,10 @@ describe("App critical UI controls", () => {
     render(<App />);
     await openProjectFromWelcome({ showOutput: false });
 
-    // The title bar keeps only layout controls.
-    expect(document.querySelector(".title-actions")).not.toHaveTextContent("Review");
+    expect(document.querySelector(".title-actions")).toHaveTextContent("Review");
+    expect(
+      screen.getByRole("button", { name: "Review this paper with AI" }),
+    ).toHaveClass("title-history-button");
     fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
 
     expect(await screen.findByText("Review this paper")).toBeVisible();
