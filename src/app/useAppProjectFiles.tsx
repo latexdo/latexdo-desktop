@@ -838,18 +838,20 @@ ${macroEnd}
   // of the editor binding. Merge replies before updating state, preserving drafts.
   useEffect(() => {
     if (!projectId || !ctx.collaborationState?.enabled) return;
-    let stopped = false;
+    // The cleanup flips this while a sync awaits, so it is a property that each
+    // check reads afresh after an await.
+    const run = { stopped: false };
     let reading = false;
     const sync = async () => {
-      if (reading || !reviewDataReadyRef.current || stopped) return;
+      if (reading || !reviewDataReadyRef.current || run.stopped) return;
       reading = true;
       try {
         await reviewSaveQueueRef.current;
-        if (stopped) return;
+        if (run.stopped) return;
         const path = resolveProjectDataPath(".latexdo/review_data.json");
         if (!(await window.latexdo.fileExists(projectId, path))) return;
         const remote = JSON.parse(await window.latexdo.readFile(projectId, path));
-        if (stopped || projectIdRef.current !== projectId) return;
+        if (run.stopped || projectIdRef.current !== projectId) return;
         const local = latestReviewState.current;
         let previous: { chats?: ReviewChat[] } = {};
         try {
@@ -877,7 +879,7 @@ ${macroEnd}
     void sync();
     const timer = window.setInterval(() => void sync(), 3000);
     return () => {
-      stopped = true;
+      run.stopped = true;
       window.clearInterval(timer);
     };
   }, [projectId, ctx.collaborationState?.enabled, resolveProjectDataPath]);
