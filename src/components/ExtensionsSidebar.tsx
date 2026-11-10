@@ -207,7 +207,6 @@ function ExtensionRow({
         <span className="extension-row-text">
           <span className="extension-row-title">
             <strong>{extension.name}</strong>
-            <small>v{extension.version}</small>
           </span>
           <span className="extension-row-description">{extension.description}</span>
           <span className="extension-row-author">{extension.author}</span>

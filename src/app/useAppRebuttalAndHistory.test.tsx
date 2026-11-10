@@ -382,6 +382,21 @@ describe("pane resizing", () => {
     expect(h.ctx.setPanelHeight).toHaveBeenLastCalledWith(200);
     main.remove();
   });
+  it("keeps one dragged width across sidebar views", () => {
+    for (const activeSidebar of ["explorer", "discussion", "reviews", "ai"]) {
+      const h = setup({ activeSidebar, sidebarWidths: { shared: 420 } });
+      expect(h.result.current.sidebarWidthStyle).toMatchObject({ width: 420 });
+      cleanup();
+    }
+    const h = setup({ activeSidebar: "discussion" });
+    const wrapper = document.createElement("div");
+    const sidebar = document.createElement("div");
+    const handle = document.createElement("div");
+    wrapper.append(sidebar, handle);
+    sidebar.getBoundingClientRect = () => ({ left: 0, width: 300 }) as DOMRect;
+    h.result.current.nudgeSidebar(keyEvent("ArrowRight", handle));
+    expect(h.widths()).toEqual({ shared: 316 });
+  });
   it("uses the expanded AI sidebar width and reports build defaults", () => {
     const h = setup({
       activeSidebar: "ai",

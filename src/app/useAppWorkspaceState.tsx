@@ -679,17 +679,6 @@ export function useAppWorkspaceState() {
       return next;
     });
   }, []);
-  const handleAiSidebarClickCapture = useCallback(
-    (event: React.MouseEvent<HTMLElement>) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!target.closest('button[title="New chat"]')) return;
-      event.preventDefault();
-      event.stopPropagation();
-      createAiChat();
-    },
-    [createAiChat],
-  );
   useEffect(() => {
     if (!settingsOpen || settingsTab !== "ai" || aiConfig.provider !== "ollama") {
       return;
@@ -906,7 +895,7 @@ export function useAppWorkspaceState() {
     clearSettingsCloudKey,
     refreshOllamaModels,
     closeAiChat,
-    handleAiSidebarClickCapture,
+    createAiChat,
     editorPreviewRef,
     engine,
     setEngine,

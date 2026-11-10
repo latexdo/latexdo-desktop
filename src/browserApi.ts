@@ -407,6 +407,24 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
 
     async reportRendererIssue(_payload) {},
 
+    // Crash reports come from the desktop app's diagnostics.
+    async getCrashReports() {
+      return { mode: "never", pending: [] };
+    },
+    async setCrashReportMode() {
+      return { mode: "never", pending: [] };
+    },
+    async sendCrashReport() {
+      throw browserUnavailable("Crash reports");
+    },
+    async openCrashReportIssue() {
+      throw browserUnavailable("Crash reports");
+    },
+    async dismissCrashReport() {},
+    onCrashReportsChanged() {
+      return () => {};
+    },
+
     async openProject() {
       const store = readStore();
       const project = currentOrNewProject(store);

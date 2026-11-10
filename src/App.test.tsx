@@ -590,7 +590,9 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 }
 
 function openOutputPanel() {
-  fireEvent.click(screen.getByRole("button", { name: /^Show problems: \d+ errors?$/ }));
+  if (!screen.queryByRole("button", { name: "Close bottom panel" })) {
+    act(() => menuCommandListener?.("view.togglePanel"));
+  }
   fireEvent.click(screen.getByRole("button", { name: "Output" }));
 }
 
@@ -765,8 +767,10 @@ describe("App critical UI controls", () => {
     render(<App />);
     await openProjectFromWelcome({ showOutput: false });
 
-    // The title bar keeps only layout controls.
-    expect(document.querySelector(".title-actions")).not.toHaveTextContent("Review");
+    expect(document.querySelector(".title-actions")).toHaveTextContent("Review");
+    expect(
+      screen.getByRole("button", { name: "Review this paper with AI" }),
+    ).toHaveClass("title-history-button");
     fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
 
     expect(await screen.findByText("Review this paper")).toBeVisible();
@@ -2442,24 +2446,19 @@ describe("App critical UI controls", () => {
     const statusbar = screen.getByRole("contentinfo", {
       name: "Project diagnostics",
     });
-    const warningsButton = within(statusbar).getByRole("button", {
-      name: /Show problems: \d+ warnings?/,
-    });
+    expect(
+      within(statusbar).queryByRole("button", { name: /Show problems/ }),
+    ).toBeNull();
+    expect(statusbar.querySelector(".statusbar-message")).toBeNull();
     expect(
       within(statusbar).getByRole("button", {
         name: /Open source control|Checkout branch/,
       }),
     ).toBeVisible();
-    expect(warningsButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(warningsButton);
+    openOutputPanel();
+    fireEvent.click(screen.getByRole("button", { name: /^Problems/ }));
     expect(await screen.findByText("Code availability link not found")).toBeVisible();
     expect(screen.getByRole("region", { name: "Problems" })).toBeVisible();
-    expect(warningsButton).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Close bottom panel" }));
-    fireEvent.click(
-      within(statusbar).getByRole("button", { name: /Show problems: \d+ errors?/ }),
-    );
-    expect(screen.getByText("Code availability link not found")).toBeVisible();
   });
 
   it("opens real AI settings from the unconfigured AI sidebar", async () => {
@@ -2949,7 +2948,7 @@ describe("App critical UI controls", () => {
     generate.mockRestore();
   });
 
-  it("creates AI chat tabs from the plus button and closes them", async () => {
+  it("creates AI chat tabs from New chat, navigates and closes them", async () => {
     installLatexDoMock();
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
@@ -2995,6 +2994,17 @@ describe("App critical UI controls", () => {
       "aria-selected",
       "false",
     );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Chat 2" }), {
+      key: "ArrowLeft",
+    });
+    expect(screen.getByRole("tab", { name: "Chat 1" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Chat 1" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Chat 1" }), { key: "End" });
+    expect(screen.getByRole("tab", { name: "Chat 2" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Close Chat 2" }));
 

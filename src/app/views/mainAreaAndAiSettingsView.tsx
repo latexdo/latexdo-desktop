@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   Check,
   CircleAlert,
   Download,
@@ -227,18 +226,12 @@ export function renderUpdateBanner(ctx: AppCtx) {
 
 export function renderStatusbarGroup(ctx: AppCtx) {
   const {
-    activePanel,
-    errors,
     gitActionBusy,
     hasVisibleProject,
     pickBranch,
     publishBranch,
     runScmAction,
-    openPanel,
     openSidebar,
-    panelVisible,
-    statusMessage,
-    warnings,
   } = ctx;
   const gitStatus = ctx.gitStatus!;
   const sharing = ctx.collaborationState;
@@ -357,33 +350,6 @@ export function renderStatusbarGroup(ctx: AppCtx) {
           )}
         </button>
       ) : null}
-      <button
-        type="button"
-        onClick={() => openPanel("problems")}
-        title={`${errors} error${errors === 1 ? "" : "s"} — Show problems`}
-        aria-label={`Show problems: ${errors} error${errors === 1 ? "" : "s"}`}
-        aria-controls="problems-panel"
-        aria-expanded={panelVisible && activePanel === "problems"}
-      >
-        <CircleAlert size={13} aria-hidden="true" /> {errors}
-      </button>
-      <button
-        type="button"
-        onClick={() => openPanel("problems")}
-        title={`${warnings} warning${warnings === 1 ? "" : "s"} — Show problems`}
-        aria-label={`Show problems: ${warnings} warning${warnings === 1 ? "" : "s"}`}
-        aria-controls="problems-panel"
-        aria-expanded={panelVisible && activePanel === "problems"}
-      >
-        <AlertTriangle size={13} aria-hidden="true" /> {warnings}
-      </button>
-      {/* The latest status line, drawn from the attribute so it is not a
-              second copy of the Output panel's text for assistive tech. */}
-      <span
-        className="statusbar-message"
-        data-message={statusMessage}
-        title={statusMessage}
-      />
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aiConfigStorageKey } from "../features/ai/aiConfig";
 import { localModelCatalog } from "../features/ai/aiModels";
@@ -559,24 +558,7 @@ describe("AI chat tabs", () => {
   it("creates, closes and replaces the last chat", async () => {
     const { result } = await renderState();
     const firstId = result.current.aiChats[0].id;
-    const click = (target: EventTarget) => {
-      const event = {
-        target,
-        preventDefault: vi.fn(),
-        stopPropagation: vi.fn(),
-      } as unknown as React.MouseEvent<HTMLElement>;
-      act(() => result.current.handleAiSidebarClickCapture(event));
-      return event;
-    };
-    // Clicks elsewhere or on a non-element are ignored.
-    const other = document.createElement("button");
-    expect(click(other).preventDefault).not.toHaveBeenCalled();
-    expect(click(window).preventDefault).not.toHaveBeenCalled();
-    const newChat = document.createElement("button");
-    newChat.title = "New chat";
-    const icon = document.createElement("span");
-    newChat.append(icon);
-    expect(click(icon).preventDefault).toHaveBeenCalled();
+    act(() => result.current.createAiChat());
     expect(result.current.aiChats).toHaveLength(2);
     const secondId = result.current.aiChats[1].id;
     expect(result.current.activeAiChatId).toBe(secondId);
@@ -593,7 +575,7 @@ describe("AI chat tabs", () => {
     expect(result.current.activeAiChatId).toBe(result.current.aiChats[0].id);
 
     // Closing the active last chat of several selects its neighbour.
-    click(icon);
+    act(() => result.current.createAiChat());
     const [a, b] = result.current.aiChats;
     act(() => result.current.closeAiChat(b.id));
     expect(result.current.activeAiChatId).toBe(a.id);

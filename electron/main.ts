@@ -180,6 +180,14 @@ import {
 } from "./updateHelpers.js";
 import { runUpdateVersionProbe } from "./updateVersionProbe.js";
 import { readBuildInfo } from "./buildInfo.js";
+import { createCrashReporter } from "./crashReports.js";
+import {
+  crashReportEnvironment,
+  crashReportScrubOptions,
+  crashReportServerUrl,
+  crashReportsChangedChannel,
+  registerCrashReportIpc,
+} from "./crashReportsIpc.js";
 
 const probeExitCode = runUpdateVersionProbe(
   process.argv,
@@ -364,6 +372,19 @@ const mainDiagnostics = createDiagnosticReporter({
   getUserDataPath: () => app.getPath("userData"),
   getAppVersion: () => app.getVersion(),
   processType: "main",
+});
+// Real bugs among the recorded problems are offered to the person to report.
+const crashReports = createCrashReporter({
+  getUserDataPath: () => app.getPath("userData"),
+  getEnvironment: () => crashReportEnvironment(app.getVersion()),
+  scrub: crashReportScrubOptions(),
+  serverUrl: crashReportServerUrl(),
+  openExternal: (url) => shell.openExternal(url),
+  onChange: () => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(crashReportsChangedChannel);
+    }
+  },
 });
 let appIsQuitting = false;
 
@@ -5603,6 +5624,11 @@ async function packagedRendererResponse(request: Request): Promise<Response> {
   });
 }
 
+/** Off in automated runs, and when LATEXDO_CRASH_REPORTS=off. */
+function crashReportsEnabled(): boolean {
+  return !startupAutomationTest && process.env.LATEXDO_CRASH_REPORTS !== "off";
+}
+
 function recordMainDiagnosticSync(
   kind: DiagnosticKind,
   severity: "info" | "warning" | "error" | "fatal",
@@ -5610,7 +5636,8 @@ function recordMainDiagnosticSync(
   context?: Record<string, unknown>,
 ): void {
   try {
-    mainDiagnostics.recordSync(kind, severity, error, context);
+    const event = mainDiagnostics.recordSync(kind, severity, error, context);
+    if (crashReportsEnabled()) crashReports.considerSync(event);
   } catch (diagnosticError) {
     console.error("[latexdo] failed to write diagnostic", diagnosticError);
   }
@@ -5623,7 +5650,12 @@ async function recordMainDiagnostic(
   context?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await mainDiagnostics.record(kind, severity, error, context);
+    const event = await mainDiagnostics.record(kind, severity, error, context);
+    if (crashReportsEnabled()) {
+      void crashReports.consider(event).catch((reportError: unknown) => {
+        console.error("[latexdo] crash report queue failed", reportError);
+      });
+    }
   } catch (diagnosticError) {
     console.error("[latexdo] failed to write diagnostic", diagnosticError);
   }
@@ -6643,6 +6675,10 @@ async function startApp(): Promise<void> {
   console.log("[latexdo] app:terminal-registered");
   registerAiIpc();
   registerCloudSpeechIpc();
+  registerCrashReportIpc(crashReports);
+  if (crashReportsEnabled()) {
+    void crashReports.flushAutomatic().catch(() => undefined);
+  }
   console.log("[latexdo] app:ai-registered");
   buildApplicationMenu();
   console.log("[latexdo] app:menu-built");

@@ -49,13 +49,13 @@ export interface DiagnosticReporter {
     severity: DiagnosticSeverity,
     error: unknown,
     context?: Record<string, unknown>,
-  ) => Promise<void>;
+  ) => Promise<DiagnosticEvent>;
   recordSync: (
     kind: DiagnosticKind,
     severity: DiagnosticSeverity,
     error: unknown,
     context?: Record<string, unknown>,
-  ) => void;
+  ) => DiagnosticEvent;
 }
 
 interface DiagnosticReporterOptions {
@@ -191,21 +191,17 @@ export function createDiagnosticReporter(
     logPath,
     async record(kind, severity, error, context) {
       const filePath = logPath();
+      const event = createDiagnosticEvent(options, kind, severity, error, context);
       await mkdir(path.dirname(filePath), { recursive: true });
-      await appendFile(
-        filePath,
-        `${JSON.stringify(createDiagnosticEvent(options, kind, severity, error, context))}\n`,
-        "utf8",
-      );
+      await appendFile(filePath, `${JSON.stringify(event)}\n`, "utf8");
+      return event;
     },
     recordSync(kind, severity, error, context) {
       const filePath = logPath();
+      const event = createDiagnosticEvent(options, kind, severity, error, context);
       mkdirSync(path.dirname(filePath), { recursive: true });
-      appendFileSync(
-        filePath,
-        `${JSON.stringify(createDiagnosticEvent(options, kind, severity, error, context))}\n`,
-        "utf8",
-      );
+      appendFileSync(filePath, `${JSON.stringify(event)}\n`, "utf8");
+      return event;
     },
   };
 }

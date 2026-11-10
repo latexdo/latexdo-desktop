@@ -1,5 +1,6 @@
 import { AiIcon } from "../../components/AiIcon";
 import {
+  BookOpenCheck,
   BookOpenText,
   Box,
   Building2,
@@ -7,9 +8,11 @@ import {
   GitBranch,
   ImageUp,
   Link,
-  MessagesSquare,
-  MessageSquare,
+  ClipboardCheck,
+  MessageCircleMore,
   Pencil,
+  Plus,
+  MessageSquare,
   Puzzle,
   RefreshCw,
   Settings,
@@ -17,6 +20,7 @@ import {
   User,
   Variable,
   X,
+  WandSparkles,
 } from "lucide-react";
 import FileTree from "../../FileTree";
 import { LayoutMenu } from "../../components/LayoutMenu";
@@ -36,9 +40,15 @@ import type { AppCtx } from "../appContext";
 
 export function renderTitlebar(ctx: AppCtx) {
   const {
+    activeDocumentIsLatex,
+    applyLatexPrettier,
+    latexEditorView,
+    collaborationState,
     focusMode,
     layoutMode,
     resetPaneSizes,
+    reviewPaperWithAi,
+    rootFile,
     setLayoutMode,
     toggleFocusMode,
     openShareDialog,
@@ -46,6 +56,8 @@ export function renderTitlebar(ctx: AppCtx) {
     projectId,
     projectName,
     shareButtonDisabled,
+    shareButtonLabel,
+    shareButtonTitle,
     sidebarVisible,
     togglePanel,
     toggleSidebar,
@@ -61,21 +73,42 @@ export function renderTitlebar(ctx: AppCtx) {
         </span>
       </div>
       <div className="title-actions">
-        {projectId ? null : (
-          // With a project open, Share lives in the editor toolbar; here it
-          // only joins someone else's project from the welcome screen.
+        {rootFile ? (
           <button
             type="button"
             className="title-history-button"
-            onClick={openShareDialog}
-            disabled={shareButtonDisabled}
-            title="Join shared project"
-            aria-label="Join shared project"
+            onClick={() => void reviewPaperWithAi()}
+            title="Review this paper with AI: a full peer review that follows your language, AI and project settings (Cmd/Ctrl+Alt+R)"
+            aria-label="Review this paper with AI"
           >
-            <Link size={15} aria-hidden="true" />
-            <span>Join</span>
+            <BookOpenCheck size={15} aria-hidden="true" />
+            <span>Review</span>
           </button>
-        )}
+        ) : null}
+
+        <button
+          type="button"
+          className={`title-history-button ${collaborationState.enabled ? "active" : ""}`}
+          onClick={openShareDialog}
+          disabled={shareButtonDisabled}
+          title={shareButtonTitle}
+          aria-label={shareButtonTitle}
+        >
+          <Link size={15} aria-hidden="true" />
+          <span>{projectId ? shareButtonLabel : "Join"}</span>
+        </button>
+        {activeDocumentIsLatex && latexEditorView === "code" ? (
+          <button
+            type="button"
+            className="title-history-button"
+            onClick={applyLatexPrettier}
+            title="Tidy the layout: one blank line around sections, indented lists and environments (Shift+Alt+F)"
+            aria-label="Tidy up the LaTeX layout"
+          >
+            <WandSparkles size={15} aria-hidden="true" />
+            <span>Tidy</span>
+          </button>
+        ) : null}
         {projectId ? (
           <LayoutMenu
             mode={layoutMode}
@@ -146,43 +179,41 @@ export function renderActivityBar(ctx: AppCtx) {
           title="Reviews"
           aria-label="Reviews"
         >
-          <MessageSquare size={21} />
+          <ClipboardCheck size={21} />
           {ctx.reviewChats?.length > 0 ? (
             <span className="activity-change-badge" aria-hidden="true">
               {ctx.reviewChats.length}
             </span>
           ) : null}
         </button>
-        {ctx.discussion.available ? (
-          <button
-            className={`activity-button ${
-              sidebarVisible && activeSidebar === "discussion" ? "active" : ""
-            }`}
-            onClick={() => openSidebar("discussion")}
-            title="Discussion"
-            aria-label={`Discussion${
-              discussionTotals.unread
-                ? ` (${discussionTotals.unread} unread${
-                    discussionTotals.mentions
-                      ? `, ${discussionTotals.mentions} for you`
-                      : ""
-                  })`
-                : ""
-            }`}
-          >
-            <MessagesSquare size={21} />
-            {discussionTotals.unread > 0 && (
-              <span
-                className={`activity-change-badge discussion-activity-badge ${
-                  discussionTotals.mentions ? "is-mention" : ""
-                }`}
-                aria-hidden="true"
-              >
-                {discussionTotals.unread > 99 ? "99+" : discussionTotals.unread}
-              </span>
-            )}
-          </button>
-        ) : null}
+        <button
+          className={`activity-button ${
+            sidebarVisible && activeSidebar === "discussion" ? "active" : ""
+          }`}
+          onClick={() => openSidebar("discussion")}
+          title="Discussion"
+          aria-label={`Discussion${
+            discussionTotals.unread
+              ? ` (${discussionTotals.unread} unread${
+                  discussionTotals.mentions
+                    ? `, ${discussionTotals.mentions} for you`
+                    : ""
+                })`
+              : ""
+          }`}
+        >
+          <MessageCircleMore size={21} />
+          {discussionTotals.unread > 0 && (
+            <span
+              className={`activity-change-badge discussion-activity-badge ${
+                discussionTotals.mentions ? "is-mention" : ""
+              }`}
+              aria-hidden="true"
+            >
+              {discussionTotals.unread > 99 ? "99+" : discussionTotals.unread}
+            </span>
+          )}
+        </button>
         {productIsPro ? (
           <button
             className={`activity-button ${
@@ -310,7 +341,7 @@ export function renderSidebar(ctx: AppCtx) {
     closeAiChat,
     contextForWorkspaceTab,
     documents,
-    handleAiSidebarClickCapture,
+    createAiChat,
     openAiSettings,
     openExternalLink,
     setActiveAiChatId,
@@ -350,45 +381,76 @@ export function renderSidebar(ctx: AppCtx) {
       data-view="ai"
       style={sidebarWidthStyle}
       data-tour-id="ai-sidebar"
-      onClickCapture={handleAiSidebarClickCapture}
     >
       <div className="sidebar-header">
         <span>LatexDo AI</span>
       </div>
-      <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
-        {aiChats.map((chat) => {
-          const active = chat.id === activeAiChatId;
-          return (
-            <div
-              key={chat.id}
-              className={`ai-chat-tab-shell ${active ? "active" : ""}`}
-            >
-              <button
-                type="button"
-                id={`ai-tab-${chat.id}`}
-                role="tab"
-                className="ai-chat-tab"
-                aria-selected={active}
-                aria-controls={`ai-panel-${chat.id}`}
-                onClick={() => setActiveAiChatId(chat.id)}
+      <div className="ai-chat-navigation">
+        <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
+          {aiChats.map((chat) => {
+            const active = chat.id === activeAiChatId;
+            return (
+              <div
+                key={chat.id}
+                className={`ai-chat-tab-shell ${active ? "active" : ""}`}
               >
-                {chat.title}
-              </button>
-              <button
-                type="button"
-                className="ai-chat-tab-close"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeAiChat(chat.id);
-                }}
-                aria-label={`Close ${chat.title}`}
-                title={`Close ${chat.title}`}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          );
-        })}
+                <button
+                  type="button"
+                  id={`ai-tab-${chat.id}`}
+                  role="tab"
+                  className="ai-chat-tab"
+                  aria-selected={active}
+                  aria-controls={`ai-panel-${chat.id}`}
+                  title={chat.title}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setActiveAiChatId(chat.id)}
+                  onKeyDown={(event) => {
+                    const index = aiChats.findIndex((item) => item.id === chat.id);
+                    const nextIndex =
+                      event.key === "ArrowRight"
+                        ? (index + 1) % aiChats.length
+                        : event.key === "ArrowLeft"
+                          ? (index - 1 + aiChats.length) % aiChats.length
+                          : event.key === "Home"
+                            ? 0
+                            : event.key === "End"
+                              ? aiChats.length - 1
+                              : null;
+                    if (nextIndex === null) return;
+                    event.preventDefault();
+                    const nextChat = aiChats[nextIndex];
+                    setActiveAiChatId(nextChat.id);
+                    document.getElementById(`ai-tab-${nextChat.id}`)?.focus();
+                  }}
+                >
+                  <MessageSquare size={13} aria-hidden="true" />
+                  <span>{chat.title}</span>
+                </button>
+                <button
+                  type="button"
+                  className="ai-chat-tab-close"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeAiChat(chat.id);
+                  }}
+                  aria-label={`Close ${chat.title}`}
+                  title={`Close ${chat.title}`}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="ai-new-chat-button"
+          title="New chat"
+          onClick={createAiChat}
+        >
+          <Plus size={14} aria-hidden="true" />
+          New chat
+        </button>
       </div>
       <div className="ai-chat-panes">
         {aiChats.map((chat) => {

@@ -2,7 +2,7 @@ import React from "react";
 import {
   Check,
   FilePlus2,
-  MessageSquare,
+  ClipboardCheck,
   Plus,
   Send,
   Trash2,
@@ -48,7 +48,7 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
       <div className="sidebar-list">
         {chats.length === 0 ? (
           <div className="sidebar-empty">
-            <MessageSquare size={32} />
+            <ClipboardCheck size={32} />
             <p>No review threads yet.</p>
             <p className="sub-text">
               Select text in the editor and start a sidebar discussion.

@@ -3,6 +3,7 @@ import { supportLatexDoUrl } from "../../features/settings/settings";
 import { Check, Download, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { defaultSettings } from "../../features/settings/settings";
 import type { AppCtx } from "../appContext";
+import { CrashReportSettingsRow } from "../../components/CrashReportPrompt";
 import mitLicense from "../../../LICENSE?raw";
 
 export function renderSettingsSectionHeading11(ctx: AppCtx) {
@@ -11,9 +12,6 @@ export function renderSettingsSectionHeading11(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>PDF Compliance Report</strong>
-        <span>
-          Check compiled PDF against conference guidelines and best practices.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -211,7 +209,6 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>About LatexDo</strong>
-        <span>A focused workspace for LaTeX writing and research.</span>
       </div>
 
       <section className="settings-about-card" aria-label="Ownership and licence">
@@ -340,6 +337,7 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
           </button>
         </div>
       </div>
+      <CrashReportSettingsRow />
     </>
   );
 }

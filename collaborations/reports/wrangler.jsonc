@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "latexdo-reports",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-11",
+  // Every crash report, grouped by problem, in one SQLite-backed Durable
+  // Object (available on the free plan).
+  "durable_objects": {
+    "bindings": [{ "name": "REPORTS", "class_name": "ReportStore" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReportStore"] }],
+  // Per-address limit, counted across Cloudflare's network.
+  "ratelimits": [
+    {
+      "name": "SUBMISSIONS",
+      "namespace_id": "4201",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
+  "routes": [{ "pattern": "reports.latexdo.org", "custom_domain": true }],
+  // No request logs: they would hold IP addresses next to crash reports.
+  "observability": { "enabled": false },
+}

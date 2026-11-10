@@ -254,6 +254,10 @@ export function ShareProjectDialog({
 
         {hostFlow && !hostLive && !hostStarting ? (
           <div className="share-section">
+            <div className="share-choice-heading">
+              <h3>Create an invite</h3>
+              <p>Share your current project with others.</p>
+            </div>
             {!hasProject ? (
               <p className="share-hint">
                 Open a project to share it, or join someone else&apos;s below.
@@ -400,8 +404,12 @@ export function ShareProjectDialog({
               onJoin();
             }}
           >
-            <div className="share-link-row">
-              <LogIn size={15} />
+            <div className="share-choice-heading share-join-heading">
+              <h3>Join a project</h3>
+              <p>Have an invite? Paste the link or token below.</p>
+            </div>
+            <div className="share-link-row share-join-row">
+              <LogIn size={15} aria-hidden="true" />
               <input
                 value={joinToken}
                 placeholder={

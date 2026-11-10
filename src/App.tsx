@@ -25,6 +25,7 @@ import { ProfileDialog } from "./components/ProfileDialog";
 import { WhatsNewModal } from "./components/WhatsNewModal";
 import { UpdateRestartCountdown } from "./components/UpdateRestartCountdown";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { CrashReportPrompt } from "./components/CrashReportPrompt";
 import { StatusbarModeMenu } from "./components/StatusbarModeMenu";
 import { TourOverlay } from "./features/onboarding/presentation/TourOverlay";
 import { editorActivationTour } from "./features/onboarding/tours/editorActivation";
@@ -546,6 +547,8 @@ export default function App() {
       {updateBannerVisible && availableUpdateVersion ? renderUpdateBanner(ctx) : null}
 
       <DiscussionNotices discussion={ctx.discussion} />
+
+      <CrashReportPrompt />
 
       <footer
         className="statusbar"

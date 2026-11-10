@@ -60,9 +60,13 @@ export default defineConfig({
     include: [
       "{src,electron,collaborations,scripts,latexdo,web}/**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
     ],
-    // The Cloudflare server has its own end-to-end suite (node --test) that
-    // runs against a live server.
-    exclude: ["**/node_modules/**", "collaborations/cloudflare/**"],
+    // The Cloudflare servers have their own end-to-end suites (node --test)
+    // that run against a live server.
+    exclude: [
+      "**/node_modules/**",
+      "collaborations/cloudflare/**",
+      "collaborations/reports/test/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
@@ -77,8 +81,9 @@ export default defineConfig({
         "src/test-setup.ts",
         "scripts/test-*",
         "scripts/run-packaged-app-tests.mjs",
-        // A separate Workers project with its own typecheck and test suite.
+        // Separate Workers projects with their own typecheck and test suites.
         "collaborations/cloudflare/**",
+        "collaborations/reports/**",
       ],
       thresholds: {
         // Production modules changed in 1ed42dc: enforce the target for each
