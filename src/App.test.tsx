@@ -2951,7 +2951,7 @@ describe("App critical UI controls", () => {
     generate.mockRestore();
   });
 
-  it("creates AI chat tabs from the plus button and closes them", async () => {
+  it("creates AI chat tabs from New chat, navigates and closes them", async () => {
     installLatexDoMock();
     Object.defineProperty(HTMLElement.prototype, "scrollTo", {
       configurable: true,
@@ -2997,6 +2997,17 @@ describe("App critical UI controls", () => {
       "aria-selected",
       "false",
     );
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Chat 2" }), {
+      key: "ArrowLeft",
+    });
+    expect(screen.getByRole("tab", { name: "Chat 1" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Chat 1" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Chat 1" }), { key: "End" });
+    expect(screen.getByRole("tab", { name: "Chat 2" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Close Chat 2" }));
 

@@ -5262,14 +5262,59 @@ button {
   color: var(--text-primary);
 }
 
+.ai-sidebar-actions .ai-clear-chat-button {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.ai-chat-navigation {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .ai-chat-tabs {
   display: flex;
+  min-width: 0;
   min-height: 34px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  align-items: center;
   gap: 5px;
-  padding: 6px 38px 5px 8px;
-  border-bottom: 1px solid var(--border-subtle);
   overflow-x: auto;
+}
+
+.ai-new-chat-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--bg-button-secondary);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ai-new-chat-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ai-new-chat-button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .ai-chat-tab-shell {
@@ -5285,9 +5330,13 @@ button {
 .ai-chat-tab-shell.active {
   border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 0 -2px var(--accent);
 }
 
 .ai-chat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   overflow: hidden;
   padding: 5px 6px 5px 9px;
@@ -5300,8 +5349,18 @@ button {
   white-space: nowrap;
 }
 
+.ai-chat-tab > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-chat-tab > svg {
+  flex-shrink: 0;
+}
+
 .ai-chat-tab-shell.active .ai-chat-tab {
   color: var(--text-primary);
+  font-weight: 600;
 }
 
 .ai-chat-tab-close {

@@ -11,6 +11,8 @@ import {
   ClipboardCheck,
   MessageCircleMore,
   Pencil,
+  Plus,
+  MessageSquare,
   Puzzle,
   RefreshCw,
   Settings,
@@ -323,7 +325,7 @@ export function renderSidebar(ctx: AppCtx) {
     closeAiChat,
     contextForWorkspaceTab,
     documents,
-    handleAiSidebarClickCapture,
+    createAiChat,
     openAiSettings,
     openExternalLink,
     setActiveAiChatId,
@@ -363,45 +365,76 @@ export function renderSidebar(ctx: AppCtx) {
       data-view="ai"
       style={sidebarWidthStyle}
       data-tour-id="ai-sidebar"
-      onClickCapture={handleAiSidebarClickCapture}
     >
       <div className="sidebar-header">
         <span>LatexDo AI</span>
       </div>
-      <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
-        {aiChats.map((chat) => {
-          const active = chat.id === activeAiChatId;
-          return (
-            <div
-              key={chat.id}
-              className={`ai-chat-tab-shell ${active ? "active" : ""}`}
-            >
-              <button
-                type="button"
-                id={`ai-tab-${chat.id}`}
-                role="tab"
-                className="ai-chat-tab"
-                aria-selected={active}
-                aria-controls={`ai-panel-${chat.id}`}
-                onClick={() => setActiveAiChatId(chat.id)}
+      <div className="ai-chat-navigation">
+        <div className="ai-chat-tabs" role="tablist" aria-label="AI chats">
+          {aiChats.map((chat) => {
+            const active = chat.id === activeAiChatId;
+            return (
+              <div
+                key={chat.id}
+                className={`ai-chat-tab-shell ${active ? "active" : ""}`}
               >
-                {chat.title}
-              </button>
-              <button
-                type="button"
-                className="ai-chat-tab-close"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeAiChat(chat.id);
-                }}
-                aria-label={`Close ${chat.title}`}
-                title={`Close ${chat.title}`}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          );
-        })}
+                <button
+                  type="button"
+                  id={`ai-tab-${chat.id}`}
+                  role="tab"
+                  className="ai-chat-tab"
+                  aria-selected={active}
+                  aria-controls={`ai-panel-${chat.id}`}
+                  title={chat.title}
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => setActiveAiChatId(chat.id)}
+                  onKeyDown={(event) => {
+                    const index = aiChats.findIndex((item) => item.id === chat.id);
+                    const nextIndex =
+                      event.key === "ArrowRight"
+                        ? (index + 1) % aiChats.length
+                        : event.key === "ArrowLeft"
+                          ? (index - 1 + aiChats.length) % aiChats.length
+                          : event.key === "Home"
+                            ? 0
+                            : event.key === "End"
+                              ? aiChats.length - 1
+                              : null;
+                    if (nextIndex === null) return;
+                    event.preventDefault();
+                    const nextChat = aiChats[nextIndex];
+                    setActiveAiChatId(nextChat.id);
+                    document.getElementById(`ai-tab-${nextChat.id}`)?.focus();
+                  }}
+                >
+                  <MessageSquare size={13} aria-hidden="true" />
+                  <span>{chat.title}</span>
+                </button>
+                <button
+                  type="button"
+                  className="ai-chat-tab-close"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeAiChat(chat.id);
+                  }}
+                  aria-label={`Close ${chat.title}`}
+                  title={`Close ${chat.title}`}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className="ai-new-chat-button"
+          title="New chat"
+          onClick={createAiChat}
+        >
+          <Plus size={14} aria-hidden="true" />
+          New chat
+        </button>
       </div>
       <div className="ai-chat-panes">
         {aiChats.map((chat) => {

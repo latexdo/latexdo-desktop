@@ -719,18 +719,16 @@ export const AiSidebar: React.FC<AiSidebarProps> = ({
           >
             {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
-          <button className="small-icon" title="New chat" onClick={reset}>
-            <Plus size={15} />
-          </button>
           <button
             type="button"
-            className="small-icon"
+            className="small-icon ai-clear-chat-button"
             title="Clear chat"
             aria-label="Clear chat"
             onClick={reset}
             disabled={!canClearChat}
           >
-            <Trash2 size={14} />
+            <Trash2 size={14} aria-hidden="true" />
+            <span>Clear</span>
           </button>
           <button className="small-icon" title="AI settings" onClick={onOpenSettings}>
             <Settings2 size={15} />

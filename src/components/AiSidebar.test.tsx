@@ -218,8 +218,7 @@ describe("AiSidebar", () => {
     fireEvent.click(screen.getByTitle("Expand AI chat"));
     expect(onToggleExpanded).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTitle("New chat"));
-    expect(agentMock.state.reset).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTitle("New chat")).not.toBeInTheDocument();
     expect(screen.getByTitle("Clear chat")).toBeDisabled();
 
     expect(
