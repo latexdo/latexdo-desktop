@@ -5,7 +5,15 @@
  */
 
 import React from "react";
-import { AlertTriangle, Bell, CircleAlert, Info, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  BellOff,
+  CircleAlert,
+  Info,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   clearNotifications,
   deleteNotification,
@@ -15,6 +23,36 @@ import {
   type AppNotification,
   type NotificationSeverity,
 } from "../features/notifications/notifications";
+
+const notificationModes = {
+  "do-not-disturb": {
+    label: "Do Not Disturb",
+    description: "No popups or unread badge. Notifications stay in history.",
+  },
+  writing: { label: "Writing", description: "Only errors appear as popups." },
+  reviewing: {
+    label: "Reviewing",
+    description: "Errors and warnings appear as popups.",
+  },
+  reading: { label: "Reading", description: "Unread badge only. No popups." },
+} as const;
+type NotificationMode = keyof typeof notificationModes;
+const modeStorageKey = "latexdo.notificationMode";
+function loadNotificationMode(): NotificationMode {
+  try {
+    const saved = localStorage.getItem(modeStorageKey);
+    if (saved && Object.hasOwn(notificationModes, saved))
+      return saved as NotificationMode;
+  } catch {
+    /* Storage may be unavailable. */
+  }
+  return "reviewing";
+}
+function allowsToast(mode: NotificationMode, severity: NotificationSeverity) {
+  return severity === "error"
+    ? mode === "writing" || mode === "reviewing"
+    : severity === "warning" && mode === "reviewing";
+}
 
 const toastLifetimeMs = 8_000;
 const maxToasts = 3;
@@ -43,6 +81,16 @@ function errorText(value: unknown): string {
 
 export function NotificationCenter() {
   const notifications = useNotifications();
+  const [mode, setMode] = React.useState<NotificationMode>(loadNotificationMode);
+  const changeMode = (next: NotificationMode) => {
+    setMode(next);
+    setToastIds([]);
+    try {
+      localStorage.setItem(modeStorageKey, next);
+    } catch {
+      /* Keep the session preference. */
+    }
+  };
   const [open, setOpen] = React.useState(false);
   const [toastIds, setToastIds] = React.useState<number[]>([]);
   const seen = React.useRef(new Set<number>());
@@ -68,7 +116,7 @@ export function NotificationCenter() {
   // New errors and warnings pop up as toasts.
   React.useEffect(() => {
     const fresh = notifications.filter(
-      (entry) => !seen.current.has(entry.id) && entry.severity !== "info",
+      (entry) => !seen.current.has(entry.id) && allowsToast(mode, entry.severity),
     );
     for (const entry of notifications) seen.current.add(entry.id);
     if (!fresh.length || open) return;
@@ -83,7 +131,7 @@ export function NotificationCenter() {
         ),
       );
     }
-  }, [notifications, open]);
+  }, [notifications, open, mode]);
 
   React.useEffect(
     () => () => {
@@ -103,12 +151,17 @@ export function NotificationCenter() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, notifications]);
 
-  const unread = notifications.filter(
-    (entry) => !entry.read && entry.severity !== "info",
-  ).length;
+  const unread =
+    mode === "do-not-disturb"
+      ? 0
+      : notifications.filter((entry) => !entry.read && entry.severity !== "info")
+          .length;
   const toasts = toastIds
     .map((id) => notifications.find((entry) => entry.id === id))
-    .filter((entry): entry is AppNotification => Boolean(entry));
+    .filter(
+      (entry): entry is AppNotification =>
+        Boolean(entry) && allowsToast(mode, entry!.severity),
+    );
 
   return (
     <>
@@ -117,10 +170,14 @@ export function NotificationCenter() {
         className={`statusbar-item notification-bell ${unread ? "has-unread" : ""}`}
         aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
         aria-expanded={open}
-        title="Notifications"
+        title={`Notifications · ${notificationModes[mode].label}`}
         onClick={() => setOpen((value) => !value)}
       >
-        <Bell size={12} aria-hidden="true" />
+        {mode === "do-not-disturb" ? (
+          <BellOff size={12} aria-hidden="true" />
+        ) : (
+          <Bell size={12} aria-hidden="true" />
+        )}
         {unread ? <span className="notification-count">{unread}</span> : null}
       </button>
 
@@ -152,6 +209,24 @@ export function NotificationCenter() {
               <X size={14} />
             </button>
           </header>
+          <div className="notification-mode">
+            <label htmlFor="notification-mode">Mode</label>
+            <select
+              id="notification-mode"
+              value={mode}
+              aria-describedby="notification-mode-description"
+              onChange={(event) => changeMode(event.target.value as NotificationMode)}
+            >
+              {Object.entries(notificationModes).map(([value, item]) => (
+                <option key={value} value={value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <p id="notification-mode-description">
+              {notificationModes[mode].description}
+            </p>
+          </div>
           {notifications.length ? (
             <ul className="notification-list">
               {notifications.map((entry) => (
