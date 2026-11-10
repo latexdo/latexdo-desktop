@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppCtx } from "../appContext";
+import { renderTitlebar } from "./titlebarAndSidebarView";
 
 const captured = vi.hoisted(() => ({
   scm: null as Record<string, unknown> | null,
@@ -268,7 +269,6 @@ describe("renderSourceToolbar", () => {
     const ctx = makeCtx({
       activeDocumentIsAsymptote: false,
       activeDocumentIsLatex: true,
-      collaborationState: { enabled: false },
       compileProgress: 0,
       compiling: false,
       currentLineHasBookmark: false,
@@ -279,9 +279,6 @@ describe("renderSourceToolbar", () => {
       latexEditorView: "code",
       mode: "author",
       rootFile: "main.tex",
-      shareButtonDisabled: false,
-      shareButtonLabel: "Share",
-      shareButtonTitle: "Share project",
       texFiles: [
         { path: "/p/main.tex", relativePath: "main.tex" },
         { path: "/p/b.tex", relativePath: "chapters/b.tex" },
@@ -307,8 +304,8 @@ describe("renderSourceToolbar", () => {
     expect(ctx.revealOutlineLine).toHaveBeenCalledTimes(1);
   });
 
-  it("switches modes and editor views, and opens sharing", () => {
-    const ctx = toolbar({ mode: "reviewer", collaborationState: { enabled: true } });
+  it("switches modes and editor views", () => {
+    const ctx = toolbar({ mode: "reviewer" });
     expect(screen.getByTitle("Reviewer Mode")).toHaveClass("active");
     for (const [title, mode] of [
       ["Author Mode", "author"],
@@ -325,10 +322,6 @@ describe("renderSourceToolbar", () => {
       ["code"],
       ["visual"],
     ]);
-    const share = screen.getByRole("button", { name: "Share project" });
-    expect(share).toHaveClass("active");
-    fireEvent.click(share);
-    expect(ctx.openShareDialog).toHaveBeenCalled();
   });
 
   it("runs every formatting command", () => {
@@ -360,8 +353,6 @@ describe("renderSourceToolbar", () => {
     expect(ctx.toggleBookmarkAtCurrentLine).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Tidy up the LaTeX layout" }));
     expect(ctx.applyLatexPrettier).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
-    expect(ctx.reviewPaperWithAi).toHaveBeenCalled();
     const compile = screen.getByTitle("Compile");
     expect(compile).toBeEnabled();
     fireEvent.click(compile);
@@ -397,9 +388,6 @@ describe("renderSourceToolbar", () => {
       compiling: true,
       compileProgress: 40,
     });
-    expect(
-      screen.queryByRole("button", { name: "Review this paper with AI" }),
-    ).toBeNull();
     expect(screen.getByTitle("Start another background compile")).toHaveTextContent(
       "40%",
     );
@@ -422,6 +410,56 @@ describe("renderSourceToolbar", () => {
   it("cannot compile without a root file", () => {
     toolbar({ rootFile: "" });
     expect(screen.getByTitle("Compile")).toBeDisabled();
+  });
+});
+
+describe("renderTitlebar", () => {
+  function titlebar(values: Record<string, unknown> = {}) {
+    const ctx = makeCtx({
+      projectId: "project-1",
+      projectName: "My paper",
+      rootFile: "main.tex",
+      collaborationState: { enabled: false },
+      shareButtonDisabled: false,
+      shareButtonLabel: "Share",
+      shareButtonTitle: "Share project",
+      layoutMode: "split",
+      focusMode: false,
+      sidebarVisible: true,
+      panelVisible: false,
+      ...values,
+    });
+    render(renderTitlebar(ctx));
+    return ctx;
+  }
+
+  it("opens sharing and marks an actively shared project", () => {
+    const ctx = titlebar({ collaborationState: { enabled: true } });
+    const share = screen.getByRole("button", { name: "Share project" });
+    expect(share).toHaveClass("active");
+    fireEvent.click(share);
+    expect(ctx.openShareDialog).toHaveBeenCalledOnce();
+  });
+
+  it("disables sharing when unavailable", () => {
+    const ctx = titlebar({ shareButtonDisabled: true });
+    const share = screen.getByRole("button", { name: "Share project" });
+    expect(share).toBeDisabled();
+    fireEvent.click(share);
+    expect(ctx.openShareDialog).not.toHaveBeenCalled();
+  });
+
+  it("reviews the paper with AI", () => {
+    const ctx = titlebar();
+    fireEvent.click(screen.getByRole("button", { name: "Review this paper with AI" }));
+    expect(ctx.reviewPaperWithAi).toHaveBeenCalledOnce();
+  });
+
+  it("hides AI review without a root file", () => {
+    titlebar({ rootFile: "" });
+    expect(
+      screen.queryByRole("button", { name: "Review this paper with AI" }),
+    ).not.toBeInTheDocument();
   });
 });
 

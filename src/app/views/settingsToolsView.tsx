@@ -7,9 +7,6 @@ export function renderSettingsSectionHeading3(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Conference / Journal Submission Checker</strong>
-        <span>
-          Validate your manuscript against conference and journal submission guidelines.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -166,9 +163,6 @@ export function renderSettingsSectionHeading4(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Smart Citation Assistant</strong>
-        <span>
-          Detect missing citations, unused references, broken links, and more.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -244,9 +238,6 @@ export function renderSettingsSectionHeading5(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Research Structure Assistant</strong>
-        <span>
-          Check whether your paper's structure meets academic writing standards.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -407,9 +398,6 @@ export function renderSettingsSectionHeading7(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Acronym & Glossary Manager</strong>
-        <span>
-          Automatically detect acronym definitions, duplicates, and usage issues.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -475,7 +463,6 @@ export function renderSettingsSectionHeading8(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>LaTeX Error Doctor</strong>
-        <span>Smart error explanations with one-click fix suggestions.</span>
       </div>
 
       <label className="settings-row settings-toggle">

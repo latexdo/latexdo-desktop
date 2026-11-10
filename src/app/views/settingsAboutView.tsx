@@ -12,9 +12,6 @@ export function renderSettingsSectionHeading11(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>PDF Compliance Report</strong>
-        <span>
-          Check compiled PDF against conference guidelines and best practices.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -212,7 +209,6 @@ export function renderSettingsSectionHeading12(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>About LatexDo</strong>
-        <span>A focused workspace for LaTeX writing and research.</span>
       </div>
 
       <section className="settings-about-card" aria-label="Ownership and licence">

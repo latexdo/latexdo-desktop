@@ -562,7 +562,6 @@ export function renderSettingsSectionHeading2(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Language assistance</strong>
-        <span>Spelling, custom vocabulary, grammar, and style.</span>
       </div>
 
       <label className="settings-row settings-toggle">
