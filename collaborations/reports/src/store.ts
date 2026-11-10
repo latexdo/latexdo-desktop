@@ -291,7 +291,10 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
     const stale = this.sql
       .exec<{
         fingerprint: string;
-      }>("SELECT fingerprint FROM issues WHERE last_seen < ?", now - reportLimits.issueLifetimeMs)
+      }>(
+        "SELECT fingerprint FROM issues WHERE last_seen < ?",
+        now - reportLimits.issueLifetimeMs,
+      )
       .toArray();
     for (const { fingerprint } of stale) {
       this.sql.exec("DELETE FROM reporters WHERE fingerprint = ?", fingerprint);
