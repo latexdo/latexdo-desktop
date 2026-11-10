@@ -590,7 +590,10 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 }
 
 function openOutputPanel() {
-  fireEvent.click(screen.getByRole("button", { name: /^Show problems: \d+ errors?$/ }));
+  if (!screen.queryByRole("button", { name: "Close bottom panel" })) {
+    fireEvent.click(screen.getByRole("button", { name: "Layout options" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Bottom panel/ }));
+  }
   fireEvent.click(screen.getByRole("button", { name: "Output" }));
 }
 
@@ -2444,24 +2447,19 @@ describe("App critical UI controls", () => {
     const statusbar = screen.getByRole("contentinfo", {
       name: "Project diagnostics",
     });
-    const warningsButton = within(statusbar).getByRole("button", {
-      name: /Show problems: \d+ warnings?/,
-    });
+    expect(
+      within(statusbar).queryByRole("button", { name: /Show problems/ }),
+    ).toBeNull();
+    expect(statusbar.querySelector(".statusbar-message")).toBeNull();
     expect(
       within(statusbar).getByRole("button", {
         name: /Open source control|Checkout branch/,
       }),
     ).toBeVisible();
-    expect(warningsButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(warningsButton);
+    openOutputPanel();
+    fireEvent.click(screen.getByRole("button", { name: /^Problems/ }));
     expect(await screen.findByText("Code availability link not found")).toBeVisible();
     expect(screen.getByRole("region", { name: "Problems" })).toBeVisible();
-    expect(warningsButton).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Close bottom panel" }));
-    fireEvent.click(
-      within(statusbar).getByRole("button", { name: /Show problems: \d+ errors?/ }),
-    );
-    expect(screen.getByText("Code availability link not found")).toBeVisible();
   });
 
   it("opens real AI settings from the unconfigured AI sidebar", async () => {

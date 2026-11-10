@@ -460,10 +460,11 @@ export function useAppRebuttalAndHistory(ctx: AppCtx14) {
     }
   };
 
-  // Each sidebar view remembers its own width; the AI view keeps a separate
-  // width for its expanded state.
+  // Once dragged, every sidebar view (files, Discussion, Reviews...) shares one
+  // width so switching views does not move the editor. Until then each view
+  // keeps its CSS default. The expanded AI view keeps a width of its own.
   const sidebarWidthKey =
-    activeSidebar === "ai" && aiSidebarExpanded ? "ai-expanded" : activeSidebar;
+    activeSidebar === "ai" && aiSidebarExpanded ? "ai-expanded" : "shared";
   const sidebarCustomWidth = sidebarWidths[sidebarWidthKey];
   const sidebarWidthStyle: React.CSSProperties | undefined =
     sidebarCustomWidth === undefined
