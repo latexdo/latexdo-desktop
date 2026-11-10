@@ -591,8 +591,7 @@ async function openProjectFromWelcome({ showOutput = true } = {}) {
 
 function openOutputPanel() {
   if (!screen.queryByRole("button", { name: "Close bottom panel" })) {
-    fireEvent.click(screen.getByRole("button", { name: "Layout options" }));
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Bottom panel/ }));
+    act(() => menuCommandListener?.("view.togglePanel"));
   }
   fireEvent.click(screen.getByRole("button", { name: "Output" }));
 }
