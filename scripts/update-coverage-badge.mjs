@@ -15,10 +15,11 @@ async function verifyDirectory(relative) {
   for (const entry of await readdir(new URL(relative, root), { withFileTypes: true })) {
     const file = `${relative}${entry.name}`;
     if (entry.isDirectory()) {
-      // collaborations/cloudflare is a separate Workers project with its own tests.
+      // Match the separate Workers projects excluded in vitest.config.ts.
       if (
         !["node_modules", "__tests__"].includes(entry.name) &&
-        file !== "collaborations/cloudflare"
+        file !== "collaborations/cloudflare" &&
+        file !== "collaborations/reports"
       ) {
         await verifyDirectory(`${file}/`);
       }

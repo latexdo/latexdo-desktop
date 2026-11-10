@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fileURLToPath } from "node:url";
+import { readdir } from "node:fs/promises";
 const state = vi.hoisted(() => ({ percentage: 95, omit: false, written: "" }));
 vi.mock("node:fs/promises", () => ({
   readFile: vi.fn(async () =>
@@ -24,7 +25,10 @@ vi.mock("node:fs/promises", () => ({
         { name: "style.css", isDirectory: () => false },
       ];
     if (p.endsWith("/collaborations/"))
-      return [{ name: "cloudflare", isDirectory: () => true }];
+      return [
+        { name: "cloudflare", isDirectory: () => true },
+        { name: "reports", isDirectory: () => true },
+      ];
     return [];
   }),
   mkdir: vi.fn(),
@@ -34,11 +38,23 @@ vi.mock("node:fs/promises", () => ({
 }));
 beforeEach(() => {
   vi.resetModules();
+  vi.clearAllMocks();
   state.omit = false;
   state.percentage = 95;
   state.written = "";
 });
 describe("coverage badge verification", () => {
+  it("skips the separate Workers projects excluded from coverage", async () => {
+    await import("./update-coverage-badge.mjs");
+    const visited = vi.mocked(readdir).mock.calls.map(([url]) => url.pathname);
+    expect(visited.some((path) => path.endsWith("/collaborations/"))).toBe(true);
+    for (const project of ["cloudflare", "reports"]) {
+      expect(visited.some((path) => path.includes(`/collaborations/${project}/`))).toBe(
+        false,
+      );
+    }
+    expect(state.written).toContain("95.00%");
+  });
   it.each([
     [95, "#4c1"],
     [70, "#dfb317"],

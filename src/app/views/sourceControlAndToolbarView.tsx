@@ -18,7 +18,6 @@ import {
   Sigma,
   Underline,
   User,
-  WandSparkles,
   X,
 } from "lucide-react";
 import { TableSizePicker } from "../../components/TableSizePicker";
@@ -248,7 +247,6 @@ export function renderSourceToolbar(ctx: AppCtx) {
   const {
     activeDocumentIsAsymptote,
     activeDocumentIsLatex,
-    applyLatexPrettier,
     applyLatexToolbarCommand,
     cancelCompile,
     compile,
@@ -530,19 +528,6 @@ export function renderSourceToolbar(ctx: AppCtx) {
             aria-pressed={currentLineHasBookmark}
           >
             <Bookmark size={14} />
-          </button>
-
-          <span className="tex-format-divider" aria-hidden="true" />
-
-          <button
-            type="button"
-            className="tex-format-button"
-            onClick={applyLatexPrettier}
-            title="Tidy the layout: one blank line around sections, indented lists and environments (Shift+Alt+F)"
-            aria-label="Tidy up the LaTeX layout"
-          >
-            <WandSparkles size={14} />
-            <span>Tidy</span>
           </button>
         </div>
       ) : null}

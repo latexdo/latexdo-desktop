@@ -20,6 +20,7 @@ import {
   User,
   Variable,
   X,
+  WandSparkles,
 } from "lucide-react";
 import FileTree from "../../FileTree";
 import { LayoutMenu } from "../../components/LayoutMenu";
@@ -39,6 +40,9 @@ import type { AppCtx } from "../appContext";
 
 export function renderTitlebar(ctx: AppCtx) {
   const {
+    activeDocumentIsLatex,
+    applyLatexPrettier,
+    latexEditorView,
     collaborationState,
     focusMode,
     layoutMode,
@@ -93,6 +97,18 @@ export function renderTitlebar(ctx: AppCtx) {
           <Link size={15} aria-hidden="true" />
           <span>{projectId ? shareButtonLabel : "Join"}</span>
         </button>
+        {activeDocumentIsLatex && latexEditorView === "code" ? (
+          <button
+            type="button"
+            className="title-history-button"
+            onClick={applyLatexPrettier}
+            title="Tidy the layout: one blank line around sections, indented lists and environments (Shift+Alt+F)"
+            aria-label="Tidy up the LaTeX layout"
+          >
+            <WandSparkles size={15} aria-hidden="true" />
+            <span>Tidy</span>
+          </button>
+        ) : null}
         {projectId ? (
           <LayoutMenu
             mode={layoutMode}

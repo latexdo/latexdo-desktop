@@ -351,8 +351,9 @@ describe("renderSourceToolbar", () => {
     expect(captured.table!.onInsert).toBe(ctx.insertLatexTable);
     fireEvent.click(screen.getByRole("button", { name: "Bookmark current line" }));
     expect(ctx.toggleBookmarkAtCurrentLine).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Tidy up the LaTeX layout" }));
-    expect(ctx.applyLatexPrettier).toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Tidy up the LaTeX layout" }),
+    ).not.toBeInTheDocument();
     const compile = screen.getByTitle("Compile");
     expect(compile).toBeEnabled();
     fireEvent.click(compile);
@@ -416,6 +417,8 @@ describe("renderSourceToolbar", () => {
 describe("renderTitlebar", () => {
   function titlebar(values: Record<string, unknown> = {}) {
     const ctx = makeCtx({
+      activeDocumentIsLatex: true,
+      latexEditorView: "code",
       projectId: "project-1",
       projectName: "My paper",
       rootFile: "main.tex",
@@ -448,6 +451,24 @@ describe("renderTitlebar", () => {
     fireEvent.click(share);
     expect(ctx.openShareDialog).not.toHaveBeenCalled();
   });
+
+  it("tidies the LaTeX document from the title bar", () => {
+    const ctx = titlebar();
+    const tidy = screen.getByRole("button", { name: "Tidy up the LaTeX layout" });
+    expect(tidy.closest("header")).toHaveClass("titlebar");
+    fireEvent.click(tidy);
+    expect(ctx.applyLatexPrettier).toHaveBeenCalledOnce();
+  });
+
+  it.each([{ activeDocumentIsLatex: false }, { latexEditorView: "visual" }])(
+    "hides Tidy when the LaTeX code editor is unavailable: %j",
+    (values) => {
+      titlebar(values);
+      expect(
+        screen.queryByRole("button", { name: "Tidy up the LaTeX layout" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("reviews the paper with AI", () => {
     const ctx = titlebar();
