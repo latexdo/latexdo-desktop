@@ -61,6 +61,8 @@ import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
 import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { useAppDiscussion } from "./app/useAppDiscussion";
+import { DiscussionNotices, DiscussionPanel } from "./components/DiscussionPanel";
 import { SettingsShell } from "./components/SettingsShell";
 import { KeyboardShortcutsDialog } from "./components/KeyboardShortcutsDialog";
 import {
@@ -129,7 +131,8 @@ export default function App() {
   const s19 = { ...s18, ...useAppPaperReview(s18) };
   const s20 = { ...s19, ...useAppViewLayout(s19) };
   const s21 = { ...s20, ...useAppMenuCommands(s20) };
-  const ctx = s21;
+  const s22 = { ...s21, ...useAppDiscussion(s21) };
+  const ctx = s22;
   const folderDrop = useFolderDrop(ctx);
   const {
     openInstalledExtension,
@@ -373,7 +376,9 @@ export default function App() {
                       ? "Explorer"
                       : activeSidebar === "enterprise"
                         ? "Enterprise"
-                        : "Extensions"}
+                        : activeSidebar === "discussion"
+                          ? "Discussion"
+                          : "Extensions"}
                   </span>
                   <div>
                     {activeSidebar === "enterprise" ? (
@@ -512,6 +517,12 @@ export default function App() {
                 />
               ) : activeSidebar === "sourceControl" ? (
                 renderSidebarPanel(ctx)
+              ) : activeSidebar === "discussion" ? (
+                <DiscussionPanel
+                  discussion={ctx.discussion}
+                  onOpenLink={openExternalLink}
+                  onOpenShare={ctx.openShareDialog}
+                />
               ) : null}
             </aside>
           )
@@ -534,6 +545,8 @@ export default function App() {
       </div>
 
       {updateBannerVisible && availableUpdateVersion ? renderUpdateBanner(ctx) : null}
+
+      <DiscussionNotices discussion={ctx.discussion} />
 
       <footer
         className="statusbar"

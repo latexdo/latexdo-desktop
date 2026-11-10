@@ -3933,6 +3933,93 @@ describe("App critical UI controls", () => {
     expect(screen.queryByText("No repository")).not.toBeInTheDocument();
   });
 
+  it("opens the discussion of a shared project from the activity bar", async () => {
+    const api = installLatexDoMock() as ReturnType<typeof installLatexDoMock> &
+      Record<string, ReturnType<typeof vi.fn>>;
+    const shared = {
+      enabled: true,
+      token: "t",
+      users: [{ clientId: "client-bob", name: "Bob", currentFile: null, lastSeen: 1 }],
+    };
+    api.getCollaborationState.mockResolvedValue(shared);
+    api.updateCollaborationPresence.mockResolvedValue(shared);
+    const page = {
+      version: 1,
+      seq: 1,
+      hasMore: false,
+      messages: [
+        {
+          id: "msg-hello",
+          seq: 1,
+          from: "client-bob",
+          name: "Bob",
+          to: null,
+          recipients: ["client-me"],
+          body: "Can you check the intro, @Me?",
+          mentions: ["client-me"],
+          replyTo: null,
+          createdAt: Date.now(),
+        },
+      ],
+      receipts: {},
+      members: [
+        { clientId: "client-me", name: "Me", role: "admin", isCurrent: true },
+        { clientId: "client-bob", name: "Bob", role: "editor" },
+      ],
+    };
+    Object.assign(api, {
+      hasDiscussion: vi.fn(() => true),
+      collaborationClientId: vi.fn(() => "client-me"),
+      getDiscussion: vi.fn().mockResolvedValue(page),
+      updateDiscussionReceipt: vi.fn().mockResolvedValue({ seq: 1 }),
+      sendDiscussionMessage: vi.fn(
+        async (_id: string, input: { id: string; body: string }) => ({
+          seq: 2,
+          message: {
+            ...input,
+            seq: 2,
+            from: "client-me",
+            name: "Me",
+            to: null,
+            recipients: ["client-bob"],
+            mentions: [],
+            replyTo: null,
+            createdAt: Date.now(),
+          },
+        }),
+      ),
+    });
+    render(<App />);
+    await openProjectFromWelcome();
+
+    const button = await screen.findByRole("button", {
+      name: "Discussion (1 unread, 1 for you)",
+    });
+    // A mention also arrives as a notice that opens the conversation.
+    expect(await screen.findByText("mentioned you")).toBeVisible();
+    fireEvent.click(button);
+    expect(
+      await screen.findByRole("log", { name: "Messages to everyone" }),
+    ).toBeVisible();
+    expect(screen.getByText("@Me")).toHaveClass("is-me");
+    await waitFor(() =>
+      expect(api.updateDiscussionReceipt).toHaveBeenCalledWith(project.id, {
+        delivered: 1,
+      }),
+    );
+
+    const input = screen.getByLabelText("Message to everyone");
+    fireEvent.change(input, { target: { value: "On it" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(api.sendDiscussionMessage).toHaveBeenCalledWith(
+        project.id,
+        expect.objectContaining({ body: "On it", to: null }),
+      ),
+    );
+    expect(await screen.findByText("On it")).toBeVisible();
+  });
+
   it("project workflow imports dropped files once and preserves their destination", async () => {
     const api = installLatexDoMock({
       // Background proofreading can overwrite the import status on slower runs.

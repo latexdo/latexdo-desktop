@@ -48,6 +48,7 @@ export class CollaborationClient {
       onPresenceChange: options.onPresenceChange,
       onProjectChanged: options.onProjectChanged,
       onJoinRequests: options.onJoinRequests,
+      onDiscussionChanged: options.onDiscussionChanged,
     });
   }
 

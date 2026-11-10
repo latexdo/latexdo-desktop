@@ -146,6 +146,7 @@
       "dist-electron/**/*",
       "collaborations/server.mjs",
       "collaborations/security.mjs",
+      "collaborations/discussion.mjs",
       "build/icon.png",
       "package.json"
     ],

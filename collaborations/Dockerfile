@@ -7,7 +7,7 @@ WORKDIR /app
 COPY collaborations/package.json ./package.json
 RUN npm install --omit=dev --no-audit --no-fund
 
-COPY collaborations/server.mjs collaborations/security.mjs ./
+COPY collaborations/server.mjs collaborations/security.mjs collaborations/discussion.mjs ./
 
 ENV LATEXDO_COLLAB_HOST=0.0.0.0
 ENV LATEXDO_COLLAB_PORT=8787

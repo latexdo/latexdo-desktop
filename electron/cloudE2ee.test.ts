@@ -1084,3 +1084,208 @@ describe("live sockets", () => {
     expect(live.handlers.onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("discussion", () => {
+  const route = `${base}/discussion`;
+  const headers = { "x-latexdo-client": "ada", "x-latexdo-client-name": "Ada" };
+
+  it("seals the text and mentions with the message's id, sender and conversation", async () => {
+    const key = newProjectKey();
+    let stored: Record<string, unknown> = {};
+    const env = setup(
+      async (path, method, sentHeaders, body) => {
+        expect(path).toBe(route);
+        expect(method).toBe("POST");
+        expect(isEncryptedString(sentHeaders["x-latexdo-client-name"])).toBe(true);
+        stored = JSON.parse(body ?? "{}") as Record<string, unknown>;
+        return ok({
+          seq: 3,
+          message: {
+            ...stored,
+            seq: 3,
+            from: "ada",
+            name: sentHeaders["x-latexdo-client-name"],
+            recipients: ["bob"],
+            createdAt: 1,
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({
+        id: "msg-0001",
+        to: "bob",
+        body: "Secret plan",
+        mentions: ["bob", 7],
+        replyTo: "msg-0000",
+      }),
+      1000,
+    );
+    // The server sees neither the words nor who was mentioned.
+    expect(stored).toMatchObject({
+      id: "msg-0001",
+      to: "bob",
+      replyTo: "msg-0000",
+      mentions: [],
+    });
+    expect(String(stored.body)).not.toContain("Secret");
+    expect(
+      JSON.parse(await decryptString(key, projectId, "message", String(stored.body))),
+    ).toEqual({
+      v: 1,
+      id: "msg-0001",
+      from: "ada",
+      to: "bob",
+      body: "Secret plan",
+      mentions: ["bob"],
+    });
+    expect(JSON.parse(response.text)).toMatchObject({
+      seq: 3,
+      message: { body: "Secret plan", mentions: ["bob"], name: "Ada", to: "bob" },
+    });
+  });
+
+  it("refuses empty messages and passes server errors through", async () => {
+    const key = newProjectKey();
+    const env = setup(
+      () => ok({ error: "Too fast" }, 429),
+      memoryKeys({ [projectId]: key }),
+    );
+    const empty = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ body: " " }),
+      1000,
+    );
+    expect(empty.status).toBe(400);
+    expect(env.request).not.toHaveBeenCalled();
+    const odd = await env.e2ee.request(
+      route,
+      "POST",
+      {},
+      JSON.stringify({ id: "msg-0002", body: "Hi", mentions: "bob" }),
+      1000,
+    );
+    expect(odd.status).toBe(429);
+    const sent = JSON.parse(String(env.request.mock.calls[0]?.[3])) as {
+      body: string;
+      to: null;
+    };
+    expect(sent.to).toBeNull();
+    expect(
+      JSON.parse(await decryptString(key, projectId, "message", sent.body)),
+    ).toMatchObject({ from: "", mentions: [], to: null });
+    const failedList = await env.e2ee.request(route, "GET", headers, undefined, 1000);
+    expect(failedList.status).toBe(429);
+  });
+
+  it("opens a page of messages and refuses bodies moved by the server", async () => {
+    const key = newProjectKey();
+    const seal = (value: unknown) =>
+      encryptString(key, projectId, "message", JSON.stringify(value));
+    const good = {
+      id: "msg-1",
+      seq: 1,
+      from: "bob",
+      to: null,
+      name: await encryptString(key, "", "name", "Bob"),
+      body: await seal({
+        v: 1,
+        id: "msg-1",
+        from: "bob",
+        to: null,
+        body: "Hi @Ada",
+        mentions: ["ada", 4],
+      }),
+    };
+    const moved = {
+      ...good,
+      id: "msg-2",
+      seq: 2,
+      // A private body replayed into the group conversation.
+      body: await seal({
+        v: 1,
+        id: "msg-2",
+        from: "bob",
+        to: "ada",
+        body: "Private",
+        mentions: [],
+      }),
+    };
+    const garbage = { ...good, id: "msg-3", seq: 3, body: "not sealed" };
+    const noMentions = {
+      ...good,
+      id: "msg-4",
+      seq: 4,
+      body: await seal({ v: 1, id: "msg-4", from: "bob", body: "No list" }),
+    };
+    const env = setup(
+      () =>
+        ok({
+          version: 1,
+          seq: 4,
+          messages: [good, moved, garbage, noMentions, null],
+          members: [{ clientId: "bob", name: good.name }],
+        }),
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      `${route}?after=0`,
+      "GET",
+      headers,
+      undefined,
+      1000,
+    );
+    const page = JSON.parse(response.text) as {
+      messages: Array<Record<string, unknown> | null>;
+      members: Array<{ name: string }>;
+    };
+    expect(page.members[0]?.name).toBe("Bob");
+    expect(page.messages[0]).toMatchObject({
+      body: "Hi @Ada",
+      mentions: ["ada"],
+      name: "Bob",
+    });
+    expect(page.messages[1]).toMatchObject({ undecryptable: true, mentions: [] });
+    expect(page.messages[2]).toMatchObject({ undecryptable: true });
+    expect(page.messages[3]).toMatchObject({ body: "No list", mentions: [] });
+    expect(page.messages[4]).toBeNull();
+
+    const emptyPage = setup(() => ok({ seq: 0 }), memoryKeys({ [projectId]: key }));
+    const none = await emptyPage.e2ee.request(route, "GET", headers, undefined, 1000);
+    expect(JSON.parse(none.text)).toEqual({ seq: 0, messages: [] });
+  });
+
+  it("forwards receipts like any other request and the live discussion signal", async () => {
+    const key = newProjectKey();
+    const env = setup(() => ok({ seq: 2 }), memoryKeys({ [projectId]: key }));
+    const receipts = await env.e2ee.request(
+      `${route}/receipts`,
+      "POST",
+      headers,
+      JSON.stringify({ delivered: 2 }),
+      1000,
+    );
+    expect(JSON.parse(receipts.text)).toEqual({ seq: 2 });
+    expect(env.request.mock.calls[0]?.[3]).toBe(JSON.stringify({ delivered: 2 }));
+
+    const live = await openLive();
+    live.server.handlers.onMessage(logFrame(0, [], "editor"));
+    await opened(live);
+    const signal = frame((e) => {
+      encoding.writeVarUint(e, 7);
+      encoding.writeVarString(e, JSON.stringify({ version: 1, seq: 2 }));
+    });
+    live.server.handlers.onMessage(signal);
+    await vi.waitFor(() =>
+      expect(live.handlers.onMessage.mock.calls.map((call) => call[0])).toContain(
+        signal,
+      ),
+    );
+  });
+});

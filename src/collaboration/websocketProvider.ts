@@ -19,6 +19,8 @@ const messageProjectPresence = 4;
 const messageProjectChanged = 5;
 /** Admins only: who is waiting to join the project, sent when it changes. */
 const messageJoinRequests = 6;
+/** The project discussion changed: fetch it again. */
+const messageDiscussion = 7;
 const reconnectInitialDelayMs = 750;
 const reconnectMaxDelayMs = 10_000;
 const outboundHighWaterBytes = 512 * 1024;
@@ -50,6 +52,7 @@ export interface LatexDoWebsocketProviderOptions {
   onPresenceChange?: (users: CollaboratorPresence[]) => void;
   onProjectChanged?: (revision: number) => void;
   onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
+  onDiscussionChanged?: (seq: number) => void;
 }
 
 function isCollaboratorRole(value: unknown): value is CollaboratorRole {
@@ -135,6 +138,7 @@ export class LatexDoWebsocketProvider {
   private readonly onPresenceChange?: (users: CollaboratorPresence[]) => void;
   private readonly onProjectChanged?: (revision: number) => void;
   private readonly onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
+  private readonly onDiscussionChanged?: (seq: number) => void;
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private outboundDrainTimer: number | null = null;
@@ -155,6 +159,7 @@ export class LatexDoWebsocketProvider {
     this.onPresenceChange = options.onPresenceChange;
     this.onProjectChanged = options.onProjectChanged;
     this.onJoinRequests = options.onJoinRequests;
+    this.onDiscussionChanged = options.onDiscussionChanged;
     this.doc.on("update", this.handleDocUpdate);
     this.awareness.on("update", this.handleAwarenessUpdate);
     this.connect();
@@ -368,6 +373,19 @@ export class LatexDoWebsocketProvider {
           JSON.parse(decoding.readVarString(decoder)) as unknown,
         );
         if (pending) this.onJoinRequests?.(pending);
+      } catch {
+        return;
+      }
+    }
+
+    if (messageType === messageDiscussion) {
+      if (buffer.byteLength > maxPresenceFrameBytes) return;
+      try {
+        const seq = (JSON.parse(decoding.readVarString(decoder)) as { seq?: unknown })
+          .seq;
+        if (typeof seq === "number" && Number.isSafeInteger(seq) && seq >= 0) {
+          this.onDiscussionChanged?.(seq);
+        }
       } catch {
         return;
       }

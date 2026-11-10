@@ -19,6 +19,7 @@ import type { useAppSessionRestore } from "./useAppSessionRestore";
 import type { useAppPaperReview } from "./useAppPaperReview";
 import type { useAppViewLayout } from "./useAppViewLayout";
 import type { useAppMenuCommands } from "./useAppMenuCommands";
+import type { useAppDiscussion } from "./useAppDiscussion";
 
 export type AppCtx01 = ReturnType<typeof useAppWorkspaceState>;
 export type AppCtx02 = AppCtx01 & ReturnType<typeof useAppPanelAndGitState>;
@@ -41,6 +42,7 @@ export type AppCtx18 = AppCtx17 & ReturnType<typeof useAppSessionRestore>;
 export type AppCtx19 = AppCtx18 & ReturnType<typeof useAppPaperReview>;
 export type AppCtx20 = AppCtx19 & ReturnType<typeof useAppViewLayout>;
 export type AppCtx21 = AppCtx20 & ReturnType<typeof useAppMenuCommands>;
+export type AppCtx22 = AppCtx21 & ReturnType<typeof useAppDiscussion>;
 
 /** Everything the App component's state hooks provide to its views. */
-export type AppCtx = AppCtx21;
+export type AppCtx = AppCtx22;

@@ -105,6 +105,8 @@ export function useAppCollaboration(ctx: AppCtx08) {
   const joinRequestsRef = useRef<(pending: CollaborationJoinRequest[]) => void>(
     () => undefined,
   );
+  // Set by the discussion; the live connection tells it when to refetch.
+  const discussionSignalRef = useRef<(seq: number) => void>(() => undefined);
 
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
@@ -256,6 +258,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
               );
             },
             onJoinRequests: (pending) => joinRequestsRef.current(pending),
+            onDiscussionChanged: (seq) => discussionSignalRef.current(seq),
           });
         },
       );
@@ -1142,6 +1145,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
 
   return {
     liveConnection,
+    discussionSignalRef,
     connectCollaborationBinding,
     applyEditorBlameDecorations,
     handleEditorChange,

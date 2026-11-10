@@ -700,3 +700,63 @@ export interface PermissionUpdate {
   clientId: string;
   role: CollaboratorRole;
 }
+
+/** One message of a shared project's discussion. */
+export interface DiscussionMessage {
+  id: string;
+  /** Server order; receipts are watermarks on it. */
+  seq: number;
+  /** The sender's client id. */
+  from: string;
+  /** The sender's name when they sent it. */
+  name: string;
+  /** Private to this person (and the sender); null for everyone. */
+  to: string | null;
+  /** Who should receive it, fixed when it was sent. */
+  recipients: string[];
+  body: string;
+  /** Client ids mentioned with @. */
+  mentions: string[];
+  replyTo: string | null;
+  createdAt: number;
+  /** Set when the message could not be decrypted on this computer. */
+  undecryptable?: boolean;
+}
+
+export interface DiscussionReceipt {
+  /** Everything up to this sequence reached the person's app. */
+  delivered: number;
+  /** Per conversation ("*" or a client id): read up to this sequence. */
+  read: Record<string, number>;
+}
+
+export interface DiscussionPage {
+  version: 1;
+  /** The newest sequence in the discussion. */
+  seq: number;
+  messages: DiscussionMessage[];
+  /** More messages exist beyond this page. */
+  hasMore: boolean;
+  receipts: Record<string, DiscussionReceipt>;
+  /** Everyone with access to the project. */
+  members: CollaboratorPermission[];
+}
+
+export interface DiscussionQuery {
+  after?: number;
+  before?: number;
+  limit?: number;
+}
+
+export interface DiscussionMessageInput {
+  id: string;
+  to: string | null;
+  body: string;
+  mentions: string[];
+  replyTo: string | null;
+}
+
+export interface DiscussionReceiptUpdate {
+  delivered?: number;
+  read?: { conversation: string; seq: number };
+}

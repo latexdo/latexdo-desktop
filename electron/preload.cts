@@ -9,6 +9,11 @@ import type {
   CollaboratorRole,
   CompileProgressPayload,
   CreateProjectOptions,
+  DiscussionMessage,
+  DiscussionMessageInput,
+  DiscussionPage,
+  DiscussionQuery,
+  DiscussionReceiptUpdate,
   DocxImportResult,
   MarkdownImportResult,
   PdfImportResult,
@@ -1638,6 +1643,61 @@ const api = {
       token,
     );
   },
+  // The shared project's discussion: messages to everyone or one person.
+  getDiscussion: (
+    projectId: string,
+    query: DiscussionQuery = {},
+  ): Promise<DiscussionPage> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      return Promise.reject(new Error("This project is not shared."));
+    }
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+        params.set(name, String(value));
+      }
+    }
+    const search = params.toString();
+    return cloudRequestJson<DiscussionPage>(
+      `/api/projects/${encodeURIComponent(projectId)}/discussion${search ? `?${search}` : ""}`,
+      {},
+      token,
+    );
+  },
+  sendDiscussionMessage: (
+    projectId: string,
+    input: DiscussionMessageInput,
+  ): Promise<{ message: DiscussionMessage; seq: number }> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      return Promise.reject(new Error("This project is not shared."));
+    }
+    return cloudRequestJson<{ message: DiscussionMessage; seq: number }>(
+      `/api/projects/${encodeURIComponent(projectId)}/discussion`,
+      { method: "POST", body: JSON.stringify(input) },
+      token,
+    );
+  },
+  updateDiscussionReceipt: (
+    projectId: string,
+    update: DiscussionReceiptUpdate,
+  ): Promise<{ seq: number }> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      return Promise.reject(new Error("This project is not shared."));
+    }
+    return cloudRequestJson<{ seq: number }>(
+      `/api/projects/${encodeURIComponent(projectId)}/discussion/receipts`,
+      { method: "POST", body: JSON.stringify(update) },
+      token,
+    );
+  },
+  /** This app's collaboration identity, as the server knows it. */
+  collaborationClientId: (): string => cloudClientId(),
+  /** True for the shared copy of a project (it has a discussion). */
+  hasDiscussion: (projectId: string): boolean =>
+    isCloudProject(projectId) && Boolean(cloudShareTokenForProject(projectId)),
   isProjectAdmin: async (projectId: string): Promise<boolean> => {
     const token = cloudShareTokenForProject(projectId);
     if (!isCloudProject(projectId) || !token) {

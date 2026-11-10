@@ -141,6 +141,9 @@ describe("browser capabilities are explicit", () => {
     "getCollaborationPermissions",
     "updateCollaborationPermission",
     "removeCollaborator",
+    "getDiscussion",
+    "sendDiscussionMessage",
+    "updateDiscussionReceipt",
     "stageGitFile",
     "unstageGitFile",
     "commitGit",
@@ -194,6 +197,8 @@ describe("browser capabilities are explicit", () => {
     expect((await api.getCollaborationState(id)).enabled).toBe(false);
     expect((await api.updateCollaborationPresence(id)).users).toEqual([]);
     expect(await api.isProjectAdmin(id)).toBe(false);
+    expect(api.hasDiscussion(id)).toBe(false);
+    expect(api.collaborationClientId()).toBe("");
     expect((await api.checkForUpdates()).updateAvailable).toBe(false);
     expect((await api.lastUpdateStatus()).status).toBe("none");
     expect((await api.getWhatsNew()).shouldPresent).toBe(false);

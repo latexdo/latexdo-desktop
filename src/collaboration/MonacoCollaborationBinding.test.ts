@@ -5,6 +5,7 @@ import { MonacoCollaborationBinding } from "./MonacoCollaborationBinding";
 import type { CollaborationClientOptions } from "./collaborationTypes";
 
 const mocks = vi.hoisted(() => ({
+  lastOptions: null as null | CollaborationClientOptions,
   lastClient: null as null | {
     doc: Y.Doc;
     text: Y.Text;
@@ -47,6 +48,7 @@ vi.mock("./CollaborationClient", async () => {
 
       constructor(options: CollaborationClientOptions) {
         mocks.lastClient = this;
+        mocks.lastOptions = options;
         queueMicrotask(() => options.onSynced?.());
       }
     },
@@ -100,6 +102,37 @@ describe("MonacoCollaborationBinding provenance", () => {
 
     expect(seen).toContainEqual({ kind: "local", stackOrigin: "user" });
     binding.destroy();
+  });
+
+  it("forwards live project events until it is destroyed", async () => {
+    const events = {
+      onPresenceChange: vi.fn(),
+      onProjectChanged: vi.fn(),
+      onJoinRequests: vi.fn(),
+      onDiscussionChanged: vi.fn(),
+    };
+    const binding = new MonacoCollaborationBinding({
+      editor: fakeEditor() as never,
+      projectId: "project",
+      relativePath: "main.tex",
+      apiBaseUrl: "http://localhost",
+      clientName: "Alice",
+      color: "#123456",
+      ...events,
+    });
+    await Promise.resolve();
+    const options = mocks.lastOptions!;
+    options.onPresenceChange?.([]);
+    options.onProjectChanged?.(2);
+    options.onJoinRequests?.([]);
+    options.onDiscussionChanged?.(5);
+    expect(events.onDiscussionChanged).toHaveBeenCalledWith(5);
+    expect(events.onProjectChanged).toHaveBeenCalledWith(2);
+    binding.destroy();
+    options.onDiscussionChanged?.(6);
+    options.onPresenceChange?.([]);
+    expect(events.onDiscussionChanged).toHaveBeenCalledTimes(1);
+    expect(events.onPresenceChange).toHaveBeenCalledTimes(1);
   });
 
   it("reports applied remote updates as remote-origin text transactions", async () => {
