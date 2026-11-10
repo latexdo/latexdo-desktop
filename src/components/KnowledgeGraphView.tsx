@@ -513,6 +513,67 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
     <div className="kg-view">
       <header className="kg-header">
         <h2>Research library</h2>
+        {!onlineDiscovery ? (
+          <div className="kg-toolbar">
+            <div className="kg-search">
+              <Search size={13} />
+              <input
+                type="text"
+                value={query}
+                aria-label="Find paper or author"
+                placeholder="Find paper, author…"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  className="kg-icon"
+                  aria-label="Clear graph search"
+                  onClick={() => setQuery("")}
+                >
+                  <X size={13} />
+                </button>
+              ) : null}
+            </div>
+            <label
+              className={`kg-pill ${citedOnly ? "on" : ""}`}
+              title="Show only papers cited in your text"
+            >
+              <input
+                type="checkbox"
+                aria-label="Cited only"
+                checked={citedOnly}
+                onChange={(event) => setCitedOnly(event.target.checked)}
+              />
+              Cited
+            </label>
+            <button
+              type="button"
+              className={`kg-btn ${showControls ? "active" : ""}`}
+              onClick={() => {
+                setShowControls((value) => !value);
+                setSelectedKey(null);
+              }}
+              title="Graph parameters"
+              aria-label="Graph parameters"
+              aria-expanded={showControls}
+              aria-controls="knowledge-graph-parameters"
+            >
+              <SlidersHorizontal size={14} /> Connections
+            </button>
+            {onRecommendForSelection ? (
+              <button
+                type="button"
+                className="kg-icon-btn"
+                onClick={onRecommendForSelection}
+                title="Recommend citations for the selected text"
+                aria-label="Recommend citations"
+              >
+                <AiIcon size={14} />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="kg-view-switch" role="group" aria-label="Library view">
           <button
             type="button"
@@ -530,67 +591,6 @@ export const KnowledgeGraphView: React.FC<KnowledgeGraphViewProps> = ({
           </button>
         </div>
       </header>
-      {!onlineDiscovery ? (
-        <div className="kg-toolbar">
-          <div className="kg-search">
-            <Search size={13} />
-            <input
-              type="text"
-              value={query}
-              aria-label="Find paper or author"
-              placeholder="Find paper, author…"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {query ? (
-              <button
-                type="button"
-                className="kg-icon"
-                aria-label="Clear graph search"
-                onClick={() => setQuery("")}
-              >
-                <X size={13} />
-              </button>
-            ) : null}
-          </div>
-          <label
-            className={`kg-pill ${citedOnly ? "on" : ""}`}
-            title="Show only papers cited in your text"
-          >
-            <input
-              type="checkbox"
-              aria-label="Cited only"
-              checked={citedOnly}
-              onChange={(event) => setCitedOnly(event.target.checked)}
-            />
-            Cited
-          </label>
-          <button
-            type="button"
-            className={`kg-btn ${showControls ? "active" : ""}`}
-            onClick={() => {
-              setShowControls((value) => !value);
-              setSelectedKey(null);
-            }}
-            title="Graph parameters"
-            aria-label="Graph parameters"
-            aria-expanded={showControls}
-            aria-controls="knowledge-graph-parameters"
-          >
-            <SlidersHorizontal size={14} /> Connections
-          </button>
-          {onRecommendForSelection ? (
-            <button
-              type="button"
-              className="kg-icon-btn"
-              onClick={onRecommendForSelection}
-              title="Recommend citations for the selected text"
-              aria-label="Recommend citations"
-            >
-              <AiIcon size={14} />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
       {!onlineDiscovery && filter?.keys !== null && filter?.keys !== undefined ? (
         <div className="kg-filter-banner" role="status">
