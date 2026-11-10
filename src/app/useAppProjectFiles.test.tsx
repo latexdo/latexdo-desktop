@@ -2,7 +2,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppProjectFiles } from "./useAppProjectFiles";
 import type { AppCtx02 } from "./appContext";
-import type { OpenDocument, ProjectEntry } from "../types";
+import type { OpenDocument, ProjectEntry, ReviewChat } from "../types";
 import { defaultSettings } from "../features/settings/settings";
 import { reviewSnapshot } from "./appShared";
 
@@ -402,5 +402,57 @@ describe("review persistence", () => {
     expect(ctx.reviewSavedSnapshotRef.current).toBe("previous");
     await result.current.saveReviewData([], []);
     expect(ctx.reviewSavedSnapshotRef.current).toBe(reviewSnapshot([], []));
+  });
+});
+
+describe("live review threads", () => {
+  it("merges remote replies with local replies and honors remote deletions", async () => {
+    const thread: ReviewChat = {
+      id: "thread",
+      filePath: "main.tex",
+      selection: {
+        startLine: 1,
+        startColumn: 1,
+        endLine: 1,
+        endColumn: 4,
+        text: "Text",
+      },
+      comments: [{ id: "a", author: "Ann", text: "Initial", timestamp: 1 }],
+    };
+    const local = {
+      ...thread,
+      comments: [
+        ...thread.comments,
+        { id: "local", author: "Me", text: "My reply", timestamp: 3 },
+      ],
+    };
+    const remote = {
+      ...thread,
+      comments: [
+        ...thread.comments,
+        { id: "remote", author: "Bob", text: "Their reply", timestamp: 2 },
+      ],
+    };
+    api.readFile.mockResolvedValue(JSON.stringify({ chats: [remote], items: [] }));
+    const { ctx } = setup({
+      collaborationState: { enabled: true },
+      reviewChats: [local],
+      reviewSavedSnapshotRef: { current: reviewSnapshot([local], []) },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(
+      ctx.setReviewChats.mock.lastCall?.[0][0].comments.map(
+        (c: { id: string }) => c.id,
+      ),
+    ).toEqual(["a", "remote", "local"]);
+    api.readFile.mockResolvedValue(
+      JSON.stringify({ chats: [], items: [], deletedChatIds: ["thread"] }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(ctx.setReviewChats).toHaveBeenLastCalledWith([]);
   });
 });

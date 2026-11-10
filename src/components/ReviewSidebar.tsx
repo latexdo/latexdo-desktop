@@ -77,6 +77,7 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
                 </button>
               </div>
 
+              <small className="review-thread-file">{chat.filePath}</small>
               <div className="review-comments-list">
                 {chat.comments.length > 0 ? (
                   chat.comments.map((comment) => (
@@ -104,7 +105,7 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
               <div className="comment-input-area">
                 <textarea
                   aria-label="Review message"
-                  placeholder="Write a review message..."
+                  placeholder="Reply to this review..."
                   value={commentTexts[chat.id] || ""}
                   onChange={(e) =>
                     setCommentTexts((prev) => ({ ...prev, [chat.id]: e.target.value }))
@@ -129,7 +130,7 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
               </div>
 
               <div className="review-chat-footer">
-                {chat.insertedInTex ? (
+                {chat.kind === "paper" ? null : chat.insertedInTex ? (
                   <span
                     className="review-chat-in-tex"
                     title="This thread is in the TeX source"

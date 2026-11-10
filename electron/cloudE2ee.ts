@@ -1,3 +1,5 @@
+import { isReviewDataPath } from "../collaborations/reviewData.mjs";
+import { readReviewDocument, writeReviewDocument } from "./reviewDocument.js";
 /*
  * End-to-end encryption between this app and LatexDo's always-on server.
  *
@@ -360,7 +362,11 @@ export class CloudE2ee {
       const live = this.liveSession(projectId, filePath);
       if (method === "GET") {
         if (live)
-          return reply(200, { content: live.doc.getText("content").toString() });
+          return reply(200, {
+            content: isReviewDataPath(filePath)
+              ? readReviewDocument(live.doc)
+              : live.doc.getText("content").toString(),
+          });
         const log = await send(
           `${projectBase}/files/log?${params}`,
           "GET",
@@ -373,7 +379,11 @@ export class CloudE2ee {
           projectId,
           (JSON.parse(log.text) as { entries: string[] }).entries,
         );
-        return reply(200, { content: doc.getText("content").toString() });
+        return reply(200, {
+          content: isReviewDataPath(filePath)
+            ? readReviewDocument(doc)
+            : doc.getText("content").toString(),
+        });
       }
       if (method === "PUT") {
         const content = (JSON.parse(body ?? "{}") as { content?: unknown }).content;
@@ -381,6 +391,7 @@ export class CloudE2ee {
           return reply(400, { error: "File content must be a string." });
         }
         const replace = (doc: Y.Doc) => {
+          if (isReviewDataPath(filePath)) return writeReviewDocument(doc, content);
           const text = doc.getText("content");
           if (text.toString() === content) return;
           doc.transact(() => {
@@ -547,7 +558,9 @@ export class CloudE2ee {
             live?.doc ?? (await this.docFromEntries(key, projectId, file.entries));
           files.push({
             relativePath: file.relativePath,
-            content: doc.getText("content").toString(),
+            content: isReviewDataPath(file.relativePath)
+              ? readReviewDocument(doc)
+              : doc.getText("content").toString(),
           });
         } else if (typeof file.base64 === "string") {
           try {

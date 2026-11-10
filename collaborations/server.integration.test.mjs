@@ -124,6 +124,36 @@ afterAll(async () => {
 });
 
 describe("real collaboration HTTP service", () => {
+  it("keeps concurrent review replies and explicit thread deletions", async () => {
+    const { id } = await create();
+    const route = `/api/projects/${id}/files/content?path=.latexdo%2Freview_data.json`;
+    const chat = { id: "thread", comments: [] };
+    const writes = await Promise.all(
+      ["a", "b"].map((id) =>
+        request(route, owner, "PUT", {
+          content: JSON.stringify({
+            chats: [{ ...chat, comments: [{ id, timestamp: 1, text: id }] }],
+            items: [],
+          }),
+        }),
+      ),
+    );
+    expect(writes.map((r) => r.status)).toEqual([204, 204]);
+    const read = async () => JSON.parse((await (await request(route)).json()).content);
+    expect((await read()).chats[0].comments.map((c) => c.id)).toEqual(["a", "b"]);
+    expect(
+      (
+        await request(route, owner, "PUT", {
+          content: JSON.stringify({ chats: [], items: [], deletedChatIds: ["thread"] }),
+        })
+      ).status,
+    ).toBe(204);
+    await request(route, owner, "PUT", {
+      content: JSON.stringify({ chats: [chat], items: [] }),
+    });
+    expect((await read()).chats).toEqual([]);
+  });
+
   it("serves health, CORS preflight and explicit unavailable routes", async () => {
     expect(await (await request("/api/health", null)).json()).toMatchObject({
       ok: true,

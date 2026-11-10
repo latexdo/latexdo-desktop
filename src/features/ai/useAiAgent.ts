@@ -244,6 +244,7 @@ function buildRequest(
 
 interface SendOptions {
   displayText?: string;
+  onComplete?: (text: string) => void;
 }
 
 export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: string) {
@@ -459,6 +460,9 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
         return generateStep(req, onToken, () => onThinking?.());
       };
 
+      let completedText = "";
+      let completed = false;
+      let failed = false;
       const onEvent = (event: AgentEvent) => {
         switch (event.type) {
           case "assistant-token":
@@ -469,6 +473,7 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
             setStatus("Thinking…");
             break;
           case "assistant-message":
+            completedText = event.text;
             patchAssistant((m) => ({ ...m, text: event.text, pending: false }));
             break;
           case "tool-start":
@@ -488,6 +493,7 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
             }));
             break;
           case "error":
+            failed = true;
             patchAssistant((m) => ({
               ...m,
               text: (m.text ? m.text + "\n\n" : "") + `⚠️ ${event.message}`,
@@ -495,6 +501,7 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
             }));
             break;
           case "done":
+            completed = event.reason === "completed";
             patchAssistant((m) => ({
               ...m,
               text:
@@ -564,6 +571,14 @@ export function useAiAgent(config: AiConfig, ctx: AgentContext, storageKey?: str
           onEvent,
         });
         historyRef.current = access.chatHistory ? updatedHistory : [];
+        if (
+          completed &&
+          !failed &&
+          !controller.signal.aborted &&
+          completedText.trim()
+        ) {
+          options?.onComplete?.(completedText);
+        }
         savePersistedState(storageKey, messagesRef.current, historyRef.current);
       } finally {
         setIsRunning(false);

@@ -546,6 +546,7 @@ export interface ReviewChatComment {
 }
 
 export interface ReviewChat {
+  kind?: "paper";
   id: string;
   filePath: string;
   selection: {

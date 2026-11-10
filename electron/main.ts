@@ -1,3 +1,4 @@
+import { isReviewDataPath, mergeReviewContent } from "../collaborations/reviewData.mjs";
 import {
   app,
   BrowserWindow,
@@ -7106,6 +7107,7 @@ async function startApp(): Promise<void> {
     const { resolvedPath } = await resolveOpenProjectPath(projectId, filePath);
     return readFile(resolvedPath);
   });
+  const reviewWrites = new Map<string, Promise<void>>();
   ipcMain.handle("file:write", async (_event, ...rawArgs: unknown[]) => {
     const channel = "file:write";
     const [rawProjectId, rawFilePath, rawContent] = expectIpcArgs(channel, rawArgs, 3);
@@ -7115,7 +7117,28 @@ async function startApp(): Promise<void> {
     const { resolvedPath } = await resolveOpenProjectPath(projectId, filePath);
     // No backup copy: the write is already atomic, and the project folder must
     // only ever contain the person's own files.
-    await atomicWriteUtf8(resolvedPath, content);
+    if (isReviewDataPath(filePath)) {
+      const previous = reviewWrites.get(resolvedPath) ?? Promise.resolve();
+      const write = previous
+        .catch(() => undefined)
+        .then(async () => {
+          const saved = await readFile(resolvedPath, "utf8").catch(
+            (error: NodeJS.ErrnoException) => {
+              if (error.code === "ENOENT") return "{}";
+              throw error;
+            },
+          );
+          await atomicWriteUtf8(resolvedPath, mergeReviewContent(saved, content));
+        });
+      reviewWrites.set(resolvedPath, write);
+      try {
+        await write;
+      } finally {
+        if (reviewWrites.get(resolvedPath) === write) reviewWrites.delete(resolvedPath);
+      }
+    } else {
+      await atomicWriteUtf8(resolvedPath, content);
+    }
   });
   ipcMain.handle("file:create", async (_event, ...rawArgs: unknown[]) => {
     const channel = "file:create";

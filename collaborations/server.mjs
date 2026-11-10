@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { isReviewDataPath, mergeReviewContent } from "./reviewData.mjs";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   cp,
@@ -939,7 +940,23 @@ async function readProjectFile(projectId, relativePath) {
   return readFile(fullPath, "utf8");
 }
 
+const reviewWrites = new Map();
 async function writeProjectFile(projectId, relativePath, content) {
+  if (!isReviewDataPath(relativePath)) return writeProjectFileContent(projectId, relativePath, content);
+  const key = `${projectId}:${relativePath}`;
+  const previous = reviewWrites.get(key) ?? Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    const saved = await readProjectFile(projectId, relativePath).catch(error => {
+      if (error.status === 404) return "{}";
+      throw error;
+    });
+    await writeProjectFileContent(projectId, relativePath, mergeReviewContent(saved, content));
+    await bumpRevision(projectId);
+  });
+  reviewWrites.set(key, write);
+  try { await write; } finally { if (reviewWrites.get(key) === write) reviewWrites.delete(key); }
+}
+async function writeProjectFileContent(projectId, relativePath, content) {
   if (typeof content !== "string") {
     throw new HttpError(400, "File content must be a string.");
   }

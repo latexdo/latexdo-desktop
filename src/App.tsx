@@ -364,9 +364,11 @@ export default function App() {
                       ? "Explorer"
                       : activeSidebar === "enterprise"
                         ? "Enterprise"
-                        : activeSidebar === "discussion"
-                          ? "Discussion"
-                          : "Extensions"}
+                        : activeSidebar === "reviews"
+                          ? "Reviews"
+                          : activeSidebar === "discussion"
+                            ? "Discussion"
+                            : "Extensions"}
                   </span>
                   <div>
                     {activeSidebar === "enterprise" ? (
@@ -505,6 +507,15 @@ export default function App() {
                 />
               ) : activeSidebar === "sourceControl" ? (
                 renderSidebarPanel(ctx)
+              ) : activeSidebar === "reviews" ? (
+                <ReviewSidebar
+                  chats={reviewChats}
+                  onAddChat={handleAddReviewChat}
+                  onAddComment={handleAddReviewComment}
+                  onDeleteChat={(id) => void handleDeleteReviewChat(id)}
+                  onJumpToSelection={handleJumpToReviewSelection}
+                  onInsertIntoTex={(chat) => void handleInsertReviewChatIntoTex(chat)}
+                />
               ) : activeSidebar === "discussion" ? (
                 <DiscussionPanel
                   discussion={ctx.discussion}

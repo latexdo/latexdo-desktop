@@ -147,6 +147,7 @@
       "collaborations/server.mjs",
       "collaborations/security.mjs",
       "collaborations/discussion.mjs",
+      "collaborations/reviewData.mjs",
       "build/icon.png",
       "package.json"
     ],

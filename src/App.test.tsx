@@ -4707,7 +4707,7 @@ describe("App critical UI controls", () => {
       screen.getByRole("button", { name: /new.*thread|new.*conversation|add.*chat/i }),
     );
     expect(screen.getByTitle("Click to jump to selection")).toBeVisible();
-    fireEvent.change(screen.getByPlaceholderText("Write a review message..."), {
+    fireEvent.change(screen.getByPlaceholderText("Reply to this review..."), {
       target: { value: "Please clarify this claim." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send review message" }));
@@ -4719,8 +4719,18 @@ describe("App critical UI controls", () => {
         expect.stringContaining("Please clarify this claim."),
       ),
     );
+    fireEvent.click(screen.getByTitle("Author Mode"));
+    fireEvent.click(screen.getByTitle("Explorer"));
+    fireEvent.click(screen.getByRole("button", { name: /^Reviews$/ }));
+    expect(screen.getByText("Please clarify this claim.")).toBeVisible();
+    fireEvent.change(screen.getByPlaceholderText("Reply to this review..."), {
+      target: { value: "Added the explanation." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send review message" }));
+    expect(screen.getByText("Added the explanation.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /insert.*tex/i }));
     expect(h.model.getValue()).toContain("Please clarify this claim.");
+    expect(h.model.getValue()).toContain("Added the explanation.");
     fireEvent.click(screen.getByTitle("Delete review chat"));
     await waitFor(() =>
       expect(screen.queryByText("Please clarify this claim.")).not.toBeInTheDocument(),

@@ -272,6 +272,47 @@ describe("HTTP requests", () => {
     }
   });
 
+  it("round trips concurrent encrypted reviews without losing either reply", async () => {
+    const key = newProjectKey();
+    const entries: string[] = [];
+    const transport: Handler = (_path, method, _headers, body) => {
+      if (method === "GET") return ok({ entries: [...entries] });
+      entries.push(JSON.parse(body!).data);
+      return ok({ seq: entries.length });
+    };
+    const a = setup(transport, memoryKeys({ [projectId]: key })).e2ee;
+    const b = setup(transport, memoryKeys({ [projectId]: key })).e2ee;
+    const path = `${base}/files/content?path=.latexdo%2Freview_data.json`;
+    const write = (client: typeof a, id: string) =>
+      client.request(
+        path,
+        "PUT",
+        {},
+        JSON.stringify({
+          content: JSON.stringify({
+            chats: [
+              {
+                id: "thread",
+                filePath: "main.tex",
+                comments: [{ id, text: id, timestamp: 1 }],
+              },
+            ],
+            items: [],
+          }),
+        }),
+        1,
+      );
+    expect(
+      (await Promise.all([write(a, "a"), write(b, "b")])).map((r) => r.status),
+    ).toEqual([204, 204]);
+    const response = await a.request(path, "GET", {}, undefined, 1);
+    expect(
+      JSON.parse(JSON.parse(response.text).content).chats[0].comments.map(
+        (c: { id: string }) => c.id,
+      ),
+    ).toEqual(["a", "b"]);
+    expect(entries.join("")).not.toContain("main.tex");
+  });
   it("writes text files as an encrypted diff over the existing log", async () => {
     const key = newProjectKey();
     const posted: string[] = [];

@@ -8,6 +8,7 @@ import {
   ImageUp,
   Link,
   MessagesSquare,
+  MessageSquare,
   Pencil,
   Puzzle,
   RefreshCw,
@@ -138,6 +139,19 @@ export function renderActivityBar(ctx: AppCtx) {
               {changedFileCount > 99 ? "99+" : changedFileCount}
             </span>
           )}
+        </button>
+        <button
+          className={`activity-button ${sidebarVisible && activeSidebar === "reviews" ? "active" : ""}`}
+          onClick={() => openSidebar("reviews")}
+          title="Reviews"
+          aria-label="Reviews"
+        >
+          <MessageSquare size={21} />
+          {ctx.reviewChats?.length > 0 ? (
+            <span className="activity-change-badge" aria-hidden="true">
+              {ctx.reviewChats.length}
+            </span>
+          ) : null}
         </button>
         {ctx.discussion.available ? (
           <button

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { createReviewId } from "../features/review/rebuttalSource";
 import { isAiConfigured } from "../components/AiSidebar";
 import {
   buildPaperReviewPrompt,
@@ -90,11 +91,46 @@ export function useAppPaperReview(ctx: AppCtx18) {
         return;
       }
 
+      const sourceProjectId = c.projectId;
+      const sourceRootFile = c.rootFile;
       const reviewContext = paperReviewContext(focus);
       const api = await c.openAiSidebarApi();
+      if (latest.current.projectId !== sourceProjectId) return;
       const sent = api?.sendPrompt(
         buildPaperReviewPrompt(reviewContext),
         paperReviewDisplayText(reviewContext),
+        (text) => {
+          const current = latest.current;
+          if (current.projectId !== sourceProjectId) return;
+          current.setReviewChats((chats) => [
+            ...chats,
+            {
+              id: createReviewId(),
+              filePath: sourceRootFile,
+              selection: {
+                startLine: 1,
+                startColumn: 1,
+                endLine: 1,
+                endColumn: 1,
+                text: "Paper review",
+              },
+              kind: "paper",
+              comments: [
+                {
+                  id: createReviewId(),
+                  author: "LatexDo AI",
+                  text,
+                  timestamp: Date.now(),
+                },
+              ],
+            },
+          ]);
+          // Stay in the AI chat the person is reading; the Reviews badge and
+          // status message point at the new thread.
+          current.setStatusMessage(
+            "Paper review added to Reviews. You can reply there.",
+          );
+        },
       );
       if (!sent) {
         c.setStatusMessage(
