@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Crown, User, Pencil, Eye, Trash2, Loader2 } from "lucide-react";
+import { presenceDescription, presenceState } from "../collaboration/presence";
 import type {
   CollaboratorPermission,
   CollaboratorPresence,
@@ -159,12 +160,22 @@ export function PermissionManagement({
                         {online ? (
                           <small
                             className="permission-online"
-                            title={online.currentFile ?? undefined}
+                            data-presence={presenceState(online)}
+                            title={presenceDescription(
+                              presenceState(online),
+                              online.currentFile,
+                            )}
                           >
-                            <span className="share-status-dot" aria-hidden="true" />
-                            {online.currentFile
-                              ? online.currentFile.split("/").pop()
-                              : "Online"}
+                            <span
+                              className="presence-dot"
+                              data-presence={presenceState(online)}
+                              aria-hidden="true"
+                            />
+                            {presenceState(online) === "away"
+                              ? "Away"
+                              : online.currentFile
+                                ? online.currentFile.split("/").pop()
+                                : "Active now"}
                           </small>
                         ) : null}
                       </span>

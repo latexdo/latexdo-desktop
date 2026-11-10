@@ -22,10 +22,17 @@ const people: DiscussionMember[] = [
     clientId: "bob",
     name: "Bob Stone",
     role: "editor",
-    online: true,
+    presence: "active",
     currentFile: "ch/intro.tex",
   },
-  { clientId: "eve", name: "Eve", role: "viewer", online: false, currentFile: null },
+  { clientId: "ann", name: "Ann", role: "editor", presence: "away", currentFile: null },
+  {
+    clientId: "eve",
+    name: "Eve",
+    role: "viewer",
+    presence: "offline",
+    currentFile: null,
+  },
 ];
 
 function message(overrides: Partial<ChatMessage> & { seq: number }): ChatMessage {
@@ -65,7 +72,7 @@ function controller(
     openConversation: vi.fn(),
     unreadAfter: null,
     members: people,
-    memberIds: new Set(["me", "bob", "eve"]),
+    memberIds: new Set(["me", "bob", "ann", "eve"]),
     names: new Map([
       ["me", "Me"],
       ["bob", "Bob Stone"],
@@ -173,10 +180,18 @@ describe("DiscussionPanel", () => {
       within(tabs).getByRole("tab", { name: "Everyone, 1 unread" }),
     ).toHaveAttribute("aria-selected", "true");
     fireEvent.click(
-      within(tabs).getByRole("tab", { name: "Bob Stone (online), 1 unread" }),
+      within(tabs).getByRole("tab", { name: "Bob Stone (active now), 1 unread" }),
     );
     expect(discussion.openConversation).toHaveBeenCalledWith("bob");
-    expect(screen.getByText("3 people · 1 online now")).toBeInTheDocument();
+    expect(screen.getByText("4 people · 1 active · 1 away")).toBeInTheDocument();
+    expect(within(tabs).getByRole("tab", { name: "Ann (away)" })).toHaveAttribute(
+      "data-presence",
+      "away",
+    );
+    expect(within(tabs).getByRole("tab", { name: "Eve (offline)" })).toHaveAttribute(
+      "data-presence",
+      "offline",
+    );
     expect(screen.getByText("1 new message")).toBeInTheDocument();
   });
 
@@ -184,7 +199,7 @@ describe("DiscussionPanel", () => {
     const { rerender } = render(
       <Harness discussion={controller({ conversation: "bob" })} />,
     );
-    expect(screen.getByText("Online · in intro.tex")).toBeInTheDocument();
+    expect(screen.getByText("Active now · in intro.tex")).toBeInTheDocument();
     expect(
       screen.getByText("Only you and Bob can see this conversation."),
     ).toBeInTheDocument();
@@ -193,6 +208,10 @@ describe("DiscussionPanel", () => {
       "placeholder",
       "Message Bob privately…",
     );
+    rerender(<Harness discussion={controller({ conversation: "ann" })} />);
+    expect(
+      screen.getByText("Away · LatexDo is open but not in use"),
+    ).toBeInTheDocument();
     rerender(<Harness discussion={controller({ conversation: "eve" })} />);
     expect(
       screen.getByText("Offline · they will see it next time"),
@@ -389,8 +408,10 @@ describe("DiscussionPanel", () => {
     fireEvent.change(input, { target: { value: "@", selectionStart: 1 } });
     let options = screen.getAllByRole("option");
     expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options).toHaveLength(3);
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(screen.getAllByRole("option")[1]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(input, { key: "ArrowUp" });
@@ -536,10 +557,16 @@ describe("DiscussionNotices", () => {
 describe("DiscussionAvatar", () => {
   it("shows the person's emoji and whether they are here", () => {
     const { container, rerender } = render(
-      <DiscussionAvatar clientId="bob" name="Bob" online />,
+      <DiscussionAvatar clientId="bob" name="Bob" presence="active" />,
     );
-    expect(container.querySelector(".discussion-presence.is-online")).not.toBeNull();
+    const dot = () => container.querySelector(".discussion-presence");
+    expect(dot()).toHaveAttribute("data-presence", "active");
+    rerender(<DiscussionAvatar clientId="bob" name="Bob" presence="away" />);
+    expect(dot()).toHaveAttribute("data-presence", "away");
+    // Offline is not a gray dot: no dot at all.
+    rerender(<DiscussionAvatar clientId="bob" name="Bob" presence="offline" />);
+    expect(dot()).toBeNull();
     rerender(<DiscussionAvatar clientId="bob" name="Bob" />);
-    expect(container.querySelector(".discussion-presence")).toBeNull();
+    expect(dot()).toBeNull();
   });
 });

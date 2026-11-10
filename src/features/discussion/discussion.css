@@ -43,6 +43,8 @@
   transform: translateY(0.5px);
 }
 
+/* Green: using LatexDo now. Gray: LatexDo open but in the background or
+   idle. Offline people have no dot. */
 .discussion-presence {
   position: absolute;
   right: -1px;
@@ -51,11 +53,26 @@
   height: 9px;
   border: 2px solid var(--bg-sidebar);
   border-radius: 50%;
-  background: var(--text-dim);
+  background: var(--presence-active, var(--discussion-online));
 }
 
-.discussion-presence.is-online {
-  background: var(--discussion-online);
+.discussion-presence[data-presence="away"] {
+  background: var(--presence-away, var(--text-dim));
+}
+
+.discussion-person[data-presence="offline"] .discussion-avatar {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.discussion-person[data-presence="offline"] .discussion-person-label {
+  color: var(--text-dim);
+}
+
+.discussion-person[data-presence="offline"]:hover .discussion-avatar,
+.discussion-person[data-presence="offline"].is-selected .discussion-avatar {
+  opacity: 1;
+  filter: none;
 }
 
 .discussion-everyone-icon {

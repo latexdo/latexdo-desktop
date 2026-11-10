@@ -17,6 +17,7 @@ import { ShareProjectDialog } from "../../components/ShareProjectDialog";
 import { collaboratorLook } from "../../collaboration/collaboratorLook";
 import { pathForDisplay } from "../../pathDisplay";
 import { collaborationClientId } from "../../collaboration/collaborationStorage";
+import { presenceLabels, presenceState } from "../../collaboration/presence";
 import { cloudProviders } from "../../features/ai/cloudProviders";
 import { latexDoAiTiers } from "../../features/ai/product/latexDoAiTiers";
 import { WorkspaceTabs } from "../../components/WorkspaceTabs";
@@ -276,20 +277,24 @@ export function renderStatusbarGroup(ctx: AppCtx) {
         <span className="statusbar-people" aria-label="People in this project">
           {others.slice(0, 6).map((user) => {
             const look = collaboratorLook(user.clientId);
+            const state = presenceState(user);
             const where = user.currentFile
               ? `in ${pathForDisplay(user.currentFile)}`
               : "not in a file";
+            const status =
+              state === "away" ? "away, LatexDo is open but not in use" : "active now";
             return (
               <button
                 key={user.clientId}
                 type="button"
                 className="statusbar-avatar"
+                data-presence={state}
                 style={{ borderColor: look.color, background: `${look.color}33` }}
                 onClick={() =>
                   user.currentFile ? void ctx.openGitFile(user.currentFile) : undefined
                 }
-                title={`${user.name || "Guest"} — ${where}${user.currentFile ? " (click to go there)" : ""}`}
-                aria-label={`${user.name || "Guest"}, ${where}`}
+                title={`${user.name || "Guest"} — ${presenceLabels[state]} · ${where}${user.currentFile ? " (click to go there)" : ""}`}
+                aria-label={`${user.name || "Guest"}, ${status}, ${where}`}
               >
                 {look.emoji}
               </button>
@@ -565,6 +570,12 @@ export function renderAiSelectionCard(ctx: AppCtx) {
   const {
     activeAiSelectionValue,
     aiConfig,
+    downloadLatexDoAiModel,
+    selectedLatexDoAiTier,
+    selectedLatexDoAiTierDownloaded,
+    selectedLatexDoAiTierCanRun,
+    selectedLatexDoAiModelDownloading,
+    selectedLatexDoAiDownloadLabel,
     downloadedLatexDoAiModelFiles,
     localTierAvailability,
     localTierRuntimeAvailability,
@@ -576,65 +587,93 @@ export function renderAiSelectionCard(ctx: AppCtx) {
   } = ctx;
   return (
     <div className="ai-selection-card">
-      <label className="settings-row ai-selection-row">
-        <span>
+      <div className="settings-row ai-selection-row">
+        <label htmlFor="settings-ai-selection">
           <strong>Choose AI</strong>
-        </span>
-        <select
-          aria-label="AI selection"
-          value={activeAiSelectionValue}
-          onChange={(event) => {
-            const selection = event.target.value as AiPrimarySelectionValue;
-            setLatexDoAiModelMessage("");
-            if (isLatexDoAiTierSelectValue(selection)) {
-              const tier = latexDoAiTiers.find(
-                (item) => item.id === tierFromSelectValue(selection),
-              );
-              if (!tier) return;
+        </label>
+        <div className="ai-model-control">
+          <select
+            id="settings-ai-selection"
+            aria-label="AI selection"
+            value={activeAiSelectionValue}
+            onChange={(event) => {
+              const selection = event.target.value as AiPrimarySelectionValue;
+              setLatexDoAiModelMessage("");
+              if (isLatexDoAiTierSelectValue(selection)) {
+                const tier = latexDoAiTiers.find(
+                  (item) => item.id === tierFromSelectValue(selection),
+                );
+                if (!tier) return;
+                const tierDownloaded =
+                  downloadedLatexDoAiModelFiles.has(tier.runtime.fileName) ||
+                  (aiConfig.modelId === tier.runtime.modelId &&
+                    aiConfig.modelDownloaded);
+                const availability = tierDownloaded
+                  ? localTierRuntimeAvailability(tier)
+                  : (tierAvailabilityById.get(tier.id) ?? localTierAvailability(tier));
+                if (availability.state !== "available") {
+                  setLatexDoAiModelMessage(tierAvailabilityLabel(availability));
+                  return;
+                }
+                setLocalAiProviderMode("latexdo-ai");
+                setAiConfig((c) => ({
+                  ...c,
+                  ...localRuntimeSelectionForTier(tier),
+                  modelDownloaded: downloadedLatexDoAiModelFiles.has(
+                    tier.runtime.fileName,
+                  ),
+                }));
+                return;
+              }
+              selectCloudAiProvider(aiConfig.cloud.providerId);
+            }}
+          >
+            {latexDoAiTiers.map((tier) => {
               const tierDownloaded =
                 downloadedLatexDoAiModelFiles.has(tier.runtime.fileName) ||
                 (aiConfig.modelId === tier.runtime.modelId && aiConfig.modelDownloaded);
               const availability = tierDownloaded
                 ? localTierRuntimeAvailability(tier)
                 : (tierAvailabilityById.get(tier.id) ?? localTierAvailability(tier));
-              if (availability.state !== "available") {
-                setLatexDoAiModelMessage(tierAvailabilityLabel(availability));
-                return;
+              return (
+                <option
+                  key={tier.id}
+                  value={latexDoAiTierSelectValue(tier.id)}
+                  disabled={availability.state !== "available"}
+                >
+                  {tier.name}
+                  {tierDownloaded ? " ✓" : ""}
+                  {availability.state === "available" ? "" : " (unavailable)"}
+                </option>
+              );
+            })}
+            <option value="customize">Customize</option>
+          </select>
+          {activeAiSelectionValue !== "customize" &&
+          selectedLatexDoAiTier &&
+          !selectedLatexDoAiTierDownloaded ? (
+            <button
+              type="button"
+              className="ai-model-action"
+              onClick={() => void downloadLatexDoAiModel(selectedLatexDoAiTier)}
+              disabled={
+                selectedLatexDoAiModelDownloading || !selectedLatexDoAiTierCanRun
               }
-              setLocalAiProviderMode("latexdo-ai");
-              setAiConfig((c) => ({
-                ...c,
-                ...localRuntimeSelectionForTier(tier),
-                modelDownloaded: downloadedLatexDoAiModelFiles.has(
-                  tier.runtime.fileName,
-                ),
-              }));
-              return;
-            }
-            selectCloudAiProvider(aiConfig.cloud.providerId);
-          }}
-        >
-          {latexDoAiTiers.map((tier) => {
-            const tierDownloaded =
-              downloadedLatexDoAiModelFiles.has(tier.runtime.fileName) ||
-              (aiConfig.modelId === tier.runtime.modelId && aiConfig.modelDownloaded);
-            const availability = tierDownloaded
-              ? localTierRuntimeAvailability(tier)
-              : (tierAvailabilityById.get(tier.id) ?? localTierAvailability(tier));
-            return (
-              <option
-                key={tier.id}
-                value={latexDoAiTierSelectValue(tier.id)}
-                disabled={availability.state !== "available"}
-              >
-                {tier.name}
-                {availability.state === "available" ? "" : " (unavailable)"}
-              </option>
-            );
-          })}
-          <option value="customize">Customize</option>
-        </select>
-      </label>
+            >
+              {selectedLatexDoAiModelDownloading ? (
+                <>
+                  <LoaderCircle size={13} className="spin" />{" "}
+                  {selectedLatexDoAiDownloadLabel || "Downloading…"}
+                </>
+              ) : (
+                <>
+                  <Download size={13} /> Download
+                </>
+              )}
+            </button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

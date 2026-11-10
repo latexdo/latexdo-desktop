@@ -3913,6 +3913,13 @@ describe("App critical UI controls", () => {
       token: "t",
       users: [
         { clientId: "client-bob", name: "Bob", currentFile: "main.tex", lastSeen: 1 },
+        {
+          clientId: "client-sara",
+          name: "Sara",
+          currentFile: null,
+          lastSeen: 1,
+          active: false,
+        },
       ],
       host: {
         active: true,
@@ -3928,8 +3935,14 @@ describe("App critical UI controls", () => {
 
     expect(await screen.findByRole("button", { name: "Sharing is on" })).toBeVisible();
     expect(
-      await screen.findByRole("button", { name: "Bob, in main.tex" }),
+      await screen.findByRole("button", { name: "Bob, active now, in main.tex" }),
     ).toBeVisible();
+    // Sara has LatexDo open but is not using it: a gray dot.
+    expect(
+      screen.getByRole("button", {
+        name: "Sara, away, LatexDo is open but not in use, not in a file",
+      }),
+    ).toHaveAttribute("data-presence", "away");
     expect(screen.queryByText("No repository")).not.toBeInTheDocument();
   });
 

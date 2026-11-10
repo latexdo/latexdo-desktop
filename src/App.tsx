@@ -3,7 +3,6 @@ import { useFolderDrop } from "./app/useFolderDrop";
 import { toolTabIds } from "./features/workspace/toolTabs";
 import { VoiceSettingsSection } from "./components/VoiceSettingsPanel";
 import {
-  Check,
   ChevronDown,
   Download,
   FilePlus2,
@@ -29,12 +28,7 @@ import { NotificationCenter } from "./components/NotificationCenter";
 import { StatusbarModeMenu } from "./components/StatusbarModeMenu";
 import { TourOverlay } from "./features/onboarding/presentation/TourOverlay";
 import { editorActivationTour } from "./features/onboarding/tours/editorActivation";
-import {
-  StatusBarCursor,
-  formatRam,
-  statusbarEngineNames,
-  tierAvailabilityLabel,
-} from "./app/appShared";
+import { StatusBarCursor, formatRam, statusbarEngineNames } from "./app/appShared";
 import "./features/editor/nextEdit/nextEdit.css";
 import { useAppWorkspaceState } from "./app/useAppWorkspaceState";
 import { useAppPanelAndGitState } from "./app/useAppPanelAndGitState";
@@ -157,7 +151,6 @@ export default function App() {
     closeWhatsNewDialog,
     completeAiSetup,
     createDialog,
-    downloadLatexDoAiModel,
     engine,
     enterpriseState,
     exportEnterpriseReport,
@@ -212,12 +205,6 @@ export default function App() {
     revealActivationStep,
     reviewChats,
     selectedImportedCompatibility,
-    selectedLatexDoAiDownloadLabel,
-    selectedLatexDoAiModelDownloading,
-    selectedLatexDoAiTier,
-    selectedLatexDoAiTierAvailability,
-    selectedLatexDoAiTierCanRun,
-    selectedLatexDoAiTierDownloaded,
     setAiAccess,
     setAiConfig,
     setDismissedUpdateVersion,
@@ -678,62 +665,6 @@ export default function App() {
                       <strong>Model</strong>
                     </div>
                     {renderAiSelectionCard(ctx)}
-
-                    {activeAiSelectionValue !== "customize" && selectedLatexDoAiTier ? (
-                      <div className="ai-tier-settings-card">
-                        <div className="ai-tier-settings-head">
-                          <div>
-                            <strong>{selectedLatexDoAiTier.name}</strong>
-                            <span>{selectedLatexDoAiTier.description}</span>
-                          </div>
-                          {selectedLatexDoAiTierDownloaded &&
-                          selectedLatexDoAiTierCanRun ? (
-                            <span className="ai-model-status ready">
-                              <Check size={13} /> Installed
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="settings-hint compact">
-                          {tierAvailabilityLabel(selectedLatexDoAiTierAvailability)}
-                        </p>
-                        <div className="ai-tier-actions">
-                          {selectedLatexDoAiTierAvailability.state ===
-                            "memory-pressure" ||
-                          selectedLatexDoAiTierAvailability.state ===
-                            "storage-pressure" ? (
-                            <button
-                              type="button"
-                              className="ai-wizard-ghost"
-                              onClick={() => void refreshAiSystemCapabilities()}
-                            >
-                              <RefreshCw size={13} /> Check again
-                            </button>
-                          ) : null}
-                          {selectedLatexDoAiTierCanRun &&
-                          !selectedLatexDoAiTierDownloaded ? (
-                            <button
-                              type="button"
-                              className="ai-model-action"
-                              onClick={() =>
-                                void downloadLatexDoAiModel(selectedLatexDoAiTier)
-                              }
-                              disabled={selectedLatexDoAiModelDownloading}
-                            >
-                              {selectedLatexDoAiModelDownloading ? (
-                                <>
-                                  <LoaderCircle size={13} className="spin" />{" "}
-                                  {selectedLatexDoAiDownloadLabel || "Download"}
-                                </>
-                              ) : (
-                                <>
-                                  <Download size={13} /> Download
-                                </>
-                              )}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
 
                     {activeAiSelectionValue === "customize"
                       ? renderAiCustomizePanel(ctx)

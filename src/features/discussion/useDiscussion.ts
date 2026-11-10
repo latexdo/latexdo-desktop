@@ -587,15 +587,14 @@ export function useDiscussion(options: UseDiscussionOptions) {
     }
   }, [loadingOlder, setMessagesNow]);
 
-  const online = useMemo(() => {
-    const map = new Map<string, string | null>();
-    for (const user of presence) map.set(user.clientId, user.currentFile);
-    return map;
-  }, [presence]);
+  const here = useMemo(
+    () => new Map(presence.map((user) => [user.clientId, user])),
+    [presence],
+  );
 
   const members = useMemo(
-    () => discussionMembers(permissions, me, online),
-    [me, online, permissions],
+    () => discussionMembers(permissions, me, here),
+    [me, here, permissions],
   );
 
   const memberIds = useMemo(

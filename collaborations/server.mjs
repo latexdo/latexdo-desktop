@@ -705,6 +705,7 @@ function activePresence(meta) {
           ? user.currentFile
           : null,
       lastSeen: user.lastSeen,
+      active: user.active !== false,
       role: meta.permissions[user.clientId]?.role || "viewer",
     }));
 }
@@ -873,13 +874,19 @@ function isRole(value) {
   return value === "admin" || value === "editor" || value === "viewer";
 }
 
-function updatePresence(meta, identity, currentFile) {
+// `active` is false while the person's LatexDo is open but not in use (in
+// the background or idle); left out, the last known value is kept.
+function updatePresence(meta, identity, currentFile, active) {
+  const previous = Object.hasOwn(meta.presence, identity.clientId)
+    ? meta.presence[identity.clientId]
+    : undefined;
   Object.defineProperty(meta.presence, identity.clientId, {
     value: {
       clientId: identity.clientId,
       name: identity.clientName,
       currentFile: currentFile || null,
       lastSeen: now(),
+      active: typeof active === "boolean" ? active : previous?.active !== false,
     },
     enumerable: true,
     writable: true,
@@ -1439,7 +1446,10 @@ async function handleShareRoute(request, response, url, parts) {
       body.currentFile === null || body.currentFile === undefined
         ? null
         : normalizeRelativePath(body.currentFile);
-    updatePresence(meta, identity, currentFile);
+    if (body.active !== undefined && typeof body.active !== "boolean") {
+      throw new HttpError(400, "Invalid presence.");
+    }
+    updatePresence(meta, identity, currentFile, body.active);
     await writeProjectMeta(meta);
     const users = activePresence(meta);
     broadcastProjectPresence(meta.id, users);

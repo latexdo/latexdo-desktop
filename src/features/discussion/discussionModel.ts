@@ -6,8 +6,10 @@
  * Everything here is pure, so the panel and the notifications agree.
  */
 
+import { presenceState, type PresenceState } from "../../collaboration/presence";
 import type {
   CollaboratorPermission,
+  CollaboratorPresence,
   CollaboratorRole,
   DiscussionMessage,
   DiscussionReceipt,
@@ -37,7 +39,8 @@ export interface DiscussionMember {
   clientId: string;
   name: string;
   role: CollaboratorRole;
-  online: boolean;
+  /** Active (using LatexDo), away (open in the background) or offline. */
+  presence: PresenceState;
   /** This person's file, when they have one open. */
   currentFile: string | null;
 }
@@ -216,24 +219,29 @@ export function notifiesMe(message: DiscussionMessage, me: string): boolean {
   return message.from !== me && (message.to === me || message.mentions.includes(me));
 }
 
-/** Everyone but me, people who are here first, then by name. */
+const presenceOrder: Record<PresenceState, number> = { active: 0, away: 1, offline: 2 };
+
+/** Everyone but me: active people first, then away, then offline; by name. */
 export function discussionMembers(
   permissions: readonly CollaboratorPermission[],
   me: string,
-  online: ReadonlyMap<string, string | null>,
+  presence: ReadonlyMap<string, CollaboratorPresence>,
 ): DiscussionMember[] {
   return permissions
     .filter((permission) => permission.clientId !== me && !permission.isCurrent)
-    .map((permission) => ({
-      clientId: permission.clientId,
-      name: permission.name || "Anonymous",
-      role: permission.role,
-      online: online.has(permission.clientId),
-      currentFile: online.get(permission.clientId) ?? null,
-    }))
+    .map((permission) => {
+      const here = presence.get(permission.clientId);
+      return {
+        clientId: permission.clientId,
+        name: permission.name || "Anonymous",
+        role: permission.role,
+        presence: presenceState(here),
+        currentFile: here?.currentFile ?? null,
+      };
+    })
     .sort(
       (left, right) =>
-        Number(right.online) - Number(left.online) ||
+        presenceOrder[left.presence] - presenceOrder[right.presence] ||
         left.name.localeCompare(right.name),
     );
 }

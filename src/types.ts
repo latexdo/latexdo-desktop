@@ -44,6 +44,11 @@ export interface CollaboratorPresence {
   name: string;
   currentFile: string | null;
   lastSeen: number;
+  /**
+   * False while their LatexDo is open but not in use (another app or tab in
+   * front, or idle). Missing from older servers: treated as active.
+   */
+  active?: boolean;
   role?: CollaboratorRole;
 }
 

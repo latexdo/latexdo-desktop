@@ -82,6 +82,7 @@ function parseProjectPresence(value: unknown): CollaboratorPresence[] | null {
       typeof user.lastSeen !== "number" ||
       !Number.isSafeInteger(user.lastSeen) ||
       user.lastSeen < 0 ||
+      (user.active !== undefined && typeof user.active !== "boolean") ||
       !isCollaboratorRole(user.role)
     ) {
       return null;
@@ -93,6 +94,7 @@ function parseProjectPresence(value: unknown): CollaboratorPresence[] | null {
       currentFile: user.currentFile,
       lastSeen: user.lastSeen,
       role: user.role,
+      ...(typeof user.active === "boolean" ? { active: user.active } : {}),
     });
   }
   return users;

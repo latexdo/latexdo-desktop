@@ -426,7 +426,11 @@ describe("collaboration maintenance", () => {
       collaborationState: { enabled: true, users: [], revision: 1 },
     });
     await act(async () => {});
-    expect(api.updateCollaborationPresence).toHaveBeenCalledWith("p", null);
+    expect(api.updateCollaborationPresence).toHaveBeenCalledWith(
+      "p",
+      null,
+      expect.any(Boolean),
+    );
     expect(h.ctx.setCurrentUserRole).toHaveBeenCalledWith("editor");
     expect(h.ctx.setIsProjectAdmin).toHaveBeenCalledWith(false);
     h.ctx.collaborationState = { enabled: true, users: [], revision: 2 };

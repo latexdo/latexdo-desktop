@@ -38,6 +38,11 @@ import {
 } from "lucide-react";
 import { collaboratorLook } from "../collaboration/collaboratorLook";
 import {
+  presenceDescription,
+  presenceLabels,
+  type PresenceState,
+} from "../collaboration/presence";
+import {
   activeMentionQuery,
   bodySegments,
   buildTimeline,
@@ -67,12 +72,13 @@ export function DiscussionAvatar({
   clientId,
   name,
   size = 28,
-  online,
+  presence,
 }: {
   clientId: string;
   name: string;
   size?: number;
-  online?: boolean;
+  /** A green dot when active, gray when away, none when offline. */
+  presence?: PresenceState;
 }) {
   const look = collaboratorLook(clientId);
   return (
@@ -88,9 +94,9 @@ export function DiscussionAvatar({
       title={name}
     >
       <span className="discussion-avatar-emoji">{look.emoji}</span>
-      {online === undefined ? null : (
-        <span className={`discussion-presence ${online ? "is-online" : ""}`} />
-      )}
+      {presence === "active" || presence === "away" ? (
+        <span className="discussion-presence" data-presence={presence} />
+      ) : null}
     </span>
   );
 }
@@ -569,7 +575,7 @@ function Composer({
                 clientId={member.clientId}
                 name={member.name}
                 size={22}
-                online={member.online}
+                presence={member.presence}
               />
               <span className="discussion-mention-name">{member.name}</span>
               <span className="discussion-mention-role">{member.role}</span>
@@ -706,7 +712,8 @@ export function DiscussionPanel({
   const partnerName = inGroup
     ? "Everyone"
     : (partner?.name ?? names.get(conversation) ?? "Someone");
-  const onlineCount = members.filter((member) => member.online).length;
+  const activeCount = members.filter((member) => member.presence === "active").length;
+  const awayCount = members.filter((member) => member.presence === "away").length;
 
   const byId = useMemo(
     () => new Map(messages.map((message) => [message.id, message])),
@@ -912,7 +919,8 @@ export function DiscussionPanel({
             key={member.clientId}
             selected={conversation === member.clientId}
             label={firstName(member.name)}
-            fullLabel={`${member.name}${member.online ? " (online)" : ""}`}
+            fullLabel={`${member.name} (${presenceLabels[member.presence].toLowerCase()})`}
+            presence={member.presence}
             unread={summaries.get(member.clientId)?.unread ?? 0}
             mentioned={(summaries.get(member.clientId)?.unread ?? 0) > 0}
             onSelect={() => openConversation(member.clientId)}
@@ -921,7 +929,7 @@ export function DiscussionPanel({
                 clientId={member.clientId}
                 name={member.name}
                 size={30}
-                online={member.online}
+                presence={member.presence}
               />
             }
           />
@@ -938,7 +946,8 @@ export function DiscussionPanel({
               <strong>Everyone</strong>
               <span>
                 {members.length + 1} {members.length ? "people" : "person"}
-                {onlineCount ? ` · ${onlineCount} online now` : ""}
+                {activeCount ? ` · ${activeCount} active` : ""}
+                {awayCount ? ` · ${awayCount} away` : ""}
               </span>
             </div>
           </>
@@ -948,18 +957,16 @@ export function DiscussionPanel({
               clientId={conversation}
               name={partnerName}
               size={32}
-              online={partner?.online ?? false}
+              presence={partner?.presence}
             />
             <div className="discussion-thread-title">
               <strong>{partnerName}</strong>
               <span>
-                {partner?.online
-                  ? partner.currentFile
-                    ? `Online · in ${partner.currentFile.split("/").pop()}`
-                    : "Online"
-                  : partner
+                {!partner
+                  ? "No longer in this project"
+                  : partner.presence === "offline"
                     ? "Offline · they will see it next time"
-                    : "No longer in this project"}
+                    : presenceDescription(partner.presence, partner.currentFile)}
               </span>
             </div>
           </>
@@ -1153,6 +1160,7 @@ function PersonTab({
   unread,
   mentioned,
   icon,
+  presence,
   onSelect,
 }: {
   selected: boolean;
@@ -1161,6 +1169,7 @@ function PersonTab({
   unread: number;
   mentioned: boolean;
   icon: ReactNode;
+  presence?: PresenceState;
   onSelect: () => void;
 }) {
   const name = fullLabel ?? label;
@@ -1170,6 +1179,7 @@ function PersonTab({
       role="tab"
       aria-selected={selected}
       className={`discussion-person ${selected ? "is-selected" : ""}`}
+      data-presence={presence}
       onClick={onSelect}
       title={name}
       aria-label={unread ? `${name}, ${unread} unread` : name}

@@ -327,8 +327,25 @@ describe("real collaboration HTTP service", () => {
       await request(base + "/presence", guest, "POST", { currentFile: "main.tex" })
     ).json();
     expect(presence.users).toEqual(
-      expect.arrayContaining([expect.objectContaining({ clientId: guest.client })]),
+      expect.arrayContaining([
+        expect.objectContaining({ clientId: guest.client, active: true }),
+      ]),
     );
+    // LatexDo in the background: still here, but away. Left out, it is kept.
+    const away = async (body) =>
+      (
+        await (await request(base + "/presence", guest, "POST", body)).json()
+      ).users.find((user) => user.clientId === guest.client);
+    expect(await away({ currentFile: "main.tex", active: false })).toMatchObject({
+      active: false,
+    });
+    expect(await away({ currentFile: null })).toMatchObject({ active: false });
+    expect(await away({ currentFile: null, active: true })).toMatchObject({
+      active: true,
+    });
+    expect(
+      (await request(base + "/presence", guest, "POST", { active: "no" })).status,
+    ).toBe(400);
     expect((await (await request(base + "/permissions")).json()).isAdmin).toBe(true);
     expect(
       (

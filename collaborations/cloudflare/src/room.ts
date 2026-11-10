@@ -104,6 +104,8 @@ interface Presence {
   name: string;
   currentFile: string | null;
   lastSeen: number;
+  /** False while their LatexDo is open but not in use (background or idle). */
+  active: boolean;
 }
 
 interface SocketInfo {
@@ -482,7 +484,10 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         body.currentFile === null || body.currentFile === undefined
           ? null
           : normalizeRelativePath(body.currentFile);
-      this.touchPresence(auth, currentFile);
+      if (body.active !== undefined && typeof body.active !== "boolean") {
+        throw new HttpError(400, "Invalid presence.");
+      }
+      this.touchPresence(auth, currentFile, body.active);
       return json(200, this.state(auth));
     }
     if (route === "permissions" && method === "GET") {
@@ -926,12 +931,18 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   // --- Presence ------------------------------------------------------------
 
-  private touchPresence(auth: Auth, currentFile: string | null): void {
+  private touchPresence(
+    auth: Auth,
+    currentFile: string | null,
+    active?: boolean,
+  ): void {
+    const previous = this.presence.get(auth.identity.clientId);
     this.presence.set(auth.identity.clientId, {
       clientId: auth.identity.clientId,
       name: auth.identity.clientName,
       currentFile,
       lastSeen: now(),
+      active: active ?? previous?.active ?? true,
     });
     this.broadcastPresence();
   }
@@ -949,6 +960,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         name: info.name,
         currentFile: known?.currentFile ?? info.path,
         lastSeen: now(),
+        active: known?.active ?? true,
       });
     }
     for (const entry of this.presence.values()) {
@@ -1619,6 +1631,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       name: auth.identity.clientName,
       currentFile: path,
       lastSeen: now(),
+      active: this.presence.get(auth.identity.clientId)?.active ?? true,
     });
     this.broadcastPresence();
     return new Response(null, { status: 101, webSocket: client });

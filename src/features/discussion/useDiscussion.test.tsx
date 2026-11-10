@@ -106,10 +106,10 @@ describe("useDiscussion", () => {
     await waitFor(() => expect(result.current.status).toBe("ready"));
     expect(result.current.me).toBe("me");
     expect(
-      result.current.members.map((member) => [member.name, member.online]),
+      result.current.members.map((member) => [member.name, member.presence]),
     ).toEqual([
-      ["Bob", true],
-      ["Eve", false],
+      ["Bob", "active"],
+      ["Eve", "offline"],
     ]);
     expect(result.current.totals).toEqual({ unread: 2, mentions: 1 });
     await waitFor(() =>

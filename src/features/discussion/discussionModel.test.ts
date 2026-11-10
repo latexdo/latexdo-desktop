@@ -146,23 +146,31 @@ describe("unread counts and notifications", () => {
     );
   });
 
-  it("lists other members, people who are here first", () => {
+  it("lists other members: active, then away, then offline", () => {
     const list = discussionMembers(
       [
         { clientId: "me", name: "Me", role: "admin", isCurrent: true },
         { clientId: "zoe", name: "Zoe", role: "editor" },
         { clientId: "amy", name: "", role: "viewer" },
         { clientId: "bob", name: "Bob", role: "editor" },
+        { clientId: "cy", name: "Cy", role: "editor" },
       ],
       "me",
-      new Map([["zoe", "main.tex"]]),
+      new Map([
+        ["zoe", { clientId: "zoe", name: "Zoe", currentFile: "main.tex", lastSeen: 1 }],
+        [
+          "cy",
+          { clientId: "cy", name: "Cy", currentFile: null, lastSeen: 1, active: false },
+        ],
+      ]),
     );
     expect(
-      list.map((member) => [member.name, member.online, member.currentFile]),
+      list.map((member) => [member.name, member.presence, member.currentFile]),
     ).toEqual([
-      ["Zoe", true, "main.tex"],
-      ["Anonymous", false, null],
-      ["Bob", false, null],
+      ["Zoe", "active", "main.tex"],
+      ["Cy", "away", null],
+      ["Anonymous", "offline", null],
+      ["Bob", "offline", null],
     ]);
   });
 });
@@ -280,10 +288,16 @@ describe("composer", () => {
       clientId: "ann",
       name: "Ann Lee",
       role: "editor",
-      online: true,
+      presence: "active",
       currentFile: null,
     },
-    { clientId: "bob", name: "Bob", role: "viewer", online: false, currentFile: null },
+    {
+      clientId: "bob",
+      name: "Bob",
+      role: "viewer",
+      presence: "offline",
+      currentFile: null,
+    },
   ];
 
   it("finds the @mention being typed", () => {

@@ -1,5 +1,6 @@
 import { User, Crown, Pencil, Eye } from "lucide-react";
 import type { CollaboratorPresence } from "../types";
+import { presenceLabels, presenceState } from "../collaboration/presence";
 
 const roleIcons: Record<string, React.ReactNode> = {
   admin: <Crown size={12} />,
@@ -19,26 +20,34 @@ export function CollaboratorsList({ users }: { users: CollaboratorPresence[] }) 
 
   return (
     <ul className="collaborators-list">
-      {users.map((user) => (
-        <li key={user.clientId}>
-          <span className="collaborator-avatar" aria-hidden="true">
-            {user.name.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="collaborator-meta">
-            <strong>{user.name}</strong>
-            {user.currentFile ? (
-              <small title={user.currentFile}>
-                {user.currentFile.split("/").pop()}
+      {users.map((user) => {
+        const state = presenceState(user);
+        return (
+          <li key={user.clientId} data-presence={state}>
+            <span className="collaborator-avatar" aria-hidden="true">
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="collaborator-meta">
+              <strong>{user.name}</strong>
+              <small className="collaborator-presence" title={presenceLabels[state]}>
+                <span
+                  className="presence-dot"
+                  data-presence={state}
+                  aria-hidden="true"
+                />
+                {state === "away"
+                  ? "Away"
+                  : (user.currentFile?.split("/").pop() ?? "Active now")}
               </small>
-            ) : null}
-            {user.role ? (
-              <span className="collaborator-role" title={user.role}>
-                {roleIcons[user.role] ?? <User size={12} />}
-              </span>
-            ) : null}
-          </span>
-        </li>
-      ))}
+              {user.role ? (
+                <span className="collaborator-role" title={user.role}>
+                  {roleIcons[user.role] ?? <User size={12} />}
+                </span>
+              ) : null}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

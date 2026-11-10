@@ -73,7 +73,7 @@ describe("PermissionManagement", () => {
     expect(within(me).queryByTitle("Remove collaborator")).toBeNull();
 
     const grace = row("grace");
-    expect(within(grace).getByTitle("chapters/intro.tex").textContent).toBe(
+    expect(within(grace).getByTitle("Active now · in intro.tex").textContent).toBe(
       "intro.tex",
     );
     expect(within(grace).getByRole("combobox")).toHaveValue("editor");
@@ -82,8 +82,30 @@ describe("PermissionManagement", () => {
         .getAllByRole("option")
         .map((o) => o.textContent),
     ).toEqual(["Admin", "Editor", "Viewer"]);
-    expect(within(row("linus")).getByText("Online")).toBeVisible();
+    expect(within(row("linus")).getByText("Active now")).toBeVisible();
     expect(screen.getByText("G")).toBeInTheDocument();
+  });
+
+  it("shows people who have LatexDo open but are not using it as away", () => {
+    setup({
+      presence: [
+        {
+          clientId: "c2",
+          name: "linus",
+          currentFile: "main.tex",
+          lastSeen: 1,
+          active: false,
+        },
+      ],
+    });
+    const status = within(row("linus")).getByText("Away");
+    expect(status).toHaveAttribute("title", "Away · LatexDo is open but not in use");
+    expect(status.querySelector(".presence-dot")).toHaveAttribute(
+      "data-presence",
+      "away",
+    );
+    // People who are offline are simply not shown as present.
+    expect(within(row("grace")).queryByText(/Active now|Away/)).toBeNull();
   });
 
   it("changes a role, disabling the picker while saving, then refreshes", async () => {

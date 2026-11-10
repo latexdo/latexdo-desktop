@@ -384,10 +384,35 @@ describe("LatexDoWebsocketProvider", () => {
             lastSeen: 1_723_000_000_000,
             role: "editor",
           },
+          {
+            clientId: "client-2",
+            name: "Bo",
+            currentFile: null,
+            lastSeen: 1_723_000_000_000,
+            role: "viewer",
+            active: false,
+          },
+        ],
+      }),
+    );
+    // A malformed flag rejects the snapshot.
+    socket.receive(
+      presenceFrame({
+        version: 1,
+        users: [
+          {
+            clientId: "client-3",
+            name: "Cy",
+            currentFile: null,
+            lastSeen: 1,
+            role: "viewer",
+            active: "yes",
+          },
         ],
       }),
     );
 
+    expect(onPresenceChange).toHaveBeenCalledTimes(1);
     expect(onPresenceChange).toHaveBeenCalledWith([
       {
         clientId: "client-1",
@@ -395,6 +420,14 @@ describe("LatexDoWebsocketProvider", () => {
         currentFile: "main.tex",
         lastSeen: 1_723_000_000_000,
         role: "editor",
+      },
+      {
+        clientId: "client-2",
+        name: "Bo",
+        currentFile: null,
+        lastSeen: 1_723_000_000_000,
+        role: "viewer",
+        active: false,
       },
     ]);
 

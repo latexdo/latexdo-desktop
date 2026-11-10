@@ -1563,6 +1563,7 @@ const api = {
   updateCollaborationPresence: async (
     projectId: string,
     currentFile?: string | null,
+    active?: boolean,
   ): Promise<CollaborationState> => {
     const token = cloudShareTokenForProject(projectId);
     if (!isCloudProject(projectId) || !token) {
@@ -1576,7 +1577,10 @@ const api = {
       `/api/shares/${encodeURIComponent(token)}/presence`,
       {
         method: "POST",
-        body: JSON.stringify({ currentFile: currentFile ?? null }),
+        body: JSON.stringify({
+          currentFile: currentFile ?? null,
+          ...(typeof active === "boolean" ? { active } : {}),
+        }),
       },
       token,
     ).then((state) => normalizeCloudState(projectId, state));
