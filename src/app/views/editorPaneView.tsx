@@ -1,3 +1,4 @@
+import { usePdfReviewMarkers } from "../../features/review/usePdfReviewMarkers";
 import { PdfThemePicker } from "../../components/PdfThemePicker";
 import { supportLatexDoUrl } from "../../features/settings/settings";
 import {
@@ -19,6 +20,7 @@ import {
   Headphones,
   LoaderCircle,
   Lock,
+  MessageSquarePlus,
   Plus,
   RotateCw,
   ZoomIn,
@@ -595,6 +597,12 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
       : compileResult?.ok
         ? CircleCheck
         : FileText;
+  const reviewMarkers = usePdfReviewMarkers(
+    ctx.projectId,
+    ctx.pdfPathRef.current,
+    ctx.pdfData,
+    ctx.reviewChats,
+  );
   const [listening, setListening] = React.useState(false);
   const readAloud = usePdfReadAloud({
     pdfData: ctx.pdfData ?? null,
@@ -657,6 +665,17 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
             >
               <ArrowRightToLine size={15} />
             </button>
+            <button
+              onClick={() => {
+                const point = pdfTarget ?? lastPdfLocation;
+                if (point) void ctx.handleAddPdfReview(point);
+              }}
+              disabled={!pdfData || !(pdfTarget ?? lastPdfLocation)}
+              title="Add review at selected PDF point"
+              aria-label="Add review at selected PDF point"
+            >
+              <MessageSquarePlus size={15} />
+            </button>
             <div className="preview-action-divider" aria-hidden="true" />
             <button
               onClick={() => setPdfScale((scale) => Math.max(60, scale - 10))}
@@ -717,6 +736,14 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
                 rotation={pdfRotation}
                 target={pdfTarget}
                 overlays={readAloud.overlays}
+                reviewMarkers={reviewMarkers}
+                onReviewMarkerClick={(id) => {
+                  const chat = ctx.reviewChats.find((item) => item.id === id);
+                  if (!chat) return;
+                  ctx.setActiveReviewChatId(id);
+                  ctx.openSidebar("reviews");
+                  void ctx.handleJumpToReviewSelection(chat);
+                }}
                 onNavigate={(location) => {
                   setPdfTarget(null);
                   setLastPdfLocation(location);

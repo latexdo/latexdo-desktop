@@ -270,6 +270,56 @@ describe("PdfPreview", () => {
     await waitFor(() => expect(firstDocument.destroy).toHaveBeenCalledTimes(1));
   });
 
+  it("shows clickable review marks on their page and keeps them aligned when rotated", async () => {
+    const onReviewMarkerClick = vi.fn();
+    const onNavigate = vi.fn();
+    const props = {
+      data: new Uint8Array([1]),
+      scale: 100,
+      target: null,
+      onNavigate,
+      onReviewMarkerClick,
+      reviewMarkers: [
+        { id: "review-1", pageNumber: 2, x: 20, y: 100, title: "Clarify this claim" },
+      ],
+    };
+    const view = render(<PdfPreview {...props} />);
+    pdfjsMock.tasks[0].resolve(pdfjsMock.createDocument("marked", 2));
+    const marker = await screen.findByRole("button", {
+      name: "Open review: Clarify this claim",
+    });
+    expect(marker.closest(".pdf-page")).toHaveAttribute("data-page-number", "2");
+    expect(marker.style.left).toBe("20px");
+    expect(marker.style.top).toBe("100px");
+    fireEvent.click(marker);
+    expect(onReviewMarkerClick).toHaveBeenCalledExactlyOnceWith("review-1");
+    expect(onNavigate).not.toHaveBeenCalled();
+    view.rerender(<PdfPreview {...props} scale={150} rotation={90} />);
+    await waitFor(() => expect(marker.style.left).toBe("150px"));
+    expect(marker.style.top).toBe("30px");
+  });
+
+  it("maps a rotated PDF click back to unrotated source coordinates", async () => {
+    const onNavigate = vi.fn();
+    render(
+      <PdfPreview
+        data={new Uint8Array([1])}
+        scale={150}
+        rotation={90}
+        target={null}
+        onNavigate={onNavigate}
+        reviewMarkers={[{ id: "mark", pageNumber: 1, x: 20, y: 100, title: "Mark" }]}
+        onReviewMarkerClick={vi.fn()}
+      />,
+    );
+    pdfjsMock.tasks[0].resolve(pdfjsMock.createDocument("rotated-click"));
+    await screen.findByRole("button", { name: "Open review: Mark" });
+    const page = screen.getByTitle("Click a word to jump to its TeX source");
+    fireEvent.mouseDown(page, { clientX: 150, clientY: 30 });
+    fireEvent.click(page, { clientX: 150, clientY: 30, detail: 1 });
+    expect(onNavigate).toHaveBeenCalledWith({ page: 1, x: 20, y: 100 });
+  });
+
   it("passes rotation into pdf.js viewports", async () => {
     render(
       <PdfPreview

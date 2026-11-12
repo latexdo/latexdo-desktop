@@ -12,7 +12,12 @@ import {
   clearNotifications,
   getNotifications,
 } from "../features/notifications/notifications";
-const api = { readFile: vi.fn(), writeFile: vi.fn(), fileExists: vi.fn() };
+const api = {
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  fileExists: vi.fn(),
+  backwardSyncTex: vi.fn(),
+};
 function setup(overrides = {}) {
   const e = editorHarness();
   const entry = { ...e.document, type: "file" };
@@ -36,6 +41,7 @@ function setup(overrides = {}) {
       rebuttalItems: [],
       mode: "reviewer",
       pendingSourceRef: { current: null },
+      pdfPathRef: { current: "/p/main.pdf" },
       ...overrides,
     },
     [
@@ -46,6 +52,7 @@ function setup(overrides = {}) {
       "setRebuttalItems",
       "setReviewChats",
       "setStatusMessage",
+      "setActiveReviewChatId",
     ],
     [
       "compile",
@@ -216,6 +223,45 @@ describe("review conversations", () => {
       endColumn: 10,
     });
     expect(h.state.reviewChats[0].selection.startColumn).toBe(5);
+  });
+
+  it("creates a source-linked review from a PDF point", async () => {
+    const h = setup();
+    api.backwardSyncTex.mockResolvedValue({ file: "main.tex", line: 1, column: 1 });
+    await h.result.current.handleAddPdfReview({ page: 1, x: 20, y: 30, word: "First" });
+    expect(api.backwardSyncTex).toHaveBeenCalledWith("p", "/p/main.pdf", 1, 20, 30);
+    expect(h.state.reviewChats[0]).toMatchObject({
+      filePath: "main.tex",
+      selection: {
+        text: "First",
+        startLine: 1,
+        startColumn: 1,
+        endLine: 1,
+        endColumn: 6,
+      },
+      comments: [],
+    });
+    expect(h.state.activeReviewChatId).toBe(h.state.reviewChats[0].id);
+    expect(h.ctx.openSidebar).toHaveBeenCalledWith("reviews");
+    expect(h.ctx.pendingSourceRef.current).toMatchObject({
+      path: h.document.path,
+      line: 1,
+      column: 1,
+      endColumn: 6,
+    });
+  });
+
+  it("does not attach a PDF review to unsaved source or a missing SyncTeX location", async () => {
+    const h = setup();
+    h.ctx.documentsRef.current = [{ ...h.document, content: "Changed" }];
+    await h.result.current.handleAddPdfReview({ page: 1, x: 20, y: 30 });
+    expect(api.backwardSyncTex).not.toHaveBeenCalled();
+    expect(h.state.statusMessage).toContain("Compile your changes");
+    h.ctx.documentsRef.current = [h.document];
+    api.backwardSyncTex.mockResolvedValue(null);
+    await h.result.current.handleAddPdfReview({ page: 1, x: 20, y: 30 });
+    expect(h.state.reviewChats).toEqual([]);
+    expect(h.state.statusMessage).toContain("No source text");
   });
 
   it("inserts a rebuttal block and inherits the last reviewer", () => {

@@ -5,6 +5,7 @@ import {
   type PDFDocumentProxy,
   type RenderTask,
 } from "pdfjs-dist";
+import { MessageSquareText } from "lucide-react";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 import type { SyncTexBox, SyncTexPdfLocation } from "./types";
@@ -44,6 +45,15 @@ export interface PdfPreviewOverlay {
   title?: string;
 }
 
+export interface PdfReviewMarker {
+  id: string;
+  pageNumber: number;
+  /** Unrotated PDF points measured from the top-left corner. */
+  x: number;
+  y: number;
+  title: string;
+}
+
 interface PdfPreviewProps {
   data: Uint8Array;
   scale: number;
@@ -51,6 +61,8 @@ interface PdfPreviewProps {
   target: SyncTexPdfLocation | null;
   onNavigate?: (location: PdfClickLocation) => void;
   overlays?: PdfPreviewOverlay[];
+  reviewMarkers?: PdfReviewMarker[];
+  onReviewMarkerClick?: (id: string) => void;
 }
 
 interface PdfPageProps {
@@ -61,6 +73,8 @@ interface PdfPageProps {
   target: SyncTexPdfLocation | null;
   onNavigate?: (location: PdfClickLocation) => void;
   overlays: PdfPreviewOverlay[];
+  reviewMarkers: PdfReviewMarker[];
+  onReviewMarkerClick?: (id: string) => void;
 }
 
 /** Pages this far outside the visible area are drawn ahead of scrolling. */
@@ -276,12 +290,15 @@ function PdfPage({
   target,
   onNavigate,
   overlays,
+  reviewMarkers,
+  onReviewMarkerClick,
 }: PdfPageProps) {
   const pageRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textLayerRef = useRef<HTMLDivElement | null>(null);
   const [rendered, setRendered] = useState(false);
   const [highlight, setHighlight] = useState<HighlightRect | null>(null);
+  const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const cssScale = scale / 100;
   // Only pages near the visible area are drawn. Every page still gets its
   // size up front, so scrolling and the scrollbar behave as before.
@@ -309,6 +326,8 @@ function PdfPage({
           return;
         }
 
+        const baseViewport = page.getViewport({ scale: 1, rotation: 0 });
+        setPageSize({ width: baseViewport.width, height: baseViewport.height });
         const viewport = page.getViewport({ scale: cssScale, rotation });
         const outputScale = window.devicePixelRatio || 1;
         pageElement.style.width = `${viewport.width}px`;
@@ -404,10 +423,20 @@ function PdfPage({
     event.preventDefault();
     const bounds = event.currentTarget.getBoundingClientRect();
     const context = wordAtPoint(event, textLayerRef.current);
+    const screenX = (event.clientX - bounds.left) / cssScale;
+    const screenY = (event.clientY - bounds.top) / cssScale;
+    const turn = ((rotation % 360) + 360) % 360;
+    const point =
+      turn === 90
+        ? { x: screenY, y: pageSize.height - screenX }
+        : turn === 180
+          ? { x: pageSize.width - screenX, y: pageSize.height - screenY }
+          : turn === 270
+            ? { x: pageSize.width - screenY, y: screenX }
+            : { x: screenX, y: screenY };
     onNavigate({
       page: pageNumber,
-      x: (event.clientX - bounds.left) / cssScale,
-      y: (event.clientY - bounds.top) / cssScale,
+      ...point,
       ...(context
         ? { word: context.word, before: context.before, after: context.after }
         : {}),
@@ -450,6 +479,63 @@ function PdfPage({
           )}
         </div>
       ) : null}
+      {pageSize.width > 0 && pageSize.height > 0 && onReviewMarkerClick ? (
+        <div className="pdf-review-marker-layer">
+          {reviewMarkers.map((marker, index) => {
+            const x = marker.x / pageSize.width;
+            const y = marker.y / pageSize.height;
+            const turn = ((rotation % 360) + 360) % 360;
+            const point =
+              turn === 90
+                ? { x: 1 - y, y: x }
+                : turn === 180
+                  ? { x: 1 - x, y: 1 - y }
+                  : turn === 270
+                    ? { x: y, y: 1 - x }
+                    : { x, y };
+            const displayWidth =
+              (turn === 90 || turn === 270 ? pageSize.height : pageSize.width) *
+              cssScale;
+            const displayHeight =
+              (turn === 90 || turn === 270 ? pageSize.width : pageSize.height) *
+              cssScale;
+            // Separate markers for threads that start at the same passage.
+            const offset = reviewMarkers
+              .slice(0, index)
+              .filter(
+                (other) =>
+                  Math.abs(other.x - marker.x) < 16 &&
+                  Math.abs(other.y - marker.y) < 16,
+              ).length;
+            return (
+              <button
+                key={marker.id}
+                type="button"
+                className="pdf-review-marker"
+                aria-label={`Open review: ${marker.title}`}
+                title={marker.title}
+                style={{
+                  left: Math.max(
+                    12,
+                    Math.min(displayWidth - 12, point.x * displayWidth),
+                  ),
+                  top: Math.max(
+                    12,
+                    Math.min(displayHeight - 12, point.y * displayHeight + offset * 24),
+                  ),
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onReviewMarkerClick(marker.id);
+                }}
+              >
+                <MessageSquareText size={14} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       {highlight ? (
         <div
           className="pdf-sync-highlight"
@@ -473,6 +559,8 @@ export default function PdfPreview({
   target,
   onNavigate,
   overlays = [],
+  reviewMarkers = [],
+  onReviewMarkerClick,
 }: PdfPreviewProps) {
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState("");
@@ -543,6 +631,10 @@ export default function PdfPreview({
           rotation={rotation}
           target={target}
           onNavigate={onNavigate}
+          reviewMarkers={reviewMarkers.filter(
+            (marker) => marker.pageNumber === index + 1,
+          )}
+          onReviewMarkerClick={onReviewMarkerClick}
           overlays={overlays.filter((overlay) => overlay.pageNumber === index + 1)}
         />
       ))}

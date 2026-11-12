@@ -12,6 +12,7 @@ import type { ReviewChat } from "../types";
 
 interface ReviewSidebarProps {
   chats: ReviewChat[];
+  activeChatId?: string | null;
   onAddChat: () => void;
   onAddComment: (chatId: string, text: string) => void;
   onDeleteChat: (chatId: string) => void;
@@ -21,6 +22,7 @@ interface ReviewSidebarProps {
 
 export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
   chats,
+  activeChatId,
   onAddChat,
   onAddComment,
   onDeleteChat,
@@ -28,6 +30,11 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
   onInsertIntoTex,
 }) => {
   const [commentTexts, setCommentTexts] = React.useState<Record<string, string>>({});
+
+  const activeCardRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    activeCardRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [activeChatId]);
 
   const submitComment = (chatId: string) => {
     const text = commentTexts[chatId]?.trim();
@@ -58,7 +65,8 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
           chats.map((chat) => (
             <div
               key={chat.id}
-              className="sidebar-item-card review-chat-card"
+              ref={chat.id === activeChatId ? activeCardRef : undefined}
+              className={`sidebar-item-card review-chat-card ${chat.id === activeChatId ? "is-active" : ""}`}
               onClick={(event) => {
                 // Let the reply field and thread actions keep their own behavior.
                 if (
