@@ -53,6 +53,7 @@ function setup(overrides = {}) {
       "setReviewChats",
       "setStatusMessage",
       "setActiveReviewChatId",
+      "setWelcomeOpen",
     ],
     [
       "compile",
@@ -198,6 +199,7 @@ describe("review conversations", () => {
       { ...h.document, content: "Inserted line\n" + h.document.content },
     ];
     await h.result.current.handleJumpToReviewSelection(thread as any);
+    expect(h.state.activeReviewChatId).toBe("thread");
     expect(h.ctx.pendingSourceRef.current.line).toBe(2);
     expect(h.state.reviewChats[0].selection.startLine).toBe(2);
     await act(() => vi.advanceTimersByTimeAsync(20));

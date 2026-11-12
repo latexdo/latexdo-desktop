@@ -309,6 +309,14 @@ describe("source and PDF navigation", () => {
     expect(h.editor.focus).not.toHaveBeenCalled();
     expect(h.editor.setSelection).not.toHaveBeenCalled();
   });
+  it("reveals sources in cloud projects whose paths are relative", () => {
+    const h = setup();
+    // Monaco names the cloud model file:///main.tex while the path is "main.tex".
+    (h.editor.getModel() as { uri: unknown }).uri = monaco.Uri.file("main.tex");
+    h.ctx.pendingSourceRef.current = { path: "main.tex", line: 1, column: 1 };
+    expect(h.result.current.revealPendingSource()).toBe(true);
+    expect(h.editor.revealRangeInCenter).toHaveBeenCalled();
+  });
   it("compiles dirty sources before forward synchronization", async () => {
     const h = setup();
     h.ctx.documentsRef.current[0].content = "dirty";

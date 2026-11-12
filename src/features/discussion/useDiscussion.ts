@@ -588,6 +588,51 @@ export function useDiscussion(options: UseDiscussionOptions) {
     [permissions, setMessagesNow],
   );
 
+  /** Sets this person's reaction to a message, or removes it with null. */
+  const react = useCallback(
+    async (message: ChatMessage, emoji: string | null) => {
+      const project = projectRef.current;
+      const me = meRef.current;
+      if (!project || !enabledRef.current || message.local) return;
+      const previous = message.reactions?.[me] ?? null;
+      if (previous === emoji) return;
+      const withReaction = (value: string | null) => (current: ChatMessage[]) =>
+        current.map((item) => {
+          if (item.id !== message.id) return item;
+          const reactions = { ...item.reactions };
+          if (value === null) delete reactions[me];
+          else reactions[me] = value;
+          return {
+            ...item,
+            reactions: Object.keys(reactions).length ? reactions : undefined,
+          };
+        });
+      // Shown at once; the server's copy replaces it when it arrives.
+      setMessagesNow(withReaction(emoji));
+      try {
+        const result = await window.latexdo.sendDiscussionMessage(project, {
+          id: message.id,
+          to: message.to,
+          replyTo: null,
+          body: "",
+          mentions: [],
+          react: true,
+          reaction: emoji,
+        });
+        if (projectRef.current !== project) return;
+        if ((result.message.reactions?.[me] ?? null) !== emoji) {
+          throw new Error("The collaboration server does not support reactions yet.");
+        }
+        setMessagesNow((current) => mergeMessages(current, [result.message]));
+      } catch (caught) {
+        if (projectRef.current !== project) return;
+        setMessagesNow(withReaction(previous));
+        setError(errorMessage(caught));
+      }
+    },
+    [setMessagesNow],
+  );
+
   const retry = useCallback(
     (id: string) => {
       const message = messagesRef.current.find(
@@ -707,6 +752,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
     loadOlder,
     send,
     edit,
+    react,
     retry,
     discard,
     refresh,

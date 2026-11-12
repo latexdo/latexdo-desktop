@@ -1237,6 +1237,64 @@ describe("discussion", () => {
     });
   });
 
+  it("seals reactions so the server never learns the emoji", async () => {
+    const key = newProjectKey();
+    const sent: Array<Record<string, unknown>> = [];
+    const env = setup(
+      async (_path, _method, _headers, body) => {
+        const stored = JSON.parse(body ?? "{}");
+        sent.push(stored);
+        return ok({
+          seq: 5,
+          message: {
+            id: stored.id,
+            seq: 1,
+            updatedSeq: 5,
+            from: "bob",
+            to: null,
+            body: "not sealed",
+            createdAt: 1000,
+            // A copy moved to another person must not be shown as theirs.
+            reactions: stored.reaction
+              ? { ada: stored.reaction, eve: stored.reaction, zed: "damaged" }
+              : {},
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: "👍" }),
+      1000,
+    );
+    expect(sent[0]).toMatchObject({ id: "msg-0001", react: true });
+    expect(String(sent[0].reaction)).not.toContain("👍");
+    expect(JSON.parse(response.text).message.reactions).toEqual({ ada: "👍" });
+
+    const removed = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: null }),
+      1000,
+    );
+    expect(sent[1]).toEqual({ id: "msg-0001", react: true, reaction: null });
+    expect(JSON.parse(removed.text).message.reactions).toBeUndefined();
+
+    const tooLong = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: "x".repeat(17) }),
+      1000,
+    );
+    expect(tooLong.status).toBe(400);
+    expect(sent).toHaveLength(2);
+  });
+
   it("refuses empty messages and passes server errors through", async () => {
     const key = newProjectKey();
     const env = setup(

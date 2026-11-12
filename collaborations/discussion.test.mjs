@@ -281,3 +281,93 @@ describe("editing messages", () => {
     );
   });
 });
+
+describe("reacting to messages", () => {
+  const bob = { clientId: "bob", clientName: "Bob" };
+  const eve = { clientId: "eve", clientName: "Eve" };
+
+  it("keeps one opaque reaction per person and returns changes in incremental pages", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "Ready?" });
+    const first = send(
+      state,
+      { id: "message-1", react: true, reaction: "sealed-ok" },
+      bob,
+    );
+    expect(first).toMatchObject({
+      created: false,
+      updated: true,
+      message: {
+        seq: 1,
+        updatedSeq: 2,
+        body: "Ready?",
+        reactions: { bob: "sealed-ok" },
+      },
+    });
+    expect(first.message.editedAt).toBeUndefined();
+    send(state, { id: "message-1", react: true, reaction: "sealed-heart" }, bob);
+    send(state, { id: "message-1", react: true, reaction: "sealed-ok" });
+    expect(state.messages[0].reactions).toEqual({
+      bob: "sealed-heart",
+      ada: "sealed-ok",
+    });
+    expect(listMessages(state, "bob", { after: 3 }).messages).toEqual([
+      state.messages[0],
+    ]);
+    // Setting the same reaction again changes nothing.
+    expect(
+      send(state, { id: "message-1", react: true, reaction: "sealed-ok" }).updated,
+    ).toBeUndefined();
+    send(state, { id: "message-1", react: true, reaction: null }, bob);
+    send(state, { id: "message-1", react: true, reaction: null });
+    expect(state.messages[0].reactions).toBeUndefined();
+    expect(state.seq).toBe(6);
+  });
+
+  it("refuses hidden or missing messages and invalid reactions", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "Private", to: "bob" });
+    expect(() =>
+      send(state, { id: "message-1", react: true, reaction: "x" }, eve),
+    ).toThrow("not found");
+    expect(() => send(state, { id: "missing-1", react: true, reaction: "x" })).toThrow(
+      "not found",
+    );
+    expect(() =>
+      send(state, { id: "message-1", react: true, reaction: 5 }, bob),
+    ).toThrow("Invalid reaction");
+    expect(() =>
+      send(
+        state,
+        {
+          id: "message-1",
+          react: true,
+          reaction: "x".repeat(discussionLimits.maxReactionChars + 1),
+        },
+        bob,
+      ),
+    ).toThrow("Invalid reaction");
+    expect(state.seq).toBe(1);
+  });
+
+  it("does not make an open edit stale", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "Draft" });
+    send(state, { id: "message-1", react: true, reaction: "sealed-ok" }, bob);
+    const edited = send(state, {
+      id: "message-1",
+      body: "Final",
+      edit: true,
+      expectedRevision: 1,
+    }).message;
+    expect(edited).toMatchObject({ body: "Final", reactions: { bob: "sealed-ok" } });
+    send(state, { id: "message-1", react: true, reaction: null }, bob);
+    expect(() =>
+      send(state, { id: "message-1", body: "Again", edit: true, expectedRevision: 1 }),
+    ).toThrow("changed");
+    expect(
+      send(state, { id: "message-1", body: "Again", edit: true, expectedRevision: 4 })
+        .message.body,
+    ).toBe("Again");
+  });
+});

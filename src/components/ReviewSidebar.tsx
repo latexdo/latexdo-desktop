@@ -88,14 +88,41 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
                   "{chat.selection.text.substring(0, 50)}
                   {chat.selection.text.length > 50 ? "..." : ""}"
                 </button>
-                <button
-                  className="small-icon delete-button"
-                  onClick={() => onDeleteChat(chat.id)}
-                  title="Delete review chat"
-                  aria-label="Delete review chat"
-                >
-                  <Trash2 size={13} />
-                </button>
+                <div className="review-chat-actions">
+                  {chat.kind === "paper" ? null : chat.insertedInTex ? (
+                    <span
+                      className="review-chat-in-tex"
+                      title="This thread is in the TeX source"
+                    >
+                      <Check size={12} />
+                      <span>In TeX</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="review-insert-button"
+                      onClick={() => onInsertIntoTex(chat)}
+                      disabled={chat.comments.length === 0}
+                      aria-label="Insert into TeX"
+                      title={
+                        chat.comments.length === 0
+                          ? "Write a message first, then insert the thread into the TeX source"
+                          : "Insert this review thread into the TeX source"
+                      }
+                    >
+                      <FilePlus2 size={12} />
+                      <span>Insert</span>
+                    </button>
+                  )}
+                  <button
+                    className="small-icon delete-button"
+                    onClick={() => onDeleteChat(chat.id)}
+                    title="Delete review chat"
+                    aria-label="Delete review chat"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
 
               <small className="review-thread-file">{chat.filePath}</small>
@@ -148,33 +175,6 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
                 >
                   <Send size={13} />
                 </button>
-              </div>
-
-              <div className="review-chat-footer">
-                {chat.kind === "paper" ? null : chat.insertedInTex ? (
-                  <span
-                    className="review-chat-in-tex"
-                    title="This thread is in the TeX source"
-                  >
-                    <Check size={13} />
-                    <span>In TeX source</span>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="sidebar-primary-action review-insert-button"
-                    onClick={() => onInsertIntoTex(chat)}
-                    disabled={chat.comments.length === 0}
-                    title={
-                      chat.comments.length === 0
-                        ? "Write a message first, then insert the thread into the TeX source"
-                        : "Insert this review thread into the TeX source"
-                    }
-                  >
-                    <FilePlus2 size={13} />
-                    <span>Insert into TeX</span>
-                  </button>
-                )}
               </div>
             </div>
           ))

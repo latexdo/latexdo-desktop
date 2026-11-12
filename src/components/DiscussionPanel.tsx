@@ -34,6 +34,7 @@ import {
   RefreshCw,
   SendHorizontal,
   Smile,
+  SmilePlus,
   Trash2,
   Users,
   X,
@@ -188,6 +189,40 @@ function MessageBody({
 
 // --- One message -----------------------------------------------------------------
 
+// --- Reactions -------------------------------------------------------------------
+
+const quickReactions = [
+  ["👍", "Thumbs up"],
+  ["✅", "OK"],
+  ["❤️", "Heart"],
+  ["😂", "Laughing"],
+  ["😮", "Surprised"],
+  ["🙏", "Thank you"],
+  ["🎉", "Celebrate"],
+  ["👀", "Looking"],
+] as const;
+
+interface ReactionGroup {
+  emoji: string;
+  people: string[];
+  mine: boolean;
+}
+
+/** Reactions grouped by emoji, in the order they first appear. */
+function reactionGroups(
+  reactions: Record<string, string> | undefined,
+  me: string,
+): ReactionGroup[] {
+  const groups = new Map<string, ReactionGroup>();
+  for (const [clientId, emoji] of Object.entries(reactions ?? {})) {
+    const group = groups.get(emoji) ?? { emoji, people: [], mine: false };
+    group.people.push(clientId);
+    if (clientId === me) group.mine = true;
+    groups.set(emoji, group);
+  }
+  return [...groups.values()];
+}
+
 interface MessageRowProps {
   message: ChatMessage;
   first: boolean;
@@ -201,6 +236,7 @@ interface MessageRowProps {
   info: ReactNode;
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage, text: string) => Promise<void>;
+  onReact: (message: ChatMessage, emoji: string | null) => void;
   onMessagePrivately: (clientId: string) => void;
   onToggleInfo: (id: string) => void;
   onRetry: (id: string) => void;
@@ -222,6 +258,7 @@ const MessageRow = memo(function MessageRow({
   info,
   onReply,
   onEdit,
+  onReact,
   onMessagePrivately,
   onToggleInfo,
   onRetry,
@@ -254,6 +291,29 @@ const MessageRow = memo(function MessageRow({
     }
   };
   const look = collaboratorLook(message.from);
+  const [reacting, setReacting] = useState(false);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
+  const reactionToggleRef = useRef<HTMLButtonElement>(null);
+  const myReaction = message.reactions?.[me] ?? null;
+  const reactions = reactionGroups(message.reactions, me);
+  const chooseReaction = (emoji: string) => {
+    setReacting(false);
+    onReact(message, myReaction === emoji ? null : emoji);
+  };
+  useEffect(() => {
+    if (!reacting) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !reactionPickerRef.current?.contains(target) &&
+        !reactionToggleRef.current?.contains(target)
+      ) {
+        setReacting(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [reacting]);
 
   const copy = () => {
     void navigator.clipboard?.writeText(message.body).then(() => {
@@ -272,6 +332,7 @@ const MessageRow = memo(function MessageRow({
         last ? "is-last" : "",
         mentionsMe ? "mentions-me" : "",
         message.local ? `is-${message.local}` : "",
+        reacting ? "is-reacting" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -413,66 +474,130 @@ const MessageRow = memo(function MessageRow({
           </div>
         ) : null}
         {infoOpen ? info : null}
+        {reactions.length ? (
+          <div className="discussion-reactions" role="group" aria-label="Reactions">
+            {reactions.map((group) => {
+              const who = group.people
+                .map((clientId) =>
+                  clientId === me ? "You" : (names.get(clientId) ?? "Someone"),
+                )
+                .join(", ");
+              return (
+                <button
+                  key={group.emoji}
+                  type="button"
+                  className={`discussion-reaction ${group.mine ? "is-mine" : ""}`}
+                  title={group.mine ? `${who} · click to remove yours` : who}
+                  aria-label={`${group.emoji} ${group.people.length}: ${who}`}
+                  aria-pressed={group.mine}
+                  disabled={Boolean(message.local)}
+                  onClick={() => chooseReaction(group.emoji)}
+                >
+                  <span aria-hidden="true">{group.emoji}</span>
+                  <span className="discussion-reaction-count">
+                    {group.people.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {message.local ? null : (
+          <div
+            className="discussion-row-actions"
+            role="toolbar"
+            aria-label="Message actions"
+          >
+            <button
+              type="button"
+              ref={reactionToggleRef}
+              onClick={() => setReacting((open) => !open)}
+              title="React"
+              aria-label="React"
+              aria-expanded={reacting}
+              className={reacting ? "is-on" : undefined}
+            >
+              <SmilePlus size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onReply(message)}
+              title="Reply"
+              aria-label="Reply"
+            >
+              <CornerUpLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={copy}
+              title={copied ? "Copied" : "Copy text"}
+              aria-label="Copy text"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            {!mine && inGroup ? (
+              <button
+                type="button"
+                onClick={() => onMessagePrivately(message.from)}
+                title={`Message ${firstName(senderName)} privately`}
+                aria-label={`Message ${senderName} privately`}
+              >
+                <MessageCircle size={14} />
+              </button>
+            ) : null}
+            {mine && !message.undecryptable ? (
+              <button
+                type="button"
+                title="Edit message"
+                aria-label="Edit message"
+                disabled={saving}
+                onClick={() => {
+                  setEditing(message);
+                  setEditText(message.body);
+                  setEditError("");
+                }}
+              >
+                <Pencil size={14} />
+              </button>
+            ) : null}
+            {mine ? (
+              <button
+                type="button"
+                onClick={() => onToggleInfo(message.id)}
+                title="Message info"
+                aria-label="Message info"
+              >
+                <Info size={14} />
+              </button>
+            ) : null}
+          </div>
+        )}
+        {reacting ? (
+          <div
+            ref={reactionPickerRef}
+            className="discussion-reaction-picker"
+            role="menu"
+            aria-label="Choose a reaction"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setReacting(false);
+            }}
+          >
+            {quickReactions.map(([emoji, label]) => (
+              <button
+                key={emoji}
+                type="button"
+                role="menuitem"
+                className={myReaction === emoji ? "is-mine" : undefined}
+                title={myReaction === emoji ? `Remove ${label}` : label}
+                aria-label={myReaction === emoji ? `Remove ${label}` : label}
+                onClick={() => chooseReaction(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {message.local ? null : (
-        <div
-          className="discussion-row-actions"
-          role="toolbar"
-          aria-label="Message actions"
-        >
-          <button
-            type="button"
-            onClick={() => onReply(message)}
-            title="Reply"
-            aria-label="Reply"
-          >
-            <CornerUpLeft size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={copy}
-            title={copied ? "Copied" : "Copy text"}
-            aria-label="Copy text"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
-          {!mine && inGroup ? (
-            <button
-              type="button"
-              onClick={() => onMessagePrivately(message.from)}
-              title={`Message ${firstName(senderName)} privately`}
-              aria-label={`Message ${senderName} privately`}
-            >
-              <MessageCircle size={14} />
-            </button>
-          ) : null}
-          {mine && !message.undecryptable ? (
-            <button
-              type="button"
-              title="Edit message"
-              aria-label="Edit message"
-              disabled={saving}
-              onClick={() => {
-                setEditing(message);
-                setEditText(message.body);
-                setEditError("");
-              }}
-            >
-              <Pencil size={14} />
-            </button>
-          ) : null}
-          {mine ? (
-            <button
-              type="button"
-              onClick={() => onToggleInfo(message.id)}
-              title="Message info"
-              aria-label="Message info"
-            >
-              <Info size={14} />
-            </button>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 });
@@ -898,6 +1023,7 @@ export function DiscussionPanel({
     loadOlder,
     send,
     edit,
+    react,
     retry,
     discard,
     refresh,
@@ -1306,6 +1432,7 @@ export function DiscussionPanel({
                         info={infoFor === message.id ? infoCard(message) : null}
                         onReply={reply}
                         onEdit={edit}
+                        onReact={react}
                         onMessagePrivately={openConversation}
                         onToggleInfo={toggleInfo}
                         onRetry={retry}

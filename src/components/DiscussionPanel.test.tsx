@@ -87,6 +87,7 @@ function controller(
     loadOlder: vi.fn(async () => undefined),
     send: vi.fn(),
     edit: vi.fn(async () => undefined),
+    react: vi.fn(async () => undefined),
     retry: vi.fn(),
     discard: vi.fn(),
     refresh: vi.fn(async () => undefined),
@@ -449,6 +450,30 @@ describe("DiscussionPanel", () => {
     );
     expect(screen.getByText("Edited")).toBeVisible();
     expect(screen.getByText("Corrected 👍")).toBeVisible();
+  });
+
+  it("reacts from the message toolbar and toggles reactions from their chips", () => {
+    const theirs = message({
+      seq: 1,
+      reactions: { me: "👍", eve: "👍", bob: "🎉" },
+    });
+    const plain = message({ seq: 2, body: "Second" });
+    const discussion = controller({ messages: [theirs, plain] });
+    render(<Harness discussion={discussion} />);
+
+    const chips = screen.getByRole("group", { name: "Reactions" });
+    const mine = within(chips).getByRole("button", { name: /👍 2: You, Eve/ });
+    expect(mine).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(mine);
+    expect(discussion.react).toHaveBeenLastCalledWith(theirs, null);
+    fireEvent.click(within(chips).getByRole("button", { name: /🎉 1: Bob Stone/ }));
+    expect(discussion.react).toHaveBeenLastCalledWith(theirs, "🎉");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "React" })[1]);
+    const picker = screen.getByRole("menu", { name: "Choose a reaction" });
+    fireEvent.click(within(picker).getByRole("menuitem", { name: "OK" }));
+    expect(discussion.react).toHaveBeenLastCalledWith(plain, "✅");
+    expect(screen.queryByRole("menu", { name: "Choose a reaction" })).toBeNull();
   });
 
   it("cancels edits, rejects blanks and preserves the text when saving fails", async () => {

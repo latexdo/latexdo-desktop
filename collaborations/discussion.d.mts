@@ -11,6 +11,8 @@ export declare const discussionLimits: Readonly<{
   burstMessages: number;
   burstWindowMs: number;
   maxConversationKeys: number;
+  maxReactionChars: number;
+  maxReactionsPerMessage: number;
 }>;
 
 export declare const everyoneConversation: "*";
@@ -34,6 +36,10 @@ export interface DiscussionMessage {
   createdAt: number;
   editedAt?: number;
   updatedSeq?: number;
+  /** Revision at which the text last changed (reactions do not count). */
+  bodySeq?: number;
+  /** Each person's reaction, as an opaque (sealed) value, by client id. */
+  reactions?: Record<string, string>;
 }
 
 export interface DiscussionReceipt {

@@ -727,6 +727,9 @@ export interface DiscussionMessage {
   createdAt: number;
   editedAt?: number;
   updatedSeq?: number;
+  bodySeq?: number;
+  /** Each person's reaction (an emoji), by client id. */
+  reactions?: Record<string, string>;
   /** Set when the message could not be decrypted on this computer. */
   undecryptable?: boolean;
 }
@@ -759,6 +762,9 @@ export interface DiscussionQuery {
 export interface DiscussionMessageInput {
   edit?: boolean;
   expectedRevision?: number;
+  /** Sets (or, with a null reaction, removes) this person's reaction. */
+  react?: boolean;
+  reaction?: string | null;
   id: string;
   to: string | null;
   body: string;

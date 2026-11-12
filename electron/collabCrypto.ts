@@ -20,7 +20,7 @@ const version = 1;
 const nonceBytes = 12;
 const stringPrefix = "enc1:";
 
-export type CipherKind = "text" | "file" | "name" | "cursor" | "message";
+export type CipherKind = "text" | "file" | "name" | "cursor" | "message" | "reaction";
 
 export function newProjectKey(): string {
   return Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString(

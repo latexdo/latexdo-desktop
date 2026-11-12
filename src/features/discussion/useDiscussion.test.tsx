@@ -235,6 +235,22 @@ describe("useDiscussion", () => {
     expect(result.current.messages[0].body).toBe("My correction");
   });
 
+  it("reacts to messages, fetches others' reactions and rolls back failures", async () => {
+    const other = server.postAs("bob", { body: "Ready to submit?" });
+    const { result } = renderDiscussion({ visible: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    server.postAs("eve", { id: other.id, react: true, reaction: "🎉" });
+    await act(async () => result.current.react(result.current.messages[0], "✅"));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉", me: "✅" });
+    await act(async () => result.current.react(result.current.messages[0], null));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉" });
+
+    server.api.sendDiscussionMessage.mockRejectedValueOnce(new Error("Offline"));
+    await act(async () => result.current.react(result.current.messages[0], "👍"));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉" });
+    expect(result.current.error).toBe("Offline");
+  });
+
   it("sends optimistically, keeps failures to retry or delete", async () => {
     const { result } = renderDiscussion({ visible: true });
     await waitFor(() => expect(result.current.status).toBe("ready"));
