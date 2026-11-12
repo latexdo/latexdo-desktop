@@ -307,6 +307,16 @@ describe("useDiscussion", () => {
     expect(result.current.error).toBe("Offline");
   });
 
+  it("knows whether I am an admin and reports refused deletions", async () => {
+    const other = server.postAs("bob", { body: "Hello" });
+    const { result } = renderDiscussion({ visible: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.isAdmin).toBe(false);
+    await act(async () => result.current.remove(result.current.messages[0]!));
+    expect(result.current.error).toContain("Only an admin");
+    expect(result.current.messages[0]).toMatchObject({ id: other.id, body: "Hello" });
+  });
+
   it("sends optimistically, keeps failures to retry or delete", async () => {
     const { result } = renderDiscussion({ visible: true });
     await waitFor(() => expect(result.current.status).toBe("ready"));

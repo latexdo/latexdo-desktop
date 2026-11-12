@@ -126,6 +126,35 @@ function bodyRevision(message) {
 }
 
 /**
+ * An admin removes a message for everyone. What it said, its mentions and
+ * reactions are dropped; it stays in place as "deleted by an admin" so the
+ * order, replies and read receipts around it keep making sense.
+ */
+function deleteMessage(state, identity, existing, { canModerate, now }) {
+  if (!existing || !canSeeMessage(existing, identity.clientId)) {
+    throw new DiscussionError(404, "Message not found.");
+  }
+  if (!canModerate) {
+    throw new DiscussionError(403, "Only an admin can delete messages.");
+  }
+  if (existing.deletedAt) return { message: existing, created: false };
+  const message = {
+    ...existing,
+    body: "",
+    mentions: [],
+    deletedAt: now,
+    deletedBy: identity.clientId,
+    updatedSeq: state.seq + 1,
+  };
+  message.bodySeq = message.updatedSeq;
+  delete message.reactions;
+  delete message.editedAt;
+  state.seq = message.updatedSeq;
+  state.messages[state.messages.indexOf(existing)] = message;
+  return { message, created: false, updated: true };
+}
+
+/**
  * Sets or clears this person's reaction to a message they can see: one
  * reaction per person, stored as an opaque value (the apps seal the emoji, so
  * the server never learns it). A null reaction removes theirs.
@@ -175,7 +204,10 @@ function reactToMessage(state, identity, existing, input) {
  * access to the project to its name. Re-sending a message with the same id
  * (a retry) returns the stored one instead of a duplicate.
  */
-export function postMessage(state, { identity, members, input, now, maxBodyChars }) {
+export function postMessage(
+  state,
+  { identity, members, input, now, maxBodyChars, canModerate = false },
+) {
   if (!input || typeof input !== "object") {
     throw new DiscussionError(400, "Message must be JSON.");
   }
@@ -184,6 +216,12 @@ export function postMessage(state, { identity, members, input, now, maxBodyChars
     throw new DiscussionError(400, "Invalid message id.");
   }
   const existing = state.messages.find((message) => message.id === id);
+  if (input.delete === true) {
+    return deleteMessage(state, identity, existing, { canModerate, now });
+  }
+  if (existing?.deletedAt && (input.react === true || input.edit === true)) {
+    throw new DiscussionError(409, "This message was deleted.");
+  }
   if (input.react === true) return reactToMessage(state, identity, existing, input);
   if (existing) {
     if (existing.from !== identity.clientId) {

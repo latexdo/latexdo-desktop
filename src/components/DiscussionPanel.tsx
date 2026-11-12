@@ -27,6 +27,7 @@ import {
   Copy,
   CornerUpLeft,
   Info,
+  Ban,
   Lock,
   Pencil,
   MessageCircle,
@@ -237,6 +238,8 @@ interface MessageRowProps {
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage, text: string) => Promise<void>;
   onReact: (message: ChatMessage, emoji: string | null) => void;
+  /** Admins only: removes the message for everyone. */
+  onDelete?: (message: ChatMessage) => void;
   onMessagePrivately: (clientId: string) => void;
   onToggleInfo: (id: string) => void;
   onRetry: (id: string) => void;
@@ -259,6 +262,7 @@ const MessageRow = memo(function MessageRow({
   onReply,
   onEdit,
   onReact,
+  onDelete,
   onMessagePrivately,
   onToggleInfo,
   onRetry,
@@ -267,6 +271,7 @@ const MessageRow = memo(function MessageRow({
   onOpenLink,
 }: MessageRowProps) {
   const mine = message.from === me;
+  const deleted = Boolean(message.deletedAt);
   const mentionsMe = !mine && message.mentions.includes(me);
   const senderName = names.get(message.from) ?? message.name;
   const [copied, setCopied] = useState(false);
@@ -372,11 +377,25 @@ const MessageRow = memo(function MessageRow({
                   : "Earlier message"}
               </span>
               <span className="discussion-quote-text">
-                {quoted ? previewText(quoted.body, 90) : "Scroll up to load it."}
+                {quoted
+                  ? quoted.deletedAt
+                    ? "Deleted message"
+                    : previewText(quoted.body, 90)
+                  : "Scroll up to load it."}
               </span>
             </button>
           ) : null}
-          {editing ? (
+          {deleted ? (
+            <div className="discussion-text discussion-deleted">
+              <Ban size={13} aria-hidden="true" />
+              <span>
+                {message.deletedBy === message.from
+                  ? "This message was deleted"
+                  : "This message was deleted by an admin"}
+              </span>
+              <span className="discussion-meta-spacer" aria-hidden="true" />
+            </div>
+          ) : editing ? (
             <form
               className="discussion-edit"
               onSubmit={(event) => {
@@ -474,7 +493,7 @@ const MessageRow = memo(function MessageRow({
           </div>
         ) : null}
         {infoOpen ? info : null}
-        {reactions.length ? (
+        {reactions.length && !deleted ? (
           <div className="discussion-reactions" role="group" aria-label="Reactions">
             {reactions.map((group) => {
               const who = group.people
@@ -502,7 +521,7 @@ const MessageRow = memo(function MessageRow({
             })}
           </div>
         ) : null}
-        {message.local ? null : (
+        {message.local || deleted ? null : (
           <div
             className="discussion-row-actions"
             role="toolbar"
@@ -568,6 +587,17 @@ const MessageRow = memo(function MessageRow({
                 aria-label="Message info"
               >
                 <Info size={14} />
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                className="discussion-delete-action"
+                onClick={() => onDelete(message)}
+                title="Delete for everyone (admin)"
+                aria-label="Delete message for everyone"
+              >
+                <Trash2 size={14} />
               </button>
             ) : null}
           </div>
@@ -1024,6 +1054,8 @@ export function DiscussionPanel({
     send,
     edit,
     react,
+    remove,
+    isAdmin,
     retry,
     discard,
     refresh,
@@ -1159,6 +1191,15 @@ export function DiscussionPanel({
   const reply = useCallback(
     (message: ChatMessage) => setReplyTo(conversation, message.id),
     [conversation, setReplyTo],
+  );
+  const deleteMessage = useCallback(
+    (message: ChatMessage) => {
+      const confirmed = window.confirm(
+        "Delete this message for everyone? It will show as deleted by an admin.",
+      );
+      if (confirmed) void remove(message);
+    },
+    [remove],
   );
   const toggleInfo = useCallback(
     (id: string) => setInfoFor((current) => (current === id ? null : id)),
@@ -1433,6 +1474,7 @@ export function DiscussionPanel({
                         onReply={reply}
                         onEdit={edit}
                         onReact={react}
+                        onDelete={isAdmin ? deleteMessage : undefined}
                         onMessagePrivately={openConversation}
                         onToggleInfo={toggleInfo}
                         onRetry={retry}

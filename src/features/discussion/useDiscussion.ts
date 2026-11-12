@@ -186,6 +186,8 @@ export function useDiscussion(options: UseDiscussionOptions) {
 
   const fallbackMe = useMemo(() => window.latexdo?.collaborationClientId?.() ?? "", []);
   const me = permissions.find((item) => item.isCurrent)?.clientId ?? fallbackMe;
+  /** Admins may delete any message they can see. */
+  const isAdmin = permissions.find((item) => item.isCurrent)?.role === "admin";
 
   const messagesRef = useRef(messages);
   const receiptsRef = useRef(receipts);
@@ -413,6 +415,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
         (message) =>
           message.seq > deliveredBefore &&
           notifiesMe(message, meNow) &&
+          !message.deletedAt &&
           !notifiedRef.current.has(message.id),
       );
       for (const message of incoming) notifiedRef.current.add(message.id);
@@ -665,6 +668,34 @@ export function useDiscussion(options: UseDiscussionOptions) {
     [setMessagesNow],
   );
 
+  /** Admins only: removes a message for everyone ("deleted by an admin"). */
+  const remove = useCallback(
+    async (message: ChatMessage) => {
+      const project = projectRef.current;
+      if (!project || !enabledRef.current || message.local || message.deletedAt) return;
+      try {
+        const result = await window.latexdo.sendDiscussionMessage(project, {
+          id: message.id,
+          to: message.to,
+          replyTo: null,
+          body: "",
+          mentions: [],
+          delete: true,
+        });
+        if (projectRef.current !== project) return;
+        if (!result.message.deletedAt) {
+          throw new Error(
+            "The collaboration server does not support deleting messages yet.",
+          );
+        }
+        setMessagesNow((current) => mergeMessages(current, [result.message]));
+      } catch (caught) {
+        if (projectRef.current === project) setError(errorMessage(caught));
+      }
+    },
+    [setMessagesNow],
+  );
+
   const retry = useCallback(
     (id: string) => {
       const message = messagesRef.current.find(
@@ -785,6 +816,8 @@ export function useDiscussion(options: UseDiscussionOptions) {
     send,
     edit,
     react,
+    remove,
+    isAdmin,
     retry,
     discard,
     refresh,

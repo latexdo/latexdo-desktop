@@ -33824,3 +33824,54 @@ body.pane-resizing-row .preview-pane > * {
 .review-chat-card.is-active {
   box-shadow: inset 3px 0 0 var(--text-muted);
 }
+
+/* An admin invitation waiting for this person's answer. */
+.share-admin-offer {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border-dialog));
+  border-radius: 8px;
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+}
+
+.share-admin-offer p {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.share-admin-offer p svg {
+  flex: none;
+  margin-top: 1px;
+  color: #f59e0b;
+}
+
+.share-admin-offer .share-actions {
+  justify-content: flex-end;
+}
+
+.permission-admin-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.permission-admin-offer button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.permission-notice {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}

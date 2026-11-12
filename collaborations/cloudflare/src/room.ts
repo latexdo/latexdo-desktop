@@ -49,6 +49,25 @@ import {
   type DiscussionMessage,
   type DiscussionState,
 } from "../../discussion.mjs";
+import {
+  AdminOfferError,
+  adminOfferFor,
+  answerAdminOffer,
+  cancelAdminOffer,
+  offerAdmin,
+  type AdminOffer,
+} from "../../adminOffers.mjs";
+
+/** Runs an admin-offer rule, reporting its refusals as HTTP errors. */
+function adminOfferRule<T>(rule: () => T): T {
+  try {
+    return rule();
+  } catch (error) {
+    if (error instanceof AdminOfferError)
+      throw new HttpError(error.status, error.message);
+    throw error;
+  }
+}
 
 /** Project presence (plaintext JSON: ids, roles and encrypted names). */
 const messageProjectPresence = 4;
@@ -72,6 +91,8 @@ interface Permission {
   sessionHash: string;
   createdAt: number;
   updatedAt: number;
+  /** Admin rights offered to this person, waiting for their answer. */
+  adminOffer?: AdminOffer;
 }
 
 interface PendingRequest {
@@ -495,6 +516,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       return json(200, {
         permissions: this.permissionList(auth.meta, auth.identity.clientId),
         isAdmin: auth.role === "admin",
+        // The owner always stays admin, so only other admins can hand over theirs.
+        canTransferAdmin:
+          auth.role === "admin" && auth.meta.ownerSessionHash !== auth.sessionHash,
         currentUserRole: auth.role,
         requireApproval: auth.meta.requireApproval,
         ...(auth.role === "admin" ? { pending: this.pendingList(auth.meta) } : {}),
@@ -556,8 +580,28 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         ? auth.meta.permissions[body.clientId]
         : undefined;
       if (!existing) throw new HttpError(404, "Collaborator not found.");
+      if (body.role === "admin" && existing.role !== "admin") {
+        // Admin rights are offered; the person accepts them in their app.
+        const adminOffer = adminOfferRule(() =>
+          offerAdmin(auth.meta, {
+            from: auth.identity.clientId,
+            to: existing.clientId,
+            transfer: body.transfer === true,
+            fromIsOwner: auth.meta.ownerSessionHash === auth.sessionHash,
+            now: now(),
+          }),
+        );
+        this.writeMeta(auth.meta);
+        return json(200, {
+          clientId: existing.clientId,
+          name: existing.name,
+          role: existing.role,
+          adminOffer,
+        });
+      }
       existing.role = body.role;
       existing.updatedAt = now();
+      delete existing.adminOffer;
       this.writeMeta(auth.meta);
       this.closeClient(body.clientId, 1008, "Permissions changed");
       return json(200, {
@@ -565,6 +609,37 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         name: existing.name,
         role: existing.role,
       });
+    }
+    if (route === "admin-offer" && method === "POST") {
+      // The invited person answers; they are not an admin yet.
+      const auth = await this.authorize(request, url, "viewer");
+      const body = await this.body(request);
+      if (body.action !== "accept" && body.action !== "decline") {
+        throw new HttpError(400, "Invalid answer.");
+      }
+      const { changed } = adminOfferRule(() =>
+        answerAdminOffer(auth.meta, {
+          clientId: auth.identity.clientId,
+          accept: body.action === "accept",
+          now: now(),
+        }),
+      );
+      this.writeMeta(auth.meta);
+      for (const clientId of changed)
+        this.closeClient(clientId, 1008, "Permissions changed");
+      return json(200, {
+        permissions: this.permissionList(auth.meta, auth.identity.clientId),
+        role: auth.meta.permissions[auth.identity.clientId]?.role ?? null,
+      });
+    }
+    if (route.startsWith("admin-offer/") && method === "DELETE") {
+      const auth = await this.authorize(request, url, "admin");
+      const to = parts[4] ?? "";
+      if (!to || !cancelAdminOffer(auth.meta, to, now())) {
+        throw new HttpError(404, "No admin invitation to withdraw.");
+      }
+      this.writeMeta(auth.meta);
+      return empty();
     }
     if (route.startsWith("collaborators/") && method === "DELETE") {
       const auth = await this.authorize(request, url, "admin");
@@ -584,6 +659,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       // Keep the session binding so an old invite cannot re-enroll them, and
       // retire the invite so they cannot come back under a new identity.
       permission.role = null;
+      delete permission.adminOffer;
       this.presence.delete(removeId);
       this.rotateShare(auth.meta);
       this.closeClient(removeId, 1008, "Removed from project");
@@ -634,6 +710,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         now: now(),
         // The body arrives encrypted, so it is longer than the text typed.
         maxBodyChars: discussionLimits.maxStoredBodyChars,
+        canModerate: auth.role === "admin",
       });
       if (created || updated) {
         this.saveDiscussionMessage(state, message);
@@ -809,6 +886,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         sessionHash,
         createdAt: existing?.createdAt ?? now(),
         updatedAt: now(),
+        // A renamed person keeps their admin invitation; another device does not.
+        ...(existing?.adminOffer &&
+        existing.sessionHash === sessionHash &&
+        nextRole !== "admin"
+          ? { adminOffer: existing.adminOffer }
+          : {}),
       };
       changed = true;
     }
@@ -911,12 +994,16 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
           roleRank(right.role) - roleRank(left.role) ||
           left.name.localeCompare(right.name),
       )
-      .map((item) => ({
-        clientId: item.clientId,
-        name: item.name || "Anonymous",
-        role: item.role,
-        ...(item.clientId === currentClientId ? { isCurrent: true } : {}),
-      }));
+      .map((item) => {
+        const adminOffer = adminOfferFor(meta, item.clientId);
+        return {
+          clientId: item.clientId,
+          name: item.name || "Anonymous",
+          role: item.role,
+          ...(item.clientId === currentClientId ? { isCurrent: true } : {}),
+          ...(adminOffer ? { adminOffer } : {}),
+        };
+      });
   }
 
   private pendingList(meta: ProjectMeta) {

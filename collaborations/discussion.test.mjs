@@ -371,3 +371,63 @@ describe("reacting to messages", () => {
     ).toBe("Again");
   });
 });
+
+describe("deleting messages", () => {
+  const bob = { clientId: "bob", clientName: "Bob" };
+  const remove = (state, id, identity = ada, canModerate = true) =>
+    postMessage(state, {
+      identity,
+      members,
+      input: { id, delete: true },
+      now: 2000,
+      canModerate,
+    });
+
+  it("lets an admin replace a message with a deletion notice for everyone", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "Off-topic @Bob", mentions: ["bob"] }, bob);
+    send(state, { id: "message-1", react: true, reaction: "sealed-ok" });
+    send(state, { id: "message-2", body: "Reply", replyTo: "message-1" });
+    const result = remove(state, "message-1");
+    expect(result).toMatchObject({
+      created: false,
+      updated: true,
+      message: {
+        id: "message-1",
+        seq: 1,
+        from: "bob",
+        body: "",
+        mentions: [],
+        deletedAt: 2000,
+        deletedBy: "ada",
+        updatedSeq: 4,
+      },
+    });
+    expect(result.message.reactions).toBeUndefined();
+    expect(state.messages.map((item) => item.id)).toEqual(["message-1", "message-2"]);
+    expect(listMessages(state, "bob", { after: 3 }).messages).toEqual([result.message]);
+    // Deleting twice changes nothing; a deleted message takes no edits or reactions.
+    expect(remove(state, "message-1").updated).toBeUndefined();
+    expect(() =>
+      send(
+        state,
+        { id: "message-1", body: "Back", edit: true, expectedRevision: 4 },
+        bob,
+      ),
+    ).toThrow("deleted");
+    expect(() => send(state, { id: "message-1", react: true, reaction: "x" })).toThrow(
+      "deleted",
+    );
+    expect(normalizeDiscussion(state).messages[0].deletedAt).toBe(2000);
+  });
+
+  it("is only for admins, on messages they can see", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "Mine" }, bob);
+    expect(() => remove(state, "message-1", bob, false)).toThrow("Only an admin");
+    send(state, { id: "message-2", body: "Private", to: "eve" }, bob);
+    expect(() => remove(state, "message-2")).toThrow("not found");
+    expect(() => remove(state, "missing-1")).toThrow("not found");
+    expect(state.messages.every((item) => !item.deletedAt)).toBe(true);
+  });
+});

@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  Crown,
   FolderDown,
   KeyRound,
   Link,
@@ -60,6 +61,13 @@ export interface ShareProjectDialogProps {
   onUpdatePermission?: (update: PermissionUpdate) => Promise<void>;
   onRemoveCollaborator?: (clientId: string) => Promise<void>;
   onRefreshPermissions?: () => Promise<void>;
+  /** Admins other than the owner may hand over their admin role. */
+  canTransferAdmin?: boolean;
+  onWithdrawAdminOffer?: (clientId: string) => Promise<void>;
+  /** Admin rights offered to this person, waiting for their answer. */
+  adminOffer?: { fromName: string; transfer: boolean } | null;
+  answeringAdminOffer?: boolean;
+  onAnswerAdminOffer?: (accept: boolean) => void;
 }
 
 export function ShareProjectDialog({
@@ -94,6 +102,11 @@ export function ShareProjectDialog({
   onUpdatePermission,
   onRemoveCollaborator,
   onRefreshPermissions,
+  canTransferAdmin = false,
+  onWithdrawAdminOffer,
+  adminOffer = null,
+  answeringAdminOffer = false,
+  onAnswerAdminOffer,
 }: ShareProjectDialogProps) {
   // One link to send: the browser link when the project is on the server,
   // otherwise the invite (Join accepts both).
@@ -161,6 +174,48 @@ export function ShareProjectDialog({
             <X size={16} />
           </button>
         </header>
+        {adminOffer && onAnswerAdminOffer ? (
+          <div
+            className="share-section share-admin-offer"
+            role="region"
+            aria-label="Admin invitation"
+          >
+            <p>
+              <Crown size={15} aria-hidden="true" />
+              <span>
+                {adminOffer.transfer ? (
+                  <>
+                    <strong>{adminOffer.fromName}</strong> wants to hand over their
+                    admin role to you. They will become an editor.
+                  </>
+                ) : (
+                  <>
+                    <strong>{adminOffer.fromName}</strong> invited you to become an
+                    admin of this project.
+                  </>
+                )}{" "}
+                Admins manage who has access and can delete discussion messages.
+              </span>
+            </p>
+            <div className="share-actions">
+              <button
+                type="button"
+                disabled={answeringAdminOffer}
+                onClick={() => onAnswerAdminOffer(false)}
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                className="share-primary"
+                disabled={answeringAdminOffer}
+                onClick={() => onAnswerAdminOffer(true)}
+              >
+                {answeringAdminOffer ? "Saving…" : "Become admin"}
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!displayName.trim() ? (
           <div className="share-section">
             <p className="share-hint share-name-missing">
@@ -463,6 +518,8 @@ export function ShareProjectDialog({
             onUpdatePermission={onUpdatePermission}
             onRemoveCollaborator={onRemoveCollaborator}
             onRefresh={onRefreshPermissions}
+            canTransferAdmin={canTransferAdmin}
+            onWithdrawAdminOffer={onWithdrawAdminOffer}
           />
         ) : null}
       </section>

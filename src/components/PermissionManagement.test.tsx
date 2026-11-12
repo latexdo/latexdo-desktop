@@ -81,9 +81,65 @@ describe("PermissionManagement", () => {
       within(grace)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Admin", "Editor", "Viewer"]);
+    ).toEqual(["Admin (invite)", "Editor", "Viewer"]);
     expect(within(row("linus")).getByText("Active now")).toBeVisible();
     expect(screen.getByText("G")).toBeInTheDocument();
+  });
+
+  it("invites to admin instead of promoting, and can hand over the admin role", async () => {
+    const props = setup({ canTransferAdmin: true });
+    const grace = within(row("grace")).getByRole("combobox");
+    await act(async () => {
+      fireEvent.change(grace, { target: { value: "admin" } });
+    });
+    expect(props.onUpdatePermission).toHaveBeenLastCalledWith({
+      clientId: "c1",
+      role: "admin",
+    });
+    expect(screen.getByRole("status").textContent).toContain(
+      "grace becomes admin once they accept",
+    );
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+    const linus = within(row("linus")).getByRole("combobox");
+    await act(async () => {
+      fireEvent.change(linus, { target: { value: "transfer" } });
+    });
+    expect(props.onUpdatePermission).toHaveBeenCalledTimes(1);
+    confirm.mockReturnValueOnce(true);
+    await act(async () => {
+      fireEvent.change(linus, { target: { value: "transfer" } });
+    });
+    expect(props.onUpdatePermission).toHaveBeenLastCalledWith({
+      clientId: "c2",
+      role: "admin",
+      transfer: true,
+    });
+  });
+
+  it("shows waiting invitations and lets the admin withdraw them", async () => {
+    const onWithdrawAdminOffer = vi.fn(async () => {});
+    setup({
+      permissions: [
+        people[0]!,
+        { ...people[1]!, adminOffer: { from: "me", transfer: false, offeredAt: 1 } },
+        people[2]!,
+      ],
+      onWithdrawAdminOffer,
+    });
+    expect(
+      within(row("grace")).getByText(/Admin invitation waiting for their answer/),
+    ).toBeVisible();
+    // Only admins who are not the owner can hand over their role.
+    expect(
+      within(row("linus"))
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).not.toContain("Hand over my admin role");
+    await act(async () => {
+      fireEvent.click(within(row("grace")).getByRole("button", { name: "Withdraw" }));
+    });
+    expect(onWithdrawAdminOffer).toHaveBeenCalledWith("c1");
   });
 
   it("shows people who have LatexDo open but are not using it as away", () => {

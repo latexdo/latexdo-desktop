@@ -1237,6 +1237,43 @@ describe("discussion", () => {
     });
   });
 
+  it("forwards admin deletions and shows deleted messages without decrypting", async () => {
+    const key = newProjectKey();
+    const sent: Array<Record<string, unknown>> = [];
+    const env = setup(
+      async (_path, _method, _headers, body) => {
+        sent.push(JSON.parse(body ?? "{}"));
+        return ok({
+          seq: 3,
+          message: {
+            id: "msg-0001",
+            seq: 1,
+            updatedSeq: 3,
+            from: "bob",
+            to: null,
+            body: "",
+            mentions: [],
+            createdAt: 1000,
+            deletedAt: 2000,
+            deletedBy: "ada",
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", delete: true, body: "ignored" }),
+      1000,
+    );
+    expect(sent).toEqual([{ id: "msg-0001", delete: true }]);
+    const { message } = JSON.parse(response.text);
+    expect(message).toMatchObject({ body: "", deletedAt: 2000, deletedBy: "ada" });
+    expect(message.undecryptable).toBeUndefined();
+  });
+
   it("seals reactions so the server never learns the emoji", async () => {
     const key = newProjectKey();
     const sent: Array<Record<string, unknown>> = [];

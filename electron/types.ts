@@ -129,11 +129,23 @@ export interface CollaboratorPermission {
   name: string;
   role: CollaboratorRole;
   isCurrent?: boolean;
+  /** Admin rights offered to this person, waiting for them to accept. */
+  adminOffer?: AdminOffer;
+}
+
+export interface AdminOffer {
+  /** The admin who offered it. */
+  from: string;
+  /** True when that admin steps down to editor once it is accepted. */
+  transfer: boolean;
+  offeredAt: number;
 }
 
 export interface PermissionUpdate {
   clientId: string;
   role: CollaboratorRole;
+  /** With role "admin": hand over your own admin seat (you become editor). */
+  transfer?: boolean;
 }
 
 export interface DocxImportResult {
@@ -651,6 +663,9 @@ export interface DiscussionMessage {
   bodySeq?: number;
   /** Each person's reaction (an emoji), by client id. */
   reactions?: Record<string, string>;
+  /** Set when an admin removed the message; its body is then empty. */
+  deletedAt?: number;
+  deletedBy?: string;
   /** Set when the message could not be decrypted on this computer. */
   undecryptable?: boolean;
 }
@@ -686,6 +701,8 @@ export interface DiscussionMessageInput {
   /** Sets (or, with a null reaction, removes) this person's reaction. */
   react?: boolean;
   reaction?: string | null;
+  /** An admin removes the message for everyone. */
+  delete?: boolean;
   id: string;
   to: string | null;
   body: string;

@@ -1334,3 +1334,21 @@
 .discussion-row .discussion-meta-spacer.is-edited {
   width: 112px;
 }
+
+/* A message an admin removed: kept in place, without its text. */
+.discussion-text.discussion-deleted {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.discussion-row-actions button.discussion-delete-action:hover {
+  background: color-mix(
+    in srgb,
+    var(--status-destructive-bg, #c43f5f) 18%,
+    transparent
+  );
+  color: var(--status-destructive-bg, #c43f5f);
+}

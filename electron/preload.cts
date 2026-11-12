@@ -1613,6 +1613,8 @@ const api = {
   ): Promise<{
     permissions: CollaboratorPermission[];
     isAdmin: boolean;
+    /** True for admins other than the owner, who may hand over their seat. */
+    canTransferAdmin?: boolean;
     currentUserRole: CollaboratorRole;
     requireApproval?: boolean;
     pending?: CollaborationJoinRequest[];
@@ -1626,6 +1628,7 @@ const api = {
       const result = await cloudRequestJson<{
         permissions: CollaboratorPermission[];
         isAdmin: boolean;
+        canTransferAdmin?: boolean;
         currentUserRole: CollaboratorRole;
         requireApproval?: boolean;
         pending?: CollaborationJoinRequest[];
@@ -1650,6 +1653,39 @@ const api = {
         method: "PUT",
         body: JSON.stringify(update),
       },
+      token,
+    );
+  },
+  /** Accepts or declines the admin rights an admin offered this person. */
+  answerAdminOffer: async (
+    projectId: string,
+    accept: boolean,
+  ): Promise<{
+    permissions: CollaboratorPermission[];
+    role: CollaboratorRole | null;
+  }> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      throw new Error("No share token for this project");
+    }
+    return cloudRequestJson(
+      `/api/shares/${encodeURIComponent(token)}/admin-offer`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action: accept ? "accept" : "decline" }),
+      },
+      token,
+    );
+  },
+  /** Admins: withdraws the admin rights offered to someone. */
+  withdrawAdminOffer: async (projectId: string, clientId: string): Promise<void> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      throw new Error("No share token for this project");
+    }
+    await cloudRequestJson<void>(
+      `/api/shares/${encodeURIComponent(token)}/admin-offer/${encodeURIComponent(clientId)}`,
+      { method: "DELETE" },
       token,
     );
   },

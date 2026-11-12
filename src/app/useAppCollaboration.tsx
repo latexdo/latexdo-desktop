@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
+import { useAdminOffers } from "../collaboration/adminOffers";
 import {
   bookmarkKey,
   monacoThemeFor,
@@ -1125,6 +1126,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
   };
 
+  const [canTransferAdmin, setCanTransferAdmin] = useState(false);
   const loadCollaborationPermissions = useCallback(
     async (projectId: string) => {
       if (!collaborationAvailable) return;
@@ -1133,15 +1135,41 @@ export function useAppCollaboration(ctx: AppCtx08) {
         const result = await window.latexdo.getCollaborationPermissions(projectId);
         setCollaborationPermissions(result.permissions);
         setIsProjectAdmin(result.isAdmin);
+        setCanTransferAdmin(result.canTransferAdmin === true);
         setCurrentUserRole(result.currentUserRole as "admin" | "editor" | "viewer");
       } catch {
         setCollaborationPermissions([]);
         setIsProjectAdmin(false);
+        setCanTransferAdmin(false);
         setCurrentUserRole("viewer");
       }
     },
     [collaborationAvailable],
   );
+
+  // Admin invitations: the invited person hears of them and answers in Share.
+  const adminOfferProjectId =
+    collaborationAvailable &&
+    collaborationState.enabled &&
+    sharedProjectId &&
+    window.latexdo.hasDiscussion?.(sharedProjectId)
+      ? sharedProjectId
+      : null;
+  const adminOffers = useAdminOffers({
+    projectId: adminOfferProjectId,
+    onPermissions: useCallback(
+      (result) => {
+        setCollaborationPermissions(result.permissions);
+        setIsProjectAdmin(result.isAdmin);
+        setCanTransferAdmin(result.canTransferAdmin === true);
+      },
+      [setCollaborationPermissions, setIsProjectAdmin],
+    ),
+    openShare: useCallback(() => setShareDialogOpen(true), [setShareDialogOpen]),
+    reload: useCallback(async () => {
+      if (adminOfferProjectId) await loadCollaborationPermissions(adminOfferProjectId);
+    }, [adminOfferProjectId, loadCollaborationPermissions]),
+  });
 
   return {
     liveConnection,
@@ -1167,5 +1195,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     changeCollaborationApproval,
     resolveCollaborationRequest,
     loadCollaborationPermissions,
+    canTransferAdmin,
+    adminOffers,
   };
 }

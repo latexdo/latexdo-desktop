@@ -88,6 +88,8 @@ function controller(
     send: vi.fn(),
     edit: vi.fn(async () => undefined),
     react: vi.fn(async () => undefined),
+    remove: vi.fn(async () => undefined),
+    isAdmin: false,
     retry: vi.fn(),
     discard: vi.fn(),
     refresh: vi.fn(async () => undefined),
@@ -474,6 +476,58 @@ describe("DiscussionPanel", () => {
     fireEvent.click(within(picker).getByRole("menuitem", { name: "OK" }));
     expect(discussion.react).toHaveBeenLastCalledWith(plain, "✅");
     expect(screen.queryByRole("menu", { name: "Choose a reaction" })).toBeNull();
+  });
+
+  it("lets only admins delete messages, after confirming", () => {
+    const target = message({ seq: 1, body: "Off-topic" });
+    const plain = controller({ messages: [target] });
+    const view = render(<Harness discussion={plain} />);
+    expect(
+      screen.queryByRole("button", { name: "Delete message for everyone" }),
+    ).toBeNull();
+
+    const admin = controller({ messages: [target], isAdmin: true });
+    view.rerender(<Harness discussion={admin} />);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete message for everyone" }),
+    );
+    expect(admin.remove).not.toHaveBeenCalled();
+    confirm.mockReturnValueOnce(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete message for everyone" }),
+    );
+    expect(admin.remove).toHaveBeenCalledWith(target);
+    confirm.mockRestore();
+  });
+
+  it("shows deleted messages without their text, actions or reactions", () => {
+    const removed = message({
+      seq: 1,
+      body: "",
+      deletedAt: now,
+      deletedBy: "me",
+      reactions: { eve: "👍" },
+    });
+    const own = message({
+      seq: 2,
+      from: "bob",
+      body: "",
+      deletedAt: now,
+      deletedBy: "bob",
+    });
+    const reply = message({ seq: 3, from: "eve", body: "Agreed", replyTo: removed.id });
+    render(
+      <Harness
+        discussion={controller({ messages: [removed, own, reply], isAdmin: true })}
+      />,
+    );
+    expect(screen.getByText("This message was deleted by an admin")).toBeVisible();
+    expect(screen.getByText("This message was deleted")).toBeVisible();
+    expect(screen.getByText("Deleted message")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Reactions" })).toBeNull();
+    // Only the reply still has actions.
+    expect(screen.getAllByRole("toolbar", { name: "Message actions" })).toHaveLength(1);
   });
 
   it("cancels edits, rejects blanks and preserves the text when saving fails", async () => {

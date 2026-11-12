@@ -233,6 +233,10 @@ export class CloudE2ee {
     const message = { ...opened };
     if (reactions) message.reactions = reactions;
     else delete message.reactions;
+    // Deleted by an admin: nothing is left to decrypt.
+    if (typeof message.deletedAt === "number") {
+      return { ...message, body: "", mentions: [] };
+    }
     try {
       const sealed = JSON.parse(
         await decryptString(key, projectId, "message", String(message.body)),
@@ -543,6 +547,16 @@ export class CloudE2ee {
             message: await this.openMessage(key, projectId, result.message),
           });
         };
+        if (input.delete === true) {
+          return openResult(
+            await send(
+              path,
+              method,
+              sealedHeaders,
+              JSON.stringify({ id: String(input.id ?? ""), delete: true }),
+            ),
+          );
+        }
         if (input.react === true) {
           const id = String(input.id ?? "");
           const emoji = typeof input.reaction === "string" ? input.reaction : null;

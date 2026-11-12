@@ -729,6 +729,14 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       throw browserUnavailable("Cloud collaboration permissions");
     },
 
+    async answerAdminOffer() {
+      throw browserUnavailable("Cloud collaboration permissions");
+    },
+
+    async withdrawAdminOffer() {
+      throw browserUnavailable("Cloud collaboration permissions");
+    },
+
     async isProjectAdmin() {
       return false;
     },
