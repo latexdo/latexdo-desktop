@@ -225,3 +225,59 @@ describe("discussion rules", () => {
     );
   });
 });
+
+describe("editing messages", () => {
+  it("preserves order, replies and receipts and returns edits in incremental pages", () => {
+    const state = emptyDiscussion();
+    const original = send(state, { id: "message-1", body: "First", to: "bob" }).message;
+    send(state, { id: "message-2", body: "Second", to: "bob", replyTo: original.id });
+    const receipts = JSON.stringify(state.receipts);
+    const result = send(state, {
+      id: original.id,
+      body: "Corrected",
+      to: "bob",
+      edit: true,
+      expectedRevision: 1,
+    });
+    expect(result).toMatchObject({
+      created: false,
+      updated: true,
+      message: {
+        seq: 1,
+        updatedSeq: 3,
+        editedAt: 1000,
+        body: "Corrected",
+        createdAt: 1000,
+      },
+    });
+    expect(state.messages.map((m) => m.id)).toEqual(["message-1", "message-2"]);
+    expect(state.messages[1].replyTo).toBe(original.id);
+    expect(JSON.stringify(state.receipts)).toBe(receipts);
+    expect(listMessages(state, "bob", { after: 1, limit: 1 })).toMatchObject({
+      messages: [{ id: "message-2" }],
+      hasMore: true,
+    });
+    expect(listMessages(state, "bob", { after: 2 }).messages).toEqual([result.message]);
+    expect(listMessages(state, "eve", { after: 2 }).messages).toEqual([]);
+    expect(normalizeDiscussion({ ...state, seq: 0 }).seq).toBe(3);
+  });
+  it("rejects another sender, stale edits, missing messages, changed audience and invalid text", () => {
+    const state = emptyDiscussion();
+    send(state, { id: "message-1", body: "First" });
+    const edit = { id: "message-1", edit: true, expectedRevision: 1, body: "Changed" };
+    expect(() => send(state, edit, { clientId: "bob", clientName: "Bob" })).toThrow();
+    expect(() => send(state, { ...edit, id: "missing-1" })).toThrow(
+      "Message not found",
+    );
+    expect(() => send(state, { ...edit, to: "bob" })).toThrow("conversation");
+    expect(() => send(state, { ...edit, body: " " })).toThrow("empty");
+    expect(() => send(state, { ...edit, body: "x".repeat(4001) })).toThrow("too long");
+    expect(state.seq).toBe(1);
+    send(state, edit);
+    expect(() => send(state, edit)).toThrow("changed");
+    expect(state.messages[0].body).toBe("Changed");
+    expect(send(state, { id: "message-1", body: "Old retry" }).message.body).toBe(
+      "Changed",
+    );
+  });
+});

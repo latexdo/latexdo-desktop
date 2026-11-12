@@ -56,6 +56,21 @@ describe("conversations and merging", () => {
     );
   });
 
+  it("does not let a stale fetch replace an edited message", () => {
+    const original = message({ seq: 1 });
+    const edited = {
+      ...original,
+      body: "Edited",
+      updatedSeq: 5,
+      editedAt: base + 1000,
+    };
+    expect(mergeMessages([edited, message({ seq: 2 })], [original])).toEqual([
+      edited,
+      message({ seq: 2 }),
+    ]);
+    expect(mergeMessages([original], [edited])).toEqual([edited]);
+  });
+
   it("merges by id in server order, pending messages last", () => {
     const pending = message({ seq: pendingSeq, id: "local", local: "sending" });
     const current = [message({ seq: 2 }), pending];

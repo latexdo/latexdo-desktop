@@ -319,13 +319,57 @@ describe("bookmarks, links and markup decorations", () => {
     await h.result.current.openLinkAtCursor();
     expect(api.openExternalUrl).toHaveBeenCalledWith("https://example.org");
   });
+  it("keeps review markers on moved text and removes them when the passage is gone", () => {
+    const h = setup({
+      reviewChats: [
+        {
+          filePath: "main.tex",
+          selection: {
+            startLine: 1,
+            startColumn: 1,
+            endLine: 1,
+            endColumn: 6,
+            text: "First",
+          },
+          comments: [],
+        },
+      ],
+    });
+    h.model.setValue("New line\nPrefix First line");
+    h.ctx.activeDocument = { ...h.document, content: h.model.getValue() };
+    h.rerender();
+    const marker = h.model
+      .getAllDecorations()
+      .find((d) => d.options.inlineClassName === "review-comment-decoration");
+    expect(marker?.range).toMatchObject({
+      startLineNumber: 2,
+      startColumn: 8,
+      endLineNumber: 2,
+      endColumn: 13,
+    });
+    h.model.setValue("Unrelated replacement");
+    h.ctx.activeDocument = { ...h.document, content: h.model.getValue() };
+    h.rerender();
+    expect(
+      h.model
+        .getAllDecorations()
+        .some((d) => d.options.inlineClassName === "review-comment-decoration"),
+    ).toBe(false);
+  });
+
   it("hides nested commands and comments while decorating review threads", () => {
     const h = setup({
       settings: { ...defaultSettings, showRawLatex: false },
       reviewChats: [
         {
           filePath: "main.tex",
-          selection: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 3 },
+          selection: {
+            startLine: 1,
+            startColumn: 1,
+            endLine: 1,
+            endColumn: 3,
+            text: "Fi",
+          },
           comments: [{ text: "Check this" }],
         },
       ],

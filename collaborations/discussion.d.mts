@@ -32,6 +32,8 @@ export interface DiscussionMessage {
   mentions: string[];
   replyTo: string | null;
   createdAt: number;
+  editedAt?: number;
+  updatedSeq?: number;
 }
 
 export interface DiscussionReceipt {
@@ -75,7 +77,7 @@ export declare function postMessage(
     now: number;
     maxBodyChars?: number;
   },
-): { message: DiscussionMessage; created: boolean };
+): { message: DiscussionMessage; created: boolean; updated?: boolean };
 export declare function advanceReceipt(
   state: DiscussionState,
   clientId: string,

@@ -255,6 +255,7 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
   );
   const [latexEditorView, setLatexEditorView] = useState<"code" | "visual">("code");
   const [mode, setMode] = useState<EditorMode>("author");
+  const [activeReviewChatId, setActiveReviewChatId] = useState<string | null>(null);
   const [reviewChats, setReviewChats] = useState<ReviewChat[]>([]);
   const [rebuttalItems, setRebuttalItems] = useState<RebuttalItem[]>([]);
   const reviewDataReadyRef = useRef(false);
@@ -912,6 +913,8 @@ export function useAppPanelAndGitState(ctx: AppCtx01) {
     setMode,
     reviewChats,
     setReviewChats,
+    activeReviewChatId,
+    setActiveReviewChatId,
     rebuttalItems,
     setRebuttalItems,
     reviewDataReadyRef,

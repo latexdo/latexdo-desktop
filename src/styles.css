@@ -8291,8 +8291,10 @@ button {
 .review-sidebar,
 .rebuttal-sidebar {
   display: flex;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1 1 0;
   flex-direction: column;
-  height: 100%;
 }
 
 .sidebar-header-actions {
@@ -17992,8 +17994,10 @@ button {
 .review-sidebar,
 .rebuttal-sidebar {
   display: flex;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1 1 0;
   flex-direction: column;
-  height: 100%;
 }
 
 .sidebar-header-actions {
@@ -33732,4 +33736,36 @@ body.pane-resizing-row .preview-pane > * {
 
 .collaborators-list li[data-presence="away"] .collaborator-avatar {
   opacity: 0.6;
+}
+
+/* Clickable review marks belong to the preview, not the exported PDF. */
+.pdf-review-marker-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.pdf-review-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 1px solid #777;
+  border-radius: 4px;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.pdf-review-marker:hover,
+.pdf-review-marker:focus-visible {
+  background: #eee;
+  outline: 2px solid #555;
+  outline-offset: 1px;
+}
+.review-chat-card.is-active {
+  box-shadow: inset 3px 0 0 var(--text-muted);
 }

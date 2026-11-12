@@ -210,6 +210,31 @@ describe("useDiscussion", () => {
     expect(shown).toHaveLength(2);
   });
 
+  it("edits sent messages and fetches other edits without skipping earlier changes", async () => {
+    const mine = server.postAs("me", { body: "Original" });
+    const other = server.postAs("bob", { body: "Other" });
+    const { result } = renderDiscussion({ visible: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    server.postAs("bob", {
+      id: other.id,
+      body: "Other corrected",
+      edit: true,
+      expectedRevision: other.seq,
+    });
+    await act(async () => result.current.edit(mine, "My correction"));
+    expect(result.current.messages[0]).toMatchObject({
+      body: "My correction",
+      seq: mine.seq,
+      updatedSeq: 4,
+    });
+    await act(async () => result.current.refresh());
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.messages[1].body).toBe("Other corrected");
+    await expect(result.current.edit(other, "Not mine")).rejects.toThrow("Only your");
+    await expect(result.current.edit(mine, "Stale edit")).rejects.toThrow("changed");
+    expect(result.current.messages[0].body).toBe("My correction");
+  });
+
   it("sends optimistically, keeps failures to retry or delete", async () => {
     const { result } = renderDiscussion({ visible: true });
     await waitFor(() => expect(result.current.status).toBe("ready"));

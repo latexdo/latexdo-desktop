@@ -1,3 +1,4 @@
+import type { PdfClickLocation } from "../PdfPreview";
 import { countLatexWords } from "../latex/wordCount";
 import type { OnMount } from "@monaco-editor/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -237,6 +238,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
         fileBlameDecorationsRef.current = [];
         applyEditorBlameDecorations();
         triggerCitationCompletionIfNeeded(editor);
+        // A source jump may have been requested before React switched models.
+        requestAnimationFrame(() => revealPendingSource());
       }),
     ];
     const citationSearchBlurDisposable = editor.onDidBlurEditorWidget?.(() => {
@@ -1061,7 +1064,13 @@ export function useAppReviewActions(ctx: AppCtx13) {
         );
       }
       const target = range ?? chat.selection;
-      if (range && range.startLine !== chat.selection.startLine) {
+      if (
+        range &&
+        (range.startLine !== chat.selection.startLine ||
+          range.startColumn !== chat.selection.startColumn ||
+          range.endLine !== chat.selection.endLine ||
+          range.endColumn !== chat.selection.endColumn)
+      ) {
         // Remember where the passage moved to.
         setReviewChats((prev) =>
           prev.map((existing) =>
@@ -1083,8 +1092,102 @@ export function useAppReviewActions(ctx: AppCtx13) {
     [allProjectEntries, openDocument, revealPendingSource],
   );
 
+  const handleAddPdfReview = async (point: PdfClickLocation) => {
+    const project = projectIdRef.current;
+    const pdfPath = ctx.pdfPathRef.current;
+    if (!project || !pdfPath) {
+      setStatusMessage("Compile the document before adding a PDF review.");
+      return;
+    }
+    if (
+      documentsRef.current.some(
+        (document) => document.content !== document.savedContent,
+      )
+    ) {
+      warnSelectionRequired(
+        "Compile your changes before adding a PDF review so the mark matches the source.",
+      );
+      return;
+    }
+    try {
+      const source = await window.latexdo.backwardSyncTex(
+        project,
+        pdfPath,
+        point.page,
+        point.x,
+        point.y,
+      );
+      if (projectIdRef.current !== project || ctx.pdfPathRef.current !== pdfPath)
+        return;
+      if (!source) {
+        warnSelectionRequired(
+          "No source text was found here. Click a word in the PDF and try again.",
+        );
+        return;
+      }
+      const entry = allProjectEntries.find(
+        (item) =>
+          item.type === "file" &&
+          normalizeRelativePath(item.relativePath) ===
+            normalizeRelativePath(source.file),
+      );
+      if (!entry) {
+        setStatusMessage(
+          "The source file for this PDF point is no longer in the project.",
+        );
+        return;
+      }
+      const content =
+        documentsRef.current.find((document) => document.path === entry.path)
+          ?.content ?? (await window.latexdo.readFile(project, entry.relativePath));
+      if (projectIdRef.current !== project || ctx.pdfPathRef.current !== pdfPath)
+        return;
+      const line = content.split("\n")[source.line - 1];
+      if (!line?.trim()) {
+        warnSelectionRequired(
+          "Click a word in the PDF to attach a review to its source text.",
+        );
+        return;
+      }
+      const range = point.word
+        ? locateReviewSelection(content, {
+            text: point.word,
+            startLine: source.line,
+            startColumn: Math.max(1, source.column),
+            endLine: source.line,
+            endColumn: Math.max(1, source.column) + point.word.length,
+          })
+        : null;
+      const selection = range
+        ? { ...range, text: point.word! }
+        : {
+            startLine: source.line,
+            startColumn: 1,
+            endLine: source.line,
+            endColumn: line.length + 1,
+            text: line,
+          };
+      const chat: ReviewChat = {
+        id: createReviewId(),
+        filePath: entry.relativePath,
+        selection,
+        comments: [],
+      };
+      setReviewChats((current) => [...current, chat]);
+      ctx.setActiveReviewChatId(chat.id);
+      ctx.openSidebar("reviews");
+      await handleJumpToReviewSelection(chat);
+      setStatusMessage("PDF review added. Write your comment in the review thread.");
+    } catch (error) {
+      warnSelectionRequired(
+        error instanceof Error ? error.message : "Could not add a PDF review.",
+      );
+    }
+  };
+
   return {
     handleEditorMount,
+    handleAddPdfReview,
     handleAddReviewChat,
     handleAddRebuttalToSource,
     handleGenerateRebuttalLetter,

@@ -1704,13 +1704,13 @@ async function handleDiscussionRoute(request, response, url, projectId, route) {
         throw new HttpError(429, "You are sending messages too quickly.");
       }
       const state = await loadDiscussion(projectId);
-      const { message, created } = postMessage(state, {
+      const { message, created, updated } = postMessage(state, {
         identity,
         members: discussionMembers(meta),
         input: await readJsonBody(request),
         now: now(),
       });
-      if (created) {
+      if (created || updated) {
         await saveDiscussion(projectId, state);
         broadcastDiscussion(projectId, state.seq, audienceFor(message));
       }

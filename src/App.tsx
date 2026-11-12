@@ -458,6 +458,7 @@ export default function App() {
                         {mode === "reviewer" ? (
                           <ReviewSidebar
                             chats={reviewChats}
+                            activeChatId={ctx.activeReviewChatId}
                             onAddChat={handleAddReviewChat}
                             onAddComment={handleAddReviewComment}
                             onDeleteChat={(chatId) =>
@@ -511,6 +512,7 @@ export default function App() {
               ) : activeSidebar === "reviews" ? (
                 <ReviewSidebar
                   chats={reviewChats}
+                  activeChatId={ctx.activeReviewChatId}
                   onAddChat={handleAddReviewChat}
                   onAddComment={handleAddReviewComment}
                   onDeleteChat={(id) => void handleDeleteReviewChat(id)}

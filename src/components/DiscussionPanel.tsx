@@ -28,10 +28,12 @@ import {
   CornerUpLeft,
   Info,
   Lock,
+  Pencil,
   MessageCircle,
   MessageCircleMore,
   RefreshCw,
   SendHorizontal,
+  Smile,
   Trash2,
   Users,
   X,
@@ -198,6 +200,7 @@ interface MessageRowProps {
   infoOpen: boolean;
   info: ReactNode;
   onReply: (message: ChatMessage) => void;
+  onEdit: (message: ChatMessage, text: string) => Promise<void>;
   onMessagePrivately: (clientId: string) => void;
   onToggleInfo: (id: string) => void;
   onRetry: (id: string) => void;
@@ -218,6 +221,7 @@ const MessageRow = memo(function MessageRow({
   infoOpen,
   info,
   onReply,
+  onEdit,
   onMessagePrivately,
   onToggleInfo,
   onRetry,
@@ -229,6 +233,26 @@ const MessageRow = memo(function MessageRow({
   const mentionsMe = !mine && message.mentions.includes(me);
   const senderName = names.get(message.from) ?? message.name;
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState<ChatMessage | null>(null);
+  const [editText, setEditText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const saveEdit = async () => {
+    if (!editing || saving || !editText.trim() || editText.length > maxMessageChars)
+      return;
+    setSaving(true);
+    setEditError("");
+    try {
+      await onEdit(editing, editText);
+      setEditing(null);
+    } catch (error) {
+      setEditError(
+        error instanceof Error ? error.message : "Could not save this edit. Try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
   const look = collaboratorLook(message.from);
 
   const copy = () => {
@@ -291,16 +315,72 @@ const MessageRow = memo(function MessageRow({
               </span>
             </button>
           ) : null}
-          <div className="discussion-text">
-            <MessageBody
-              message={message}
-              names={names}
-              me={me}
-              onOpenLink={onOpenLink}
-            />
-            <span className="discussion-meta-spacer" aria-hidden="true" />
-          </div>
+          {editing ? (
+            <form
+              className="discussion-edit"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveEdit();
+              }}
+            >
+              <textarea
+                autoFocus
+                aria-label="Edit message"
+                value={editText}
+                disabled={saving}
+                onChange={(event) => setEditText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === "Escape" && !saving) {
+                    event.preventDefault();
+                    setEditing(null);
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void saveEdit();
+                  }
+                }}
+              />
+              {editError ? <span role="alert">{editError}</span> : null}
+              {editText.length > maxMessageChars ? (
+                <span role="alert">Messages can contain up to 4,000 characters.</span>
+              ) : null}
+              <div className="discussion-edit-actions">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setEditing(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    saving || !editText.trim() || editText.length > maxMessageChars
+                  }
+                >
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="discussion-text">
+              <MessageBody
+                message={message}
+                names={names}
+                me={me}
+                onOpenLink={onOpenLink}
+              />
+              <span
+                className={`discussion-meta-spacer ${message.editedAt ? "is-edited" : ""}`}
+                aria-hidden="true"
+              />
+            </div>
+          )}
           <span className="discussion-meta" title={fullDate(message.createdAt)}>
+            {message.editedAt ? (
+              <span title={`Edited ${fullDate(message.editedAt)}`}>Edited</span>
+            ) : null}
             <time dateTime={new Date(message.createdAt).toISOString()}>
               {timeLabel(message.createdAt)}
             </time>
@@ -366,6 +446,21 @@ const MessageRow = memo(function MessageRow({
               <MessageCircle size={14} />
             </button>
           ) : null}
+          {mine && !message.undecryptable ? (
+            <button
+              type="button"
+              title="Edit message"
+              aria-label="Edit message"
+              disabled={saving}
+              onClick={() => {
+                setEditing(message);
+                setEditText(message.body);
+                setEditError("");
+              }}
+            >
+              <Pencil size={14} />
+            </button>
+          ) : null}
           {mine ? (
             <button
               type="button"
@@ -383,6 +478,33 @@ const MessageRow = memo(function MessageRow({
 });
 
 // --- Composer --------------------------------------------------------------------
+
+const conversationEmojis = [
+  ["😀", "Grinning face"],
+  ["😊", "Smiling face"],
+  ["😂", "Tears of joy"],
+  ["😍", "Heart eyes"],
+  ["🤔", "Thinking"],
+  ["😅", "Sweat smile"],
+  ["😢", "Crying"],
+  ["😮", "Surprised"],
+  ["👍", "Thumbs up"],
+  ["👎", "Thumbs down"],
+  ["👏", "Clapping"],
+  ["🙌", "Raised hands"],
+  ["🙏", "Thank you"],
+  ["👋", "Waving"],
+  ["💪", "Flexed biceps"],
+  ["❤️", "Heart"],
+  ["🎉", "Celebration"],
+  ["✨", "Sparkles"],
+  ["🔥", "Fire"],
+  ["✅", "Check mark"],
+  ["👀", "Eyes"],
+  ["💡", "Idea"],
+  ["🚀", "Rocket"],
+  ["📚", "Books"],
+] as const;
 
 interface ComposerProps {
   conversationName: string;
@@ -413,6 +535,16 @@ function Composer({
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const listId = useId();
+  const emojiId = useId();
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (emojiOpen)
+      emojiPickerRef.current
+        ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+        ?.focus();
+  }, [emojiOpen]);
   const [mention, setMention] = useState<MentionQuery | null>(null);
   const [active, setActive] = useState(0);
   // Names chosen from the list; a name still in the text is a mention.
@@ -438,6 +570,7 @@ function Composer({
   // Switching conversation, or choosing Reply, puts the caret here.
   useEffect(() => {
     textareaRef.current?.focus();
+    setEmojiOpen(false);
   }, [focusKey, replyTo?.id]);
 
   useEffect(() => {
@@ -462,6 +595,22 @@ function Composer({
     });
   };
 
+  const insertEmoji = (emoji: string) => {
+    const area = textareaRef.current;
+    if (!area || disabled) return;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const text = draft.slice(0, start) + emoji + draft.slice(end);
+    if (text.length > maxMessageChars) return;
+    onDraftChange(text);
+    setEmojiOpen(false);
+    setMention(null);
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
   const submit = () => {
     const text = draft.trim();
     if (!text || disabled || text.length > maxMessageChars) return;
@@ -471,12 +620,14 @@ function Composer({
         chosenRef.current.set(member.clientId, member.name);
     }
     onSend(text, mentionsInText(text, chosenRef.current));
+    setEmojiOpen(false);
     chosenRef.current = new Map();
     setMention(null);
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (composingRef.current || event.nativeEvent.isComposing) return;
+    if (emojiOpen && event.key === "Escape") return;
     if (listOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -508,6 +659,7 @@ function Composer({
   };
 
   const startMention = () => {
+    setEmojiOpen(false);
     const area = textareaRef.current;
     if (!area) return;
     const caret = area.selectionStart ?? draft.length;
@@ -528,7 +680,20 @@ function Composer({
   const canSend = Boolean(draft.trim()) && !disabled && !tooLong;
 
   return (
-    <div className="discussion-composer">
+    <div
+      className="discussion-composer"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setEmojiOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (emojiOpen && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          setEmojiOpen(false);
+          emojiButtonRef.current?.focus();
+        }
+      }}
+    >
       {replyTo ? (
         <div className="discussion-reply-preview">
           <CornerUpLeft size={14} aria-hidden="true" />
@@ -583,6 +748,34 @@ function Composer({
           ))}
         </ul>
       ) : null}
+      {emojiOpen && !disabled ? (
+        <div
+          ref={emojiPickerRef}
+          className="discussion-emoji-picker"
+          id={emojiId}
+          role="group"
+          aria-label="Emojis"
+        >
+          {conversationEmojis.map(([emoji, label]) => (
+            <button
+              key={label}
+              type="button"
+              aria-label={label}
+              title={label}
+              onClick={() => insertEmoji(emoji)}
+              disabled={
+                draft.length -
+                  ((textareaRef.current?.selectionEnd ?? 0) -
+                    (textareaRef.current?.selectionStart ?? 0)) +
+                  emoji.length >
+                maxMessageChars
+              }
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className={`discussion-input ${isPrivate ? "is-private" : ""}`}>
         <button
           type="button"
@@ -593,6 +786,22 @@ function Composer({
           aria-label="Mention someone"
         >
           <AtSign size={16} />
+        </button>
+        <button
+          ref={emojiButtonRef}
+          type="button"
+          className="discussion-icon-button"
+          aria-label="Add emoji"
+          title="Add emoji"
+          aria-expanded={emojiOpen && !disabled}
+          aria-controls={emojiOpen && !disabled ? emojiId : undefined}
+          disabled={disabled}
+          onClick={() => {
+            setMention(null);
+            setEmojiOpen((open) => !open);
+          }}
+        >
+          <Smile size={16} />
         </button>
         <textarea
           ref={textareaRef}
@@ -611,6 +820,7 @@ function Composer({
           aria-autocomplete="list"
           aria-activedescendant={listOpen ? `${listId}-${active}` : undefined}
           onChange={(event) => {
+            setEmojiOpen(false);
             onDraftChange(event.target.value);
             updateMention(event.target.value, event.target.selectionStart);
           }}
@@ -687,6 +897,7 @@ export function DiscussionPanel({
     loadingOlder,
     loadOlder,
     send,
+    edit,
     retry,
     discard,
     refresh,
@@ -1094,6 +1305,7 @@ export function DiscussionPanel({
                         infoOpen={infoFor === message.id}
                         info={infoFor === message.id ? infoCard(message) : null}
                         onReply={reply}
+                        onEdit={edit}
                         onMessagePrivately={openConversation}
                         onToggleInfo={toggleInfo}
                         onRetry={retry}

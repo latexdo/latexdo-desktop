@@ -66,7 +66,16 @@ export function mergeMessages(
 ): ChatMessage[] {
   if (!incoming.length) return current as ChatMessage[];
   const byId = new Map(current.map((message) => [message.id, message]));
-  for (const message of incoming) byId.set(message.id, message);
+  for (const message of incoming) {
+    const previous = byId.get(message.id);
+    if (
+      !previous ||
+      previous.local ||
+      (message.updatedSeq ?? message.seq) >= (previous.updatedSeq ?? previous.seq)
+    ) {
+      byId.set(message.id, message);
+    }
+  }
   return [...byId.values()].sort(
     (left, right) => left.seq - right.seq || left.createdAt - right.createdAt,
   );
@@ -79,6 +88,15 @@ export function latestSeq(messages: readonly ChatMessage[]): number {
     if (!message.local && message.seq > latest) latest = message.seq;
   }
   return latest;
+}
+
+/** Cursor for incremental fetching, including edits of older messages. */
+export function latestChangeSeq(messages: readonly ChatMessage[]): number {
+  return messages.reduce(
+    (latest, message) =>
+      message.local ? latest : Math.max(latest, message.updatedSeq ?? message.seq),
+    0,
+  );
 }
 
 /** The oldest sequence number loaded, for loading earlier messages. */
