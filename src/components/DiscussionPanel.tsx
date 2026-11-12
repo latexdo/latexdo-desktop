@@ -857,7 +857,9 @@ function Composer({
             style={{ ["--person" as string]: collaboratorLook(replyTo.from).color }}
           >
             <strong>Replying to {replyName}</strong>
-            <span>{previewText(replyTo.body, 80)}</span>
+            <span>
+              {replyTo.deletedAt ? "Deleted message" : previewText(replyTo.body, 80)}
+            </span>
           </div>
           <button
             type="button"

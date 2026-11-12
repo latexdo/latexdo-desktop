@@ -209,6 +209,8 @@ export function summarizeConversations(
     if (
       message.from !== me &&
       !message.local &&
+      // A deleted message has nothing left to read.
+      !message.deletedAt &&
       message.seq > myReadSeq(receipts, me, key)
     ) {
       summary.unread += 1;

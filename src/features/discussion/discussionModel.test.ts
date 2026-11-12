@@ -151,6 +151,13 @@ describe("unread counts and notifications", () => {
     expect(summaries.get(everyone)?.last?.seq).toBe(pendingSeq);
     expect(summaries.get("bob")).toMatchObject({ unread: 1, mentions: 1 });
     expect(totalUnread(summaries)).toEqual({ unread: 2, mentions: 2 });
+    // A message an admin deleted is not waiting to be read.
+    const deleted = summarizeConversations(
+      [message({ seq: 5, body: "", deletedAt: 1, deletedBy: "ann" })],
+      "me",
+      { me: { delivered: 4, read: { "*": 4 } } },
+    );
+    expect(deleted.get(everyone)?.unread).toBe(0);
   });
 
   it("notifies for every message from others that I can read", () => {

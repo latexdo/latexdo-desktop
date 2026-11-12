@@ -14,6 +14,7 @@ import {
   type MutableRefObject,
 } from "react";
 import {
+  deleteNotification,
   loadNotificationMode,
   notify,
   type NotificationMode,
@@ -201,6 +202,8 @@ export function useDiscussion(options: UseDiscussionOptions) {
   const inFlightRef = useRef(false);
   const againRef = useRef(false);
   const notifiedRef = useRef(new Set<string>());
+  /** The notification-center entry each message created, by message id. */
+  const historyRef = useRef(new Map<string, number>());
   // My own receipts as the server confirmed them. What is shown may run ahead
   // (it is updated at once), but a receipt is only settled once it is here, so
   // one that failed to send goes out again.
@@ -250,6 +253,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
     fetchedSeqRef.current = 0;
     againRef.current = false;
     notifiedRef.current = new Set();
+    historyRef.current = new Map();
     confirmedRef.current = { delivered: 0, read: {} };
     deliveredSentRef.current = 0;
     readSentRef.current = new Map();
@@ -318,7 +322,11 @@ export function useDiscussion(options: UseDiscussionOptions) {
     }
     if (!created.length) return;
     for (const notice of created) {
-      notify(noticeText(notice), { severity: "info", source: "Discussion" });
+      const entry = notify(noticeText(notice), {
+        severity: "info",
+        source: "Discussion",
+      });
+      if (entry) historyRef.current.set(notice.id, entry.id);
     }
     const mode = loadNotificationMode();
     const newestFirst = [...created]
@@ -338,6 +346,26 @@ export function useDiscussion(options: UseDiscussionOptions) {
       showSystemNotification(latest, () => onOpenRef.current?.(latest.conversation));
     }
   }, []);
+
+  // What an admin deleted must not live on in notices or the history.
+  useEffect(() => {
+    const deleted = new Set(
+      messages.filter((message) => message.deletedAt).map((message) => message.id),
+    );
+    if (!deleted.size) return;
+    for (const id of deleted) {
+      const entry = historyRef.current.get(id);
+      if (entry !== undefined) {
+        deleteNotification(entry);
+        historyRef.current.delete(id);
+      }
+    }
+    setNotices((current) =>
+      current.some((notice) => deleted.has(notice.id))
+        ? current.filter((notice) => !deleted.has(notice.id))
+        : current,
+    );
+  }, [messages]);
 
   const confirm = useCallback((receipt: DiscussionReceipt | undefined) => {
     if (!receipt) return;

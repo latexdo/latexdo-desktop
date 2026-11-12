@@ -307,6 +307,28 @@ describe("useDiscussion", () => {
     expect(result.current.error).toBe("Offline");
   });
 
+  it("drops a deleted message from notices and the notification history", async () => {
+    const remove = vi.spyOn(notifications, "deleteNotification");
+    const { result, signalRef } = renderDiscussion();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const sent = server.postAs("bob", { body: "Something regrettable" });
+    act(() => signalRef.current(1));
+    await waitFor(() => expect(result.current.notices).toHaveLength(1));
+    // An admin (Eve, here) deletes it.
+    postMessage(server.state, {
+      identity: { clientId: "eve", clientName: "Eve" },
+      members,
+      input: { id: sent.id, delete: true },
+      now: Date.now(),
+      canModerate: true,
+    });
+    await act(() => result.current.refresh());
+    expect(result.current.messages[0]).toMatchObject({ body: "", deletedBy: "eve" });
+    expect(result.current.notices).toEqual([]);
+    expect(remove).toHaveBeenCalled();
+    expect(result.current.totals.unread).toBe(0);
+  });
+
   it("knows whether I am an admin and reports refused deletions", async () => {
     const other = server.postAs("bob", { body: "Hello" });
     const { result } = renderDiscussion({ visible: true });

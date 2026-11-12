@@ -55,6 +55,11 @@ describe("admin offers in the app", () => {
       { clientId: "bob", name: "Bob", accepted: true },
     ]);
     expect(adminOfferNews(sent, sent, null).answered).toEqual([]);
+    // Removed, or given another role by someone else: not an answer.
+    const otherwise = people({ eve: { role: "editor" } }, "ada").filter(
+      (item) => item.clientId !== "bob",
+    );
+    expect(adminOfferNews(sent, otherwise, null).answered).toEqual([]);
     // Another admin's invitations are not mine to hear about.
     expect(
       adminOfferNews(

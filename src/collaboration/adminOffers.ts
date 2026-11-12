@@ -57,11 +57,14 @@ export function adminOfferNews(
     for (const before of previous) {
       if (before.adminOffer?.from !== me || withdrawn.has(before.clientId)) continue;
       const now = next.find((item) => item.clientId === before.clientId);
-      if (now?.adminOffer?.from === me) continue;
+      if (!now || now.adminOffer?.from === me) continue;
+      // Became admin: accepted. Same role: declined. Anything else (removed,
+      // or another admin changed their role) is not an answer to report.
+      if (now.role !== "admin" && now.role !== before.role) continue;
       answered.push({
         clientId: before.clientId,
-        name: now?.name ?? before.name,
-        accepted: now?.role === "admin",
+        name: now.name,
+        accepted: now.role === "admin",
       });
     }
   }
@@ -137,7 +140,9 @@ export function useAdminOffers({
       } catch {
         return;
       }
-      if (stopped || !result) return;
+      // A failed request comes back as an empty list (a shared project always
+      // has at least me): keep what is known rather than hide the admin tools.
+      if (stopped || !result || !result.permissions.length) return;
       const news = adminOfferNews(
         previousRef.current,
         result.permissions,
