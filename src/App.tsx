@@ -946,6 +946,7 @@ export default function App() {
           releases={whatsNew.releases}
           notesAvailable={whatsNew.notesAvailable}
           buildChanges={whatsNew.buildChanges}
+          buildChangesSinceUpdate={whatsNew.buildChangesSinceUpdate}
           onClose={closeWhatsNewDialog}
           onViewFullNotes={viewFullReleaseNotes}
         />

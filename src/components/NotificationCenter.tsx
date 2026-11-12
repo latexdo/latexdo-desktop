@@ -20,11 +20,17 @@ import {
   markAllNotificationsRead,
   notify,
   useNotifications,
+  loadNotificationMode,
+  notificationModeStorageKey,
   type AppNotification,
+  type NotificationMode,
   type NotificationSeverity,
 } from "../features/notifications/notifications";
 
-const notificationModes = {
+const notificationModes: Record<
+  NotificationMode,
+  { label: string; description: string }
+> = {
   "do-not-disturb": {
     label: "Do Not Disturb",
     description: "No popups or unread badge. Notifications stay in history.",
@@ -35,19 +41,7 @@ const notificationModes = {
     description: "Errors and warnings appear as popups.",
   },
   reading: { label: "Reading", description: "Unread badge only. No popups." },
-} as const;
-type NotificationMode = keyof typeof notificationModes;
-const modeStorageKey = "latexdo.notificationMode";
-function loadNotificationMode(): NotificationMode {
-  try {
-    const saved = localStorage.getItem(modeStorageKey);
-    if (saved && Object.hasOwn(notificationModes, saved))
-      return saved as NotificationMode;
-  } catch {
-    /* Storage may be unavailable. */
-  }
-  return "reviewing";
-}
+};
 function allowsToast(mode: NotificationMode, severity: NotificationSeverity) {
   return severity === "error"
     ? mode === "writing" || mode === "reviewing"
@@ -86,7 +80,7 @@ export function NotificationCenter() {
     setMode(next);
     setToastIds([]);
     try {
-      localStorage.setItem(modeStorageKey, next);
+      localStorage.setItem(notificationModeStorageKey, next);
     } catch {
       /* Keep the session preference. */
     }

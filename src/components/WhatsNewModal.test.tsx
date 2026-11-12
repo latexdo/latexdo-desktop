@@ -16,6 +16,7 @@ describe("WhatsNewModal", () => {
           { kind: "new", text: "Complete the sentence being written" },
           { kind: "fixed", text: "Let the author keep typing after a citation" },
         ]}
+        buildChangesSinceUpdate
         onClose={vi.fn()}
         onViewFullNotes={vi.fn()}
       />,
@@ -25,6 +26,22 @@ describe("WhatsNewModal", () => {
       within(changes).getByText("Complete the sentence being written"),
     ).toBeVisible();
     expect(within(changes).getByText("Fixed")).toBeVisible();
+  });
+
+  it("calls the latest changes recent when opened without an update", () => {
+    render(
+      <WhatsNewModal
+        fromVersion={null}
+        toVersion="1.0.0"
+        releases={[]}
+        notesAvailable={false}
+        buildChanges={[{ kind: "new", text: "React to discussion messages" }]}
+        onClose={vi.fn()}
+        onViewFullNotes={vi.fn()}
+      />,
+    );
+    const changes = screen.getByRole("region", { name: "Recent changes" });
+    expect(within(changes).getByText("React to discussion messages")).toBeVisible();
   });
 });
 

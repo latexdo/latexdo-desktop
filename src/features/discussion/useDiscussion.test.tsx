@@ -11,6 +11,7 @@ import type { CollaboratorPermission, DiscussionPage } from "../../types";
 import * as notifications from "../notifications/notifications";
 import { everyone } from "./discussionModel";
 import {
+  discussionPopupAllowed,
   mergeReceipts,
   useDiscussion,
   type UseDiscussionOptions,
@@ -175,6 +176,30 @@ describe("useDiscussion", () => {
       act(() => result.current.dismissNotice(item.id));
     }
     expect(result.current.notices).toEqual([]);
+  });
+
+  it("follows the notification mode for popups but always keeps history", async () => {
+    const notify = vi.spyOn(notifications, "notify");
+    localStorage.setItem("latexdo.notificationMode", "writing");
+    try {
+      const { result, signalRef } = renderDiscussion();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      server.postAs("eve", { body: "Group chatter" });
+      server.postAs("bob", { body: "Just for you", to: "me" });
+      act(() => signalRef.current(2));
+      await waitFor(() => expect(result.current.notices).toHaveLength(1));
+      expect(result.current.notices[0]!.kind).toBe("private");
+      expect(notify).toHaveBeenCalledWith(
+        "Eve in the discussion: Group chatter",
+        expect.anything(),
+      );
+    } finally {
+      localStorage.removeItem("latexdo.notificationMode");
+    }
+    expect(discussionPopupAllowed("do-not-disturb", "private")).toBe(false);
+    expect(discussionPopupAllowed("reading", "mention")).toBe(false);
+    expect(discussionPopupAllowed("writing", "mention")).toBe(true);
+    expect(discussionPopupAllowed("reviewing", "message")).toBe(true);
   });
 
   it("notifies the system about group messages while the panel is closed", async () => {

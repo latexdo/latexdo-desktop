@@ -13,7 +13,11 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import { notify } from "../notifications/notifications";
+import {
+  loadNotificationMode,
+  notify,
+  type NotificationMode,
+} from "../notifications/notifications";
 import type {
   CollaboratorPermission,
   CollaboratorPresence,
@@ -105,6 +109,21 @@ function windowIsFocused(): boolean {
     document.visibilityState !== "hidden" &&
     (typeof document.hasFocus !== "function" || document.hasFocus())
   );
+}
+
+/**
+ * Whether a message may pop up (in the app and through the system) in the
+ * notification mode chosen in the notification center. Every message still
+ * goes to the notification history and the unread counts.
+ */
+export function discussionPopupAllowed(
+  mode: NotificationMode,
+  kind: DiscussionNotice["kind"],
+): boolean {
+  if (mode === "do-not-disturb" || mode === "reading") return false;
+  // While writing, only what is addressed to me interrupts.
+  if (mode === "writing") return kind !== "message";
+  return true;
 }
 
 /** One line for the app's notification center. */
@@ -299,7 +318,10 @@ export function useDiscussion(options: UseDiscussionOptions) {
     for (const notice of created) {
       notify(noticeText(notice), { severity: "info", source: "Discussion" });
     }
-    const newestFirst = [...created].reverse();
+    const mode = loadNotificationMode();
+    const newestFirst = [...created]
+      .reverse()
+      .filter((notice) => discussionPopupAllowed(mode, notice.kind));
     setNotices((current) =>
       [...newestFirst, ...current]
         .filter(

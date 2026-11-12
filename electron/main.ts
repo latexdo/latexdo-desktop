@@ -170,6 +170,7 @@ import {
   recordConfirmedUpdate,
   recordLaunchedVersion,
   changesBetweenBuilds,
+  recentBuildChanges,
   shouldShowWhatsNew,
 } from "./updateExperience.js";
 
@@ -5213,16 +5214,20 @@ async function buildWhatsNewResult(): Promise<WhatsNewResult> {
     fromVersion ?? runningVersion,
     runningVersion,
   );
+  const changes = buildInfo?.changes ?? [];
+  const sinceUpdate =
+    confirmed && versionsEquivalent(confirmed.toVersion, runningVersion)
+      ? changesBetweenBuilds(changes, confirmed.fromCommit)
+      : [];
   return {
     fromVersion,
     toVersion: runningVersion,
     releases: range.documents,
     shouldPresent,
     notesAvailable: range.available,
-    buildChanges:
-      confirmed && versionsEquivalent(confirmed.toVersion, runningVersion)
-        ? changesBetweenBuilds(buildInfo?.changes ?? [], confirmed.fromCommit)
-        : [],
+    // Builds share one version, so the latest changes are always worth showing.
+    buildChanges: sinceUpdate.length ? sinceUpdate : recentBuildChanges(changes),
+    buildChangesSinceUpdate: sinceUpdate.length > 0,
   };
 }
 

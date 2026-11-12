@@ -433,6 +433,8 @@ export interface WhatsNewResult {
   notesAvailable: boolean;
   /** What changed between the previous build and this one, newest first. */
   buildChanges?: BuildChangeNote[];
+  /** True when buildChanges are what the last update brought; else recent ones. */
+  buildChangesSinceUpdate?: boolean;
 }
 
 export interface BuildChangeNote {

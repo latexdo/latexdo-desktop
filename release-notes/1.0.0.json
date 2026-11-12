@@ -3,10 +3,76 @@
   "product": "LatexDo",
   "version": "1.0.0",
   "title": "LatexDo 1.0",
-  "summary": "PDF reading themes, live word counts, a simpler literature graph, and improvements to everyday editing.",
-  "publishedAt": "2026-10-29T12:00:00.000Z",
+  "summary": "Project discussion with reactions and notifications, review threads linked to your text and the PDF, PDF comparison, read-aloud, plus PDF reading themes, live word counts and everyday editing improvements.",
+  "publishedAt": "2026-11-13T12:00:00.000Z",
   "releaseUrl": "https://github.com/latexdo/latexdo-desktop/releases",
   "highlights": [
+    {
+      "id": "project-discussion",
+      "category": "new",
+      "title": "Talk with your co-authors in the project discussion",
+      "description": "Message everyone in a shared project or one person privately, @mention people, reply to a message, and see who is online. Read receipts show when your message arrived and was read."
+    },
+    {
+      "id": "discussion-reactions",
+      "category": "new",
+      "title": "React to messages and edit what you sent",
+      "description": "Answer with a quick reaction such as 👍 or ✅ from the message toolbar, and correct a message you already sent. Reactions are end-to-end encrypted like the messages themselves."
+    },
+    {
+      "id": "discussion-notifications",
+      "category": "new",
+      "title": "Never miss a message",
+      "description": "New discussion messages appear in the notification center and as a system notification, with an unread count on the Discussion icon and the app icon. Your notification mode (such as Do Not Disturb or Writing) decides what pops up."
+    },
+    {
+      "id": "review-threads-linked",
+      "category": "review",
+      "title": "Review threads linked to your text",
+      "description": "Click a review thread to jump to its passage in the editor, or click a reviewed passage to open its thread. Reply in the thread and insert it into the TeX source when you are ready."
+    },
+    {
+      "id": "pdf-review-markers",
+      "category": "review",
+      "title": "Review straight from the PDF",
+      "description": "Click a word in the compiled PDF to start a review thread on its source text. Markers in the PDF show where each thread is."
+    },
+    {
+      "id": "pdf-compare",
+      "category": "editor",
+      "title": "Compare PDF versions",
+      "description": "See how the compiled PDF changed between two versions of your project, page by page."
+    },
+    {
+      "id": "read-aloud",
+      "category": "new",
+      "title": "Listen to your paper",
+      "description": "Have your document read aloud with natural voices to catch awkward sentences by ear."
+    },
+    {
+      "id": "visual-editor-math",
+      "category": "editor",
+      "title": "Math and TikZ previews while you edit",
+      "description": "The visual editor shows inline math as you write it, and TikZ figures can be previewed as rendered drawings."
+    },
+    {
+      "id": "status-bar-modes",
+      "category": "editor",
+      "title": "Switch between authoring, reviewing and rebuttal",
+      "description": "Choose your current mode from the status bar. Each mode has its own colour, so you always know which one you are in."
+    },
+    {
+      "id": "notification-modes",
+      "category": "other",
+      "title": "Notification modes",
+      "description": "Choose Do Not Disturb, Writing, Reviewing or Reading in the notification center to decide which notifications interrupt you."
+    },
+    {
+      "id": "crash-reports",
+      "category": "other",
+      "title": "Help fix crashes",
+      "description": "If LatexDo stops unexpectedly, you can choose to send a crash report. Nothing is sent without your consent."
+    },
     {
       "id": "pdf-reading-themes",
       "category": "editor",
@@ -39,6 +105,11 @@
     }
   ],
   "fixes": [
+    "Clicking a review thread in a shared project now shows its passage in the editor.",
+    "The message toolbar in the discussion now appears next to the message you point at.",
+    "What's New lists the latest changes of each update, not only the summary of the version.",
+    "Review data loads more reliably, with retries and a loading state.",
+    "Clearer layout options and status bar.",
     "Turning off intelligent completion hides inline grey suggestions while keeping the normal completion list.",
     "Delete individual notifications using the trash button shown on hover.",
     "Simplified the layout toolbar.",

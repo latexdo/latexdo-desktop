@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { readBuildInfo } from "./buildInfo.js";
+import { parseReleaseNotesDocument, parseReleaseNotesIndex } from "./releaseNotes.js";
 import {
   recentChanges,
   resolveBuildCommit,
@@ -35,7 +36,10 @@ describe("build info", () => {
       );
       expect(notes.version).toBe(entry.version);
       expect(notes.highlights.length).toBeGreaterThan(0);
+      // The app must accept what it ships, or What's New shows no notes.
+      expect(parseReleaseNotesDocument(notes)).not.toBeNull();
     }
+    expect(parseReleaseNotesIndex(index)).not.toBeNull();
   });
 
   it("prefers the checked-out commit and falls back to CI variables", () => {
@@ -70,5 +74,25 @@ describe("recentChanges", () => {
       { commit: b, subject: "fix(x): two\twith tab" },
     ]);
     expect(recentChanges(() => "")).toEqual([]);
+  });
+
+  it("records the commits each pull-request merge brought in", () => {
+    const a = "a".repeat(40);
+    const b = "b".repeat(40);
+    const readMerged = (commit: string) =>
+      commit === a ? "feat: discussion reactions\nfix: toolbar position\n" : "";
+    expect(
+      recentChanges(
+        () => `${a}\tMerge pull request #1 from latexdo/x\n${b}\tMerge branch 'y'`,
+        readMerged,
+      ),
+    ).toEqual([
+      {
+        commit: a,
+        subject: "Merge pull request #1 from latexdo/x",
+        merged: ["feat: discussion reactions", "fix: toolbar position"],
+      },
+      { commit: b, subject: "Merge branch 'y'" },
+    ]);
   });
 });

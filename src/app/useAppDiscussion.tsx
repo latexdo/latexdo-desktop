@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useDiscussion } from "../features/discussion/useDiscussion";
+import { loadNotificationMode } from "../features/notifications/notifications";
 import type { AppCtx21 } from "./appContext";
 
 // The shared project's discussion: its panel, badge and notices.
@@ -30,8 +31,12 @@ export function useAppDiscussion(ctx: AppCtx21) {
     onOpen: showDiscussion,
   });
 
-  // The unread count also shows on the app icon (Dock / taskbar).
-  const unread = enabled ? discussion.totals.unread : 0;
+  // The unread count also shows on the app icon (Dock / taskbar), except in
+  // Do Not Disturb, which hides unread badges.
+  const unread =
+    enabled && loadNotificationMode() !== "do-not-disturb"
+      ? discussion.totals.unread
+      : 0;
   useEffect(() => {
     void window.latexdo.setUnreadBadge?.(unread)?.catch(() => undefined);
   }, [unread]);

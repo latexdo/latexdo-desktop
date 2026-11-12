@@ -262,6 +262,33 @@ const changeKinds: Record<string, BuildChangeNote["kind"]> = {
   perf: "improved",
 };
 
+/** Feature, fix and performance notes from these builds, newest first. */
+function notesFromChanges(
+  changes: readonly BuildChange[],
+  limit: number,
+): BuildChangeNote[] {
+  const notes: BuildChangeNote[] = [];
+  const seen = new Set<string>();
+  for (const change of changes) {
+    // A pull-request merge stands for the commits it brought in.
+    const subjects = change.merged?.length ? change.merged : [change.subject];
+    for (const subject of subjects) {
+      const match = /^(\w+)(?:\([^)]*\))?!?:\s*(.+)$/.exec(subject);
+      const kind = match ? changeKinds[match[1].toLowerCase()] : undefined;
+      if (!match || !kind) continue;
+      const text = match[2].replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/, "").trim();
+      if (!text) continue;
+      const note = { kind, text: text[0].toUpperCase() + text.slice(1) };
+      const key = note.text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      notes.push(note);
+      if (notes.length >= limit) return notes;
+    }
+  }
+  return notes;
+}
+
 /**
  * User-facing notes for the commits a build update brought: features, fixes
  * and performance work, without the conventional-commit prefix or issue
@@ -275,15 +302,18 @@ export function changesBetweenBuilds(
   if (!fromCommit) return [];
   const end = changes.findIndex((change) => change.commit === fromCommit);
   if (end <= 0) return [];
-  const notes: BuildChangeNote[] = [];
-  for (const change of changes.slice(0, end)) {
-    const match = /^(\w+)(?:\([^)]*\))?!?:\s*(.+)$/.exec(change.subject);
-    const kind = match ? changeKinds[match[1].toLowerCase()] : undefined;
-    if (!match || !kind) continue;
-    const text = match[2].replace(/\s*\((?:#\d+(?:,\s*)?)+\)\s*$/, "").trim();
-    if (!text) continue;
-    notes.push({ kind, text: text[0].toUpperCase() + text.slice(1) });
-    if (notes.length >= limit) break;
-  }
-  return notes;
+  return notesFromChanges(changes.slice(0, end), limit);
+}
+
+/**
+ * The latest changes in this build, for What's New opened without a recorded
+ * update (or when the previous build is too old to be in the history). Every
+ * build shares one package version, so this is what tells builds apart.
+ */
+export function recentBuildChanges(
+  changes: readonly BuildChange[],
+  builds = 8,
+  limit = 30,
+): BuildChangeNote[] {
+  return notesFromChanges(changes.slice(0, builds), limit);
 }

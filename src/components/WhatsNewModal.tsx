@@ -8,6 +8,8 @@ export interface WhatsNewModalProps {
   notesAvailable: boolean;
   /** Changes in this build since the one installed before the update. */
   buildChanges?: BuildChangeNote[];
+  /** True when buildChanges came with the last update rather than recently. */
+  buildChangesSinceUpdate?: boolean;
   onClose: () => void;
   onViewFullNotes: () => void;
 }
@@ -38,6 +40,7 @@ export function WhatsNewModal({
   releases,
   notesAvailable,
   buildChanges = [],
+  buildChangesSinceUpdate = false,
   onClose,
   onViewFullNotes,
 }: WhatsNewModalProps) {
@@ -119,8 +122,13 @@ export function WhatsNewModal({
         </header>
         <div className="whats-new-content">
           {buildChanges.length ? (
-            <section className="whats-new-release" aria-label="Changes in this update">
-              <h3>In this update</h3>
+            <section
+              className="whats-new-release"
+              aria-label={
+                buildChangesSinceUpdate ? "Changes in this update" : "Recent changes"
+              }
+            >
+              <h3>{buildChangesSinceUpdate ? "In this update" : "Recent changes"}</h3>
               <ul className="whats-new-build-changes">
                 {buildChanges.map((change, index) => (
                   <li key={`${change.kind}-${index}`}>
