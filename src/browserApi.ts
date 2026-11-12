@@ -893,6 +893,10 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       return () => {};
     },
 
+    async setUnreadBadge() {
+      // A browser tab has no app icon to badge.
+    },
+
     async checkForUpdates() {
       return {
         currentVersion: appVersion,

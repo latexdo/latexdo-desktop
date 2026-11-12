@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useDiscussion } from "../features/discussion/useDiscussion";
 import type { AppCtx21 } from "./appContext";
 
@@ -29,6 +29,16 @@ export function useAppDiscussion(ctx: AppCtx21) {
     signalRef: discussionSignalRef,
     onOpen: showDiscussion,
   });
+
+  // The unread count also shows on the app icon (Dock / taskbar).
+  const unread = enabled ? discussion.totals.unread : 0;
+  useEffect(() => {
+    void window.latexdo.setUnreadBadge?.(unread)?.catch(() => undefined);
+  }, [unread]);
+  useEffect(
+    () => () => void window.latexdo.setUnreadBadge?.(0)?.catch(() => undefined),
+    [],
+  );
 
   return { discussion, discussionVisible };
 }

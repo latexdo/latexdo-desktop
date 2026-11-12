@@ -15,6 +15,7 @@ import {
   mergeMessages,
   messageStatus,
   newMessageId,
+  noticeKind,
   notifiesMe,
   oldestSeq,
   pendingSeq,
@@ -152,10 +153,16 @@ describe("unread counts and notifications", () => {
     expect(totalUnread(summaries)).toEqual({ unread: 2, mentions: 2 });
   });
 
-  it("notifies for mentions and private messages from others", () => {
+  it("notifies for every message from others that I can read", () => {
     expect(notifiesMe(message({ seq: 1, mentions: ["me"] }), "me")).toBe(true);
     expect(notifiesMe(message({ seq: 2, to: "me" }), "me")).toBe(true);
-    expect(notifiesMe(message({ seq: 3 }), "me")).toBe(false);
+    expect(notifiesMe(message({ seq: 3 }), "me")).toBe(true);
+    expect(notifiesMe(message({ seq: 5, to: "eve" }), "me")).toBe(false);
+    expect(noticeKind(message({ seq: 6, to: "me", mentions: ["me"] }), "me")).toBe(
+      "private",
+    );
+    expect(noticeKind(message({ seq: 7, mentions: ["me"] }), "me")).toBe("mention");
+    expect(noticeKind(message({ seq: 8 }), "me")).toBe("message");
     expect(notifiesMe(message({ seq: 4, from: "me", mentions: ["me"] }), "me")).toBe(
       false,
     );

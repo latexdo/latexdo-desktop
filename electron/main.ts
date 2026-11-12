@@ -7937,6 +7937,19 @@ async function startApp(): Promise<void> {
     const { resolvedPath } = await resolveOpenProjectPath(projectId, relativePath);
     shell.showItemInFolder(resolvedPath);
   });
+  // Unread discussion messages, on the Dock / taskbar icon.
+  ipcMain.handle("app:set-unread-badge", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "app:set-unread-badge";
+    const [rawCount] = expectIpcArgs(channel, rawArgs, 1);
+    if (
+      typeof rawCount !== "number" ||
+      !Number.isSafeInteger(rawCount) ||
+      rawCount < 0
+    ) {
+      throw new Error("Invalid badge count.");
+    }
+    app.setBadgeCount(Math.min(rawCount, 9999));
+  });
   ipcMain.handle("app:check-updates", async (_event, ...rawArgs: unknown[]) => {
     const channel = "app:check-updates";
     expectIpcArgs(channel, rawArgs, 0);

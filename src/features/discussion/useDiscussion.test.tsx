@@ -134,7 +134,7 @@ describe("useDiscussion", () => {
     expect(result.current.totals.unread).toBe(0);
   });
 
-  it("raises a notice for mentions and private messages, not for plain ones", async () => {
+  it("raises a notice for every message from others, labelled by kind", async () => {
     const notify = vi.spyOn(notifications, "notify");
     const { result, signalRef, onOpen } = renderDiscussion();
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -142,29 +142,60 @@ describe("useDiscussion", () => {
     server.postAs("eve", { body: "Plain" });
     server.postAs("bob", { body: "Secret", to: "me" });
     act(() => signalRef.current(3));
-    await waitFor(() => expect(result.current.notices).toHaveLength(2));
+    await waitFor(() => expect(result.current.notices).toHaveLength(3));
     expect(
       result.current.notices.map((notice) => [notice.kind, notice.preview]),
     ).toEqual([
       ["private", "Secret"],
+      ["message", "Plain"],
       ["mention", "Hey @Me"],
     ]);
     expect(notify).toHaveBeenCalledWith(
       "Bob mentioned you: Hey @Me",
       expect.objectContaining({ source: "Discussion" }),
     );
+    expect(notify).toHaveBeenCalledWith(
+      "Eve in the discussion: Plain",
+      expect.objectContaining({ source: "Discussion" }),
+    );
 
     // Older news does not come back on the next fetch.
     await act(() => result.current.refresh());
-    expect(result.current.notices).toHaveLength(2);
+    expect(result.current.notices).toHaveLength(3);
 
     const notice = result.current.notices[0]!;
     act(() => result.current.openNotice(notice));
     expect(onOpen).toHaveBeenCalledWith("bob");
     expect(result.current.conversation).toBe("bob");
-    expect(result.current.notices.map((item) => item.kind)).toEqual(["mention"]);
-    act(() => result.current.dismissNotice(result.current.notices[0]!.id));
+    expect(result.current.notices.map((item) => item.kind)).toEqual([
+      "message",
+      "mention",
+    ]);
+    for (const item of [...result.current.notices]) {
+      act(() => result.current.dismissNotice(item.id));
+    }
     expect(result.current.notices).toEqual([]);
+  });
+
+  it("notifies the system about group messages while the panel is closed", async () => {
+    const shown: Array<{ title: string }> = [];
+    class FakeNotification {
+      static permission = "granted";
+      static requestPermission = vi.fn(async () => "granted");
+      onclick: (() => void) | null = null;
+      close = vi.fn();
+      constructor(readonly title: string) {
+        shown.push(this);
+      }
+    }
+    vi.stubGlobal("Notification", FakeNotification);
+    const { result, signalRef } = renderDiscussion({ visible: false });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    server.postAs("eve", { body: "Draft is ready" });
+    act(() => signalRef.current(1));
+    await waitFor(() => expect(shown).toHaveLength(1));
+    expect(shown[0]!.title).toBe("Eve · Discussion");
+    expect(result.current.totals.unread).toBe(1);
   });
 
   it("stays quiet about the conversation on screen and notifies the system when away", async () => {

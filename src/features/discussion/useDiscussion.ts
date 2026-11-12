@@ -30,6 +30,7 @@ import {
   mergeMessages,
   myReadSeq,
   newMessageId,
+  noticeKind,
   notifiesMe,
   oldestSeq,
   pendingSeq,
@@ -53,7 +54,7 @@ export interface DiscussionNotice {
   conversation: ConversationKey;
   senderId: string;
   senderName: string;
-  kind: "mention" | "private";
+  kind: "mention" | "private" | "message";
   preview: string;
   at: number;
 }
@@ -106,6 +107,17 @@ function windowIsFocused(): boolean {
   );
 }
 
+/** One line for the app's notification center. */
+function noticeText(notice: DiscussionNotice): string {
+  if (notice.kind === "private") {
+    return `${notice.senderName} sent you a private message: ${notice.preview}`;
+  }
+  if (notice.kind === "mention") {
+    return `${notice.senderName} mentioned you: ${notice.preview}`;
+  }
+  return `${notice.senderName} in the discussion: ${notice.preview}`;
+}
+
 function showSystemNotification(notice: DiscussionNotice, onClick: () => void): void {
   if (typeof Notification === "undefined" || Notification.permission === "denied") {
     return;
@@ -115,8 +127,11 @@ function showSystemNotification(notice: DiscussionNotice, onClick: () => void): 
       const notification = new Notification(
         notice.kind === "private"
           ? `${notice.senderName} (private message)`
-          : `${notice.senderName} mentioned you`,
-        { body: notice.preview, tag: `latexdo-discussion-${notice.id}` },
+          : notice.kind === "mention"
+            ? `${notice.senderName} mentioned you`
+            : `${notice.senderName} · Discussion`,
+        // One notification per conversation: a newer message replaces it.
+        { body: notice.preview, tag: `latexdo-discussion-${notice.conversation}` },
       );
       notification.onclick = () => {
         window.focus();
@@ -275,33 +290,28 @@ export function useDiscussion(options: UseDiscussionOptions) {
         conversation: key,
         senderId: message.from,
         senderName: message.name || "Someone",
-        kind: message.to === meNow ? "private" : "mention",
+        kind: noticeKind(message, meNow),
         preview: previewText(message.body, 140),
         at: message.createdAt,
       });
     }
     if (!created.length) return;
     for (const notice of created) {
-      notify(
-        notice.kind === "private"
-          ? `${notice.senderName} sent you a private message: ${notice.preview}`
-          : `${notice.senderName} mentioned you: ${notice.preview}`,
-        { severity: "info", source: "Discussion" },
-      );
+      notify(noticeText(notice), { severity: "info", source: "Discussion" });
     }
+    const newestFirst = [...created].reverse();
     setNotices((current) =>
-      [...created.reverse(), ...current]
+      [...newestFirst, ...current]
         .filter(
           (notice, index, all) =>
             all.findIndex((item) => item.id === notice.id) === index,
         )
         .slice(0, maxNotices),
     );
-    if (!windowIsFocused()) {
-      const latest = created[0];
-      if (latest) {
-        showSystemNotification(latest, () => onOpenRef.current?.(latest.conversation));
-      }
+    // Also through the operating system, so it is seen outside this panel.
+    const latest = newestFirst[0];
+    if (latest) {
+      showSystemNotification(latest, () => onOpenRef.current?.(latest.conversation));
     }
   }, []);
 

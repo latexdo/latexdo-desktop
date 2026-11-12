@@ -1861,6 +1861,9 @@ const api = {
       ipcRenderer.removeListener("git:changed", listener);
     };
   },
+  /** Shows the number of unread discussion messages on the app icon. */
+  setUnreadBadge: (count: number): Promise<void> =>
+    ipcRenderer.invoke("app:set-unread-badge", count),
   checkForUpdates: (): Promise<UpdateCheckResult> =>
     ipcRenderer.invoke("app:check-updates"),
   updateNow: (): Promise<UpdateInstallResult> => ipcRenderer.invoke("app:update-now"),

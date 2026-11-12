@@ -1604,9 +1604,13 @@ function DiscussionNoticeCard({
               <span className="discussion-notice-kind">
                 <Lock size={11} aria-hidden="true" /> private message
               </span>
-            ) : (
+            ) : notice.kind === "mention" ? (
               <span className="discussion-notice-kind">
                 <AtSign size={11} aria-hidden="true" /> mentioned you
+              </span>
+            ) : (
+              <span className="discussion-notice-kind">
+                <MessageCircle size={11} aria-hidden="true" /> new message
               </span>
             )}
           </span>

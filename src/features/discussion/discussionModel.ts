@@ -232,9 +232,22 @@ export function totalUnread(summaries: Map<ConversationKey, ConversationSummary>
   return { unread, mentions };
 }
 
-/** True when this message should reach me as a notification. */
+/**
+ * True when this message should reach me as a notification: anything someone
+ * else sends where I can read it (the group, or privately to me). Whether I am
+ * already looking at that conversation is decided where it arrives.
+ */
 export function notifiesMe(message: DiscussionMessage, me: string): boolean {
-  return message.from !== me && (message.to === me || message.mentions.includes(me));
+  return message.from !== me && (!message.to || message.to === me);
+}
+
+/** How a notification describes the message. */
+export function noticeKind(
+  message: DiscussionMessage,
+  me: string,
+): "private" | "mention" | "message" {
+  if (message.to === me) return "private";
+  return message.mentions.includes(me) ? "mention" : "message";
 }
 
 const presenceOrder: Record<PresenceState, number> = { active: 0, away: 1, offline: 2 };
