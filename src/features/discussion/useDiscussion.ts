@@ -24,7 +24,9 @@ import {
   conversationOf,
   discussionMembers,
   everyone,
-  latestSeq,
+  latestChangeSeq,
+  maxMessageChars,
+  mentionsInText,
   mergeMessages,
   myReadSeq,
   newMessageId,
@@ -159,6 +161,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
   const visibleRef = useRef(visible);
   const conversationRef = useRef(conversation);
   const loadedRef = useRef(false);
+  const fetchedSeqRef = useRef(0);
   const inFlightRef = useRef(false);
   const againRef = useRef(false);
   const notifiedRef = useRef(new Set<string>());
@@ -208,6 +211,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
   useEffect(() => {
     projectRef.current = projectId;
     loadedRef.current = false;
+    fetchedSeqRef.current = 0;
     againRef.current = false;
     notifiedRef.current = new Set();
     confirmedRef.current = { delivered: 0, read: {} };
@@ -340,17 +344,21 @@ export function useDiscussion(options: UseDiscussionOptions) {
     inFlightRef.current = true;
     try {
       const first = !loadedRef.current;
-      let after = latestSeq(messagesRef.current);
+      let after = fetchedSeqRef.current;
       const pages: DiscussionPage[] = [
         await window.latexdo.getDiscussion(project, first ? {} : { after }),
       ];
       // Catch up on everything missed while away, a page at a time.
       while (!first && pages.at(-1)!.hasMore && pages.length < catchUpPages) {
-        after = Math.max(after, latestSeq(pages.at(-1)!.messages));
+        after = Math.max(after, latestChangeSeq(pages.at(-1)!.messages));
         pages.push(await window.latexdo.getDiscussion(project, { after }));
       }
       if (projectRef.current !== project) return;
       const last = pages.at(-1)!;
+      fetchedSeqRef.current =
+        first || !last.hasMore
+          ? last.seq
+          : Math.max(after, latestChangeSeq(last.messages));
       const meNow = last.members.find((item) => item.isCurrent)?.clientId ?? fallbackMe;
       meRef.current = meNow;
       // What had already reached this app before now: older messages are not news.
@@ -545,6 +553,41 @@ export function useDiscussion(options: UseDiscussionOptions) {
     [deliver, permissions, replies, setMessagesNow],
   );
 
+  const edit = useCallback(
+    async (message: ChatMessage, body: string) => {
+      const project = projectRef.current;
+      const text = body.trim();
+      if (!project || !enabledRef.current)
+        throw new Error("This project is not shared.");
+      if (message.from !== meRef.current || message.local || message.undecryptable) {
+        throw new Error("Only your sent messages can be edited.");
+      }
+      if (!text || text.length > maxMessageChars)
+        throw new Error("Enter a message of up to 4,000 characters.");
+      if (text === message.body) return;
+      const names = new Map(
+        permissions.map((member) => [member.clientId, member.name]),
+      );
+      const result = await window.latexdo.sendDiscussionMessage(project, {
+        id: message.id,
+        to: message.to,
+        replyTo: message.replyTo,
+        body: text,
+        mentions: mentionsInText(text, names),
+        edit: true,
+        expectedRevision: message.updatedSeq ?? message.seq,
+      });
+      if (projectRef.current !== project) return;
+      if (result.message.body !== text || !result.message.editedAt) {
+        throw new Error(
+          "The collaboration server does not support message editing yet.",
+        );
+      }
+      setMessagesNow((current) => mergeMessages(current, [result.message]));
+    },
+    [permissions, setMessagesNow],
+  );
+
   const retry = useCallback(
     (id: string) => {
       const message = messagesRef.current.find(
@@ -663,6 +706,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
     loadingOlder,
     loadOlder,
     send,
+    edit,
     retry,
     discard,
     refresh,

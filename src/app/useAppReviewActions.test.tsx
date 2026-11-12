@@ -201,6 +201,23 @@ describe("review conversations", () => {
     } as any);
     expect(h.state.statusMessage).toContain("no longer");
   });
+  it("updates the anchor when the passage moves within the same line", async () => {
+    const thread = chat();
+    const h = setup({ reviewChats: [thread] });
+    h.ctx.documentsRef.current = [
+      { ...h.document, content: "New " + h.document.content },
+    ];
+    await h.result.current.handleJumpToReviewSelection(thread as any);
+    expect(h.ctx.pendingSourceRef.current).toMatchObject({
+      path: h.document.path,
+      line: 1,
+      column: 5,
+      endLine: 1,
+      endColumn: 10,
+    });
+    expect(h.state.reviewChats[0].selection.startColumn).toBe(5);
+  });
+
   it("inserts a rebuttal block and inherits the last reviewer", () => {
     const h = setup({ rebuttalItems: [{ reviewer: "Reviewer 3" }] });
     h.result.current.handleAddRebuttalToSource();

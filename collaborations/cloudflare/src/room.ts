@@ -627,7 +627,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       for (const item of Object.values(auth.meta.permissions)) {
         if (isRole(item.role)) members.set(item.clientId, item.name || "Anonymous");
       }
-      const { message, created } = postMessage(state, {
+      const { message, created, updated } = postMessage(state, {
         identity: auth.identity,
         members,
         input: await this.body(request),
@@ -635,7 +635,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         // The body arrives encrypted, so it is longer than the text typed.
         maxBodyChars: discussionLimits.maxStoredBodyChars,
       });
-      if (created) {
+      if (created || updated) {
         this.saveDiscussionMessage(state, message);
         this.broadcastDiscussion(state.seq, audienceFor(message));
       }

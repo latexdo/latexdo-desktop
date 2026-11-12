@@ -8291,8 +8291,10 @@ button {
 .review-sidebar,
 .rebuttal-sidebar {
   display: flex;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1 1 0;
   flex-direction: column;
-  height: 100%;
 }
 
 .sidebar-header-actions {
@@ -17992,8 +17994,10 @@ button {
 .review-sidebar,
 .rebuttal-sidebar {
   display: flex;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1 1 0;
   flex-direction: column;
-  height: 100%;
 }
 
 .sidebar-header-actions {

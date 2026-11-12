@@ -861,6 +861,7 @@
 }
 
 .discussion-input textarea {
+  min-width: 0;
   min-height: 30px;
   max-height: 168px;
   flex: 1;
@@ -1148,4 +1149,88 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+.discussion-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+  gap: 3px;
+  max-height: 144px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-sidebar);
+}
+
+.discussion-emoji-picker button {
+  min-height: 30px;
+  padding: 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.discussion-emoji-picker button:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+}
+
+.discussion-emoji-picker button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.discussion-emoji-picker button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.discussion-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 22px;
+}
+
+.discussion-edit textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.discussion-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.discussion-edit-actions button {
+  padding: 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.discussion-edit-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.discussion-edit [role="alert"] {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.discussion-row .discussion-meta-spacer.is-edited {
+  width: 112px;
 }

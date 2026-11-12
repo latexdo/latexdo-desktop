@@ -56,7 +56,20 @@ export const ReviewSidebar: React.FC<ReviewSidebarProps> = ({
           </div>
         ) : (
           chats.map((chat) => (
-            <div key={chat.id} className="sidebar-item-card review-chat-card">
+            <div
+              key={chat.id}
+              className="sidebar-item-card review-chat-card"
+              onClick={(event) => {
+                // Let the reply field and thread actions keep their own behavior.
+                if (
+                  (event.target as Element).closest(
+                    "button, textarea, input, select, a",
+                  )
+                )
+                  return;
+                onJumpToSelection(chat);
+              }}
+            >
               <div className="review-chat-header">
                 <button
                   type="button"

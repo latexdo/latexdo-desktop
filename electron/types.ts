@@ -644,6 +644,8 @@ export interface DiscussionMessage {
   mentions: string[];
   replyTo: string | null;
   createdAt: number;
+  editedAt?: number;
+  updatedSeq?: number;
   /** Set when the message could not be decrypted on this computer. */
   undecryptable?: boolean;
 }
@@ -674,6 +676,8 @@ export interface DiscussionQuery {
 }
 
 export interface DiscussionMessageInput {
+  edit?: boolean;
+  expectedRevision?: number;
   id: string;
   to: string | null;
   body: string;

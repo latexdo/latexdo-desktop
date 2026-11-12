@@ -1190,6 +1190,53 @@ describe("discussion", () => {
     });
   });
 
+  it("keeps edits encrypted and preserves their revision and edited timestamp", async () => {
+    const key = newProjectKey();
+    const env = setup(
+      async (_path, _method, sentHeaders, body) => {
+        const stored = JSON.parse(body ?? "{}");
+        expect(stored).toMatchObject({ edit: true, expectedRevision: 3, mentions: [] });
+        expect(stored.body).not.toContain("Corrected secret");
+        return ok({
+          seq: 4,
+          message: {
+            ...stored,
+            seq: 3,
+            updatedSeq: 4,
+            editedAt: 2000,
+            from: "ada",
+            name: sentHeaders["x-latexdo-client-name"],
+            createdAt: 1000,
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({
+        id: "msg-0001",
+        to: "bob",
+        body: "Corrected secret",
+        mentions: ["bob"],
+        edit: true,
+        expectedRevision: 3,
+      }),
+      1000,
+    );
+    expect(JSON.parse(response.text)).toMatchObject({
+      message: {
+        body: "Corrected secret",
+        mentions: ["bob"],
+        seq: 3,
+        updatedSeq: 4,
+        editedAt: 2000,
+      },
+    });
+  });
+
   it("refuses empty messages and passes server errors through", async () => {
     const key = newProjectKey();
     const env = setup(

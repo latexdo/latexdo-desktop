@@ -830,6 +830,41 @@ describe("project discussion", () => {
     return response.json();
   }
 
+  it("persists edits and delivers them to the original audience", async () => {
+    const { id } = await sharedWithGuests();
+    const initial = await post(id, owner, {
+      id: "editable-001",
+      to: guest.client,
+      body: "Original",
+    });
+    const original = (await initial.json()).message;
+    const input = {
+      id: original.id,
+      to: guest.client,
+      body: "Corrected",
+      edit: true,
+      expectedRevision: original.seq,
+    };
+    expect((await post(id, guest, input)).status).toBe(409);
+    const saved = await post(id, owner, input);
+    expect(saved.status).toBe(200);
+    const edited = (await saved.json()).message;
+    expect(edited).toMatchObject({
+      seq: original.seq,
+      updatedSeq: 2,
+      body: "Corrected",
+      createdAt: original.createdAt,
+    });
+    expect(edited.editedAt).toBeGreaterThanOrEqual(original.createdAt);
+    expect((await page(id, guest, "?after=1")).messages).toEqual([edited]);
+    expect((await page(id, third, "?after=1")).messages).toEqual([]);
+    expect((await post(id, owner, input)).status).toBe(409);
+    const stored = JSON.parse(
+      await readFile(path.join(directory, "projects", id, "discussion.json"), "utf8"),
+    );
+    expect(stored.messages).toEqual([edited]);
+  });
+
   it("shares group messages with every member and private ones only with the pair", async () => {
     const { id } = await sharedWithGuests();
     const group = await post(id, owner, {

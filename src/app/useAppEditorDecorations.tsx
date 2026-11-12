@@ -14,6 +14,7 @@ import {
   supportsProofreading,
 } from "../features/proofreading/proofreading";
 import { editorModelMatchesPath, monaco } from "./appShared";
+import { locateReviewSelection } from "../features/review/reviewAnchor";
 import type { AppCtx05 } from "./appContext";
 
 export function useAppEditorDecorations(ctx: AppCtx05) {
@@ -710,9 +711,17 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
     }
 
     const relevantChats = reviewChats.filter(
-      (chat) => chat.filePath === activeDocument.relativePath,
+      (chat) =>
+        normalizeRelativePath(chat.filePath) ===
+        normalizeRelativePath(activeDocument.relativePath),
     );
     const decorations = relevantChats.flatMap((chat) => {
+      const selection = locateReviewSelection(
+        editor.getModel()!.getValue(),
+        chat.selection,
+      );
+      // Do not attach a thread to unrelated text after its passage was removed.
+      if (!selection) return [];
       const firstComment = chat.comments[0]?.text.trim();
       const hoverMessage = {
         value: firstComment ? `Review thread: ${firstComment}` : "Review thread",
@@ -721,10 +730,10 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
       return [
         {
           range: new monaco.Range(
-            chat.selection.startLine,
-            chat.selection.startColumn,
-            chat.selection.endLine,
-            chat.selection.endColumn,
+            selection.startLine,
+            selection.startColumn,
+            selection.endLine,
+            selection.endColumn,
           ),
           options: {
             isWholeLine: false,
@@ -735,12 +744,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
           },
         },
         {
-          range: new monaco.Range(
-            chat.selection.startLine,
-            1,
-            chat.selection.startLine,
-            1,
-          ),
+          range: new monaco.Range(selection.startLine, 1, selection.startLine, 1),
           options: {
             isWholeLine: true,
             glyphMarginClassName: "review-comment-glyph",

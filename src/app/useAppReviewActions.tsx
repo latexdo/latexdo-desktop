@@ -237,6 +237,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
         fileBlameDecorationsRef.current = [];
         applyEditorBlameDecorations();
         triggerCitationCompletionIfNeeded(editor);
+        // A source jump may have been requested before React switched models.
+        requestAnimationFrame(() => revealPendingSource());
       }),
     ];
     const citationSearchBlurDisposable = editor.onDidBlurEditorWidget?.(() => {
@@ -1061,7 +1063,13 @@ export function useAppReviewActions(ctx: AppCtx13) {
         );
       }
       const target = range ?? chat.selection;
-      if (range && range.startLine !== chat.selection.startLine) {
+      if (
+        range &&
+        (range.startLine !== chat.selection.startLine ||
+          range.startColumn !== chat.selection.startColumn ||
+          range.endLine !== chat.selection.endLine ||
+          range.endColumn !== chat.selection.endColumn)
+      ) {
         // Remember where the passage moved to.
         setReviewChats((prev) =>
           prev.map((existing) =>

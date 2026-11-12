@@ -72,6 +72,28 @@ describe("ReviewSidebar", () => {
     expect(onDeleteChat).toHaveBeenCalledWith("chat-1");
   });
 
+  it("opens source from the thread body without navigating from reply controls", () => {
+    const onJumpToSelection = vi.fn();
+    render(
+      <ReviewSidebar
+        chats={[chat]}
+        onAddChat={vi.fn()}
+        onAddComment={vi.fn()}
+        onDeleteChat={vi.fn()}
+        onJumpToSelection={onJumpToSelection}
+        onInsertIntoTex={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText("Please justify this statement."));
+    expect(onJumpToSelection).toHaveBeenCalledExactlyOnceWith(chat);
+    fireEvent.click(screen.getByLabelText("Review message"));
+    fireEvent.click(screen.getByRole("button", { name: /insert into tex/i }));
+    fireEvent.click(screen.getByRole("button", { name: /delete review chat/i }));
+    expect(onJumpToSelection).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTitle("Click to jump to selection"));
+    expect(onJumpToSelection).toHaveBeenCalledTimes(2);
+  });
+
   it("inserts a thread into the TeX source from the panel", () => {
     const onInsertIntoTex = vi.fn();
 

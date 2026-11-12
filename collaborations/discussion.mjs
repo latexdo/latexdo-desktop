@@ -70,7 +70,11 @@ export function normalizeDiscussion(raw) {
           typeof message.body === "string",
       )
     : [];
-  const lastSeq = messages.length ? messages[messages.length - 1].seq : 0;
+  const lastSeq = messages.reduce(
+    (latest, message) =>
+      Math.max(latest, message.seq, isSeq(message.updatedSeq) ? message.updatedSeq : 0),
+    0,
+  );
   const receipts =
     raw.receipts && typeof raw.receipts === "object" && !Array.isArray(raw.receipts)
       ? raw.receipts
@@ -126,8 +130,46 @@ export function postMessage(state, { identity, members, input, now, maxBodyChars
     if (existing.from !== identity.clientId) {
       throw new DiscussionError(409, "Message id already used.");
     }
+    if (input.edit === true) {
+      if (input.expectedRevision !== (existing.updatedSeq ?? existing.seq)) {
+        throw new DiscussionError(
+          409,
+          "This message changed. Reopen it to edit the latest version.",
+        );
+      }
+      if ((input.to ?? null) !== existing.to) {
+        throw new DiscussionError(400, "An edit cannot change the conversation.");
+      }
+      const body = typeof input.body === "string" ? input.body : "";
+      if (!body.trim()) throw new DiscussionError(400, "A message cannot be empty.");
+      if (body.length > (maxBodyChars ?? discussionLimits.maxBodyChars)) {
+        throw new DiscussionError(413, "This message is too long.");
+      }
+      const total = state.messages.reduce((sum, item) => sum + item.body.length, 0);
+      if (
+        total - existing.body.length + body.length >
+        discussionLimits.maxTotalBodyChars
+      ) {
+        throw new DiscussionError(
+          413,
+          "The discussion storage limit has been reached.",
+        );
+      }
+      const mentions = cleanMentions(input.mentions, members);
+      const message = {
+        ...existing,
+        body,
+        mentions,
+        editedAt: now,
+        updatedSeq: state.seq + 1,
+      };
+      state.seq = message.updatedSeq;
+      state.messages[state.messages.indexOf(existing)] = message;
+      return { message, created: false, updated: true };
+    }
     return { message: existing, created: false };
   }
+  if (input.edit === true) throw new DiscussionError(404, "Message not found.");
 
   const body = typeof input.body === "string" ? input.body : "";
   const limit = maxBodyChars ?? discussionLimits.maxBodyChars;
@@ -314,7 +356,12 @@ export function listMessages(state, clientId, { after, before, limit } = {}) {
   const afterSeq = Number(after);
   const beforeSeq = Number(before);
   if (after !== undefined && after !== null && after !== "" && isSeq(afterSeq)) {
-    const newer = visible.filter((message) => message.seq > afterSeq);
+    const newer = visible
+      .filter((message) => (message.updatedSeq ?? message.seq) > afterSeq)
+      .sort(
+        (left, right) =>
+          (left.updatedSeq ?? left.seq) - (right.updatedSeq ?? right.seq),
+      );
     return {
       messages: newer.slice(0, size),
       hasMore: newer.length > size,

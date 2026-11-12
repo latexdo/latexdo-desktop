@@ -507,6 +507,9 @@ export class CloudE2ee {
           sealedHeaders,
           JSON.stringify({
             id: input.id,
+            ...(input.edit === true
+              ? { edit: true, expectedRevision: input.expectedRevision }
+              : {}),
             to,
             replyTo: input.replyTo ?? null,
             // Mentions travel inside the sealed body: the server never learns them.

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   everyone,
+  maxMessageChars,
   summarizeConversations,
   totalUnread,
   type ChatMessage,
@@ -85,6 +86,7 @@ function controller(
     loadingOlder: false,
     loadOlder: vi.fn(async () => undefined),
     send: vi.fn(),
+    edit: vi.fn(async () => undefined),
     retry: vi.fn(),
     discard: vi.fn(),
     refresh: vi.fn(async () => undefined),
@@ -375,6 +377,102 @@ describe("DiscussionPanel", () => {
     expect(discussion.discard).toHaveBeenCalledWith("local");
     // A local message has no actions yet.
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it.each([everyone, "bob"])(
+    "inserts an emoji at the selection and sends it in %s",
+    async (conversation) => {
+      const discussion = controller({ conversation, draft: "Hello world!" });
+      render(<Harness discussion={discussion} />);
+      const input = screen.getByRole("combobox") as HTMLTextAreaElement;
+      input.setSelectionRange(6, 11);
+      fireEvent.click(screen.getByRole("button", { name: "Add emoji" }));
+      fireEvent.click(screen.getByRole("button", { name: "Thumbs up" }));
+      expect(input).toHaveValue("Hello 👍!");
+      expect(screen.queryByRole("group", { name: "Emojis" })).toBeNull();
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+      expect(input).toHaveFocus();
+      expect(input.selectionStart).toBe(8);
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(discussion.send).toHaveBeenCalledWith("Hello 👍!", []);
+    },
+  );
+
+  it("supports keyboard dismissal without changing the draft", () => {
+    render(<Harness discussion={controller({ draft: "Keep this" })} />);
+    const toggle = screen.getByRole("button", { name: "Add emoji" });
+    fireEvent.click(toggle);
+    const first = screen.getByRole("button", { name: "Grinning face" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: "Escape" });
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("combobox")).toHaveValue("Keep this");
+  });
+
+  it("respects the message limit when inserting emojis", () => {
+    render(<Harness discussion={controller({ draft: "x".repeat(maxMessageChars) })} />);
+    const input = screen.getByRole("combobox") as HTMLTextAreaElement;
+    input.setSelectionRange(maxMessageChars, maxMessageChars);
+    fireEvent.click(screen.getByRole("button", { name: "Add emoji" }));
+    expect(screen.getByRole("button", { name: "Thumbs up" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Thumbs up" }));
+    expect(input.value).toHaveLength(maxMessageChars);
+  });
+
+  it("disables the emoji picker while the conversation is loading", () => {
+    render(<Harness discussion={controller({ status: "loading" })} />);
+    expect(screen.getByRole("button", { name: "Add emoji" })).toBeDisabled();
+  });
+
+  it("edits only my sent messages and shows the edited label", async () => {
+    const mine = message({ seq: 2, from: "me", body: "Original" });
+    const discussion = controller({ messages: [message({ seq: 1 }), mine] });
+    const view = render(<Harness discussion={discussion} />);
+    expect(screen.getAllByRole("button", { name: "Edit message" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Edit message" }));
+    const input = screen.getByRole("textbox", { name: "Edit message" });
+    fireEvent.change(input, { target: { value: "Corrected 👍" } });
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" })),
+    );
+    expect(discussion.edit).toHaveBeenCalledWith(mine, "Corrected 👍");
+    expect(screen.queryByRole("textbox", { name: "Edit message" })).toBeNull();
+    view.rerender(
+      <Harness
+        discussion={controller({
+          messages: [{ ...mine, body: "Corrected 👍", editedAt: now, updatedSeq: 3 }],
+        })}
+      />,
+    );
+    expect(screen.getByText("Edited")).toBeVisible();
+    expect(screen.getByText("Corrected 👍")).toBeVisible();
+  });
+
+  it("cancels edits, rejects blanks and preserves the text when saving fails", async () => {
+    const discussion = controller({
+      messages: [message({ seq: 1, from: "me" })],
+      edit: vi.fn(async () => {
+        throw new Error("Offline");
+      }),
+    });
+    render(<Harness discussion={discussion} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit message" }));
+    let input = screen.getByRole("textbox", { name: "Edit message" });
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(discussion.edit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Edit message" }));
+    input = screen.getByRole("textbox", { name: "Edit message" });
+    fireEvent.change(input, { target: { value: "Keep my edit" } });
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" })),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Offline");
+    expect(input).toHaveValue("Keep my edit");
   });
 
   it("sends with Enter, keeps Shift+Enter for new lines and mentions with @", () => {
