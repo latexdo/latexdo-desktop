@@ -133,7 +133,7 @@ const offStatus: HostSharingStatus = {
   addresses: [],
 };
 
-function safeRelativeSegments(relativePath: string): boolean {
+export function safeRelativeSegments(relativePath: string): boolean {
   return relativePath
     .split("/")
     .every(

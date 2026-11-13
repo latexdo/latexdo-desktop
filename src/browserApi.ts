@@ -944,6 +944,11 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       } as const;
     },
 
+    async exportSharedProject() {
+      // The web editor has no folders to export into.
+      return { exported: false, notShared: true } as const;
+    },
+
     async getMenuShortcuts() {
       // The web editor has no application menu.
       return [];

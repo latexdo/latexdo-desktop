@@ -3475,6 +3475,7 @@ function buildApplicationMenu(): void {
           ],
         },
         menuCommand("Export PDF...", "build.downloadPdf"),
+        menuCommand("Export Shared Project...", "file.exportSharedProject"),
         { type: "separator" },
         menuCommand("Share Project...", "file.share"),
         { type: "separator" },

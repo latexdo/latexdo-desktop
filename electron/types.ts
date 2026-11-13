@@ -117,6 +117,19 @@ export interface StartCollaborationOptions {
   projectName?: string;
 }
 
+/** The outcome of File → Export Shared Project. */
+export interface ExportSharedProjectResult {
+  exported: boolean;
+  /** Set when the open project is a local folder, not a shared copy. */
+  notShared?: boolean;
+  folder?: string;
+  written?: number;
+  /** Files that could not be written safely and were left out. */
+  skipped?: number;
+  /** Set when the person chose to open the exported copy. */
+  project?: OpenProject;
+}
+
 export interface SaveSharedProjectResult {
   saved: boolean;
   folder?: string;

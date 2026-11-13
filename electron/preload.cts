@@ -43,6 +43,7 @@ import type {
   ProjectListOptions,
   RendererDiagnosticPayload,
   SaveSharedProjectResult,
+  ExportSharedProjectResult,
   SpellCheckerSettings,
   StartCollaborationOptions,
   SyncTexPdfLocation,
@@ -1504,6 +1505,27 @@ const api = {
       cloudCompileTimeoutMs,
     );
     return ipcRenderer.invoke("peer:cloud-save-project", projectId, bundle.files, ask);
+  },
+  /**
+   * File → Export Shared Project: saves every file of a shared project into a
+   * new folder the person chooses. Owners and guests alike; a local folder is
+   * already on the computer and is left alone.
+   */
+  exportSharedProject: async (
+    projectId: string,
+    projectName: string,
+  ): Promise<ExportSharedProjectResult> => {
+    if (!isCloudProject(projectId)) return { exported: false, notShared: true };
+    // The same bundle Save to my folder downloads: decrypted on the way in.
+    const bundle = await cloudRequestJson<{
+      files: { relativePath: string; content?: string; base64?: string }[];
+    }>(
+      `/api/projects/${encodeURIComponent(projectId)}/files/bundle`,
+      {},
+      cloudShareTokenForProject(projectId),
+      cloudCompileTimeoutMs,
+    );
+    return ipcRenderer.invoke("peer:export-project", projectName, bundle.files);
   },
   openSharedProjectFolder: (projectId: string): Promise<OpenProject | null> =>
     ipcRenderer.invoke("peer:host-open-folder", projectId),
