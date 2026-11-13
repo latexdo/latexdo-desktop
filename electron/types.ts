@@ -676,7 +676,21 @@ export interface MenuShortcut {
   keys: string;
   /** Only works while the cursor is in the editor. */
   editorOnly: boolean;
+  /** Set when the user can change this command's key. */
+  id?: string;
+  /** The default keys, present only when the user changed them ("" = none). */
+  defaultKeys?: string;
 }
+
+export type MenuShortcutChangeResult =
+  | { ok: true; shortcuts: MenuShortcut[] }
+  | { ok: false; error: string };
+
+/** The next key press, captured for the shortcut being changed. */
+export type MenuShortcutRecording =
+  | { status: "recorded"; accelerator: string; keys: string }
+  | { status: "invalid"; keys: string; error: string }
+  | { status: "cancelled" };
 
 /** One message of a shared project's discussion. */
 export interface DiscussionMessage {

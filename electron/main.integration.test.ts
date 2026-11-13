@@ -1,5 +1,14 @@
 // @vitest-environment node
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { EventEmitter } from "node:events";
 import {
   mkdtemp,
@@ -1051,6 +1060,15 @@ describe("application menu", () => {
       label: "Save",
       keys: mac ? "⌘S" : "Ctrl+S",
       editorOnly: false,
+      id: "file.save",
+    });
+    // Compile defaults to ⌘T; ⌘S saves and compiles too.
+    expect(shortcuts).toContainEqual({
+      menu: "Build",
+      label: "Compile",
+      keys: mac ? "⌘T" : "Ctrl+T",
+      editorOnly: false,
+      id: "build.compile",
     });
     expect(shortcuts).toContainEqual({
       menu: "Edit",
@@ -1064,7 +1082,9 @@ describe("application menu", () => {
       keys: mac ? "⌃G" : "Ctrl+G",
       editorOnly: true,
     });
-    const keys = shortcuts.map((s: { keys: string }) => s.keys);
+    const keys = shortcuts
+      .map((s: { keys: string }) => s.keys)
+      .filter((key: string) => key !== "");
     // One accelerator, one command within each scope: a repeated key would
     // make one of them dead. An editor-only key may reuse a workbench key on
     // purpose (Bold and Toggle Sidebar): the editor takes it while focused.
@@ -1074,6 +1094,7 @@ describe("application menu", () => {
       label: string;
       editorOnly: boolean;
     }[]) {
+      if (!s.keys) continue;
       const key = `${s.editorOnly ? "editor" : "app"} ${s.keys}`;
       labelsByKey.set(key, (labelsByKey.get(key) ?? new Set()).add(s.label));
     }
@@ -1086,6 +1107,148 @@ describe("application menu", () => {
       editorOnly: true,
     });
     expect(keys.length).toBeGreaterThan(50);
+  });
+
+  describe("custom shortcuts", () => {
+    const mac = process.platform === "darwin";
+    const latestItem = (label: string) =>
+      native.menu.mock.calls
+        .map(([template]) => template as Electron.MenuItemConstructorOptions[])
+        .filter((template) => template.some((item) => item.label === "File"))
+        .at(-1)!
+        .flatMap(
+          (menu) => (menu.submenu as Electron.MenuItemConstructorOptions[]) ?? [],
+        )
+        .flatMap((item) =>
+          Array.isArray(item.submenu) ? [item, ...item.submenu] : [item],
+        )
+        .find((item) => item.label === label)!;
+    const stored = async () =>
+      JSON.parse(
+        await readFile(path.join(native.path, "keyboard-shortcuts.json"), "utf8"),
+      );
+    afterEach(async () => {
+      await call("app:reset-menu-shortcut", null);
+    });
+
+    it("gives a command new keys, keeps them on disk and restores the default", async () => {
+      const result = await call(
+        "app:set-menu-shortcut",
+        "build.compile",
+        "CmdOrCtrl+Shift+B",
+      );
+      expect(result.ok).toBe(true);
+      expect(latestItem("Compile").accelerator).toBe("CmdOrCtrl+Shift+B");
+      expect(result.shortcuts).toContainEqual({
+        menu: "Build",
+        label: "Compile",
+        keys: mac ? "⌘⇧B" : "Ctrl+Shift+B",
+        editorOnly: false,
+        id: "build.compile",
+        defaultKeys: mac ? "⌘T" : "Ctrl+T",
+      });
+      expect(await stored()).toEqual({
+        version: 1,
+        overrides: { "build.compile": "CmdOrCtrl+Shift+B" },
+      });
+
+      const restored = await call("app:reset-menu-shortcut", "build.compile");
+      expect(latestItem("Compile").accelerator).toBe("CmdOrCtrl+T");
+      expect(
+        restored.find((s: { id?: string }) => s.id === "build.compile"),
+      ).not.toHaveProperty("defaultKeys");
+      expect(await stored()).toEqual({ version: 1, overrides: {} });
+    });
+
+    it("gives keys to a command that had none and removes a default key", async () => {
+      expect(
+        (await call("app:set-menu-shortcut", "file.saveAll", "CmdOrCtrl+Alt+A")).ok,
+      ).toBe(true);
+      expect(latestItem("Save All").accelerator).toBe("CmdOrCtrl+Alt+A");
+      const removed = await call("app:set-menu-shortcut", "File/Close Tab", "");
+      expect(removed.ok).toBe(true);
+      expect(latestItem("Close Tab").accelerator).toBeUndefined();
+      expect(
+        removed.shortcuts.find((s: { id?: string }) => s.id === "File/Close Tab"),
+      ).toMatchObject({ keys: "", defaultKeys: mac ? "⌘W" : "Ctrl+W" });
+    });
+
+    it("refuses keys another command uses, editor and system keys included", async () => {
+      expect(
+        await call("app:set-menu-shortcut", "build.compile", "CmdOrCtrl+S"),
+      ).toEqual({
+        ok: false,
+        error: `${mac ? "⌘S" : "Ctrl+S"} is already used by “Save”.`,
+      });
+      expect(
+        (await call("app:set-menu-shortcut", "build.compile", "CmdOrCtrl+Shift+K"))
+          .error,
+      ).toContain("Delete Line");
+      expect(
+        (await call("app:set-menu-shortcut", "build.compile", "CmdOrCtrl+Z")).error,
+      ).toContain("Undo");
+      expect((await call("app:set-menu-shortcut", "build.compile", "Shift+K")).ok).toBe(
+        false,
+      );
+      expect(
+        (await call("app:set-menu-shortcut", "edit.cut", "CmdOrCtrl+Alt+X")).ok,
+      ).toBe(false);
+      expect(latestItem("Compile").accelerator).toBe("CmdOrCtrl+T");
+      await expect(call("app:set-menu-shortcut", "build.compile")).rejects.toThrow();
+    });
+
+    it("records the next key press before the page or the menu sees it", async () => {
+      const press = (input: Partial<Electron.Input>) => {
+        const event = { preventDefault: vi.fn() };
+        window.webContents.emit("before-input-event", event, {
+          type: "keyDown",
+          shift: false,
+          control: false,
+          alt: false,
+          meta: false,
+          ...input,
+        });
+        return event;
+      };
+      const recording = call("app:record-menu-shortcut");
+      await vi.waitFor(() =>
+        expect(window.webContents.listenerCount("before-input-event")).toBe(1),
+      );
+      // Modifiers alone wait for the key.
+      expect(
+        press({ code: "MetaLeft", key: "Meta", meta: true }).preventDefault,
+      ).toHaveBeenCalled();
+      press({ code: "KeyT", key: "t", [mac ? "meta" : "control"]: true, shift: true });
+      expect(await recording).toEqual({
+        status: "recorded",
+        accelerator: "CmdOrCtrl+Shift+T",
+        keys: mac ? "⌘⇧T" : "Ctrl+Shift+T",
+      });
+      expect(window.webContents.listenerCount("before-input-event")).toBe(0);
+      expect(window.webContents.listenerCount("destroyed")).toBe(0);
+
+      const bare = call("app:record-menu-shortcut");
+      await vi.waitFor(() =>
+        expect(window.webContents.listenerCount("before-input-event")).toBe(1),
+      );
+      press({ code: "KeyK", key: "k" });
+      expect(await bare).toMatchObject({ status: "invalid", keys: "K" });
+
+      const escaped = call("app:record-menu-shortcut");
+      await vi.waitFor(() =>
+        expect(window.webContents.listenerCount("before-input-event")).toBe(1),
+      );
+      press({ code: "Escape", key: "Escape" });
+      expect(await escaped).toEqual({ status: "cancelled" });
+
+      const cancelled = call("app:record-menu-shortcut");
+      await vi.waitFor(() =>
+        expect(window.webContents.listenerCount("before-input-event")).toBe(1),
+      );
+      await call("app:cancel-menu-shortcut");
+      expect(await cancelled).toEqual({ status: "cancelled" });
+      expect(window.webContents.listenerCount("before-input-event")).toBe(0);
+    });
   });
 });
 

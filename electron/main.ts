@@ -7,8 +7,10 @@ import {
   nativeTheme,
   protocol,
   shell,
+  type Input as ElectronInput,
   type MenuItemConstructorOptions,
   type RenderProcessGoneDetails,
+  type WebContents,
 } from "electron";
 import { spawn, type SpawnOptions } from "node:child_process";
 import {
@@ -82,6 +84,8 @@ import type {
   LatexDoResearchSpaceFolder,
   LatexDoResearchSpaceFolderKind,
   MenuShortcut,
+  MenuShortcutChangeResult,
+  MenuShortcutRecording,
   OpenProject,
   ProofreadingResult,
   ProofreadingRequestOptions,
@@ -182,6 +186,15 @@ import {
 import { runUpdateVersionProbe } from "./updateVersionProbe.js";
 import { readBuildInfo } from "./buildInfo.js";
 import { createCrashReporter } from "./crashReports.js";
+import {
+  acceleratorFromInput,
+  acceleratorSignature,
+  isAssignableAccelerator,
+  parseShortcutOverrides,
+  serializeShortcutOverrides,
+  shortcutOverridesFile,
+  type ShortcutOverrides,
+} from "./menuShortcuts.js";
 import {
   crashReportEnvironment,
   crashReportScrubOptions,
@@ -3058,8 +3071,11 @@ function menuCommand(
   return {
     label,
     accelerator,
-    // Marks the items the shortcut list describes as editor-only.
-    id: options.editor ? `${editorMenuCommandPrefix}${command}` : undefined,
+    // Editor-only items are marked for the shortcut list; the others carry
+    // the command, which names the shortcut the user can change.
+    id: options.editor
+      ? `${editorMenuCommandPrefix}${command}`
+      : `${menuCommandIdPrefix}${command}`,
     click: (_item, _window, event) => {
       if (options.editor && event.triggeredByAccelerator) {
         return;
@@ -3079,6 +3095,7 @@ function editorMenuCommand(
 
 const isMac = process.platform === "darwin";
 const editorMenuCommandPrefix = "editor-only:";
+const menuCommandIdPrefix = "command:";
 
 // Roles take their keys from the platform; the shortcut list still names them.
 const roleAccelerators: Partial<Record<string, string>> = {
@@ -3140,28 +3157,49 @@ function formatAccelerator(accelerator: string, mac = isMac): string {
 
 let applicationMenuTemplate: MenuItemConstructorOptions[] = [];
 
-function listMenuShortcuts(
+/** Keys the user chose in place of the menu's defaults (see menuShortcuts.ts). */
+let shortcutOverrides: ShortcutOverrides = {};
+/** The accelerator each customizable item had before the user's choice. */
+let defaultAccelerators = new WeakMap<MenuItemConstructorOptions, string>();
+
+interface MenuEntry {
+  item: MenuItemConstructorOptions;
+  menu: string;
+  /** Set when the user can change this item's key; first occurrence only. */
+  shortcutId: string | null;
+  accelerator: string;
+}
+
+/** The id that names an item's shortcut, or null for roles and editor keys. */
+function menuShortcutId(item: MenuItemConstructorOptions, menu: string): string | null {
+  if (item.role || !item.click || !item.label) return null;
+  if (item.id?.startsWith(editorMenuCommandPrefix)) return null;
+  if (item.id?.startsWith(menuCommandIdPrefix)) {
+    return item.id.slice(menuCommandIdPrefix.length);
+  }
+  return `${menu}/${item.label.replace(/\.\.\.$|…$/, "")}`;
+}
+
+function menuEntries(
   template: MenuItemConstructorOptions[] = applicationMenuTemplate,
-): MenuShortcut[] {
-  const shortcuts: MenuShortcut[] = [];
+): MenuEntry[] {
+  const entries: MenuEntry[] = [];
+  const seen = new Set<string>();
   const visit = (items: MenuItemConstructorOptions[], menu: string) => {
     for (const item of items) {
       if (Array.isArray(item.submenu)) {
         visit(item.submenu, menu);
         continue;
       }
+      if (item.type === "separator") continue;
+      let shortcutId = menuShortcutId(item, menu);
+      // A command in two menus (Export PDF…) has one shortcut, on the first.
+      if (shortcutId && seen.has(shortcutId)) shortcutId = null;
+      if (shortcutId) seen.add(shortcutId);
       const accelerator =
         (typeof item.accelerator === "string" ? item.accelerator : "") ||
         (item.role ? (roleAccelerators[item.role.toLowerCase()] ?? "") : "");
-      if (!accelerator || !item.label) {
-        continue;
-      }
-      shortcuts.push({
-        menu,
-        label: item.label.replace(/\.\.\.$|…$/, ""),
-        keys: formatAccelerator(accelerator),
-        editorOnly: Boolean(item.id?.startsWith(editorMenuCommandPrefix)),
-      });
+      entries.push({ item, menu, shortcutId, accelerator });
     }
   };
   for (const menu of template) {
@@ -3169,7 +3207,182 @@ function listMenuShortcuts(
       visit(menu.submenu, menu.label ?? "");
     }
   }
+  return entries;
+}
+
+/** Puts the user's keys on the menu, remembering each item's default. */
+function applyShortcutOverrides(template: MenuItemConstructorOptions[]): void {
+  defaultAccelerators = new WeakMap();
+  for (const entry of menuEntries(template)) {
+    if (!entry.shortcutId) continue;
+    const fallback =
+      typeof entry.item.accelerator === "string" ? entry.item.accelerator : "";
+    defaultAccelerators.set(entry.item, fallback);
+    const override = shortcutOverrides[entry.shortcutId];
+    if (override !== undefined) {
+      entry.item.accelerator = override || undefined;
+    }
+  }
+}
+
+function listMenuShortcuts(
+  template: MenuItemConstructorOptions[] = applicationMenuTemplate,
+): MenuShortcut[] {
+  const shortcuts: MenuShortcut[] = [];
+  for (const { item, menu, shortcutId, accelerator } of menuEntries(template)) {
+    // Commands without a key are listed too, so one can be given.
+    if ((!accelerator && !shortcutId) || !item.label) {
+      continue;
+    }
+    const shortcut: MenuShortcut = {
+      menu,
+      label: item.label.replace(/\.\.\.$|…$/, ""),
+      keys: accelerator ? formatAccelerator(accelerator) : "",
+      editorOnly: Boolean(item.id?.startsWith(editorMenuCommandPrefix)),
+    };
+    if (shortcutId) {
+      shortcut.id = shortcutId;
+      const fallback = defaultAccelerators.get(item) ?? accelerator;
+      if (shortcutOverrides[shortcutId] !== undefined && fallback !== accelerator) {
+        shortcut.defaultKeys = fallback ? formatAccelerator(fallback) : "";
+      }
+    }
+    shortcuts.push(shortcut);
+  }
   return shortcuts;
+}
+
+async function saveShortcutOverrides(next: ShortcutOverrides): Promise<void> {
+  await atomicWriteUtf8(
+    userDataFilePath(shortcutOverridesFile),
+    serializeShortcutOverrides(next),
+  );
+  shortcutOverrides = next;
+  buildApplicationMenu();
+}
+
+/**
+ * Gives a command a new key ("" removes it). Refuses keys another menu item
+ * already uses, so one press never means two things.
+ */
+async function setMenuShortcut(
+  id: string,
+  accelerator: string,
+): Promise<MenuShortcutChangeResult> {
+  const entries = menuEntries();
+  const target = entries.find((entry) => entry.shortcutId === id);
+  if (!target) {
+    return { ok: false, error: "This command's shortcut cannot be changed." };
+  }
+  if (accelerator && !isAssignableAccelerator(accelerator)) {
+    return {
+      ok: false,
+      error: isMac
+        ? "Use ⌘, ⌃ or ⌥ with the key, or a function key."
+        : "Use Ctrl or Alt with the key, or a function key.",
+    };
+  }
+  if (accelerator) {
+    const signature = acceleratorSignature(accelerator, isMac);
+    const clash = entries.find(
+      (entry) =>
+        entry !== target &&
+        entry.accelerator &&
+        acceleratorSignature(entry.accelerator, isMac) === signature,
+    );
+    if (clash) {
+      const label = (clash.item.label ?? "").replace(/\.\.\.$|…$/, "");
+      return {
+        ok: false,
+        error: `${formatAccelerator(accelerator)} is already used by “${label}”.`,
+      };
+    }
+  }
+  const next = { ...shortcutOverrides };
+  const fallback = defaultAccelerators.get(target.item) ?? "";
+  if (
+    accelerator === fallback ||
+    (accelerator &&
+      fallback &&
+      acceleratorSignature(accelerator, isMac) ===
+        acceleratorSignature(fallback, isMac))
+  ) {
+    delete next[id];
+  } else {
+    next[id] = accelerator;
+  }
+  await saveShortcutOverrides(next);
+  return { ok: true, shortcuts: listMenuShortcuts() };
+}
+
+/** Restores one command's default key, or every default when id is null. */
+async function resetMenuShortcut(id: string | null): Promise<MenuShortcut[]> {
+  const next = { ...shortcutOverrides };
+  if (id === null) {
+    for (const key of Object.keys(next)) delete next[key];
+  } else {
+    delete next[id];
+  }
+  await saveShortcutOverrides(next);
+  return listMenuShortcuts();
+}
+
+interface ShortcutRecorder {
+  contents: WebContents;
+  onInput: (event: Electron.Event, input: ElectronInput) => void;
+  onDestroyed: () => void;
+  resolve: (result: MenuShortcutRecording) => void;
+}
+let shortcutRecorder: ShortcutRecorder | null = null;
+
+function stopShortcutRecording(result: MenuShortcutRecording): void {
+  const recorder = shortcutRecorder;
+  if (!recorder) return;
+  shortcutRecorder = null;
+  recorder.contents.removeListener("before-input-event", recorder.onInput);
+  recorder.contents.removeListener("destroyed", recorder.onDestroyed);
+  recorder.resolve(result);
+}
+
+/**
+ * Waits for the next key press in this window and reports it as a shortcut.
+ * The press is taken before the page and the menu see it, so recording ⌘W
+ * does not close the tab.
+ */
+function recordMenuShortcut(contents: WebContents): Promise<MenuShortcutRecording> {
+  stopShortcutRecording({ status: "cancelled" });
+  return new Promise((resolve) => {
+    const onInput = (event: Electron.Event, input: ElectronInput) => {
+      if (input.type !== "keyDown") return;
+      event.preventDefault();
+      if (input.code === "Escape" && !input.meta && !input.control && !input.alt) {
+        stopShortcutRecording({ status: "cancelled" });
+        return;
+      }
+      const accelerator = acceleratorFromInput(input, isMac);
+      // Only modifiers so far: wait for the key.
+      if (!accelerator) return;
+      if (!isAssignableAccelerator(accelerator)) {
+        stopShortcutRecording({
+          status: "invalid",
+          keys: formatAccelerator(accelerator),
+          error: isMac
+            ? "Use ⌘, ⌃ or ⌥ with the key, or a function key."
+            : "Use Ctrl or Alt with the key, or a function key.",
+        });
+        return;
+      }
+      stopShortcutRecording({
+        status: "recorded",
+        accelerator,
+        keys: formatAccelerator(accelerator),
+      });
+    };
+    const onDestroyed = () => stopShortcutRecording({ status: "cancelled" });
+    shortcutRecorder = { contents, onInput, onDestroyed, resolve };
+    contents.on("before-input-event", onInput);
+    contents.once("destroyed", onDestroyed);
+  });
 }
 
 function buildApplicationMenu(): void {
@@ -3481,7 +3694,7 @@ function buildApplicationMenu(): void {
     {
       label: "Build",
       submenu: [
-        menuCommand("Compile", "build.compile", "CmdOrCtrl+Enter"),
+        menuCommand("Compile", "build.compile", "CmdOrCtrl+T"),
         menuCommand("Stop Compiling", "build.stop"),
         { type: "separator" },
         menuCommand("Toggle PDF Preview", "view.togglePreview"),
@@ -3618,6 +3831,7 @@ function buildApplicationMenu(): void {
     },
   );
 
+  applyShortcutOverrides(template);
   applicationMenuTemplate = template;
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -6685,6 +6899,9 @@ async function startApp(): Promise<void> {
     void crashReports.flushAutomatic().catch(() => undefined);
   }
   console.log("[latexdo] app:ai-registered");
+  shortcutOverrides = parseShortcutOverrides(
+    await readUserDataJson<unknown>(shortcutOverridesFile),
+  );
   buildApplicationMenu();
   console.log("[latexdo] app:menu-built");
   ipcMain.handle("project:reopen-last", async (event, ...rawArgs: unknown[]) => {
@@ -7031,6 +7248,33 @@ async function startApp(): Promise<void> {
   ipcMain.handle("app:menu-shortcuts", async (_event, ...rawArgs: unknown[]) => {
     expectIpcArgs("app:menu-shortcuts", rawArgs, 0);
     return listMenuShortcuts();
+  });
+  ipcMain.handle("app:set-menu-shortcut", async (_event, ...rawArgs: unknown[]) => {
+    const [id, accelerator] = expectIpcArgs("app:set-menu-shortcut", rawArgs, 2);
+    if (typeof id !== "string" || !id || id.length > 200) {
+      throw new Error("Invalid shortcut id.");
+    }
+    if (typeof accelerator !== "string" || accelerator.length > 64) {
+      throw new Error("Invalid shortcut keys.");
+    }
+    return setMenuShortcut(id, accelerator);
+  });
+  ipcMain.handle("app:reset-menu-shortcut", async (_event, ...rawArgs: unknown[]) => {
+    const [id] = expectIpcArgs("app:reset-menu-shortcut", rawArgs, 1);
+    if (id !== null && (typeof id !== "string" || !id || id.length > 200)) {
+      throw new Error("Invalid shortcut id.");
+    }
+    return resetMenuShortcut(id);
+  });
+  ipcMain.handle("app:record-menu-shortcut", async (event, ...rawArgs: unknown[]) => {
+    expectIpcArgs("app:record-menu-shortcut", rawArgs, 0);
+    return recordMenuShortcut(event.sender);
+  });
+  ipcMain.handle("app:cancel-menu-shortcut", async (event, ...rawArgs: unknown[]) => {
+    expectIpcArgs("app:cancel-menu-shortcut", rawArgs, 0);
+    if (shortcutRecorder?.contents === event.sender) {
+      stopShortcutRecording({ status: "cancelled" });
+    }
   });
   ipcMain.handle("project:list", async (_event, ...rawArgs: unknown[]) => {
     const channel = "project:list";

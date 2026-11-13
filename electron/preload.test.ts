@@ -82,6 +82,10 @@ describe("isolated desktop bridge", () => {
     ["saveResearchSpaceAs", "research-space:save-as", ["local"]],
     ["addFolderToResearchSpace", "research-space:add-folder", ["local"]],
     ["getMenuShortcuts", "app:menu-shortcuts", []],
+    ["setMenuShortcut", "app:set-menu-shortcut", ["build.compile", "CmdOrCtrl+T"]],
+    ["resetMenuShortcut", "app:reset-menu-shortcut", [null]],
+    ["recordMenuShortcut", "app:record-menu-shortcut", []],
+    ["cancelMenuShortcutRecording", "app:cancel-menu-shortcut", []],
     [
       "importOverleafProject",
       "provider:import-overleaf-project",

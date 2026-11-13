@@ -31,6 +31,8 @@ import type {
   HostSharingStatus,
   ImportedProjectEntry,
   MenuShortcut,
+  MenuShortcutChangeResult,
+  MenuShortcutRecording,
   OpenProject,
   OrcidProfileResult,
   PermissionUpdate,
@@ -1944,6 +1946,20 @@ const api = {
   getWhatsNew: (): Promise<WhatsNewResult> => ipcRenderer.invoke("app:whats-new"),
   getMenuShortcuts: (): Promise<MenuShortcut[]> =>
     ipcRenderer.invoke("app:menu-shortcuts"),
+  /** Gives a menu command new keys (an Electron accelerator; "" removes them). */
+  setMenuShortcut: (
+    id: string,
+    accelerator: string,
+  ): Promise<MenuShortcutChangeResult> =>
+    ipcRenderer.invoke("app:set-menu-shortcut", id, accelerator),
+  /** Restores one command's default keys, or all of them with null. */
+  resetMenuShortcut: (id: string | null): Promise<MenuShortcut[]> =>
+    ipcRenderer.invoke("app:reset-menu-shortcut", id),
+  /** Resolves with the next key press in this window. */
+  recordMenuShortcut: (): Promise<MenuShortcutRecording> =>
+    ipcRenderer.invoke("app:record-menu-shortcut"),
+  cancelMenuShortcutRecording: (): Promise<void> =>
+    ipcRenderer.invoke("app:cancel-menu-shortcut"),
   markWhatsNewPresented: (version: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("app:whats-new-mark-presented", version),
   openReleaseNotesPage: (): Promise<{ opened: boolean }> =>

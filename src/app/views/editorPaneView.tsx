@@ -769,7 +769,7 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
               </div>
               <p>Compile to generate the PDF preview</p>
               <span>
-                <Command size={12} /> Ctrl/⌘ + Enter
+                <Command size={12} /> Ctrl/⌘ + T or Ctrl/⌘ + S
               </span>
             </div>
           )}

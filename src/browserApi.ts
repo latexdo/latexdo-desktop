@@ -948,6 +948,19 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       // The web editor has no application menu.
       return [];
     },
+    async setMenuShortcut() {
+      return {
+        ok: false,
+        error: "Shortcuts can be changed in the desktop app.",
+      } as const;
+    },
+    async resetMenuShortcut() {
+      return [];
+    },
+    async recordMenuShortcut() {
+      return { status: "cancelled" } as const;
+    },
+    async cancelMenuShortcutRecording() {},
 
     async getWhatsNew() {
       return {

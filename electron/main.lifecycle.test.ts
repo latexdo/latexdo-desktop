@@ -897,6 +897,7 @@ describe("platform differences", () => {
       label: "Save",
       keys: "Ctrl+S",
       editorOnly: false,
+      id: "file.save",
     });
     expect(shortcuts).toContainEqual(
       expect.objectContaining({ label: "Zoom In", keys: "Ctrl++" }),
