@@ -57,6 +57,8 @@ import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
 import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { useFeatureTips } from "./features/onboarding/tips/useFeatureTips";
+import { FeatureTipCard } from "./features/onboarding/tips/FeatureTipCard";
 import { useAppDiscussion } from "./app/useAppDiscussion";
 import { DiscussionNotices, DiscussionPanel } from "./components/DiscussionPanel";
 import { SettingsShell } from "./components/SettingsShell";
@@ -130,6 +132,26 @@ export default function App() {
   const s22 = { ...s21, ...useAppDiscussion(s21) };
   const ctx = s22;
   const folderDrop = useFolderDrop(ctx);
+  // "Did you know?" tips for features not used yet, at a quiet moment.
+  const featureTips = useFeatureTips({
+    enabled: ctx.settings.featureTips,
+    inUse: {
+      "ai.provider-choice":
+        (ctx.settingsOpen && ctx.settingsTab === "ai") ||
+        ctx.aiConfig.provider !== "local" ||
+        ctx.aiConfig.selection.mode !== "latexdo",
+      "pdf.reading-theme": ctx.settings.pdfReadingTheme !== "original",
+    },
+    onAction: (action) => {
+      if (action === "open-ai-settings") ctx.openAiSettings();
+    },
+    onTurnOff: () => {
+      ctx.setSettings((current) => ({ ...current, featureTips: false }));
+      ctx.setStatusMessage(
+        "Tips are off. Turn them back on in Settings → General → Feature tips.",
+      );
+    },
+  });
   const {
     openInstalledExtension,
     openExtensionDetails,
@@ -949,6 +971,14 @@ export default function App() {
           buildChangesSinceUpdate={whatsNew.buildChangesSinceUpdate}
           onClose={closeWhatsNewDialog}
           onViewFullNotes={viewFullReleaseNotes}
+        />
+      ) : null}
+      {featureTips.tip ? (
+        <FeatureTipCard
+          tip={featureTips.tip}
+          onAccept={featureTips.accept}
+          onLater={featureTips.later}
+          onTurnOff={featureTips.turnOff}
         />
       ) : null}
     </div>

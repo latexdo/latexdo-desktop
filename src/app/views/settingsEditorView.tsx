@@ -400,6 +400,23 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <label className="settings-row settings-toggle">
         <span>
+          <strong>Feature tips</strong>
+          <small>Now and then, suggest a feature you have not tried yet.</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.featureTips}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              featureTips: event.target.checked,
+            }))
+          }
+        />
+      </label>
+
+      <label className="settings-row settings-toggle">
+        <span>
           <strong>Minimap</strong>
           <small>Show the source overview beside the editor.</small>
         </span>
