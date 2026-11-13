@@ -1,9 +1,19 @@
-import { app, BrowserWindow, dialog, net, safeStorage, utilityProcess } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  net,
+  safeStorage,
+  shell,
+  utilityProcess,
+} from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { PeerCollabService, type PeerSocket } from "./peerCollab.js";
+import { PeerCollabService, type FolderFile, type PeerSocket } from "./peerCollab.js";
+import { exportFolderName, writeExportedProject } from "./projectExport.js";
 import { ipcMain } from "./trustedIpc.js";
 import type {
+  ExportSharedProjectResult,
   HostSharingStatus,
   OpenProject,
   SaveSharedProjectResult,
@@ -24,6 +34,21 @@ function invalid(channel: string): never {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** A shared project's files, as the renderer downloaded them (decrypted). */
+function parseFolderFiles(channel: string, value: unknown): FolderFile[] {
+  if (!Array.isArray(value) || value.length > 5000) invalid(channel);
+  return value.map((file: unknown) => {
+    if (!isRecord(file) || typeof file.relativePath !== "string") invalid(channel);
+    const bytes =
+      typeof file.base64 === "string"
+        ? Buffer.from(file.base64, "base64")
+        : typeof file.content === "string"
+          ? Buffer.from(file.content, "utf8")
+          : invalid(channel);
+    return { relativePath: parseText(channel, file.relativePath, 512), bytes };
+  });
 }
 
 function parseText(channel: string, value: unknown, maxLength: number): string {
@@ -287,6 +312,66 @@ export function registerPeerCollabIpc(projects: PeerProjectRegistry): void {
         folder: result.folder,
         written: result.written,
         project: projects.registerProject(result.folder),
+      };
+    },
+  );
+
+  // File → Export Shared Project: a local copy of a shared project, in a new
+  // folder the person names. Works for guests too, unlike Save to my folder.
+  ipcMain.handle(
+    "peer:export-project",
+    async (event, ...args: unknown[]): Promise<ExportSharedProjectResult> => {
+      const channel = "peer:export-project";
+      if (args.length !== 2) invalid(channel);
+      const name = typeof args[0] === "string" ? args[0].slice(0, 200) : "";
+      const files = parseFolderFiles(channel, args[1]);
+      if (!files.length) throw new Error("This shared project has no files to export.");
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const saveOptions = {
+        title: "Export Shared Project",
+        buttonLabel: "Export",
+        message:
+          "Choose where to save a copy of this project. A new folder is created.",
+        nameFieldLabel: "Folder name:",
+        defaultPath: path.join(app.getPath("documents"), exportFolderName(name)),
+        properties: ["createDirectory" as const, "showOverwriteConfirmation" as const],
+      };
+      const choice = window
+        ? await dialog.showSaveDialog(window, saveOptions)
+        : await dialog.showSaveDialog(saveOptions);
+      if (choice.canceled || !choice.filePath) return { exported: false };
+
+      const result = await writeExportedProject(choice.filePath, files);
+      const revealLabel =
+        process.platform === "darwin"
+          ? "Show in Finder"
+          : process.platform === "win32"
+            ? "Show in Explorer"
+            : "Show Folder";
+      const doneOptions = {
+        type: "info" as const,
+        buttons: ["Open in LatexDo", revealLabel, "Done"],
+        defaultId: 0,
+        cancelId: 2,
+        message: `Exported ${result.written} file${result.written === 1 ? "" : "s"}.`,
+        detail: `${result.folder}${
+          result.skipped.length
+            ? `\n\nLeft out ${result.skipped.length} file(s) with unsafe names: ${result.skipped
+                .slice(0, 5)
+                .join(", ")}${result.skipped.length > 5 ? ", …" : ""}`
+            : ""
+        }\n\nThis copy is yours: it is not shared, and edits to it stay on this computer.`,
+      };
+      const { response } = window
+        ? await dialog.showMessageBox(window, doneOptions)
+        : await dialog.showMessageBox(doneOptions);
+      if (response === 1) shell.showItemInFolder(result.folder);
+      return {
+        exported: true,
+        folder: result.folder,
+        written: result.written,
+        skipped: result.skipped.length,
+        ...(response === 0 ? { project: projects.registerProject(result.folder) } : {}),
       };
     },
   );

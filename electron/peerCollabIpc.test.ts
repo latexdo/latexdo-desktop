@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   windows: [] as any[],
   fromWebContents: vi.fn(),
   showMessageBox: vi.fn(),
+  showSaveDialog: vi.fn(),
+  showItemInFolder: vi.fn(),
+  writeExportedProject: vi.fn(),
   fork: vi.fn(),
   netFetch: vi.fn(),
   safeStorage: {
@@ -38,7 +41,11 @@ vi.mock("electron", () => ({
     getAllWindows: () => mocks.windows,
     fromWebContents: mocks.fromWebContents,
   },
-  dialog: { showMessageBox: mocks.showMessageBox },
+  dialog: {
+    showMessageBox: mocks.showMessageBox,
+    showSaveDialog: mocks.showSaveDialog,
+  },
+  shell: { showItemInFolder: mocks.showItemInFolder },
   net: { fetch: mocks.netFetch },
   safeStorage: mocks.safeStorage,
   utilityProcess: { fork: mocks.fork },
@@ -65,6 +72,11 @@ vi.mock("./peerCollab.js", () => ({
       mocks.service = this;
     }
   },
+}));
+
+vi.mock("./projectExport.js", () => ({
+  exportFolderName: (name: string) => name || "LatexDo project",
+  writeExportedProject: mocks.writeExportedProject,
 }));
 
 import {
@@ -112,6 +124,9 @@ describe("peerCollabIpc", () => {
     mocks.windows = [];
     mocks.fromWebContents.mockReset();
     mocks.showMessageBox.mockReset();
+    mocks.showSaveDialog.mockReset();
+    mocks.showItemInFolder.mockReset();
+    mocks.writeExportedProject.mockReset();
     mocks.fork.mockReset();
     mocks.netFetch.mockReset();
     projects.getProjectRoot.mockClear();
@@ -437,6 +452,10 @@ describe("peerCollabIpc", () => {
       ["peer:cloud-save-project", ["a", [{ relativePath: 1 }]]],
       ["peer:cloud-save-project", ["a", [{ relativePath: "x" }]]],
       ["peer:cloud-save-project", ["a", new Array(5001).fill({})]],
+      ["peer:export-project", ["Thesis"]],
+      ["peer:export-project", ["Thesis", "notarray"]],
+      ["peer:export-project", ["Thesis", [{ relativePath: "x" }]]],
+      ["peer:export-project", ["Thesis", new Array(5001).fill({})]],
       ["peer:host-open-folder", []],
       ["peer:host-save-project", []],
     ])("%s rejects invalid input %#", async (channel, args) => {
@@ -481,6 +500,92 @@ describe("peerCollabIpc", () => {
 
   describe("saving shared projects", () => {
     const window = { id: "win" };
+
+    describe("export", () => {
+      const files = [
+        { relativePath: "main.tex", content: "\\documentclass{article}" },
+        {
+          relativePath: "figures/plot.png",
+          base64: Buffer.from([1, 2]).toString("base64"),
+        },
+      ];
+
+      it("asks where to save, in Documents under the project's name", async () => {
+        mocks.fromWebContents.mockReturnValue(window);
+        mocks.showSaveDialog.mockResolvedValue({ canceled: true });
+        expect(await invoke("peer:export-project", "My Thesis", files)).toEqual({
+          exported: false,
+        });
+        expect(mocks.showSaveDialog).toHaveBeenCalledWith(
+          window,
+          expect.objectContaining({
+            title: "Export Shared Project",
+            buttonLabel: "Export",
+            defaultPath: path.join("/user/documents", "My Thesis"),
+          }),
+        );
+        expect(mocks.writeExportedProject).not.toHaveBeenCalled();
+      });
+
+      it("writes the decoded files, then opens the copy when asked", async () => {
+        mocks.fromWebContents.mockReturnValue(window);
+        mocks.showSaveDialog.mockResolvedValue({
+          canceled: false,
+          filePath: "/out/Thesis",
+        });
+        mocks.writeExportedProject.mockResolvedValue({
+          folder: "/out/Thesis",
+          written: 2,
+          skipped: [],
+        });
+        mocks.showMessageBox.mockResolvedValue({ response: 0 });
+        const result = await invoke("peer:export-project", "Thesis", files);
+        const [target, written] = mocks.writeExportedProject.mock.calls[0];
+        expect(target).toBe("/out/Thesis");
+        expect(written[0].bytes.toString("utf8")).toBe("\\documentclass{article}");
+        expect([...written[1].bytes]).toEqual([1, 2]);
+        expect(mocks.showMessageBox).toHaveBeenCalledWith(
+          window,
+          expect.objectContaining({ message: "Exported 2 files." }),
+        );
+        expect(projects.registerProject).toHaveBeenCalledWith("/out/Thesis");
+        expect(result).toEqual({
+          exported: true,
+          folder: "/out/Thesis",
+          written: 2,
+          skipped: 0,
+          project: { id: "p1", rootPath: "/out/Thesis" },
+        });
+      });
+
+      it("can show the copy in the file manager instead, and says what was left out", async () => {
+        mocks.fromWebContents.mockReturnValue(null);
+        mocks.showSaveDialog.mockResolvedValue({ canceled: false, filePath: "/out/T" });
+        mocks.writeExportedProject.mockResolvedValue({
+          folder: "/out/T",
+          written: 1,
+          skipped: ["../evil.tex"],
+        });
+        mocks.showMessageBox.mockResolvedValue({ response: 1 });
+        projects.registerProject.mockClear();
+        const result = await invoke("peer:export-project", "", files);
+        expect(mocks.showMessageBox.mock.calls[0][0].detail).toContain("../evil.tex");
+        expect(mocks.showItemInFolder).toHaveBeenCalledWith("/out/T");
+        expect(projects.registerProject).not.toHaveBeenCalled();
+        expect(result).toEqual({
+          exported: true,
+          folder: "/out/T",
+          written: 1,
+          skipped: 1,
+        });
+      });
+
+      it("refuses an empty project", async () => {
+        await expect(invoke("peer:export-project", "Thesis", [])).rejects.toThrow(
+          "no files to export",
+        );
+      });
+    });
 
     it("cloud-save refuses projects not shared from this computer", async () => {
       await expect(

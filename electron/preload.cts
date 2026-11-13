@@ -31,6 +31,8 @@ import type {
   HostSharingStatus,
   ImportedProjectEntry,
   MenuShortcut,
+  MenuShortcutChangeResult,
+  MenuShortcutRecording,
   OpenProject,
   OrcidProfileResult,
   PermissionUpdate,
@@ -41,6 +43,7 @@ import type {
   ProjectListOptions,
   RendererDiagnosticPayload,
   SaveSharedProjectResult,
+  ExportSharedProjectResult,
   SpellCheckerSettings,
   StartCollaborationOptions,
   SyncTexPdfLocation,
@@ -1503,6 +1506,27 @@ const api = {
     );
     return ipcRenderer.invoke("peer:cloud-save-project", projectId, bundle.files, ask);
   },
+  /**
+   * File → Export Shared Project: saves every file of a shared project into a
+   * new folder the person chooses. Owners and guests alike; a local folder is
+   * already on the computer and is left alone.
+   */
+  exportSharedProject: async (
+    projectId: string,
+    projectName: string,
+  ): Promise<ExportSharedProjectResult> => {
+    if (!isCloudProject(projectId)) return { exported: false, notShared: true };
+    // The same bundle Save to my folder downloads: decrypted on the way in.
+    const bundle = await cloudRequestJson<{
+      files: { relativePath: string; content?: string; base64?: string }[];
+    }>(
+      `/api/projects/${encodeURIComponent(projectId)}/files/bundle`,
+      {},
+      cloudShareTokenForProject(projectId),
+      cloudCompileTimeoutMs,
+    );
+    return ipcRenderer.invoke("peer:export-project", projectName, bundle.files);
+  },
   openSharedProjectFolder: (projectId: string): Promise<OpenProject | null> =>
     ipcRenderer.invoke("peer:host-open-folder", projectId),
   onHostSharingChanged: (callback: (status: HostSharingStatus) => void) => {
@@ -1944,6 +1968,20 @@ const api = {
   getWhatsNew: (): Promise<WhatsNewResult> => ipcRenderer.invoke("app:whats-new"),
   getMenuShortcuts: (): Promise<MenuShortcut[]> =>
     ipcRenderer.invoke("app:menu-shortcuts"),
+  /** Gives a menu command new keys (an Electron accelerator; "" removes them). */
+  setMenuShortcut: (
+    id: string,
+    accelerator: string,
+  ): Promise<MenuShortcutChangeResult> =>
+    ipcRenderer.invoke("app:set-menu-shortcut", id, accelerator),
+  /** Restores one command's default keys, or all of them with null. */
+  resetMenuShortcut: (id: string | null): Promise<MenuShortcut[]> =>
+    ipcRenderer.invoke("app:reset-menu-shortcut", id),
+  /** Resolves with the next key press in this window. */
+  recordMenuShortcut: (): Promise<MenuShortcutRecording> =>
+    ipcRenderer.invoke("app:record-menu-shortcut"),
+  cancelMenuShortcutRecording: (): Promise<void> =>
+    ipcRenderer.invoke("app:cancel-menu-shortcut"),
   markWhatsNewPresented: (version: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke("app:whats-new-mark-presented", version),
   openReleaseNotesPage: (): Promise<{ opened: boolean }> =>
@@ -2133,6 +2171,17 @@ const api = {
   },
   openRequestedProject: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("project:open-requested"),
+  /** The invite from a latexdo-app://join link, once; null when there is none. */
+  takeJoinRequest: (): Promise<string | null> =>
+    ipcRenderer.invoke("collab:take-join-request"),
+  /** Called when a join link arrives while LatexDo is open. */
+  onJoinRequested: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("collab:join-requested", listener);
+    return () => {
+      ipcRenderer.removeListener("collab:join-requested", listener);
+    };
+  },
   onOpenRequested: (callback: () => void) => {
     const listener = () => {
       callback();

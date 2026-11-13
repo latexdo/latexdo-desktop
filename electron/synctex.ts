@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { access, realpath } from "node:fs/promises";
 import path from "node:path";
 import { findTexExecutable, texToolPath } from "./compiler.js";
+import { synctexInstallAdvice } from "./texInstallAdvice.js";
 import type { SyncTexBox, SyncTexPdfLocation, SyncTexSourceLocation } from "./types.js";
 
 const executableCandidates =
@@ -33,9 +34,7 @@ async function runSynctex(
 ): Promise<Record<string, string>[]> {
   const executable = await findSynctex();
   if (!executable) {
-    throw new Error(
-      "synctex was not found. Install MacTeX, TeX Live, or MiKTeX and restart LatexDo.",
-    );
+    throw new Error(`synctex was not found. ${synctexInstallAdvice()}`);
   }
 
   const output = await new Promise<string>((resolve, reject) => {

@@ -337,6 +337,38 @@ export function useAppCollaboration(ctx: AppCtx08) {
 
   useEffect(() => disposeCollaborationBinding, [disposeCollaborationBinding]);
 
+  // "Open in LatexDo" on the co-author web page sends a latexdo-app://join
+  // link here. The Join field opens filled in and the person presses Join: a
+  // web page never joins a project by itself.
+  useEffect(() => {
+    const api = window.latexdo;
+    if (!api.takeJoinRequest) return;
+    let disposed = false;
+    const take = async () => {
+      const invite = await api.takeJoinRequest().catch(() => null);
+      if (disposed || !invite) return;
+      setJoinTokenDraft(invite);
+      setJoinCollaborationError("");
+      setShareStartError("");
+      setShareDialogOpen(true);
+      setStatusMessage(
+        "Opened from a join link. Press Join to open the shared project.",
+      );
+    };
+    void take();
+    const stop = api.onJoinRequested?.(() => void take());
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [
+    setJoinTokenDraft,
+    setJoinCollaborationError,
+    setShareStartError,
+    setShareDialogOpen,
+    setStatusMessage,
+  ]);
+
   useEffect(() => {
     realtimeBlockedDocumentsRef.current = {};
     realtimeReadyDocumentsRef.current = new Set();
@@ -1101,6 +1133,55 @@ export function useAppCollaboration(ctx: AppCtx08) {
   };
 
   /**
+   * File → Export Shared Project: a local copy of the shared project in a new
+   * folder, for owners and guests. The shared project stays as it is.
+   */
+  const exportSharedProject = async () => {
+    const currentProject = collaborationState.projectId ?? projectIdRef.current;
+    if (!currentProject) {
+      setStatusMessage("Open a shared project to export it.");
+      return;
+    }
+    setCollaborationBusy(true);
+    setStatusMessage("Exporting the shared project…");
+    try {
+      const result = await window.latexdo.exportSharedProject(
+        currentProject,
+        collaborationState.projectName ?? projectName ?? "",
+      );
+      if (result.notShared) {
+        setStatusMessage(
+          "This project is already a folder on your computer: only shared projects need exporting.",
+        );
+        return;
+      }
+      if (!result.exported) {
+        setStatusMessage("Export cancelled.");
+        return;
+      }
+      const left = result.skipped
+        ? ` ${result.skipped} file(s) with unsafe names were left out.`
+        : "";
+      if (result.project) {
+        await loadProject(result.project, true, false);
+        setStatusMessage(
+          `Opened your exported copy (${result.written ?? 0} files). It is not shared.${left}`,
+        );
+      } else {
+        setStatusMessage(
+          `Exported ${result.written ?? 0} file(s) to ${result.folder ?? "a new folder"}.${left}`,
+        );
+      }
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "Could not export the shared project",
+      );
+    } finally {
+      setCollaborationBusy(false);
+    }
+  };
+
+  /**
    * Leaves the shared copy: stops sharing if it is on, saves the shared edits
    * into the owner's folder and opens that folder again (with Git and local
    * builds).
@@ -1242,6 +1323,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     joinCollaborationFromDialog,
     stopCollaboration,
     saveSharedProjectToFolder,
+    exportSharedProject,
     changeCollaborationApproval,
     resolveCollaborationRequest,
     loadCollaborationPermissions,

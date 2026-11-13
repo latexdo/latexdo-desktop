@@ -23,7 +23,7 @@ export const editorActivationTour: TourDefinition = {
       targetId: "compile",
       fallbackTargetId: "editor",
       title: "Build the PDF",
-      body: "Compile with the toolbar button or Ctrl/Cmd + Enter. The PDF appears next to your source.",
+      body: "Compile with the toolbar button, Ctrl/Cmd + T, or Ctrl/Cmd + S (which saves too). The PDF appears next to your source.",
       mode: "user-action",
       expectedEvent: "compile:succeeded",
       success: "Your PDF is ready.",

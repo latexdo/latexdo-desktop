@@ -16,7 +16,9 @@ import {
   LoaderCircle,
   MessageSquare,
   Play,
+  Quote,
   Sigma,
+  SquareSigma,
   Underline,
   User,
   X,
@@ -445,7 +447,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
             onClick={() => applyLatexToolbarCommand("equation")}
             title="Equation block"
           >
-            <Sigma size={14} />
+            <SquareSigma size={14} />
             <span>Equation</span>
           </button>
 
@@ -476,7 +478,7 @@ export function renderSourceToolbar(ctx: AppCtx) {
             title={"Citation (\\cite{})"}
             data-tour-id="citation"
           >
-            <BookOpenText size={14} />
+            <Quote size={14} />
             <span>Cite</span>
           </button>
           <button

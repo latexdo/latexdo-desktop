@@ -82,6 +82,11 @@ describe("isolated desktop bridge", () => {
     ["saveResearchSpaceAs", "research-space:save-as", ["local"]],
     ["addFolderToResearchSpace", "research-space:add-folder", ["local"]],
     ["getMenuShortcuts", "app:menu-shortcuts", []],
+    ["takeJoinRequest", "collab:take-join-request", []],
+    ["setMenuShortcut", "app:set-menu-shortcut", ["build.compile", "CmdOrCtrl+T"]],
+    ["resetMenuShortcut", "app:reset-menu-shortcut", [null]],
+    ["recordMenuShortcut", "app:record-menu-shortcut", []],
+    ["cancelMenuShortcutRecording", "app:cancel-menu-shortcut", []],
     [
       "importOverleafProject",
       "provider:import-overleaf-project",
@@ -240,6 +245,7 @@ describe("isolated desktop bridge", () => {
     ["onImportMarkdownMenu", "file:import-markdown", false],
     ["onImportPdfMenu", "file:import-pdf", false],
     ["onCloseTabMenu", "file:close-tab", false],
+    ["onJoinRequested", "collab:join-requested", false],
   ] as const;
   it("passes only a command id from the application menu", () => {
     const callback = vi.fn();
@@ -312,6 +318,42 @@ describe("cloud routing and recovery", () => {
       first[1].headers["x-latexdo-session"],
     );
     expect(bridge.invoke).not.toHaveBeenCalled();
+  });
+  it("exports a joined shared project, and leaves local folders alone", async () => {
+    expect(await api.exportSharedProject("local-folder-id", "Mine")).toEqual({
+      exported: false,
+      notShared: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(
+      json({
+        project: { id: "project_a", name: "Shared" },
+        collaboration: { enabled: true, users: [] },
+      }),
+    );
+    await api.joinCollaboration("https://collab.example.org/#share=secret");
+    const files = [{ relativePath: "main.tex", content: "\\documentclass{article}" }];
+    fetchMock.mockResolvedValueOnce(json({ files }));
+    bridge.invoke.mockResolvedValueOnce({
+      exported: true,
+      folder: "/out/Shared",
+      written: 1,
+    });
+    expect(await api.exportSharedProject("project_a", "Shared")).toEqual({
+      exported: true,
+      folder: "/out/Shared",
+      written: 1,
+    });
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toContain("/api/projects/project_a/files/bundle");
+    // A guest reads the bundle with the share token it joined with.
+    expect(init.headers["x-latexdo-share-token"]).toBe("secret");
+    expect(bridge.invoke).toHaveBeenLastCalledWith(
+      "peer:export-project",
+      "Shared",
+      files,
+    );
   });
   it("joins a share URL, remembers the token and manages permissions", async () => {
     fetchMock.mockResolvedValueOnce(

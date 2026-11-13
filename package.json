@@ -132,6 +132,14 @@
         "mimeType": "application/x-latexdo-space"
       }
     ],
+    "protocols": [
+      {
+        "name": "LatexDo join link",
+        "schemes": [
+          "latexdo-app"
+        ]
+      }
+    ],
     "afterPack": "scripts/after-pack-linux.cjs",
     "asarUnpack": [
       "**/node_modules/node-pty/**",

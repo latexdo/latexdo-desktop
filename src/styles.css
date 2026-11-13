@@ -5098,6 +5098,123 @@ button {
   font-size: 12px;
 }
 
+.shortcuts-toolbar {
+  display: grid;
+  gap: 2px;
+}
+
+.shortcuts-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.shortcuts-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shortcuts-options button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-card);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.shortcuts-options button:hover {
+  color: var(--text-primary);
+  background: var(--bg-row-hover);
+}
+
+.shortcuts-label {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0;
+}
+
+.shortcuts-error {
+  flex-basis: 100%;
+  margin-top: 2px;
+  color: var(--error);
+  font-size: 11px;
+}
+
+.shortcuts-keys {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcuts-key-button {
+  display: inline-flex;
+  min-width: 52px;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.shortcuts-key-button:hover kbd,
+.shortcuts-key-button:focus-visible kbd {
+  border-color: var(--border-focus);
+}
+
+.shortcuts-unset,
+.shortcuts-recording {
+  padding: 2px 7px;
+  border: 1px dashed var(--border-card);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.shortcuts-key-button.recording .shortcuts-recording {
+  border-style: solid;
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+
+.shortcuts-icon-button {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  place-items: center;
+}
+
+.shortcuts-group li:hover .shortcuts-icon-button,
+.shortcuts-icon-button:focus-visible {
+  opacity: 1;
+}
+
+.shortcuts-icon-button:hover {
+  background: var(--bg-button-secondary);
+  color: var(--text-primary);
+}
+
 .settings-backdrop {
   align-items: center;
   padding: 24px;
@@ -6386,7 +6503,7 @@ button {
   display: grid;
   max-width: 860px;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 360px);
 }
 
 .toolchain-install-grid button {
@@ -16089,7 +16206,7 @@ button {
   display: grid;
   max-width: 860px;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 360px);
 }
 
 .toolchain-install-grid button {
@@ -33874,4 +33991,24 @@ body.pane-resizing-row .preview-pane > * {
   margin-bottom: 8px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* ===== Formatting toolbar: legible icons (bright, slightly larger, bolder) ===== */
+.source-toolbar .tex-format-button {
+  width: 30px;
+  height: 28px;
+  color: var(--text-primary);
+}
+.tex-format-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.25;
+}
+.source-toolbar .tex-format-button.active,
+.source-toolbar .tex-format-button[aria-pressed="true"] {
+  color: var(--accent);
+}
+.tex-format-divider {
+  height: 20px;
+  background: color-mix(in srgb, var(--text-secondary) 40%, transparent);
 }

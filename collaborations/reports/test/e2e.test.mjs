@@ -160,3 +160,36 @@ test(
     assert.equal(regressed.body.status, "regressed");
   },
 );
+
+test(
+  "counts every report per day, version and platform for the dashboard",
+  { skip: !adminToken },
+  async () => {
+    const auth = { authorization: `Bearer ${adminToken}` };
+    const before = await call("GET", "/api/stats?days=7", undefined, auth);
+    assert.equal(before.status, 200);
+    assert.equal(before.body.daily.length, 7);
+    const fingerprint = randomBytes(8).toString("hex");
+    // Earlier tests may have used up this minute's rate limit: count what landed.
+    let accepted = 0;
+    for (let index = 0; index < 3; index += 1) {
+      const sent = await call("POST", "/api/reports", {
+        report: report(fingerprint, {
+          environment: { ...report(fingerprint).environment, appVersion: "9.9.9" },
+        }),
+        reporter: randomUUID(),
+      });
+      if (sent.status === 201) accepted += 1;
+      else assert.equal(sent.status, 429);
+    }
+    assert.ok(accepted > 0, "every report was rate limited");
+    const after = await call("GET", "/api/stats?days=7", undefined, auth);
+    const today = (body) => body.daily.at(-1).reports;
+    assert.equal(today(after.body) - today(before.body), accepted);
+    const version = (body) =>
+      body.byVersion.find((row) => row.key === "9.9.9")?.reports ?? 0;
+    assert.equal(version(after.body) - version(before.body), accepted);
+    assert.ok(after.body.top.some((row) => row.fingerprint === fingerprint));
+    assert.ok(after.body.issuesByStatus.open >= 1);
+  },
+);

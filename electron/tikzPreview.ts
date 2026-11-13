@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { latexPackageInstallAdvice } from "./texInstallAdvice.js";
 import type { CompileRequest, CompileResult, Diagnostic } from "./types.js";
 
 type CompileEngine = CompileRequest["engine"];
@@ -182,7 +183,8 @@ export function explainTikzError(message: string, output = ""): string | undefin
   }
   const missingFile = text.match(/File `([^']+)' not found/);
   if (missingFile) {
-    return `The file ${missingFile[1]} is not installed in your TeX distribution. Install it (for example with the TeX Live or MiKTeX package manager), or remove the line that loads it.`;
+    const packageName = missingFile[1].replace(/\.[^.]+$/, "");
+    return `The file ${missingFile[1]} is not installed in your TeX distribution. ${latexPackageInstallAdvice(packageName)}, or remove the line that loads it.`;
   }
   if (/Missing \$ inserted/.test(text)) {
     return "Math (like ^, _ or \\alpha) is used outside math mode. Put it between $…$, for example node {$x^2$}.";

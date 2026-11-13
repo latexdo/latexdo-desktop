@@ -313,9 +313,6 @@ export function renderSettingsSectionHeading6(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Reproducibility Checklist</strong>
-        <span>
-          Check that your paper includes all information needed for reproducibility.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -525,7 +522,6 @@ export function renderSettingsSectionHeading9(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Figure → TikZ Converter</strong>
-        <span>Upload images and automatically generate editable TikZ code.</span>
       </div>
 
       <label className="settings-row settings-toggle">
@@ -554,9 +550,6 @@ export function renderSettingsSectionHeading10(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Notation Manager</strong>
-        <span>
-          Detect, define, and manage mathematical notation in your LaTeX documents.
-        </span>
       </div>
 
       <label className="settings-row settings-toggle">

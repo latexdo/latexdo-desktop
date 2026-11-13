@@ -164,6 +164,7 @@ beforeEach(() => {
     "rotateCollaborationLink",
     "stopCollaboration",
     "saveSharedProjectToFolder",
+    "exportSharedProject",
     "deleteSharedProject",
     "setCollaborationApproval",
     "resolveCollaborationRequest",
@@ -342,17 +343,83 @@ describe("collaboration sharing workflow", () => {
     await h.result.current.returnToOwnFolder();
     expect(h.state.shareStartError).toContain("Could not find your folder");
   });
-  it.each(["stopCollaboration", "saveSharedProjectToFolder", "returnToOwnFolder"])(
-    "releases busy state after %s fails",
-    async (method) => {
-      const h = setup();
-      api.stopCollaboration.mockRejectedValue(new Error("offline"));
-      api.saveSharedProjectToFolder.mockRejectedValue(new Error("offline"));
-      await (h.result.current as any)[method]();
-      expect(h.state.statusMessage).toBe("offline");
-      expect(h.state.collaborationBusy).toBe(false);
-    },
-  );
+  it("opens the Join field filled in when a join link opens the app", async () => {
+    api.takeJoinRequest = vi.fn().mockResolvedValue("latexdo-invite:abc");
+    let deliver: () => void = () => undefined;
+    const stop = vi.fn();
+    api.onJoinRequested = vi.fn((callback: () => void) => {
+      deliver = callback;
+      return stop;
+    });
+    const h = setup();
+    await vi.waitFor(() => expect(h.state.shareDialogOpen).toBe(true));
+    expect(h.state.joinTokenDraft).toBe("latexdo-invite:abc");
+    expect(h.state.statusMessage).toContain("Press Join");
+    // The person confirms: nothing is joined automatically.
+    expect(api.joinCollaboration).not.toHaveBeenCalled();
+
+    // A second link while LatexDo is open.
+    api.takeJoinRequest.mockResolvedValue("latexdo-invite:second");
+    deliver();
+    await vi.waitFor(() =>
+      expect(h.state.joinTokenDraft).toBe("latexdo-invite:second"),
+    );
+    h.unmount();
+    expect(stop).toHaveBeenCalled();
+    delete api.takeJoinRequest;
+    delete api.onJoinRequested;
+  });
+  it("exports the shared project to a new folder and opens it when asked", async () => {
+    const h = setup({ collaborationState: { ...shared, projectName: "Thesis" } });
+    api.exportSharedProject.mockResolvedValue({
+      exported: true,
+      folder: "/out/Thesis",
+      written: 4,
+      skipped: 0,
+    });
+    await h.result.current.exportSharedProject();
+    expect(api.exportSharedProject).toHaveBeenCalledWith("p", "Thesis");
+    expect(h.state.statusMessage).toBe("Exported 4 file(s) to /out/Thesis.");
+    expect(h.ctx.loadProject).not.toHaveBeenCalled();
+
+    api.exportSharedProject.mockResolvedValue({
+      exported: true,
+      folder: "/out/Thesis",
+      written: 4,
+      skipped: 1,
+      project,
+    });
+    await h.result.current.exportSharedProject();
+    expect(h.ctx.loadProject).toHaveBeenCalledWith(project, true, false);
+    expect(h.state.statusMessage).toContain("Opened your exported copy (4 files)");
+    expect(h.state.statusMessage).toContain(
+      "1 file(s) with unsafe names were left out",
+    );
+    expect(h.state.collaborationBusy).toBe(false);
+  });
+  it("says why there is nothing to export, or that it was cancelled", async () => {
+    const h = setup();
+    api.exportSharedProject.mockResolvedValue({ exported: false, notShared: true });
+    await h.result.current.exportSharedProject();
+    expect(h.state.statusMessage).toContain("already a folder on your computer");
+    api.exportSharedProject.mockResolvedValue({ exported: false });
+    await h.result.current.exportSharedProject();
+    expect(h.state.statusMessage).toBe("Export cancelled.");
+  });
+  it.each([
+    "stopCollaboration",
+    "saveSharedProjectToFolder",
+    "returnToOwnFolder",
+    "exportSharedProject",
+  ])("releases busy state after %s fails", async (method) => {
+    const h = setup();
+    api.stopCollaboration.mockRejectedValue(new Error("offline"));
+    api.saveSharedProjectToFolder.mockRejectedValue(new Error("offline"));
+    api.exportSharedProject.mockRejectedValue(new Error("offline"));
+    await (h.result.current as any)[method]();
+    expect(h.state.statusMessage).toBe("offline");
+    expect(h.state.collaborationBusy).toBe(false);
+  });
   it("changes approval, resolves requests and falls back to viewer on permission failure", async () => {
     const h = setup();
     api.setCollaborationApproval.mockResolvedValue(shared);

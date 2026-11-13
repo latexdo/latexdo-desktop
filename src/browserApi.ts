@@ -944,10 +944,28 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       } as const;
     },
 
+    async exportSharedProject() {
+      // The web editor has no folders to export into.
+      return { exported: false, notShared: true } as const;
+    },
+
     async getMenuShortcuts() {
       // The web editor has no application menu.
       return [];
     },
+    async setMenuShortcut() {
+      return {
+        ok: false,
+        error: "Shortcuts can be changed in the desktop app.",
+      } as const;
+    },
+    async resetMenuShortcut() {
+      return [];
+    },
+    async recordMenuShortcut() {
+      return { status: "cancelled" } as const;
+    },
+    async cancelMenuShortcutRecording() {},
 
     async getWhatsNew() {
       return {
@@ -1117,6 +1135,11 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
     onSpellCheckerSettingsChanged: () => () => {},
     onOpenProjectMenu: () => () => {},
     onOpenRequested: () => () => {},
+    // Join links open the desktop app; the web editor has its own page.
+    async takeJoinRequest() {
+      return null;
+    },
+    onJoinRequested: () => () => {},
     onCreateFileMenu: () => () => {},
     onCreateFolderMenu: () => () => {},
     onImportDocxMenu: () => () => {},

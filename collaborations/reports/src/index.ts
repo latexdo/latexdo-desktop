@@ -7,6 +7,7 @@
  *   GET   /api/issues?status=&limit=  problems, newest first      (admin)
  *   GET   /api/issues/:fingerprint  one problem with its samples (admin)
  *   PATCH /api/issues/:fingerprint  {status, fixedIn, githubIssue} (admin)
+ *   GET   /api/stats?days=30        counts per day, version, platform (admin)
  */
 
 import { ReportStore, type IssueStatus } from "./store";
@@ -146,6 +147,16 @@ export default {
           await sha256Hex(`reporter:${reporter}`),
         );
         return json(201, result);
+      }
+
+      if (parts[1] === "stats" && parts.length === 2) {
+        requireAdmin(request, env);
+        if (request.method !== "GET") throw new ReportError(405, "Method not allowed.");
+        const days = Math.min(
+          Math.max(Number(url.searchParams.get("days")) || 30, 1),
+          365,
+        );
+        return json(200, await store(env).stats(Math.floor(days)));
       }
 
       if (parts[1] === "issues") {

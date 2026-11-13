@@ -236,6 +236,9 @@ export function useAppMenuCommands(ctx: AppCtx20) {
         case "file.share":
           c.openShareDialog();
           return;
+        case "file.exportSharedProject":
+          await c.exportSharedProject();
+          return;
         case "edit.find":
         case "edit.findInFiles": {
           const scope = command === "edit.findInFiles" ? "project" : "file";

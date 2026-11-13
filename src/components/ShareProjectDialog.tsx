@@ -261,7 +261,7 @@ export function ShareProjectDialog({
             </div>
             <p className="share-hint">
               {webLink
-                ? "Anyone with the link can edit in a browser. Stays online when LatexDo is closed."
+                ? "The link opens the project in LatexDo, or in a simple browser editor for people without the app. Stays online when LatexDo is closed."
                 : "Paste it under Join in LatexDo. Works while LatexDo stays open."}
             </p>
             {isAdmin ? (

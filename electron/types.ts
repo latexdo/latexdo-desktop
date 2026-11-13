@@ -117,6 +117,19 @@ export interface StartCollaborationOptions {
   projectName?: string;
 }
 
+/** The outcome of File → Export Shared Project. */
+export interface ExportSharedProjectResult {
+  exported: boolean;
+  /** Set when the open project is a local folder, not a shared copy. */
+  notShared?: boolean;
+  folder?: string;
+  written?: number;
+  /** Files that could not be written safely and were left out. */
+  skipped?: number;
+  /** Set when the person chose to open the exported copy. */
+  project?: OpenProject;
+}
+
 export interface SaveSharedProjectResult {
   saved: boolean;
   folder?: string;
@@ -676,7 +689,21 @@ export interface MenuShortcut {
   keys: string;
   /** Only works while the cursor is in the editor. */
   editorOnly: boolean;
+  /** Set when the user can change this command's key. */
+  id?: string;
+  /** The default keys, present only when the user changed them ("" = none). */
+  defaultKeys?: string;
 }
+
+export type MenuShortcutChangeResult =
+  | { ok: true; shortcuts: MenuShortcut[] }
+  | { ok: false; error: string };
+
+/** The next key press, captured for the shortcut being changed. */
+export type MenuShortcutRecording =
+  | { status: "recorded"; accelerator: string; keys: string }
+  | { status: "invalid"; keys: string; error: string }
+  | { status: "cancelled" };
 
 /** One message of a shared project's discussion. */
 export interface DiscussionMessage {

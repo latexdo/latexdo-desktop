@@ -29,6 +29,27 @@ interface Env {
   REQUESTS?: RateLimit;
   /** Per-address limit on new projects. */
   CREATES?: RateLimit;
+  /** `wrangler secret put ADMIN_TOKEN`; without it the admin API is off. */
+  ADMIN_TOKEN?: string;
+}
+
+function sameSecret(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
+function requireAdmin(request: Request, env: Env): void {
+  // Without a token the admin API does not exist, rather than being open.
+  if (!env.ADMIN_TOKEN) throw new HttpError(404, "Route not found.");
+  const header = request.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!token || !sameSecret(token, env.ADMIN_TOKEN)) {
+    throw new HttpError(401, "Admin token required.");
+  }
 }
 
 /** The projects one person owns, so they reopen after a restart. */
@@ -123,6 +144,13 @@ export default {
       if (parts[0] !== "api") throw new HttpError(404, "Route not found.");
       if (!(await allow(env, ip))) {
         throw new HttpError(429, "Too many requests. Please slow down and try again.");
+      }
+
+      // Storage totals for the LatexDo Administrator app.
+      if (parts[1] === "admin" && parts[2] === "stats" && parts.length === 3) {
+        requireAdmin(request, env);
+        if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
+        return json(200, await env.USAGE.get(env.USAGE.idFromName("global")).stats());
       }
 
       if (parts[1] === "projects" && parts.length === 2) {
