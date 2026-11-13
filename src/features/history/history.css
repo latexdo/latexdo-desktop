@@ -1,0 +1,244 @@
+.history-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 8px 10px 16px;
+}
+
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.history-toolbar select {
+  min-width: 0;
+  flex: 1;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.history-error {
+  margin: 0 0 8px;
+  color: var(--error, #c43f5f);
+  font-size: 12px;
+}
+
+.history-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 32px 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.history-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.history-list,
+.history-day-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-day {
+  margin: 12px 2px 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.history-group {
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.history-group.is-open {
+  border-color: var(--border-subtle);
+  background: var(--bg-card);
+}
+
+.history-group-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.history-group-head:hover {
+  background: var(--bg-row-hover);
+}
+
+.history-group-head:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.history-group-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.history-group-title {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-group-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.history-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.history-count.is-added {
+  color: #2f9e62;
+}
+
+.history-count.is-removed {
+  color: #c4473f;
+}
+
+.history-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 8px 10px;
+}
+
+.history-hunk-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.history-hunk-open:hover {
+  text-decoration: underline;
+}
+
+.history-diff {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  table-layout: fixed;
+}
+
+.history-diff td {
+  padding: 0 4px;
+  vertical-align: top;
+}
+
+.history-diff-number {
+  width: 34px;
+  color: var(--text-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.history-diff-sign {
+  width: 12px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.history-diff-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.history-diff tr.is-added {
+  background: color-mix(in srgb, #2f9e62 16%, transparent);
+}
+
+.history-diff tr.is-added .history-diff-sign {
+  color: #2f9e62;
+}
+
+.history-diff tr.is-removed {
+  background: color-mix(in srgb, #c4473f 14%, transparent);
+}
+
+.history-diff tr.is-removed .history-diff-sign {
+  color: #c4473f;
+}
+
+.history-diff tr.is-removed .history-diff-text {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #c4473f 60%, transparent);
+}
+
+.history-diff-more td {
+  padding: 2px 8px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.history-older {
+  align-self: center;
+  margin-top: 10px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.history-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

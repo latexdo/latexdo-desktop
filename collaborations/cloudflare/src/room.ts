@@ -50,6 +50,12 @@ import {
   type DiscussionState,
 } from "../../discussion.mjs";
 import {
+  HistoryError,
+  historyEntriesFrom,
+  historyLimits,
+  historyPageSize,
+} from "../../history.mjs";
+import {
   AdminOfferError,
   adminOfferFor,
   answerAdminOffer,
@@ -247,6 +253,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         PRIMARY KEY (path, part)
       );
       CREATE TABLE IF NOT EXISTS discussion (seq INTEGER PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS history (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        author TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
     `);
   }
 
@@ -447,6 +459,15 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         normalizeRelativePath(body.toRelativePath),
       );
       return json(200, { relativePath: to });
+    }
+    if (route === "history") {
+      try {
+        return await this.historyRoute(request, url);
+      } catch (error) {
+        if (error instanceof HistoryError)
+          throw new HttpError(error.status, error.message);
+        throw error;
+      }
     }
     if (route === "discussion" || route === "discussion/receipts") {
       try {
@@ -670,6 +691,93 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   }
 
   // --- Discussion ----------------------------------------------------------
+
+  // --- History -------------------------------------------------------------
+
+  /**
+   * Who changed which file and when: each app sends its own person's edits,
+   * sealed, and reads everyone's back (newest first).
+   */
+  private async historyRoute(request: Request, url: URL): Promise<Response> {
+    if (request.method === "GET") {
+      await this.authorize(request, url, "viewer");
+      const size = historyPageSize(url.searchParams.get("limit"));
+      const before = Number(url.searchParams.get("before"));
+      const rows = this.sql
+        .exec<{
+          seq: number;
+          at: number;
+          author: string;
+          data: string;
+        }>(
+          "SELECT seq, at, author, data FROM history WHERE seq < ? ORDER BY seq DESC LIMIT ?",
+          Number.isSafeInteger(before) && before > 0 ? before : Number.MAX_SAFE_INTEGER,
+          size + 1,
+        )
+        .toArray();
+      return json(200, {
+        entries: rows.slice(0, size).map((row) => ({
+          seq: row.seq,
+          at: row.at,
+          from: row.author,
+          data: row.data,
+        })),
+        hasMore: rows.length > size,
+      });
+    }
+    if (request.method === "POST") {
+      // Viewers cannot edit, so they have no changes to record.
+      const auth = await this.authorize(request, url, "editor");
+      const data = historyEntriesFrom(await this.body(request));
+      await this.assertAccountSpace(data.reduce((sum, item) => sum + item.length, 0));
+      const at = now();
+      for (const item of data) {
+        this.sql.exec(
+          "INSERT INTO history (at, author, data) VALUES (?, ?, ?)",
+          at,
+          auth.identity.clientId,
+          item,
+        );
+      }
+      this.trimHistory();
+      this.reportUsage();
+      return json(200, { recorded: data.length });
+    }
+    throw new HttpError(405, "Method not allowed.");
+  }
+
+  private historyBytes(): number {
+    return (
+      this.sql
+        .exec<{
+          total: number | null;
+        }>("SELECT SUM(LENGTH(data)) AS total FROM history")
+        .one().total ?? 0
+    );
+  }
+
+  /** Keeps the newest changes within the project's history budget. */
+  private trimHistory(): void {
+    const { count, total } = this.sql
+      .exec<{
+        count: number;
+        total: number | null;
+      }>("SELECT COUNT(*) AS count, SUM(LENGTH(data)) AS total FROM history")
+      .one();
+    let excessEntries = Math.max(0, count - historyLimits.maxEntries);
+    let excessChars = Math.max(0, (total ?? 0) - historyLimits.maxTotalChars);
+    if (!excessEntries && !excessChars) return;
+    let cutoff = 0;
+    for (const row of this.sql.exec<{ seq: number; size: number }>(
+      "SELECT seq, LENGTH(data) AS size FROM history ORDER BY seq",
+    )) {
+      if (excessEntries <= 0 && excessChars <= 0) break;
+      cutoff = row.seq;
+      excessEntries -= 1;
+      excessChars -= row.size;
+    }
+    this.sql.exec("DELETE FROM history WHERE seq <= ?", cutoff);
+  }
 
   private async discussionRoute(
     request: Request,
@@ -1148,7 +1256,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   /** Reports this project's size to the account-wide meter now and then. */
   private reportUsage(): void {
-    const bytes = this.projectBytes();
+    // The change history counts too: it lives in the same storage.
+    const bytes = this.projectBytes() + this.historyBytes();
     if (
       this.reportedBytes >= 0 &&
       Math.abs(bytes - this.reportedBytes) < limits.usageReportStepBytes

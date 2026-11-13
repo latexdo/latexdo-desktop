@@ -656,6 +656,34 @@ describe("real collaboration HTTP service", () => {
       (await request(base + "/admin-offer/" + guest.client, guest, "DELETE")).status,
     ).toBe(404);
   });
+  it("records sealed changes for editors and lists them for everyone, newest first", async () => {
+    const { id, token } = await shared();
+    await approveGuest(token);
+    await request(`/api/shares/${token}/open`, guest, "POST", {});
+    const route = `/api/projects/${id}/history`;
+    expect(
+      (await request(route, owner, "POST", { entries: [{ data: "sealed-1" }] })).status,
+    ).toBe(200);
+    expect(
+      (await request(route, guest, "POST", { entries: [{ data: "sealed-2" }] })).status,
+    ).toBe(200);
+    expect((await request(route, owner, "POST", { entries: [] })).status).toBe(400);
+    const page = await (await request(route, guest)).json();
+    expect(page.hasMore).toBe(false);
+    expect(page.entries.map((entry) => [entry.from, entry.data])).toEqual([
+      [guest.client, "sealed-2"],
+      [owner.client, "sealed-1"],
+    ]);
+    // A viewer reads the history but has no edits to add.
+    await request(`/api/shares/${token}/permissions`, owner, "PUT", {
+      clientId: guest.client,
+      role: "viewer",
+    });
+    expect((await request(route, guest)).status).toBe(200);
+    expect(
+      (await request(route, guest, "POST", { entries: [{ data: "sealed-3" }] })).status,
+    ).toBe(403);
+  });
   it("retires the invite when a collaborator is removed", async () => {
     const { token } = await shared();
     const base = `/api/shares/${token}`;

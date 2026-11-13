@@ -112,7 +112,7 @@ describe("offering tips in the app", () => {
     await act(() => vi.advanceTimersByTimeAsync(tipTickMs));
     expect(result.current.tip?.id).toBe("ai-choice");
     act(() => result.current.accept());
-    expect(onAction).toHaveBeenCalledWith("open-ai-settings");
+    expect(onAction).toHaveBeenCalledWith("tools.aiSettings");
     expect(result.current.tip).toBeNull();
     expect(loadTipsState().tips["ai-choice"]?.done).toBe(true);
   });
@@ -172,5 +172,77 @@ describe("FeatureTipCard", () => {
     view.rerender(<FeatureTipCard tip={jumpTip!} {...props} />);
     expect(screen.getByRole("button", { name: "Got it" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Not now" })).toBeNull();
+  });
+});
+
+describe("the tip catalogue", () => {
+  it("only offers buttons for commands the app handles", async () => {
+    const { readFileSync } = await import("node:fs");
+    const known =
+      readFileSync("electron/main.ts", "utf8") +
+      readFileSync("src/app/useAppMenuCommands.tsx", "utf8");
+    const ids = new Set<string>();
+    for (const tip of featureTips) {
+      expect(ids.has(tip.id), tip.id).toBe(false);
+      ids.add(tip.id);
+      expect(tip.body.length, tip.id).toBeLessThan(220);
+      if (!tip.action) continue;
+      expect(known, tip.action.command).toContain(`"${tip.action.command}"`);
+    }
+  });
+
+  it("keeps sharing tips for shared projects and tool tips for tools switched on", () => {
+    const sharingOnly = featureTips.filter((tip) => tip.requires === "shared");
+    expect(sharingOnly.map((tip) => tip.id)).toEqual(["history", "discussion"]);
+    const usedExcept = (id: string) => (featureId: string) =>
+      featureId !== featureTips.find((tip) => tip.id === id)!.featureId;
+    const now = start + 10 * day;
+    const offered = (id: string, available: string[] = []) =>
+      nextTip(
+        seasoned(),
+        now,
+        usedExcept(id),
+        featureTips,
+        new Set(available as never[]),
+      )?.id ?? null;
+    expect(offered("history")).toBeNull();
+    expect(offered("history", ["shared"])).toBe("history");
+    expect(offered("table-generator")).toBeNull();
+    expect(offered("table-generator", ["tableGenerator"])).toBe("table-generator");
+    expect(offered("notation-manager", ["notationManager"])).toBe("notation-manager");
+  });
+});
+
+describe("knowing what has been used", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(start + 3 * day);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    saveTipsState(seasoned());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("retires a tip once its feature is used from a menu, sidebar or tool", async () => {
+    const { result } = renderHook(() =>
+      useFeatureTips({
+        enabled: true,
+        inUse: { "ai.provider-choice": true },
+        onAction: vi.fn(),
+        onTurnOff: vi.fn(),
+      }),
+    );
+    act(() => {
+      emitProductEvent({ type: "synctex:navigated" });
+      emitProductEvent({ type: "command:run", command: "tools.reviewPaper" });
+      emitProductEvent({ type: "tool:opened", tool: "citationManager" });
+    });
+    await act(() => vi.advanceTimersByTimeAsync(tipTickMs));
+    // Not shared, and the first four are used: the reading theme is next.
+    expect(result.current.tip?.id).toBe("pdf-reading-theme");
   });
 });

@@ -729,6 +729,14 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       throw browserUnavailable("Cloud collaboration permissions");
     },
 
+    async getProjectHistory() {
+      throw browserUnavailable("Project history");
+    },
+
+    async sendProjectHistory() {
+      // The browser editor does not record history.
+    },
+
     async answerAdminOffer() {
       throw browserUnavailable("Cloud collaboration permissions");
     },

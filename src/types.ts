@@ -714,6 +714,44 @@ export interface AdminOffer {
   offeredAt: number;
 }
 
+/**
+ * One person's edit to one file in a shared project: a burst of typing,
+ * stored as a small line diff. Recorded by the author's app, end-to-end
+ * encrypted on the server.
+ */
+export interface HistoryChange {
+  path: string;
+  startedAt: number;
+  endedAt: number;
+  added: number;
+  removed: number;
+  /** Each line starts with " " (context), "+" (added) or "-" (removed). */
+  hunks: HistoryHunk[];
+}
+
+export interface HistoryHunk {
+  /** 1-based first line in the file before and after the change. */
+  oldStart: number;
+  newStart: number;
+  lines: string[];
+}
+
+export interface ProjectHistoryEntry {
+  seq: number;
+  /** When the server received it. */
+  at: number;
+  /** The author's client id. */
+  from: string;
+  change: HistoryChange;
+}
+
+export interface ProjectHistoryPage {
+  entries: ProjectHistoryEntry[];
+  hasMore: boolean;
+  /** Pass as `before` to load older changes. */
+  cursor: number | null;
+}
+
 export interface PermissionUpdate {
   clientId: string;
   role: CollaboratorRole;

@@ -1237,6 +1237,55 @@ describe("discussion", () => {
     });
   });
 
+  it("seals history changes and refuses ones moved to another author", async () => {
+    const key = newProjectKey();
+    let stored: Array<{ data: string }> = [];
+    const env = setup(
+      async (_path, method, _headers, body) => {
+        if (method === "POST") {
+          stored = JSON.parse(body ?? "{}").entries;
+          return ok({ recorded: stored.length });
+        }
+        return ok({
+          entries: [
+            { seq: 9, at: 2000, from: "ada", data: stored[0]!.data },
+            // The same sealed change, claimed for someone else.
+            { seq: 8, at: 1000, from: "eve", data: stored[0]!.data },
+            { seq: 7, at: 900, from: "ada", data: "damaged" },
+          ],
+          hasMore: true,
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const change = {
+      path: "main.tex",
+      startedAt: 1,
+      endedAt: 2,
+      added: 1,
+      removed: 0,
+      hunks: [{ oldStart: 3, newStart: 3, lines: ["+Secret sentence"] }],
+    };
+    const historyRoute = `${base}/history`;
+    await env.e2ee.request(
+      historyRoute,
+      "POST",
+      headers,
+      JSON.stringify({ entries: [change] }),
+      1000,
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.data).not.toContain("Secret sentence");
+    const page = JSON.parse(
+      (await env.e2ee.request(historyRoute, "GET", headers, undefined, 1000)).text,
+    );
+    expect(page).toEqual({
+      entries: [{ seq: 9, at: 2000, from: "ada", change }],
+      hasMore: true,
+      cursor: 7,
+    });
+  });
+
   it("forwards admin deletions and shows deleted messages without decrypting", async () => {
     const key = newProjectKey();
     const sent: Array<Record<string, unknown>> = [];

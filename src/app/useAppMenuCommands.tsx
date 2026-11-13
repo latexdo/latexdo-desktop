@@ -1,8 +1,9 @@
 import { figureToTikzExtensionId } from "../extensions";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { requestFind } from "../components/FindPanel";
 import { openPdfDiff } from "../features/pdfDiff/pdfDiffStore";
+import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
 import { flattenEntries } from "../features/project/projectUtils";
 import { toolTabIds, type ToolTabKey } from "../features/workspace/toolTabs";
 import type { LayoutPreset } from "../features/ai/aiConfig";
@@ -18,6 +19,8 @@ const sidebarCommands: Record<string, SidebarView> = {
   "view.sourceControl": "sourceControl",
   "view.extensions": "extensions",
   "view.ai": "ai",
+  "view.discussion": "discussion",
+  "view.history": "history",
 };
 
 const panelCommands: Record<string, PanelKind> = {
@@ -59,6 +62,7 @@ const insertCommands: Record<string, LatexToolbarCommand> = {
  */
 export function useAppMenuCommands(ctx: AppCtx20) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const runMenuCommandRef = useRef<(command: string) => void>(() => undefined);
   // The listener is registered once; commands always see the latest state.
   const latest = useRef(ctx);
   latest.current = ctx;
@@ -154,6 +158,8 @@ export function useAppMenuCommands(ctx: AppCtx20) {
     const run = async (command: string) => {
       const c = latest.current;
       if (c.requireLegalAcceptance()) return;
+      // Tells feature tips what has been used.
+      emitProductEvent({ type: "command:run", command });
 
       if (command.startsWith(editorCommandPrefix)) {
         runEditorAction(command.slice(editorCommandPrefix.length));
@@ -316,14 +322,26 @@ export function useAppMenuCommands(ctx: AppCtx20) {
       }
     };
 
-    return window.latexdo.onMenuCommand((command) => {
+    const runReporting = (command: string) => {
       void run(command).catch((error: unknown) => {
         latest.current.setStatusMessage(
           error instanceof Error ? error.message : "That command did not complete.",
         );
       });
-    });
+    };
+    runMenuCommandRef.current = runReporting;
+    const unsubscribe = window.latexdo.onMenuCommand(runReporting);
+    return () => {
+      runMenuCommandRef.current = () => undefined;
+      unsubscribe();
+    };
   }, []);
 
-  return { shortcutsOpen, setShortcutsOpen };
+  /** Runs a menu command from inside the app (e.g. a feature tip's button). */
+  const runMenuCommand = useCallback(
+    (command: string) => runMenuCommandRef.current(command),
+    [],
+  );
+
+  return { shortcutsOpen, setShortcutsOpen, runMenuCommand };
 }

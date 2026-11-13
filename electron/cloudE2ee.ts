@@ -131,6 +131,13 @@ interface SealedReaction {
 
 const maxReactionChars = 16;
 
+/** One change in the project history, bound to its author. */
+interface SealedHistoryChange {
+  v: 1;
+  from: string;
+  change: unknown;
+}
+
 const undecryptableMessage = "This message could not be decrypted.";
 
 class KeyMissingError extends Error {
@@ -533,6 +540,59 @@ export class CloudE2ee {
           sealedHeaders,
           JSON.stringify({ base64: base64(sealed) }),
         );
+      }
+    }
+
+    if (pathname === `${projectBase}/history`) {
+      if (method === "POST") {
+        const input = JSON.parse(body ?? "{}") as { entries?: unknown };
+        const changes = Array.isArray(input.entries) ? input.entries : [];
+        const from = headers["x-latexdo-client"] ?? "";
+        // Only the author, the time and the size are visible to the server.
+        const entries = await Promise.all(
+          changes.map(async (change) => ({
+            data: await encryptString(
+              key,
+              projectId,
+              "history",
+              JSON.stringify({ v: 1, from, change } satisfies SealedHistoryChange),
+            ),
+          })),
+        );
+        return send(path, method, sealedHeaders, JSON.stringify({ entries }));
+      }
+      if (method === "GET") {
+        const response = await send(path, method, sealedHeaders);
+        if (response.status !== 200) return response;
+        const page = JSON.parse(response.text) as {
+          entries?: Array<{ seq: number; at: number; from: string; data: string }>;
+          hasMore?: boolean;
+        };
+        const raw = page.entries ?? [];
+        const entries = [];
+        for (const entry of raw) {
+          try {
+            const sealed = JSON.parse(
+              await decryptString(key, projectId, "history", entry.data),
+            ) as Partial<SealedHistoryChange>;
+            // A change moved to another author by the server is refused.
+            if (sealed.v !== 1 || sealed.from !== entry.from || !sealed.change)
+              continue;
+            entries.push({
+              seq: entry.seq,
+              at: entry.at,
+              from: entry.from,
+              change: sealed.change,
+            });
+          } catch {
+            // Damaged or from another project: left out.
+          }
+        }
+        return reply(200, {
+          entries,
+          hasMore: page.hasMore === true,
+          cursor: raw.length ? Math.min(...raw.map((entry) => entry.seq)) : null,
+        });
       }
     }
 

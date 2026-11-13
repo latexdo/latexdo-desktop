@@ -8,6 +8,7 @@ import type {
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
 import { useAdminOffers } from "../collaboration/adminOffers";
+import { HistoryRecorder, HistoryUploader } from "../features/history/historyRecorder";
 import {
   bookmarkKey,
   monacoThemeFor,
@@ -110,8 +111,44 @@ export function useAppCollaboration(ctx: AppCtx08) {
   // Set by the discussion; the live connection tells it when to refetch.
   const discussionSignalRef = useRef<(seq: number) => void>(() => undefined);
 
+  // The change history: this person's edits, recorded per open shared file
+  // and sent in batches (see features/history).
+  const historyRecorderRef = useRef<HistoryRecorder | null>(null);
+  const historyUploaderRef = useRef<{
+    projectId: string;
+    uploader: HistoryUploader;
+  } | null>(null);
+  const historyUploaderFor = useCallback((forProject: string) => {
+    const current = historyUploaderRef.current;
+    if (current?.projectId === forProject) return current.uploader;
+    void current?.uploader.flush();
+    const uploader = new HistoryUploader((changes) =>
+      window.latexdo.sendProjectHistory(forProject, changes),
+    );
+    historyUploaderRef.current = { projectId: forProject, uploader };
+    return uploader;
+  }, []);
+  useEffect(() => {
+    // Leaving or hiding the window: send what is waiting.
+    const send = () => {
+      historyRecorderRef.current?.flush();
+      void historyUploaderRef.current?.uploader.flush();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") send();
+    };
+    window.addEventListener("beforeunload", send);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", send);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
+    historyRecorderRef.current?.dispose();
+    historyRecorderRef.current = null;
     collaborationBindingRef.current?.destroy();
     collaborationBindingRef.current = null;
   }, []);
@@ -172,9 +209,19 @@ export function useAppCollaboration(ctx: AppCtx08) {
             return;
           }
 
+          // Shared copies keep a history of who changed what.
+          const recorder = window.latexdo.hasDiscussion?.(bindingProjectId)
+            ? new HistoryRecorder({
+                path: document.relativePath,
+                onChange: (change) => historyUploaderFor(bindingProjectId).add(change),
+              })
+            : null;
+          historyRecorderRef.current?.dispose();
+          historyRecorderRef.current = recorder;
           collaborationBindingRef.current = new MonacoCollaborationBinding({
             editor,
             mutationOrigin: editorMutationOriginRef.current,
+            onTextTransaction: recorder ? (event) => recorder.record(event) : undefined,
             projectId: bindingProjectId,
             relativePath: document.relativePath,
             shareToken: token,
@@ -274,6 +321,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
       collaborationState.enabled,
       collaborationState.token,
       disposeCollaborationBinding,
+      historyUploaderFor,
     ],
   );
 

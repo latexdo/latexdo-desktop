@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import { isReviewDataPath, mergeReviewContent } from "./reviewData.mjs";
 import {
+  HistoryError,
+  appendHistory,
+  emptyHistory,
+  historyEntriesFrom,
+  listHistory,
+  normalizeHistory,
+} from "./history.mjs";
+import {
   AdminOfferError,
   adminOfferFor,
   answerAdminOffer,
@@ -113,6 +121,8 @@ const messageDiscussion = 7;
 const rooms = new Map();
 // Each project's discussion, loaded on first use and saved on every change.
 const discussions = new Map();
+/** Change histories loaded so far, by project id. */
+const histories = new Map();
 const discussionBursts = new Map();
 
 class HttpError extends Error {
@@ -226,6 +236,10 @@ function projectMetaPath(projectId) {
 
 function projectDiscussionPath(projectId) {
   return path.join(projectDir(projectId), "discussion.json");
+}
+
+function projectHistoryPath(projectId) {
+  return path.join(projectDir(projectId), "history.json");
 }
 
 function sharesIndexPath() {
@@ -1307,6 +1321,7 @@ async function handleProjectRoute(request, response, url, parts) {
       }
     }
     discussions.delete(projectId);
+    histories.delete(projectId);
     await rm(projectDir(projectId), { recursive: true, force: true });
     if (knownProjectCount !== null) {
       knownProjectCount = Math.max(0, knownProjectCount - 1);
@@ -1459,6 +1474,11 @@ async function handleProjectRoute(request, response, url, parts) {
 
   if (route === "discussion" || route === "discussion/receipts") {
     await handleDiscussionRoute(request, response, url, projectId, route);
+    return;
+  }
+
+  if (route === "history") {
+    await handleHistoryRoute(request, response, url, projectId);
     return;
   }
 
@@ -1720,6 +1740,54 @@ async function loadDiscussion(projectId) {
 
 async function saveDiscussion(projectId, state) {
   await atomicWriteJson(projectDiscussionPath(projectId), state);
+}
+
+// --- Change history ---------------------------------------------------------
+
+async function loadHistory(projectId) {
+  const cached = histories.get(projectId);
+  if (cached) return cached;
+  const raw = safeJsonParse(
+    await readFile(projectHistoryPath(projectId), "utf8").catch(() => ""),
+    null,
+  );
+  const state = raw ? normalizeHistory(raw) : emptyHistory();
+  histories.set(projectId, state);
+  return state;
+}
+
+/** Who changed which file and when (each change sealed by its author's app). */
+async function handleHistoryRoute(request, response, url, projectId) {
+  try {
+    if (request.method === "GET") {
+      await authorizeProject(request, url, projectId, "viewer");
+      const state = await loadHistory(projectId);
+      sendJson(
+        response,
+        request,
+        200,
+        listHistory(state, {
+          before: url.searchParams.get("before") ?? undefined,
+          limit: url.searchParams.get("limit") ?? undefined,
+        }),
+      );
+      return;
+    }
+    if (request.method === "POST") {
+      // Viewers cannot edit, so they have no changes to record.
+      const { identity } = await authorizeProject(request, url, projectId, "editor");
+      const data = historyEntriesFrom(await readJsonBody(request));
+      const state = await loadHistory(projectId);
+      appendHistory(state, { from: identity.clientId, data, now: now() });
+      await atomicWriteJson(projectHistoryPath(projectId), state);
+      sendJson(response, request, 200, { recorded: data.length });
+      return;
+    }
+    throw new HttpError(405, "Method not allowed.");
+  } catch (error) {
+    if (error instanceof HistoryError) throw new HttpError(error.status, error.message);
+    throw error;
+  }
 }
 
 /** Everyone with access to the project, by client id. */

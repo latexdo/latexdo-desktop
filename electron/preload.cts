@@ -12,6 +12,8 @@ import type {
   DiscussionMessage,
   DiscussionMessageInput,
   DiscussionPage,
+  HistoryChange,
+  ProjectHistoryPage,
   DiscussionQuery,
   DiscussionReceiptUpdate,
   DocxImportResult,
@@ -1739,6 +1741,40 @@ const api = {
     return cloudRequestJson<{ message: DiscussionMessage; seq: number }>(
       `/api/projects/${encodeURIComponent(projectId)}/discussion`,
       { method: "POST", body: JSON.stringify(input) },
+      token,
+    );
+  },
+  /** The shared project's change history, newest first. */
+  getProjectHistory: (
+    projectId: string,
+    query: { before?: number } = {},
+  ): Promise<ProjectHistoryPage> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      return Promise.reject(new Error("This project is not shared."));
+    }
+    const search =
+      typeof query.before === "number" && Number.isSafeInteger(query.before)
+        ? `?before=${query.before}`
+        : "";
+    return cloudRequestJson<ProjectHistoryPage>(
+      `/api/projects/${encodeURIComponent(projectId)}/history${search}`,
+      {},
+      token,
+    );
+  },
+  /** Records this person's changes in the shared project's history. */
+  sendProjectHistory: async (
+    projectId: string,
+    changes: HistoryChange[],
+  ): Promise<void> => {
+    const token = cloudShareTokenForProject(projectId);
+    if (!isCloudProject(projectId) || !token) {
+      throw new Error("This project is not shared.");
+    }
+    await cloudRequestJson(
+      `/api/projects/${encodeURIComponent(projectId)}/history`,
+      { method: "POST", body: JSON.stringify({ entries: changes }) },
       token,
     );
   },

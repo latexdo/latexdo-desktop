@@ -57,6 +57,7 @@ import { useAppSessionRestore } from "./app/useAppSessionRestore";
 import { useAppPaperReview } from "./app/useAppPaperReview";
 import { useAppViewLayout } from "./app/useAppViewLayout";
 import { useAppMenuCommands } from "./app/useAppMenuCommands";
+import { HistoryPanel } from "./components/HistoryPanel";
 import { useFeatureTips } from "./features/onboarding/tips/useFeatureTips";
 import { FeatureTipCard } from "./features/onboarding/tips/FeatureTipCard";
 import { useAppDiscussion } from "./app/useAppDiscussion";
@@ -142,9 +143,12 @@ export default function App() {
         ctx.aiConfig.selection.mode !== "latexdo",
       "pdf.reading-theme": ctx.settings.pdfReadingTheme !== "original",
     },
-    onAction: (action) => {
-      if (action === "open-ai-settings") ctx.openAiSettings();
+    available: {
+      shared: ctx.discussion.available,
+      tableGenerator: ctx.extensionToolAvailability.tableGenerator,
+      notationManager: ctx.extensionToolAvailability.notationManager,
     },
+    onAction: (command) => ctx.runMenuCommand(command),
     onTurnOff: () => {
       ctx.setSettings((current) => ({ ...current, featureTips: false }));
       ctx.setStatusMessage(
@@ -391,7 +395,9 @@ export default function App() {
                           ? "Reviews"
                           : activeSidebar === "discussion"
                             ? "Discussion"
-                            : "Extensions"}
+                            : activeSidebar === "history"
+                              ? "History"
+                              : "Extensions"}
                   </span>
                   <div>
                     {activeSidebar === "enterprise" ? (
@@ -546,6 +552,31 @@ export default function App() {
                   discussion={ctx.discussion}
                   onOpenLink={openExternalLink}
                   onOpenShare={ctx.openShareDialog}
+                />
+              ) : activeSidebar === "history" ? (
+                <HistoryPanel
+                  available={ctx.discussion.available}
+                  entries={ctx.projectHistory.entries}
+                  loading={ctx.projectHistory.loading}
+                  error={ctx.projectHistory.error}
+                  hasMore={ctx.projectHistory.hasMore}
+                  names={ctx.discussion.names}
+                  me={ctx.discussion.me}
+                  onRefresh={() => void ctx.projectHistory.refresh()}
+                  onLoadOlder={() => void ctx.projectHistory.loadOlder()}
+                  onOpen={(path, line) =>
+                    void ctx.handleOpenProjectSearchMatch({
+                      id: `history:${path}:${line}`,
+                      path,
+                      line,
+                      column: 1,
+                      endColumn: 1,
+                      lineText: "",
+                      matchText: "",
+                      before: [],
+                      after: [],
+                    })
+                  }
                 />
               ) : null}
             </aside>

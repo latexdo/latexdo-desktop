@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useDiscussion } from "../features/discussion/useDiscussion";
+import { useProjectHistory } from "../features/history/useProjectHistory";
 import { loadNotificationMode } from "../features/notifications/notifications";
 import type { AppCtx21 } from "./appContext";
 
@@ -45,5 +46,12 @@ export function useAppDiscussion(ctx: AppCtx21) {
     [],
   );
 
-  return { discussion, discussionVisible };
+  // Who changed what: the shared project's change history.
+  const historyVisible = sidebarVisible && activeSidebar === "history";
+  const projectHistory = useProjectHistory({
+    projectId: enabled && projectId ? projectId : null,
+    visible: historyVisible,
+  });
+
+  return { discussion, discussionVisible, projectHistory };
 }

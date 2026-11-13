@@ -10,7 +10,7 @@ import {
   recordTipShown,
   saveTipsState,
   type FeatureTip,
-  type FeatureTipAction,
+  type TipRequirement,
 } from "./featureTips";
 
 /** How often active time is counted and a tip considered. */
@@ -18,11 +18,23 @@ export const tipTickMs = 60_000;
 /** A tip waits until the person has stopped typing for this long. */
 const quietAfterTypingMs = 15_000;
 
-/** Product events that mean a feature was used. */
-const eventFeatures: Partial<Record<ProductEvent["type"], string>> = {
-  "synctex:navigated": "pdf.source-jump",
-  "pdf:listen-opened": "pdf.listen",
-};
+/** The feature an event shows was used, if any. */
+export function featureForEvent(event: ProductEvent): string | null {
+  switch (event.type) {
+    case "synctex:navigated":
+      return "pdf.source-jump";
+    case "pdf:listen-opened":
+      return "pdf.listen";
+    case "command:run":
+      return `command.${event.command}`;
+    case "sidebar:opened":
+      return `sidebar.${event.view}`;
+    case "tool:opened":
+      return `tool.${event.tool}`;
+    default:
+      return null;
+  }
+}
 
 function markUsed(featureId: string): void {
   if (!featureUsed(featureId)) markFeatureDiscovery(featureId, "tried");
@@ -45,7 +57,10 @@ export interface UseFeatureTipsOptions {
   enabled: boolean;
   /** Features in use right now (e.g. a non-default AI chosen), by feature id. */
   inUse: Record<string, boolean>;
-  onAction: (action: FeatureTipAction) => void;
+  /** What tips may rely on: a shared project, tools switched on. */
+  available?: Partial<Record<TipRequirement, boolean>>;
+  /** Runs a menu command (a tip's button). */
+  onAction: (command: string) => void;
   /** Turns the setting off. */
   onTurnOff: () => void;
 }
@@ -53,9 +68,12 @@ export interface UseFeatureTipsOptions {
 export function useFeatureTips({
   enabled,
   inUse,
+  available = {},
   onAction,
   onTurnOff,
 }: UseFeatureTipsOptions) {
+  const availableRef = useRef(available);
+  availableRef.current = available;
   const [tip, setTip] = useState<FeatureTip | null>(null);
   const tipRef = useRef<FeatureTip | null>(null);
   tipRef.current = tip;
@@ -77,7 +95,7 @@ export function useFeatureTips({
   useEffect(
     () =>
       subscribeProductEvents((event) => {
-        const featureId = eventFeatures[event.type];
+        const featureId = featureForEvent(event);
         if (!featureId) return;
         markUsed(featureId);
         // Found it while the tip was up: job done.
@@ -112,7 +130,12 @@ export function useFeatureTips({
       let state = loadTipsState(now);
       state = { ...state, activeMs: state.activeMs + tipTickMs };
       if (!tipRef.current && quietMoment(lastKeyAtRef.current, now)) {
-        const next = nextTip(state, now);
+        const ready = new Set(
+          (Object.keys(availableRef.current) as TipRequirement[]).filter(
+            (key) => availableRef.current[key],
+          ),
+        );
+        const next = nextTip(state, now, undefined, undefined, ready);
         if (next) {
           state = recordTipShown(state, next, now);
           markFeatureDiscovery(next.featureId, "introduced");
@@ -130,7 +153,7 @@ export function useFeatureTips({
     if (!current) return;
     saveTipsState(recordTipDone(loadTipsState(), current));
     setTip(null);
-    if (current.action) onAction(current.action.id);
+    if (current.action) onAction(current.action.command);
   }, [onAction]);
 
   /** "Not now": it may come back once, much later. */
