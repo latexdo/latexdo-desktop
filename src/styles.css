@@ -33992,3 +33992,23 @@ body.pane-resizing-row .preview-pane > * {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* ===== Formatting toolbar: legible icons (bright, slightly larger, bolder) ===== */
+.source-toolbar .tex-format-button {
+  width: 30px;
+  height: 28px;
+  color: var(--text-primary);
+}
+.tex-format-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.25;
+}
+.source-toolbar .tex-format-button.active,
+.source-toolbar .tex-format-button[aria-pressed="true"] {
+  color: var(--accent);
+}
+.tex-format-divider {
+  height: 20px;
+  background: color-mix(in srgb, var(--text-secondary) 40%, transparent);
+}
