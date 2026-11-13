@@ -475,6 +475,26 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+/* Other people's emoji in the gutter, on the line their cursor is on (the
+   emoji and color per person are generated while they are connected). */
+.monaco-editor .yRemoteGlyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: default;
+}
+
+.monaco-editor .yRemoteGlyphMany::after {
+  margin-left: 1px;
+  content: "+";
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
 @media (max-width: 720px) {
   .workspace {
     grid-template-areas:

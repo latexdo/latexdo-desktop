@@ -271,8 +271,9 @@ export function renderStatusbarGroup(ctx: AppCtx) {
           {others.slice(0, 6).map((user) => {
             const look = collaboratorLook(user.clientId);
             const state = presenceState(user);
+            const line = ctx.collaboratorLines[user.clientId];
             const where = user.currentFile
-              ? `in ${pathForDisplay(user.currentFile)}`
+              ? `in ${pathForDisplay(user.currentFile)}${line ? `, line ${line}` : ""}`
               : "not in a file";
             const status =
               state === "away" ? "away, LatexDo is open but not in use" : "active now";
@@ -283,10 +284,15 @@ export function renderStatusbarGroup(ctx: AppCtx) {
                 className="statusbar-avatar"
                 data-presence={state}
                 style={{ borderColor: look.color, background: `${look.color}33` }}
-                onClick={() =>
-                  user.currentFile ? void ctx.openGitFile(user.currentFile) : undefined
-                }
-                title={`${user.name || "Guest"} — ${presenceLabels[state]} · ${where}${user.currentFile ? " (click to go there)" : ""}`}
+                onClick={() => {
+                  // In this file: jump to their cursor. Elsewhere: open their
+                  // file, then jump once their cursor shows up.
+                  if (ctx.revealCollaborator(user.clientId)) return;
+                  if (!user.currentFile) return;
+                  ctx.followCollaboratorOnOpen(user.clientId);
+                  void ctx.openGitFile(user.currentFile);
+                }}
+                title={`${user.name || "Guest"} — ${presenceLabels[state]} · ${where}${user.currentFile ? " (click to go to them)" : ""}`}
                 aria-label={`${user.name || "Guest"}, ${status}, ${where}`}
               >
                 {look.emoji}

@@ -266,7 +266,12 @@ export class LiveFile {
   ) {
     const { identity } = session;
     this.awareness.setLocalState({
-      user: { name: identity.name, color: identity.color, emoji: identity.emoji },
+      user: {
+        name: identity.name,
+        color: identity.color,
+        emoji: identity.emoji,
+        clientId: identity.clientId,
+      },
       file: path,
     });
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {

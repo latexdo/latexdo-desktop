@@ -8,6 +8,8 @@ import type {
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
 import { useAdminOffers } from "../collaboration/adminOffers";
+import { collaborationClientId } from "../collaboration/collaborationStorage";
+import type { RemoteCursorPosition } from "../collaboration/remoteCursors";
 import { HistoryRecorder, HistoryUploader } from "../features/history/historyRecorder";
 import {
   bookmarkKey,
@@ -33,6 +35,16 @@ import type { AppCtx08 } from "./appContext";
 // The backstop for join requests when no live connection is open to push them
 // (an open document hears of them at once). Slow, to spare the daily allowance.
 const joinRequestPollMs = 30_000;
+// Clicking someone in another file opens it, then jumps to them once their
+// cursor arrives; a late arrival after this long no longer moves the view.
+const followCollaboratorMs = 15_000;
+
+function sameLines(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
+  );
+}
 
 export function useAppCollaboration(ctx: AppCtx08) {
   const {
@@ -145,7 +157,55 @@ export function useAppCollaboration(ctx: AppCtx08) {
     };
   }, []);
 
+  // The line each person's cursor is on in the open file, by client id.
+  const [collaboratorLines, setCollaboratorLines] = useState<Record<string, number>>(
+    {},
+  );
+  const followCollaboratorRef = useRef<{ clientId: string; until: number } | null>(
+    null,
+  );
+
+  const showRemoteCursors = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, cursors: RemoteCursorPosition[]) => {
+      const model = editor.getModel();
+      const lines: Record<string, number> = {};
+      if (model) {
+        for (const cursor of cursors) {
+          if (cursor.clientId) {
+            lines[cursor.clientId] = model.getPositionAt(cursor.index).lineNumber;
+          }
+        }
+      }
+      setCollaboratorLines((current) => (sameLines(current, lines) ? current : lines));
+      const follow = followCollaboratorRef.current;
+      if (!follow) return;
+      if (Date.now() > follow.until) {
+        followCollaboratorRef.current = null;
+      } else if (lines[follow.clientId] !== undefined) {
+        followCollaboratorRef.current = null;
+        collaborationBindingRef.current?.revealCollaborator(follow.clientId);
+      }
+    },
+    [collaborationBindingRef],
+  );
+
+  /** Jumps to a person's cursor in the open file; false when they are elsewhere. */
+  const revealCollaborator = useCallback(
+    (clientId: string): boolean =>
+      collaborationBindingRef.current?.revealCollaborator(clientId) ?? false,
+    [collaborationBindingRef],
+  );
+
+  /** Jump to this person when their cursor shows up in the file being opened. */
+  const followCollaboratorOnOpen = useCallback((clientId: string) => {
+    followCollaboratorRef.current = {
+      clientId,
+      until: Date.now() + followCollaboratorMs,
+    };
+  }, []);
+
   const disposeCollaborationBinding = useCallback(() => {
+    setCollaboratorLines((current) => (Object.keys(current).length ? {} : current));
     collaborationBindingRequestIdRef.current += 1;
     historyRecorderRef.current?.dispose();
     historyRecorderRef.current = null;
@@ -227,8 +287,10 @@ export function useAppCollaboration(ctx: AppCtx08) {
             shareToken: token,
             apiBaseUrl: bindingApiBaseUrl,
             clientName: collaborationDisplayName,
+            clientId: collaborationClientId(),
             color: collaboration.color,
             emoji: collaboration.emoji,
+            onRemoteCursorsChange: (cursors) => showRemoteCursors(editor, cursors),
             onStatusChange: (status) => {
               setLiveConnection(status);
               if (status === "connected") {
@@ -322,6 +384,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
       collaborationState.token,
       disposeCollaborationBinding,
       historyUploaderFor,
+      showRemoteCursors,
     ],
   );
 
@@ -1329,5 +1392,8 @@ export function useAppCollaboration(ctx: AppCtx08) {
     loadCollaborationPermissions,
     canTransferAdmin,
     adminOffers,
+    collaboratorLines,
+    revealCollaborator,
+    followCollaboratorOnOpen,
   };
 }

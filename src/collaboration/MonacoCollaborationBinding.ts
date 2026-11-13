@@ -10,6 +10,12 @@ import type { CollaborationJoinRequest, CollaboratorPresence } from "../types";
 import type { EditOrigin } from "../features/editor/nextEdit/nextEditTypes";
 import type { EditorMutationOrigin } from "./editProvenance";
 import { remoteCursorCss, type RemoteCursor } from "./collaboratorLook";
+import {
+  remoteCursorDecorations,
+  remoteCursorPositions,
+  revealRemoteCursor,
+  type RemoteCursorPosition,
+} from "./remoteCursors";
 
 export interface CollaborationTextTransaction {
   kind: "local" | "remote";
@@ -29,6 +35,8 @@ export interface MonacoCollaborationBindingOptions extends CollaborationRoomOpti
   onProjectChanged?: (revision: number) => void;
   onJoinRequests?: (pending: CollaborationJoinRequest[]) => void;
   onDiscussionChanged?: (seq: number) => void;
+  /** The other people's cursors in this file moved, came or left. */
+  onRemoteCursorsChange?: (cursors: RemoteCursorPosition[]) => void;
 }
 
 export class MonacoCollaborationBinding {
@@ -45,12 +53,17 @@ export class MonacoCollaborationBinding {
   /** Colors and labels the other people's cursors in this editor. */
   private cursorStyle: HTMLStyleElement | null = null;
   private remoteCursorRenderQueued = false;
+  /** Each person's emoji in the gutter and color on the scrollbar. */
+  private remoteMarkers: monaco.editor.IEditorDecorationsCollection | null = null;
+  private remoteCursors: RemoteCursorPosition[] = [];
+  private readonly onRemoteCursorsChange?: (cursors: RemoteCursorPosition[]) => void;
 
   constructor(options: MonacoCollaborationBindingOptions) {
     this.key = `${options.projectId}:${options.relativePath}:${options.shareToken ?? ""}:${options.clientName}`;
     this.editor = options.editor;
     this.mutationOrigin = options.mutationOrigin ?? null;
     this.onTextTransaction = options.onTextTransaction;
+    this.onRemoteCursorsChange = options.onRemoteCursorsChange;
     this.client = new CollaborationClient({
       ...options,
       onSynced: () => {
@@ -78,6 +91,9 @@ export class MonacoCollaborationBinding {
     this.client.awareness.off("change", this.queueRemoteCursorRender);
     this.cursorStyle?.remove();
     this.cursorStyle = null;
+    this.remoteMarkers?.clear();
+    this.remoteMarkers = null;
+    this.remoteCursors = [];
     this.releaseTransactionOrigin();
     this.client.doc.off("beforeObserverCalls", this.beforeObserverCalls);
     this.client.doc.off("afterTransaction", this.afterTransaction);
@@ -118,6 +134,7 @@ export class MonacoCollaborationBinding {
     this.updateSelectionAwareness();
     this.client.awareness.on("change", this.updateCursorStyle);
     this.updateCursorStyle();
+    this.queueRemoteCursorRender();
   }
 
   private queueRemoteCursorRender = (): void => {
@@ -125,9 +142,40 @@ export class MonacoCollaborationBinding {
     this.remoteCursorRenderQueued = true;
     queueMicrotask(() => {
       this.remoteCursorRenderQueued = false;
-      if (!this.disposed) this.binding?._rerenderDecorations();
+      if (this.disposed) return;
+      this.binding?._rerenderDecorations();
+      this.renderRemoteMarkers();
     });
   };
+
+  /** The other people's cursors in this file, as last seen. */
+  get cursors(): readonly RemoteCursorPosition[] {
+    return this.remoteCursors;
+  }
+
+  /** Scrolls to where a person is; false when they are not in this file. */
+  revealCollaborator(clientId: string): boolean {
+    if (this.disposed || !this.binding) return false;
+    return revealRemoteCursor(this.editor, this.remoteCursors, clientId);
+  }
+
+  private renderRemoteMarkers(): void {
+    const model = this.editor.getModel();
+    if (!this.binding || !model) return;
+    this.remoteCursors = remoteCursorPositions(
+      this.client.awareness,
+      this.client.doc,
+      this.client.text,
+    );
+    const decorations = remoteCursorDecorations(model, this.remoteCursors);
+    if (!this.remoteMarkers) {
+      if (typeof this.editor.createDecorationsCollection !== "function") return;
+      this.remoteMarkers = this.editor.createDecorationsCollection(decorations);
+    } else {
+      this.remoteMarkers.set(decorations);
+    }
+    this.onRemoteCursorsChange?.(this.remoteCursors);
+  }
 
   private updateCursorStyle = (): void => {
     if (this.disposed || typeof document === "undefined") return;
