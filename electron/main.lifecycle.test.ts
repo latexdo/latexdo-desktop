@@ -790,6 +790,42 @@ describe("automated release checks", () => {
   });
 });
 
+describe("join links from the co-author web page", () => {
+  it("queues a link that opened LatexDo and hands it to the window once", async () => {
+    const boot = await bootMain({ ready: false });
+    const preventDefault = vi.fn();
+    boot.appEvent("open-url", { preventDefault }, "https://evil.example/join/abc");
+    boot.appEvent("open-url", { preventDefault }, "latexdo-app://join/abc_DEF-1");
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    H.resolveReady();
+    await vi.waitFor(() =>
+      expect(H.handlers.has("collab:take-join-request")).toBe(true),
+    );
+    expect(await boot.call("collab:take-join-request")).toBe(
+      "latexdo-invite:abc_DEF-1",
+    );
+    expect(await boot.call("collab:take-join-request")).toBeNull();
+  });
+
+  it("brings the window forward for a link from a second launch", async () => {
+    const boot = await bootMain();
+    const window = boot.window;
+    window.minimized = true;
+    boot.appEvent("second-instance", {}, ["LatexDo.exe", "latexdo-app://join/xyz"]);
+    expect(window.restore).toHaveBeenCalled();
+    expect(window.focus).toHaveBeenCalled();
+    expect(window.webContents.send).toHaveBeenCalledWith("collab:join-requested");
+    expect(await boot.call("collab:take-join-request")).toBe("latexdo-invite:xyz");
+  });
+
+  it("claims the link scheme only in the installed app", async () => {
+    await bootMain();
+    expect(H.setAsDefaultProtocolClient).not.toHaveBeenCalled();
+    await bootMain({ packaged: true });
+    expect(H.setAsDefaultProtocolClient).toHaveBeenCalledWith("latexdo-app");
+  });
+});
+
 describe("opening folders and Research Spaces from the system", () => {
   it("queues paths opened before startup and opens them on request", async () => {
     let folder = "";

@@ -46,6 +46,8 @@ export interface MainHarness {
   exit: ReturnType<typeof vi.fn<Fn>>;
   setPath: ReturnType<typeof vi.fn<Fn>>;
   dockSetIcon: ReturnType<typeof vi.fn<Fn>>;
+  setAsDefaultProtocolClient: ReturnType<typeof vi.fn<Fn>>;
+  isDefaultProtocolClient: ReturnType<typeof vi.fn<Fn>>;
   menu: ReturnType<typeof vi.fn<Fn>>;
   setApplicationMenu: ReturnType<typeof vi.fn<Fn>>;
   protocol: ReturnType<typeof vi.fn<Fn>>;
@@ -103,6 +105,8 @@ function createHarness(): MainHarness {
     exit: vi.fn(),
     setPath: vi.fn(),
     dockSetIcon: vi.fn(),
+    setAsDefaultProtocolClient: vi.fn(() => true),
+    isDefaultProtocolClient: vi.fn(() => false),
     menu: vi.fn(),
     setApplicationMenu: vi.fn(),
     protocol: vi.fn(),
@@ -249,6 +253,8 @@ export function electronModule() {
       dock: { setIcon: H.dockSetIcon, setMenu: vi.fn() },
       setAboutPanelOptions: vi.fn(),
       setPath: H.setPath,
+      setAsDefaultProtocolClient: H.setAsDefaultProtocolClient,
+      isDefaultProtocolClient: H.isDefaultProtocolClient,
     },
     BrowserWindow: FakeWindow,
     dialog: {

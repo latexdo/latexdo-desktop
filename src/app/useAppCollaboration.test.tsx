@@ -343,6 +343,32 @@ describe("collaboration sharing workflow", () => {
     await h.result.current.returnToOwnFolder();
     expect(h.state.shareStartError).toContain("Could not find your folder");
   });
+  it("opens the Join field filled in when a join link opens the app", async () => {
+    api.takeJoinRequest = vi.fn().mockResolvedValue("latexdo-invite:abc");
+    let deliver: () => void = () => undefined;
+    const stop = vi.fn();
+    api.onJoinRequested = vi.fn((callback: () => void) => {
+      deliver = callback;
+      return stop;
+    });
+    const h = setup();
+    await vi.waitFor(() => expect(h.state.shareDialogOpen).toBe(true));
+    expect(h.state.joinTokenDraft).toBe("latexdo-invite:abc");
+    expect(h.state.statusMessage).toContain("Press Join");
+    // The person confirms: nothing is joined automatically.
+    expect(api.joinCollaboration).not.toHaveBeenCalled();
+
+    // A second link while LatexDo is open.
+    api.takeJoinRequest.mockResolvedValue("latexdo-invite:second");
+    deliver();
+    await vi.waitFor(() =>
+      expect(h.state.joinTokenDraft).toBe("latexdo-invite:second"),
+    );
+    h.unmount();
+    expect(stop).toHaveBeenCalled();
+    delete api.takeJoinRequest;
+    delete api.onJoinRequested;
+  });
   it("exports the shared project to a new folder and opens it when asked", async () => {
     const h = setup({ collaborationState: { ...shared, projectName: "Thesis" } });
     api.exportSharedProject.mockResolvedValue({

@@ -186,6 +186,7 @@ import {
 import { runUpdateVersionProbe } from "./updateVersionProbe.js";
 import { readBuildInfo } from "./buildInfo.js";
 import { createCrashReporter } from "./crashReports.js";
+import { deepLinkScheme, inviteFromArgv, inviteFromDeepLink } from "./deepLink.js";
 import {
   acceleratorFromInput,
   acceleratorSignature,
@@ -6782,6 +6783,40 @@ async function openRequestedPath(
   throw new Error(`LatexDo cannot open ${path.basename(requested)}.`);
 }
 
+// Join links from the co-author web page ("Open in LatexDo"), waiting for the
+// renderer: it opens the Join field filled in and the person confirms, so a
+// web page can never join a project on its own.
+const requestedJoinInvites: string[] = [];
+const joinRequestedChannel = "collab:join-requested";
+
+function requestJoin(invite: string): void {
+  requestedJoinInvites.splice(0, requestedJoinInvites.length, invite);
+  if (!appWindowsAvailable) return;
+  const [window] = BrowserWindow.getAllWindows();
+  if (!window) {
+    // The new window asks for the invite once it has loaded.
+    createWindow();
+    return;
+  }
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  window.webContents.send(joinRequestedChannel);
+}
+
+// macOS delivers latexdo-app:// links as events (also before the app is ready).
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  const invite = inviteFromDeepLink(url);
+  if (invite) requestJoin(invite);
+});
+
+// Windows and Linux start the app with the link on the command line.
+if (!startupAutomationTest) {
+  const invite = inviteFromArgv(process.argv);
+  if (invite) requestJoin(invite);
+}
+
 // macOS delivers files double-clicked in Finder (also before the app is ready).
 app.on("open-file", (event, filePath) => {
   event.preventDefault();
@@ -6795,6 +6830,11 @@ if (!startupAutomationTest) {
 
 app.on("second-instance", (_event, argv) => {
   if (!appWindowsAvailable) return;
+  const invite = inviteFromArgv(argv);
+  if (invite) {
+    requestJoin(invite);
+    return;
+  }
   const [requested] = openPathsFromArgv(argv);
   if (requested) {
     requestOpenPath(requested);
@@ -6913,6 +6953,10 @@ async function startApp(): Promise<void> {
     expectIpcArgs("project:reopen-last", rawArgs, 0);
     const window = BrowserWindow.fromWebContents(event.sender) ?? null;
     return finishOpeningProject(await reopenLastProject(window));
+  });
+  ipcMain.handle("collab:take-join-request", async (_event, ...rawArgs: unknown[]) => {
+    expectIpcArgs("collab:take-join-request", rawArgs, 0);
+    return requestedJoinInvites.shift() ?? null;
   });
   ipcMain.handle("project:open-requested", async (event, ...rawArgs: unknown[]) => {
     expectIpcArgs("project:open-requested", rawArgs, 0);
@@ -8612,6 +8656,18 @@ async function startApp(): Promise<void> {
     }
     return projectGarbageCollector.collectNow(projectId, options);
   });
+
+  // "Open in LatexDo" on the co-author web page. Only the installed app
+  // claims the scheme: in development it would point the OS at bare Electron.
+  if (app.isPackaged && !startupAutomationTest) {
+    try {
+      if (!app.isDefaultProtocolClient(deepLinkScheme)) {
+        app.setAsDefaultProtocolClient(deepLinkScheme);
+      }
+    } catch (error) {
+      console.warn("[latexdo] could not register join links", error);
+    }
+  }
 
   const window = createWindow();
   appWindowsAvailable = true;

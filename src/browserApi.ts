@@ -1135,6 +1135,11 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
     onSpellCheckerSettingsChanged: () => () => {},
     onOpenProjectMenu: () => () => {},
     onOpenRequested: () => () => {},
+    // Join links open the desktop app; the web editor has its own page.
+    async takeJoinRequest() {
+      return null;
+    },
+    onJoinRequested: () => () => {},
     onCreateFileMenu: () => () => {},
     onCreateFolderMenu: () => () => {},
     onImportDocxMenu: () => () => {},

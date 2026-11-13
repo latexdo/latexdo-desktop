@@ -14,6 +14,17 @@ import {
   remoteCursorCss,
   type RemoteCursor,
 } from "../../../src/collaboration/collaboratorLook";
+import {
+  appLinkForCode,
+  appSeenBefore,
+  choseBrowser,
+  downloadPageUrl,
+  inviteCodeFromHash,
+  isDesktopBrowser,
+  rememberAppOpened,
+  rememberBrowserChoice,
+  tryOpenApp,
+} from "./appLink";
 import { parseWebInvite, type WebInvite } from "./invite";
 import {
   GuestSession,
@@ -117,6 +128,14 @@ function card(...children: Child[]): HTMLElement {
   );
 }
 
+function wideCard(...children: Child[]): HTMLElement {
+  return h(
+    "main",
+    { class: "center" },
+    h("section", { class: "card wide" }, brand(), ...children),
+  );
+}
+
 function getAppButton(label = "Get LatexDo"): HTMLElement {
   return h(
     "a",
@@ -207,6 +226,202 @@ function showWaiting(name: string, onCancel: () => void): void {
         "button",
         { class: "button", type: "button", onClick: onCancel },
         "Change my name",
+      ),
+    ),
+  );
+}
+
+// --- App or browser -------------------------------------------------------------------
+
+/** What the free desktop app adds to the browser editor. */
+const appFeatures = [
+  "Compile and preview the PDF as you write",
+  "Private AI help, writing checks and citations",
+  "Your own folders, Git, and work offline",
+];
+
+function downloadButton(primary: boolean): HTMLElement {
+  return h(
+    "a",
+    {
+      class: primary ? "button primary" : "button",
+      href: downloadPageUrl,
+      target: "_blank",
+      rel: "noopener noreferrer",
+    },
+    "Download LatexDo, free",
+  );
+}
+
+function browserButton(
+  onBrowser: () => void,
+  label = "Continue in the browser",
+): HTMLElement {
+  return h(
+    "button",
+    {
+      class: "button",
+      type: "button",
+      onClick: () => {
+        rememberBrowserChoice(true);
+        onBrowser();
+      },
+    },
+    label,
+  );
+}
+
+function featureList(): HTMLElement {
+  return h(
+    "ul",
+    { class: "features" },
+    ...appFeatures.map((text) => h("li", {}, text)),
+  );
+}
+
+/** First screen on a computer: open in the app, get it, or stay in the browser. */
+function chooseHowToOpen(code: string, onBrowser: () => void): void {
+  const installed = appSeenBefore();
+  show(
+    wideCard(
+      h("h1", {}, "You’re invited to a LatexDo project"),
+      h(
+        "p",
+        { class: "muted" },
+        "Open it in the LatexDo app for everything LatexDo can do, or start editing right away in your browser.",
+      ),
+      h(
+        "div",
+        { class: "choice" },
+        h(
+          "button",
+          {
+            class: "button primary",
+            type: "button",
+            onClick: () => openInApp(code, onBrowser),
+          },
+          "Open in LatexDo",
+        ),
+        h(
+          "p",
+          { class: "muted small" },
+          installed
+            ? "LatexDo is installed on this computer."
+            : "Already have the app? It opens this project.",
+        ),
+      ),
+      installed
+        ? null
+        : h(
+            "div",
+            { class: "offer" },
+            h("h2", {}, "Don’t have it yet? Get the full experience, free"),
+            featureList(),
+            downloadButton(false),
+          ),
+      h(
+        "div",
+        { class: "choice browser-choice" },
+        browserButton(onBrowser),
+        h(
+          "p",
+          { class: "muted small" },
+          "Simple editor: edit the text and work together live. No PDF, no AI.",
+        ),
+      ),
+    ),
+  );
+}
+
+function openInApp(code: string, onBrowser: () => void): void {
+  show(
+    card(
+      h("div", { class: "spinner", "aria-hidden": "true" }),
+      h("h1", {}, "Opening LatexDo…"),
+      h("p", { class: "muted" }, "If your browser asks, allow it to open LatexDo."),
+    ),
+  );
+  void tryOpenApp(appLinkForCode(code)).then((opened) => {
+    if (opened) {
+      rememberAppOpened();
+      showOpenedInApp(code, onBrowser);
+    } else {
+      showAppMissing(code, onBrowser);
+    }
+  });
+}
+
+function showOpenedInApp(code: string, onBrowser: () => void): void {
+  show(
+    card(
+      h("h1", {}, "Continue in LatexDo"),
+      h(
+        "p",
+        {},
+        "LatexDo shows the invite in its Join window: press Join to open the project. You can close this tab.",
+      ),
+      h(
+        "div",
+        { class: "actions" },
+        h(
+          "button",
+          {
+            class: "button",
+            type: "button",
+            onClick: () => openInApp(code, onBrowser),
+          },
+          "Open again",
+        ),
+        browserButton(onBrowser, "Use the browser instead"),
+      ),
+      h(
+        "p",
+        { class: "muted small" },
+        "Nothing opened? ",
+        h(
+          "a",
+          { href: downloadPageUrl, target: "_blank", rel: "noopener noreferrer" },
+          "Download LatexDo",
+        ),
+        " (free), then open this link again.",
+      ),
+    ),
+  );
+}
+
+function showAppMissing(code: string, onBrowser: () => void): void {
+  show(
+    wideCard(
+      h("h1", {}, "LatexDo didn’t open"),
+      h(
+        "p",
+        {},
+        "It doesn’t seem to be installed on this computer. It’s free, and takes a minute to install.",
+      ),
+      featureList(),
+      h(
+        "div",
+        { class: "actions" },
+        downloadButton(true),
+        h(
+          "button",
+          {
+            class: "button",
+            type: "button",
+            onClick: () => openInApp(code, onBrowser),
+          },
+          "I installed it, open it",
+        ),
+      ),
+      h(
+        "div",
+        { class: "choice browser-choice" },
+        browserButton(onBrowser),
+        h(
+          "p",
+          { class: "muted small" },
+          "Simple editor: edit the text and work together live. No PDF, no AI.",
+        ),
       ),
     ),
   );
@@ -631,5 +846,17 @@ function start(invite: WebInvite): void {
 }
 
 const invite = parseWebInvite(location.hash);
-if (invite) start(invite);
-else showInvalidLink();
+const inviteCode = inviteCodeFromHash(location.hash);
+if (!invite || !inviteCode) {
+  showInvalidLink();
+} else if (
+  isDesktopBrowser(navigator.userAgent, navigator.maxTouchPoints) &&
+  !choseBrowser()
+) {
+  // On a computer, offer the app first. Where it opened before, open it now.
+  const inBrowser = () => start(invite);
+  if (appSeenBefore()) openInApp(inviteCode, inBrowser);
+  else chooseHowToOpen(inviteCode, inBrowser);
+} else {
+  start(invite);
+}

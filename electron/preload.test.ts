@@ -82,6 +82,7 @@ describe("isolated desktop bridge", () => {
     ["saveResearchSpaceAs", "research-space:save-as", ["local"]],
     ["addFolderToResearchSpace", "research-space:add-folder", ["local"]],
     ["getMenuShortcuts", "app:menu-shortcuts", []],
+    ["takeJoinRequest", "collab:take-join-request", []],
     ["setMenuShortcut", "app:set-menu-shortcut", ["build.compile", "CmdOrCtrl+T"]],
     ["resetMenuShortcut", "app:reset-menu-shortcut", [null]],
     ["recordMenuShortcut", "app:record-menu-shortcut", []],
@@ -244,6 +245,7 @@ describe("isolated desktop bridge", () => {
     ["onImportMarkdownMenu", "file:import-markdown", false],
     ["onImportPdfMenu", "file:import-pdf", false],
     ["onCloseTabMenu", "file:close-tab", false],
+    ["onJoinRequested", "collab:join-requested", false],
   ] as const;
   it("passes only a command id from the application menu", () => {
     const callback = vi.fn();

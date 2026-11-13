@@ -337,6 +337,38 @@ export function useAppCollaboration(ctx: AppCtx08) {
 
   useEffect(() => disposeCollaborationBinding, [disposeCollaborationBinding]);
 
+  // "Open in LatexDo" on the co-author web page sends a latexdo-app://join
+  // link here. The Join field opens filled in and the person presses Join: a
+  // web page never joins a project by itself.
+  useEffect(() => {
+    const api = window.latexdo;
+    if (!api.takeJoinRequest) return;
+    let disposed = false;
+    const take = async () => {
+      const invite = await api.takeJoinRequest().catch(() => null);
+      if (disposed || !invite) return;
+      setJoinTokenDraft(invite);
+      setJoinCollaborationError("");
+      setShareStartError("");
+      setShareDialogOpen(true);
+      setStatusMessage(
+        "Opened from a join link. Press Join to open the shared project.",
+      );
+    };
+    void take();
+    const stop = api.onJoinRequested?.(() => void take());
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [
+    setJoinTokenDraft,
+    setJoinCollaborationError,
+    setShareStartError,
+    setShareDialogOpen,
+    setStatusMessage,
+  ]);
+
   useEffect(() => {
     realtimeBlockedDocumentsRef.current = {};
     realtimeReadyDocumentsRef.current = new Set();

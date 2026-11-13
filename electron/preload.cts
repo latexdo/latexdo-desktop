@@ -2171,6 +2171,17 @@ const api = {
   },
   openRequestedProject: (): Promise<OpenProject | null> =>
     ipcRenderer.invoke("project:open-requested"),
+  /** The invite from a latexdo-app://join link, once; null when there is none. */
+  takeJoinRequest: (): Promise<string | null> =>
+    ipcRenderer.invoke("collab:take-join-request"),
+  /** Called when a join link arrives while LatexDo is open. */
+  onJoinRequested: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("collab:join-requested", listener);
+    return () => {
+      ipcRenderer.removeListener("collab:join-requested", listener);
+    };
+  },
   onOpenRequested: (callback: () => void) => {
     const listener = () => {
       callback();
