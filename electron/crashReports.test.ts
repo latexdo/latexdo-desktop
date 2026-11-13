@@ -49,7 +49,9 @@ describe("createCrashReporter", () => {
     openExternal = vi.fn<(url: string) => Promise<void>>(async () => undefined);
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    // "always" mode keeps persisting in the background after fetch resolves,
+    // so a write can land mid-delete (ENOTEMPTY); retry instead of flaking.
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
   });
 
   function reporter(overrides: Partial<CrashReporterOptions> = {}) {

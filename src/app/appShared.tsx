@@ -179,7 +179,9 @@ export function preferredTexInstallerId(): (typeof texInstallerOptions)[number][
 /** The installer for the computer LatexDo runs on; other systems are not offered. */
 export function texInstallerForThisComputer(): (typeof texInstallerOptions)[number] {
   const id = preferredTexInstallerId();
-  return texInstallerOptions.find((option) => option.id === id) ?? texInstallerOptions[0];
+  return (
+    texInstallerOptions.find((option) => option.id === id) ?? texInstallerOptions[0]
+  );
 }
 
 export const citationSearchShortcutLabel = /mac/i.test(

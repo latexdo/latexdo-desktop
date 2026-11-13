@@ -40,7 +40,12 @@ export interface ReportStats {
   byPlatform: Array<{ key: string; reports: number }>;
   byCategory: Array<{ key: string; reports: number }>;
   /** The problems reported most in the window. */
-  top: Array<{ fingerprint: string; title: string; status: IssueStatus; reports: number }>;
+  top: Array<{
+    fingerprint: string;
+    title: string;
+    status: IssueStatus;
+    reports: number;
+  }>;
   totals: { reports: number; reporters: number; samples: number };
 }
 
@@ -335,9 +340,10 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
       regressed: 0,
     };
     for (const row of this.sql
-      .exec<{ status: IssueStatus; n: number }>(
-        "SELECT status, COUNT(*) AS n FROM issues GROUP BY status",
-      )
+      .exec<{
+        status: IssueStatus;
+        n: number;
+      }>("SELECT status, COUNT(*) AS n FROM issues GROUP BY status")
       .toArray()) {
       issuesByStatus[row.status] = row.n;
     }
@@ -379,7 +385,12 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
       )
       .toArray();
     const top = this.sql
-      .exec<{ fingerprint: string; title: string; status: IssueStatus; reports: number }>(
+      .exec<{
+        fingerprint: string;
+        title: string;
+        status: IssueStatus;
+        reports: number;
+      }>(
         `SELECT issues.fingerprint AS fingerprint, issues.title AS title, issues.status AS status,
            SUM(daily_counts.reports) AS reports
          FROM daily_counts JOIN issues USING (fingerprint)
@@ -389,9 +400,10 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
       )
       .toArray();
     const totals = this.sql
-      .exec<{ reports: number | null; reporters: number | null }>(
-        "SELECT SUM(reports) AS reports, SUM(reporters) AS reporters FROM issues",
-      )
+      .exec<{
+        reports: number | null;
+        reporters: number | null;
+      }>("SELECT SUM(reports) AS reports, SUM(reporters) AS reporters FROM issues")
       .one();
     const samples = this.sql
       .exec<{ n: number }>("SELECT COUNT(*) AS n FROM reports")

@@ -91,28 +91,25 @@ describe("compiler setup card", () => {
     ["Win32", "https://miktex.org/download", "Install MiKTeX"],
     ["MacIntel", "https://www.tug.org/mactex/", "Install MacTeX"],
     ["Linux x86_64", "https://www.tug.org/texlive/", "Install TeX Live"],
-  ])(
-    "offers only the installer for %s",
-    (platform, url, title) => {
-      vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
-      const open = vi.fn();
-      render(
-        <ToolchainSetupCard
-          issue="asymptote"
-          onOpenExternal={open}
-          onInstalled={vi.fn()}
-        />,
-      );
-      expect(screen.getByRole("heading")).toHaveTextContent("drawing builder");
-      const buttons = screen.getAllByRole("button");
-      expect(buttons).toHaveLength(1);
-      expect(buttons[0]).toHaveTextContent(title);
-      expect(screen.queryByText("Pick your computer")).not.toBeInTheDocument();
-      fireEvent.click(buttons[0]);
-      expect(open).toHaveBeenCalledOnce();
-      expect(open).toHaveBeenCalledWith(url);
-    },
-  );
+  ])("offers only the installer for %s", (platform, url, title) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const open = vi.fn();
+    render(
+      <ToolchainSetupCard
+        issue="asymptote"
+        onOpenExternal={open}
+        onInstalled={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("heading")).toHaveTextContent("drawing builder");
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveTextContent(title);
+    expect(screen.queryByText("Pick your computer")).not.toBeInTheDocument();
+    fireEvent.click(buttons[0]);
+    expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(url);
+  });
   it("handles unavailable runtime status without showing automatic installation", async () => {
     api.getTexRuntimeStatus.mockRejectedValue(new Error("offline"));
     render(

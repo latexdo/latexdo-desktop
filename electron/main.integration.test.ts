@@ -622,13 +622,10 @@ describe("network and external navigation policy", () => {
     { name: "Bluesky", url: "https://bsky.app/profile/latexdo.bsky.social" },
     { name: "YouTube", url: "https://www.youtube.com/@latexdo-project" },
     { name: "X", url: "https://x.com/latexdoproject" },
-  ])(
-    "opens the association's $name link in the browser",
-    async ({ url }) => {
-      await call("app:open-external", url);
-      expect(native.external).toHaveBeenCalledWith(url);
-    },
-  );
+  ])("opens the association's $name link in the browser", async ({ url }) => {
+    await call("app:open-external", url);
+    expect(native.external).toHaveBeenCalledWith(url);
+  });
 
   it.each([
     "file:///etc/passwd",
