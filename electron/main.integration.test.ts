@@ -18,6 +18,7 @@ import type { OpenProject } from "./types.js";
 
 const native = vi.hoisted(() => ({
   handlers: new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
+  badge: vi.fn(),
   appEvents: new Map<string, (...args: unknown[]) => unknown>(),
   path: "",
   packaged: false,
@@ -114,6 +115,7 @@ vi.mock("electron", async () => {
       dock: { setIcon: vi.fn(), setMenu: vi.fn() },
       setAboutPanelOptions: vi.fn(),
       setPath: vi.fn(),
+      setBadgeCount: native.badge,
     },
     BrowserWindow: Window,
     dialog: {
@@ -1375,6 +1377,14 @@ describe("signed update feed checks", () => {
         : new Response("unavailable", { status: 503 }),
     );
   }
+  it("shows the unread discussion count on the app icon", async () => {
+    await call("app:set-unread-badge", 3);
+    expect(native.badge).toHaveBeenLastCalledWith(3);
+    await call("app:set-unread-badge", 120_000);
+    expect(native.badge).toHaveBeenLastCalledWith(9999);
+    await expect(call("app:set-unread-badge", -1)).rejects.toThrow("Invalid badge");
+    await expect(call("app:set-unread-badge", "3")).rejects.toThrow("Invalid badge");
+  });
   it("accepts a valid feed, stores rollback protection and uses manual download when no installer matches", async () => {
     const payload = feed();
     await serve(payload);

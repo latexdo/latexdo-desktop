@@ -101,6 +101,7 @@ export type SidebarView =
   | "ai"
   | "enterprise"
   | "discussion"
+  | "history"
   | "reviews";
 
 export interface ActivationWorkspaceSnapshot {

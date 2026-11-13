@@ -27,6 +27,7 @@ import {
   Copy,
   CornerUpLeft,
   Info,
+  Ban,
   Lock,
   Pencil,
   MessageCircle,
@@ -34,6 +35,7 @@ import {
   RefreshCw,
   SendHorizontal,
   Smile,
+  SmilePlus,
   Trash2,
   Users,
   X,
@@ -188,6 +190,40 @@ function MessageBody({
 
 // --- One message -----------------------------------------------------------------
 
+// --- Reactions -------------------------------------------------------------------
+
+const quickReactions = [
+  ["👍", "Thumbs up"],
+  ["✅", "OK"],
+  ["❤️", "Heart"],
+  ["😂", "Laughing"],
+  ["😮", "Surprised"],
+  ["🙏", "Thank you"],
+  ["🎉", "Celebrate"],
+  ["👀", "Looking"],
+] as const;
+
+interface ReactionGroup {
+  emoji: string;
+  people: string[];
+  mine: boolean;
+}
+
+/** Reactions grouped by emoji, in the order they first appear. */
+function reactionGroups(
+  reactions: Record<string, string> | undefined,
+  me: string,
+): ReactionGroup[] {
+  const groups = new Map<string, ReactionGroup>();
+  for (const [clientId, emoji] of Object.entries(reactions ?? {})) {
+    const group = groups.get(emoji) ?? { emoji, people: [], mine: false };
+    group.people.push(clientId);
+    if (clientId === me) group.mine = true;
+    groups.set(emoji, group);
+  }
+  return [...groups.values()];
+}
+
 interface MessageRowProps {
   message: ChatMessage;
   first: boolean;
@@ -201,6 +237,9 @@ interface MessageRowProps {
   info: ReactNode;
   onReply: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage, text: string) => Promise<void>;
+  onReact: (message: ChatMessage, emoji: string | null) => void;
+  /** Admins only: removes the message for everyone. */
+  onDelete?: (message: ChatMessage) => void;
   onMessagePrivately: (clientId: string) => void;
   onToggleInfo: (id: string) => void;
   onRetry: (id: string) => void;
@@ -222,6 +261,8 @@ const MessageRow = memo(function MessageRow({
   info,
   onReply,
   onEdit,
+  onReact,
+  onDelete,
   onMessagePrivately,
   onToggleInfo,
   onRetry,
@@ -230,6 +271,7 @@ const MessageRow = memo(function MessageRow({
   onOpenLink,
 }: MessageRowProps) {
   const mine = message.from === me;
+  const deleted = Boolean(message.deletedAt);
   const mentionsMe = !mine && message.mentions.includes(me);
   const senderName = names.get(message.from) ?? message.name;
   const [copied, setCopied] = useState(false);
@@ -254,6 +296,29 @@ const MessageRow = memo(function MessageRow({
     }
   };
   const look = collaboratorLook(message.from);
+  const [reacting, setReacting] = useState(false);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
+  const reactionToggleRef = useRef<HTMLButtonElement>(null);
+  const myReaction = message.reactions?.[me] ?? null;
+  const reactions = reactionGroups(message.reactions, me);
+  const chooseReaction = (emoji: string) => {
+    setReacting(false);
+    onReact(message, myReaction === emoji ? null : emoji);
+  };
+  useEffect(() => {
+    if (!reacting) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !reactionPickerRef.current?.contains(target) &&
+        !reactionToggleRef.current?.contains(target)
+      ) {
+        setReacting(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [reacting]);
 
   const copy = () => {
     void navigator.clipboard?.writeText(message.body).then(() => {
@@ -272,6 +337,7 @@ const MessageRow = memo(function MessageRow({
         last ? "is-last" : "",
         mentionsMe ? "mentions-me" : "",
         message.local ? `is-${message.local}` : "",
+        reacting ? "is-reacting" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -311,11 +377,25 @@ const MessageRow = memo(function MessageRow({
                   : "Earlier message"}
               </span>
               <span className="discussion-quote-text">
-                {quoted ? previewText(quoted.body, 90) : "Scroll up to load it."}
+                {quoted
+                  ? quoted.deletedAt
+                    ? "Deleted message"
+                    : previewText(quoted.body, 90)
+                  : "Scroll up to load it."}
               </span>
             </button>
           ) : null}
-          {editing ? (
+          {deleted ? (
+            <div className="discussion-text discussion-deleted">
+              <Ban size={13} aria-hidden="true" />
+              <span>
+                {message.deletedBy === message.from
+                  ? "This message was deleted"
+                  : "This message was deleted by an admin"}
+              </span>
+              <span className="discussion-meta-spacer" aria-hidden="true" />
+            </div>
+          ) : editing ? (
             <form
               className="discussion-edit"
               onSubmit={(event) => {
@@ -413,66 +493,141 @@ const MessageRow = memo(function MessageRow({
           </div>
         ) : null}
         {infoOpen ? info : null}
+        {reactions.length && !deleted ? (
+          <div className="discussion-reactions" role="group" aria-label="Reactions">
+            {reactions.map((group) => {
+              const who = group.people
+                .map((clientId) =>
+                  clientId === me ? "You" : (names.get(clientId) ?? "Someone"),
+                )
+                .join(", ");
+              return (
+                <button
+                  key={group.emoji}
+                  type="button"
+                  className={`discussion-reaction ${group.mine ? "is-mine" : ""}`}
+                  title={group.mine ? `${who} · click to remove yours` : who}
+                  aria-label={`${group.emoji} ${group.people.length}: ${who}`}
+                  aria-pressed={group.mine}
+                  disabled={Boolean(message.local)}
+                  onClick={() => chooseReaction(group.emoji)}
+                >
+                  <span aria-hidden="true">{group.emoji}</span>
+                  <span className="discussion-reaction-count">
+                    {group.people.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {message.local || deleted ? null : (
+          <div
+            className="discussion-row-actions"
+            role="toolbar"
+            aria-label="Message actions"
+          >
+            <button
+              type="button"
+              ref={reactionToggleRef}
+              onClick={() => setReacting((open) => !open)}
+              title="React"
+              aria-label="React"
+              aria-expanded={reacting}
+              className={reacting ? "is-on" : undefined}
+            >
+              <SmilePlus size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onReply(message)}
+              title="Reply"
+              aria-label="Reply"
+            >
+              <CornerUpLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={copy}
+              title={copied ? "Copied" : "Copy text"}
+              aria-label="Copy text"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            {!mine && inGroup ? (
+              <button
+                type="button"
+                onClick={() => onMessagePrivately(message.from)}
+                title={`Message ${firstName(senderName)} privately`}
+                aria-label={`Message ${senderName} privately`}
+              >
+                <MessageCircle size={14} />
+              </button>
+            ) : null}
+            {mine && !message.undecryptable ? (
+              <button
+                type="button"
+                title="Edit message"
+                aria-label="Edit message"
+                disabled={saving}
+                onClick={() => {
+                  setEditing(message);
+                  setEditText(message.body);
+                  setEditError("");
+                }}
+              >
+                <Pencil size={14} />
+              </button>
+            ) : null}
+            {mine ? (
+              <button
+                type="button"
+                onClick={() => onToggleInfo(message.id)}
+                title="Message info"
+                aria-label="Message info"
+              >
+                <Info size={14} />
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                className="discussion-delete-action"
+                onClick={() => onDelete(message)}
+                title="Delete for everyone (admin)"
+                aria-label="Delete message for everyone"
+              >
+                <Trash2 size={14} />
+              </button>
+            ) : null}
+          </div>
+        )}
+        {reacting ? (
+          <div
+            ref={reactionPickerRef}
+            className="discussion-reaction-picker"
+            role="menu"
+            aria-label="Choose a reaction"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setReacting(false);
+            }}
+          >
+            {quickReactions.map(([emoji, label]) => (
+              <button
+                key={emoji}
+                type="button"
+                role="menuitem"
+                className={myReaction === emoji ? "is-mine" : undefined}
+                title={myReaction === emoji ? `Remove ${label}` : label}
+                aria-label={myReaction === emoji ? `Remove ${label}` : label}
+                onClick={() => chooseReaction(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {message.local ? null : (
-        <div
-          className="discussion-row-actions"
-          role="toolbar"
-          aria-label="Message actions"
-        >
-          <button
-            type="button"
-            onClick={() => onReply(message)}
-            title="Reply"
-            aria-label="Reply"
-          >
-            <CornerUpLeft size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={copy}
-            title={copied ? "Copied" : "Copy text"}
-            aria-label="Copy text"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
-          {!mine && inGroup ? (
-            <button
-              type="button"
-              onClick={() => onMessagePrivately(message.from)}
-              title={`Message ${firstName(senderName)} privately`}
-              aria-label={`Message ${senderName} privately`}
-            >
-              <MessageCircle size={14} />
-            </button>
-          ) : null}
-          {mine && !message.undecryptable ? (
-            <button
-              type="button"
-              title="Edit message"
-              aria-label="Edit message"
-              disabled={saving}
-              onClick={() => {
-                setEditing(message);
-                setEditText(message.body);
-                setEditError("");
-              }}
-            >
-              <Pencil size={14} />
-            </button>
-          ) : null}
-          {mine ? (
-            <button
-              type="button"
-              onClick={() => onToggleInfo(message.id)}
-              title="Message info"
-              aria-label="Message info"
-            >
-              <Info size={14} />
-            </button>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 });
@@ -702,7 +857,9 @@ function Composer({
             style={{ ["--person" as string]: collaboratorLook(replyTo.from).color }}
           >
             <strong>Replying to {replyName}</strong>
-            <span>{previewText(replyTo.body, 80)}</span>
+            <span>
+              {replyTo.deletedAt ? "Deleted message" : previewText(replyTo.body, 80)}
+            </span>
           </div>
           <button
             type="button"
@@ -898,6 +1055,9 @@ export function DiscussionPanel({
     loadOlder,
     send,
     edit,
+    react,
+    remove,
+    isAdmin,
     retry,
     discard,
     refresh,
@@ -1033,6 +1193,15 @@ export function DiscussionPanel({
   const reply = useCallback(
     (message: ChatMessage) => setReplyTo(conversation, message.id),
     [conversation, setReplyTo],
+  );
+  const deleteMessage = useCallback(
+    (message: ChatMessage) => {
+      const confirmed = window.confirm(
+        "Delete this message for everyone? It will show as deleted by an admin.",
+      );
+      if (confirmed) void remove(message);
+    },
+    [remove],
   );
   const toggleInfo = useCallback(
     (id: string) => setInfoFor((current) => (current === id ? null : id)),
@@ -1306,6 +1475,8 @@ export function DiscussionPanel({
                         info={infoFor === message.id ? infoCard(message) : null}
                         onReply={reply}
                         onEdit={edit}
+                        onReact={react}
+                        onDelete={isAdmin ? deleteMessage : undefined}
                         onMessagePrivately={openConversation}
                         onToggleInfo={toggleInfo}
                         onRetry={retry}
@@ -1477,9 +1648,13 @@ function DiscussionNoticeCard({
               <span className="discussion-notice-kind">
                 <Lock size={11} aria-hidden="true" /> private message
               </span>
-            ) : (
+            ) : notice.kind === "mention" ? (
               <span className="discussion-notice-kind">
                 <AtSign size={11} aria-hidden="true" /> mentioned you
+              </span>
+            ) : (
+              <span className="discussion-notice-kind">
+                <MessageCircle size={11} aria-hidden="true" /> new message
               </span>
             )}
           </span>

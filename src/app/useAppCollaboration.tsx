@@ -7,6 +7,8 @@ import type {
 } from "../types";
 import type { CollaborationConnectionStatus } from "../collaboration/collaborationTypes";
 import { pathForDisplay } from "../pathDisplay";
+import { useAdminOffers } from "../collaboration/adminOffers";
+import { HistoryRecorder, HistoryUploader } from "../features/history/historyRecorder";
 import {
   bookmarkKey,
   monacoThemeFor,
@@ -28,8 +30,9 @@ import {
 } from "./appShared";
 import type { AppCtx08 } from "./appContext";
 
-// The backstop for join requests when no live connection is open to push them.
-const joinRequestPollMs = 10_000;
+// The backstop for join requests when no live connection is open to push them
+// (an open document hears of them at once). Slow, to spare the daily allowance.
+const joinRequestPollMs = 30_000;
 
 export function useAppCollaboration(ctx: AppCtx08) {
   const {
@@ -108,8 +111,44 @@ export function useAppCollaboration(ctx: AppCtx08) {
   // Set by the discussion; the live connection tells it when to refetch.
   const discussionSignalRef = useRef<(seq: number) => void>(() => undefined);
 
+  // The change history: this person's edits, recorded per open shared file
+  // and sent in batches (see features/history).
+  const historyRecorderRef = useRef<HistoryRecorder | null>(null);
+  const historyUploaderRef = useRef<{
+    projectId: string;
+    uploader: HistoryUploader;
+  } | null>(null);
+  const historyUploaderFor = useCallback((forProject: string) => {
+    const current = historyUploaderRef.current;
+    if (current?.projectId === forProject) return current.uploader;
+    void current?.uploader.flush();
+    const uploader = new HistoryUploader((changes) =>
+      window.latexdo.sendProjectHistory(forProject, changes),
+    );
+    historyUploaderRef.current = { projectId: forProject, uploader };
+    return uploader;
+  }, []);
+  useEffect(() => {
+    // Leaving or hiding the window: send what is waiting.
+    const send = () => {
+      historyRecorderRef.current?.flush();
+      void historyUploaderRef.current?.uploader.flush();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") send();
+    };
+    window.addEventListener("beforeunload", send);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", send);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const disposeCollaborationBinding = useCallback(() => {
     collaborationBindingRequestIdRef.current += 1;
+    historyRecorderRef.current?.dispose();
+    historyRecorderRef.current = null;
     collaborationBindingRef.current?.destroy();
     collaborationBindingRef.current = null;
   }, []);
@@ -170,9 +209,19 @@ export function useAppCollaboration(ctx: AppCtx08) {
             return;
           }
 
+          // Shared copies keep a history of who changed what.
+          const recorder = window.latexdo.hasDiscussion?.(bindingProjectId)
+            ? new HistoryRecorder({
+                path: document.relativePath,
+                onChange: (change) => historyUploaderFor(bindingProjectId).add(change),
+              })
+            : null;
+          historyRecorderRef.current?.dispose();
+          historyRecorderRef.current = recorder;
           collaborationBindingRef.current = new MonacoCollaborationBinding({
             editor,
             mutationOrigin: editorMutationOriginRef.current,
+            onTextTransaction: recorder ? (event) => recorder.record(event) : undefined,
             projectId: bindingProjectId,
             relativePath: document.relativePath,
             shareToken: token,
@@ -272,6 +321,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
       collaborationState.enabled,
       collaborationState.token,
       disposeCollaborationBinding,
+      historyUploaderFor,
     ],
   );
 
@@ -1125,6 +1175,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     }
   };
 
+  const [canTransferAdmin, setCanTransferAdmin] = useState(false);
   const loadCollaborationPermissions = useCallback(
     async (projectId: string) => {
       if (!collaborationAvailable) return;
@@ -1133,15 +1184,42 @@ export function useAppCollaboration(ctx: AppCtx08) {
         const result = await window.latexdo.getCollaborationPermissions(projectId);
         setCollaborationPermissions(result.permissions);
         setIsProjectAdmin(result.isAdmin);
+        setCanTransferAdmin(result.canTransferAdmin === true);
         setCurrentUserRole(result.currentUserRole as "admin" | "editor" | "viewer");
       } catch {
         setCollaborationPermissions([]);
         setIsProjectAdmin(false);
+        setCanTransferAdmin(false);
         setCurrentUserRole("viewer");
       }
     },
     [collaborationAvailable],
   );
+
+  // Admin invitations: the invited person hears of them and answers in Share.
+  const adminOfferProjectId =
+    collaborationAvailable &&
+    collaborationState.enabled &&
+    sharedProjectId &&
+    window.latexdo.hasDiscussion?.(sharedProjectId)
+      ? sharedProjectId
+      : null;
+  const adminOffers = useAdminOffers({
+    projectId: adminOfferProjectId,
+    onPermissions: useCallback(
+      (result) => {
+        setCollaborationPermissions(result.permissions);
+        setIsProjectAdmin(result.isAdmin);
+        setCanTransferAdmin(result.canTransferAdmin === true);
+      },
+      [setCollaborationPermissions, setIsProjectAdmin],
+    ),
+    openShare: useCallback(() => setShareDialogOpen(true), [setShareDialogOpen]),
+    watching: ctx.shareDialogOpen,
+    reload: useCallback(async () => {
+      if (adminOfferProjectId) await loadCollaborationPermissions(adminOfferProjectId);
+    }, [adminOfferProjectId, loadCollaborationPermissions]),
+  });
 
   return {
     liveConnection,
@@ -1167,5 +1245,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
     changeCollaborationApproval,
     resolveCollaborationRequest,
     loadCollaborationPermissions,
+    canTransferAdmin,
+    adminOffers,
   };
 }

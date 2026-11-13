@@ -309,6 +309,7 @@
 }
 
 .discussion-row-content {
+  position: relative;
   display: flex;
   min-width: 0;
   max-width: calc(100% - 44px);
@@ -503,7 +504,8 @@
 /* Hover actions: reply, copy, message privately, info. */
 .discussion-row-actions {
   position: absolute;
-  top: -12px;
+  z-index: 2;
+  top: -18px;
   display: flex;
   padding: 2px;
   border: 1px solid var(--border-subtle);
@@ -515,16 +517,20 @@
   transition: opacity var(--motion-fast, 120ms) var(--ease-out, ease);
 }
 
-.discussion-row.is-theirs .discussion-row-actions {
-  right: 4px;
-}
-
-.discussion-row.is-mine .discussion-row-actions {
+/* Anchored to the bubble (not the row), on the side with free space. */
+.discussion-row.is-theirs .discussion-row-actions,
+.discussion-row.is-theirs .discussion-reaction-picker {
   left: 4px;
 }
 
+.discussion-row.is-mine .discussion-row-actions,
+.discussion-row.is-mine .discussion-reaction-picker {
+  right: 4px;
+}
+
 .discussion-row:hover .discussion-row-actions,
-.discussion-row:focus-within .discussion-row-actions {
+.discussion-row:focus-within .discussion-row-actions,
+.discussion-row.is-reacting .discussion-row-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -547,6 +553,100 @@
 .discussion-icon-button:hover:not(:disabled) {
   background: var(--bg-row-hover);
   color: var(--text-primary);
+}
+
+.discussion-row-actions button.is-on {
+  background: var(--bg-row-hover);
+  color: var(--accent);
+}
+
+/* Reactions: a quick picker above the toolbar and chips under the bubble. */
+.discussion-reaction-picker {
+  position: absolute;
+  z-index: 3;
+  bottom: calc(100% + 14px);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+}
+
+.discussion-reaction-picker button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  place-items: center;
+  transition: transform var(--motion-fast, 120ms) var(--ease-out, ease);
+}
+
+.discussion-reaction-picker button:hover,
+.discussion-reaction-picker button:focus-visible {
+  outline: none;
+  background: var(--bg-row-hover);
+  transform: scale(1.15);
+}
+
+.discussion-reaction-picker button.is-mine {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.discussion-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.discussion-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.discussion-reaction:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+}
+
+.discussion-reaction.is-mine {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-card));
+  color: var(--text-primary);
+}
+
+.discussion-reaction:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.discussion-reaction:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.discussion-reaction-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .discussion-row-actions button:focus-visible,
@@ -1233,4 +1333,22 @@
 
 .discussion-row .discussion-meta-spacer.is-edited {
   width: 112px;
+}
+
+/* A message an admin removed: kept in place, without its text. */
+.discussion-text.discussion-deleted {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.discussion-row-actions button.discussion-delete-action:hover {
+  background: color-mix(
+    in srgb,
+    var(--status-destructive-bg, #c43f5f) 18%,
+    transparent
+  );
+  color: var(--status-destructive-bg, #c43f5f);
 }

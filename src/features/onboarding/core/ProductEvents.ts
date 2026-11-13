@@ -11,6 +11,10 @@ export type ProductEvent =
   | { type: "compile:succeeded" }
   | { type: "compile:failed" }
   | { type: "synctex:navigated" }
+  | { type: "pdf:listen-opened" }
+  | { type: "command:run"; command: string }
+  | { type: "sidebar:opened"; view: string }
+  | { type: "tool:opened"; tool: string }
   | { type: "format:applied" }
   | { type: "problems:opened" }
   | { type: "voice:started" }

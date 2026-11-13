@@ -121,6 +121,23 @@ interface SealedMessage {
   mentions: string[];
 }
 
+/** One person's reaction, bound to the message and the person. */
+interface SealedReaction {
+  v: 1;
+  id: string;
+  from: string;
+  emoji: string;
+}
+
+const maxReactionChars = 16;
+
+/** One change in the project history, bound to its author. */
+interface SealedHistoryChange {
+  v: 1;
+  from: string;
+  change: unknown;
+}
+
 const undecryptableMessage = "This message could not be decrypted.";
 
 class KeyMissingError extends Error {
@@ -218,7 +235,15 @@ export class CloudE2ee {
     value: unknown,
   ): Promise<unknown> {
     if (!value || typeof value !== "object") return value;
-    const message = (await this.openNames(value, key)) as Record<string, unknown>;
+    const opened = (await this.openNames(value, key)) as Record<string, unknown>;
+    const reactions = await this.openReactions(key, projectId, opened);
+    const message = { ...opened };
+    if (reactions) message.reactions = reactions;
+    else delete message.reactions;
+    // Deleted by an admin: nothing is left to decrypt.
+    if (typeof message.deletedAt === "number") {
+      return { ...message, body: "", mentions: [] };
+    }
     try {
       const sealed = JSON.parse(
         await decryptString(key, projectId, "message", String(message.body)),
@@ -247,6 +272,40 @@ export class CloudE2ee {
         undecryptable: true,
       };
     }
+  }
+
+  /**
+   * Opens each person's reaction. One sealed for another message or person
+   * (moved by the server) or damaged is dropped.
+   */
+  private async openReactions(
+    key: string,
+    projectId: string,
+    message: Record<string, unknown>,
+  ): Promise<Record<string, string> | null> {
+    const raw = message.reactions;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const opened: Record<string, string> = {};
+    for (const [clientId, value] of Object.entries(raw as Record<string, unknown>)) {
+      try {
+        const sealed = JSON.parse(
+          await decryptString(key, projectId, "reaction", String(value)),
+        ) as Partial<SealedReaction>;
+        if (
+          sealed.v === 1 &&
+          sealed.id === message.id &&
+          sealed.from === clientId &&
+          typeof sealed.emoji === "string" &&
+          sealed.emoji &&
+          sealed.emoji.length <= maxReactionChars
+        ) {
+          opened[clientId] = sealed.emoji;
+        }
+      } catch {
+        // A damaged reaction is left out.
+      }
+    }
+    return Object.keys(opened).length ? opened : null;
   }
 
   private async withSealedName(
@@ -484,9 +543,111 @@ export class CloudE2ee {
       }
     }
 
+    if (pathname === `${projectBase}/history`) {
+      if (method === "POST") {
+        const input = JSON.parse(body ?? "{}") as { entries?: unknown };
+        const changes = Array.isArray(input.entries) ? input.entries : [];
+        const from = headers["x-latexdo-client"] ?? "";
+        // Only the author, the time and the size are visible to the server.
+        const entries = await Promise.all(
+          changes.map(async (change) => ({
+            data: await encryptString(
+              key,
+              projectId,
+              "history",
+              JSON.stringify({ v: 1, from, change } satisfies SealedHistoryChange),
+            ),
+          })),
+        );
+        return send(path, method, sealedHeaders, JSON.stringify({ entries }));
+      }
+      if (method === "GET") {
+        const response = await send(path, method, sealedHeaders);
+        if (response.status !== 200) return response;
+        const page = JSON.parse(response.text) as {
+          entries?: Array<{ seq: number; at: number; from: string; data: string }>;
+          hasMore?: boolean;
+        };
+        const raw = page.entries ?? [];
+        const entries = [];
+        for (const entry of raw) {
+          try {
+            const sealed = JSON.parse(
+              await decryptString(key, projectId, "history", entry.data),
+            ) as Partial<SealedHistoryChange>;
+            // A change moved to another author by the server is refused.
+            if (sealed.v !== 1 || sealed.from !== entry.from || !sealed.change)
+              continue;
+            entries.push({
+              seq: entry.seq,
+              at: entry.at,
+              from: entry.from,
+              change: sealed.change,
+            });
+          } catch {
+            // Damaged or from another project: left out.
+          }
+        }
+        return reply(200, {
+          entries,
+          hasMore: page.hasMore === true,
+          cursor: raw.length ? Math.min(...raw.map((entry) => entry.seq)) : null,
+        });
+      }
+    }
+
     if (pathname === `${projectBase}/discussion`) {
       if (method === "POST") {
         const input = JSON.parse(body ?? "{}") as Record<string, unknown>;
+        const openResult = async (response: E2eeResponse): Promise<E2eeResponse> => {
+          if (response.status !== 200) return response;
+          const result = JSON.parse(response.text) as { message?: unknown };
+          return reply(200, {
+            ...((await this.openNames(result, key)) as Record<string, unknown>),
+            message: await this.openMessage(key, projectId, result.message),
+          });
+        };
+        if (input.delete === true) {
+          return openResult(
+            await send(
+              path,
+              method,
+              sealedHeaders,
+              JSON.stringify({ id: String(input.id ?? ""), delete: true }),
+            ),
+          );
+        }
+        if (input.react === true) {
+          const id = String(input.id ?? "");
+          const emoji = typeof input.reaction === "string" ? input.reaction : null;
+          if (emoji !== null && (!emoji || emoji.length > maxReactionChars)) {
+            return reply(400, { error: "Invalid reaction." });
+          }
+          const sealed: SealedReaction | null =
+            emoji === null
+              ? null
+              : { v: 1, id, from: headers["x-latexdo-client"] ?? "", emoji };
+          // The emoji travels sealed: the server only stores an opaque value.
+          return openResult(
+            await send(
+              path,
+              method,
+              sealedHeaders,
+              JSON.stringify({
+                id,
+                react: true,
+                reaction: sealed
+                  ? await encryptString(
+                      key,
+                      projectId,
+                      "reaction",
+                      JSON.stringify(sealed),
+                    )
+                  : null,
+              }),
+            ),
+          );
+        }
         const to = typeof input.to === "string" ? input.to : null;
         const sealed: SealedMessage = {
           v: 1,
@@ -522,12 +683,7 @@ export class CloudE2ee {
             ),
           }),
         );
-        if (response.status !== 200) return response;
-        const result = JSON.parse(response.text) as { message?: unknown };
-        return reply(200, {
-          ...((await this.openNames(result, key)) as Record<string, unknown>),
-          message: await this.openMessage(key, projectId, result.message),
-        });
+        return openResult(response);
       }
       if (method === "GET") {
         const response = await send(path, method, sealedHeaders);

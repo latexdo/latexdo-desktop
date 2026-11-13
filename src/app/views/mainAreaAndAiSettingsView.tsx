@@ -463,6 +463,11 @@ export function renderShareProjectDialog(ctx: AppCtx) {
           await loadCollaborationPermissions(currentProject);
         }
       }}
+      canTransferAdmin={ctx.canTransferAdmin}
+      onWithdrawAdminOffer={ctx.adminOffers.withdraw}
+      adminOffer={ctx.adminOffers.offer}
+      answeringAdminOffer={ctx.adminOffers.answering}
+      onAnswerAdminOffer={(accept) => void ctx.adminOffers.answer(accept)}
     />
   );
 }

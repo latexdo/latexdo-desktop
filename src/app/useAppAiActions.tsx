@@ -207,6 +207,7 @@ export function useAppAiActions(ctx: AppCtx10) {
   const openSidebar = useCallback((view: SidebarView) => {
     setSidebarVisible(true);
     setActiveSidebar(view);
+    emitProductEvent({ type: "sidebar:opened", view });
   }, []);
 
   // --- AI agent integration -------------------------------------------------

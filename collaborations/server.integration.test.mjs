@@ -582,6 +582,108 @@ describe("real collaboration HTTP service", () => {
     socket.close();
     sockets.delete(socket);
   });
+  it("offers admin rights that only take effect once the person accepts", async () => {
+    const { id, token } = await shared();
+    const base = `/api/shares/${token}`;
+    await approveGuest(token);
+    await request(base + "/open", guest, "POST", {});
+    const ownerView = await (await request(base + "/permissions")).json();
+    expect(ownerView.canTransferAdmin).toBe(false);
+    // The owner always stays admin, so it cannot hand its seat over.
+    expect(
+      (
+        await request(base + "/permissions", owner, "PUT", {
+          clientId: guest.client,
+          role: "admin",
+          transfer: true,
+        })
+      ).status,
+    ).toBe(400);
+    const offered = await request(base + "/permissions", owner, "PUT", {
+      clientId: guest.client,
+      role: "admin",
+    });
+    expect(offered.status).toBe(200);
+    expect(await offered.json()).toMatchObject({
+      role: "editor",
+      adminOffer: { from: owner.client, transfer: false },
+    });
+    const guestView = await (await request(base + "/permissions", guest)).json();
+    expect(guestView.isAdmin).toBe(false);
+    expect(
+      guestView.permissions.find((item) => item.isCurrent).adminOffer,
+    ).toMatchObject({ from: owner.client });
+
+    // Withdrawn, then offered again and declined: still an editor.
+    expect(
+      (await request(base + "/admin-offer/" + guest.client, owner, "DELETE")).status,
+    ).toBe(204);
+    expect(
+      (await request(base + "/admin-offer", guest, "POST", { action: "accept" }))
+        .status,
+    ).toBe(404);
+    await request(base + "/permissions", owner, "PUT", {
+      clientId: guest.client,
+      role: "admin",
+    });
+    expect(
+      (await request(base + "/admin-offer", guest, "POST", { action: "maybe" })).status,
+    ).toBe(400);
+    const declined = await request(base + "/admin-offer", guest, "POST", {
+      action: "decline",
+    });
+    expect((await declined.json()).role).toBe("editor");
+
+    await request(base + "/permissions", owner, "PUT", {
+      clientId: guest.client,
+      role: "admin",
+    });
+    const accepted = await request(base + "/admin-offer", guest, "POST", {
+      action: "accept",
+    });
+    expect((await accepted.json()).role).toBe("admin");
+    const promoted = await (await request(base + "/permissions", guest)).json();
+    expect(promoted).toMatchObject({ isAdmin: true, canTransferAdmin: true });
+    expect(
+      (
+        await request(`/api/projects/${id}/files/content?path=main.tex`, guest, "PUT", {
+          content: "now an admin",
+        })
+      ).status,
+    ).toBe(204);
+    // Accepted: nothing is left to withdraw.
+    expect(
+      (await request(base + "/admin-offer/" + guest.client, guest, "DELETE")).status,
+    ).toBe(404);
+  });
+  it("records sealed changes for editors and lists them for everyone, newest first", async () => {
+    const { id, token } = await shared();
+    await approveGuest(token);
+    await request(`/api/shares/${token}/open`, guest, "POST", {});
+    const route = `/api/projects/${id}/history`;
+    expect(
+      (await request(route, owner, "POST", { entries: [{ data: "sealed-1" }] })).status,
+    ).toBe(200);
+    expect(
+      (await request(route, guest, "POST", { entries: [{ data: "sealed-2" }] })).status,
+    ).toBe(200);
+    expect((await request(route, owner, "POST", { entries: [] })).status).toBe(400);
+    const page = await (await request(route, guest)).json();
+    expect(page.hasMore).toBe(false);
+    expect(page.entries.map((entry) => [entry.from, entry.data])).toEqual([
+      [guest.client, "sealed-2"],
+      [owner.client, "sealed-1"],
+    ]);
+    // A viewer reads the history but has no edits to add.
+    await request(`/api/shares/${token}/permissions`, owner, "PUT", {
+      clientId: guest.client,
+      role: "viewer",
+    });
+    expect((await request(route, guest)).status).toBe(200);
+    expect(
+      (await request(route, guest, "POST", { entries: [{ data: "sealed-3" }] })).status,
+    ).toBe(403);
+  });
   it("retires the invite when a collaborator is removed", async () => {
     const { token } = await shared();
     const base = `/api/shares/${token}`;

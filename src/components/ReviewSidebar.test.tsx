@@ -133,7 +133,7 @@ describe("ReviewSidebar", () => {
     fireEvent.click(insertButton);
     expect(onInsertIntoTex).not.toHaveBeenCalled();
 
-    expect(screen.getByText(/in tex source/i)).toBeVisible();
+    expect(screen.getByText(/^in tex$/i)).toBeVisible();
   });
 
   it("truncates long selections, ignores blank messages and sends with the button", () => {

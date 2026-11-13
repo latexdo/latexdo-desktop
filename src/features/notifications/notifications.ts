@@ -6,6 +6,30 @@ import { useSyncExternalStore } from "react";
 
 export type NotificationSeverity = "error" | "warning" | "info";
 
+/** How much the app may interrupt, chosen in the notification center. */
+export type NotificationMode = "do-not-disturb" | "writing" | "reviewing" | "reading";
+
+export const notificationModeStorageKey = "latexdo.notificationMode";
+
+const notificationModeValues: readonly NotificationMode[] = [
+  "do-not-disturb",
+  "writing",
+  "reviewing",
+  "reading",
+];
+
+export function loadNotificationMode(): NotificationMode {
+  try {
+    const saved = localStorage.getItem(notificationModeStorageKey);
+    if (saved && (notificationModeValues as readonly string[]).includes(saved)) {
+      return saved as NotificationMode;
+    }
+  } catch {
+    /* Storage may be unavailable. */
+  }
+  return "reviewing";
+}
+
 export interface AppNotification {
   id: number;
   severity: NotificationSeverity;

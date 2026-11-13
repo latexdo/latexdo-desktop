@@ -1,5 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useDiscussion } from "../features/discussion/useDiscussion";
+import { useProjectHistory } from "../features/history/useProjectHistory";
+import { loadNotificationMode } from "../features/notifications/notifications";
 import type { AppCtx21 } from "./appContext";
 
 // The shared project's discussion: its panel, badge and notices.
@@ -30,5 +32,26 @@ export function useAppDiscussion(ctx: AppCtx21) {
     onOpen: showDiscussion,
   });
 
-  return { discussion, discussionVisible };
+  // The unread count also shows on the app icon (Dock / taskbar), except in
+  // Do Not Disturb, which hides unread badges.
+  const unread =
+    enabled && loadNotificationMode() !== "do-not-disturb"
+      ? discussion.totals.unread
+      : 0;
+  useEffect(() => {
+    void window.latexdo.setUnreadBadge?.(unread)?.catch(() => undefined);
+  }, [unread]);
+  useEffect(
+    () => () => void window.latexdo.setUnreadBadge?.(0)?.catch(() => undefined),
+    [],
+  );
+
+  // Who changed what: the shared project's change history.
+  const historyVisible = sidebarVisible && activeSidebar === "history";
+  const projectHistory = useProjectHistory({
+    projectId: enabled && projectId ? projectId : null,
+    visible: historyVisible,
+  });
+
+  return { discussion, discussionVisible, projectHistory };
 }

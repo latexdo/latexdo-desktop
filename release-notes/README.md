@@ -8,6 +8,8 @@ Before publishing an update:
 2. Update `publishedAt` in both that document and `index.json`. For a new version, add a new document and a corresponding index entry; keep older entries for users who skip versions.
 3. Run `npm run build`. A missing document for the package version fails the build. The summaries are copied into `dist-electron/release-notes` and packaged with the app.
 
-For another build of the same version, update its existing summary. Commit messages starting with `feat:`, `fix:`, or `perf:` also populate the “In this update” list when the previous build is present in the bundled Git history. Use short, user-facing descriptions.
+Every build on `main` shares the package version, so **update the existing summary whenever a build ships something users will notice**. Otherwise What's New keeps showing the same text.
+
+Commit messages starting with `feat:`, `fix:`, or `perf:` (with or without a scope, such as `feat(review):`) also fill the change list automatically, including the commits inside merged pull requests. After an update it is titled “In this update” and covers the builds since the previous one; opened from Help → What's New without an update, it is titled “Recent changes” and covers the latest builds. Write these subjects in English, as short user-facing descriptions.
 
 The publication workflow uses the same JSON to write the GitHub release description. It separately signs and uploads the website copies when `LATEXDO_UPDATE_SIGNING_KEY` is configured. Remote notes still require signature verification; bundled notes come from the installed application. Publishing this change is required before existing users receive offline notes.

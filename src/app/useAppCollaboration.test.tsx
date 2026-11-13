@@ -378,11 +378,14 @@ describe("collaboration sharing workflow", () => {
     await act(async () => {});
     expect(h.state.statusMessage).toContain("Grace wants to join");
     h.ctx.setStatusMessage.mockClear();
-    await act(() => vi.advanceTimersByTimeAsync(10000));
+    const checks = api.getCollaborationPermissions.mock.calls.length;
+    // Join requests are checked every 30 s (a live document hears them at once).
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(api.getCollaborationPermissions.mock.calls.length).toBeGreaterThan(checks);
     expect(h.ctx.setStatusMessage).not.toHaveBeenCalled();
     h.unmount();
     api.getCollaborationPermissions.mockClear();
-    await act(() => vi.advanceTimersByTimeAsync(10000));
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(api.getCollaborationPermissions).not.toHaveBeenCalled();
   });
 });

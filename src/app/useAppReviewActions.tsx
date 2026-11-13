@@ -124,6 +124,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
     setFileBlameEnabled,
     setRebuttalItems,
     setReviewChats,
+    setActiveReviewChatId,
+    setWelcomeOpen,
     setStatusMessage,
     settings,
     syncCitationSearchAnchor,
@@ -159,6 +161,42 @@ export function useAppReviewActions(ctx: AppCtx13) {
   // Editor actions live for the whole mount, including document switches.
   const bookmarkActionsRef = useRef({ toggleBookmarkAtCurrentLine, jumpToBookmark });
   bookmarkActionsRef.current = { toggleBookmarkAtCurrentLine, jumpToBookmark };
+
+  // The review thread whose passage sits under a click in the editor, so the
+  // editor and the review sidebar stay linked both ways.
+  const reviewChatsRef = useRef(reviewChats);
+  reviewChatsRef.current = reviewChats;
+  const reviewChatAt = (
+    editor: Monaco.editor.IStandaloneCodeEditor,
+    position: Monaco.IPosition,
+    wholeLine: boolean,
+  ): ReviewChat | null => {
+    const model = editor.getModel();
+    const document = documentsRef.current.find(
+      (item) => item.path === activePathRef.current,
+    );
+    if (!model || !document) return null;
+    const documentPath = normalizeRelativePath(document.relativePath);
+    const content = model.getValue();
+    for (const chat of reviewChatsRef.current) {
+      if (normalizeRelativePath(chat.filePath) !== documentPath) continue;
+      const range = locateReviewSelection(content, chat.selection);
+      if (!range) continue;
+      const inside = wholeLine
+        ? position.lineNumber === range.startLine
+        : monaco.Range.containsPosition(
+            new monaco.Range(
+              range.startLine,
+              range.startColumn,
+              range.endLine,
+              range.endColumn,
+            ),
+            position,
+          );
+      if (inside) return chat;
+    }
+    return null;
+  };
 
   /** Next-edit predictions are "intelligent completion": off unless enabled. */
   const installNextEdit = (editor: Monaco.editor.IStandaloneCodeEditor) => {
@@ -538,9 +576,29 @@ export function useAppReviewActions(ctx: AppCtx13) {
         event.event.detail === 1
       ) {
         event.event.preventDefault();
+        // The review icon opens its thread instead of toggling a bookmark.
+        const reviewChat = event.target.element?.classList.contains(
+          "review-comment-glyph",
+        )
+          ? reviewChatAt(editor, event.target.position, true)
+          : null;
+        if (reviewChat) {
+          ctx.setActiveReviewChatId(reviewChat.id);
+          ctx.openSidebar("reviews");
+          return;
+        }
         editor.setPosition(event.target.position);
         bookmarkActionsRef.current.toggleBookmarkAtCurrentLine();
         return;
+      }
+      if (
+        event.target.type === monaco.editor.MouseTargetType.CONTENT_TEXT &&
+        event.target.position &&
+        event.event.leftButton &&
+        event.event.detail === 1
+      ) {
+        const reviewChat = reviewChatAt(editor, event.target.position, false);
+        if (reviewChat) ctx.setActiveReviewChatId(reviewChat.id);
       }
       if (event.event.detail === 2 && event.target.position) {
         void forwardSyncRef.current?.(event.target.position);
@@ -1052,6 +1110,8 @@ export function useAppReviewActions(ctx: AppCtx13) {
         return;
       }
 
+      setActiveReviewChatId(chat.id);
+      setWelcomeOpen(false);
       await openDocument(entry);
       const content = documentsRef.current.find(
         (document) => document.path === entry.path,
@@ -1089,7 +1149,13 @@ export function useAppReviewActions(ctx: AppCtx13) {
       };
       requestAnimationFrame(() => revealPendingSource());
     },
-    [allProjectEntries, openDocument, revealPendingSource],
+    [
+      allProjectEntries,
+      openDocument,
+      revealPendingSource,
+      setActiveReviewChatId,
+      setWelcomeOpen,
+    ],
   );
 
   const handleAddPdfReview = async (point: PdfClickLocation) => {

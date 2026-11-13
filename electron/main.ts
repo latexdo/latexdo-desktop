@@ -170,6 +170,7 @@ import {
   recordConfirmedUpdate,
   recordLaunchedVersion,
   changesBetweenBuilds,
+  recentBuildChanges,
   shouldShowWhatsNew,
 } from "./updateExperience.js";
 
@@ -5213,16 +5214,20 @@ async function buildWhatsNewResult(): Promise<WhatsNewResult> {
     fromVersion ?? runningVersion,
     runningVersion,
   );
+  const changes = buildInfo?.changes ?? [];
+  const sinceUpdate =
+    confirmed && versionsEquivalent(confirmed.toVersion, runningVersion)
+      ? changesBetweenBuilds(changes, confirmed.fromCommit)
+      : [];
   return {
     fromVersion,
     toVersion: runningVersion,
     releases: range.documents,
     shouldPresent,
     notesAvailable: range.available,
-    buildChanges:
-      confirmed && versionsEquivalent(confirmed.toVersion, runningVersion)
-        ? changesBetweenBuilds(buildInfo?.changes ?? [], confirmed.fromCommit)
-        : [],
+    // Builds share one version, so the latest changes are always worth showing.
+    buildChanges: sinceUpdate.length ? sinceUpdate : recentBuildChanges(changes),
+    buildChangesSinceUpdate: sinceUpdate.length > 0,
   };
 }
 
@@ -7936,6 +7941,19 @@ async function startApp(): Promise<void> {
     const relativePath = parseRelativePath(channel, rawRelativePath);
     const { resolvedPath } = await resolveOpenProjectPath(projectId, relativePath);
     shell.showItemInFolder(resolvedPath);
+  });
+  // Unread discussion messages, on the Dock / taskbar icon.
+  ipcMain.handle("app:set-unread-badge", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "app:set-unread-badge";
+    const [rawCount] = expectIpcArgs(channel, rawArgs, 1);
+    if (
+      typeof rawCount !== "number" ||
+      !Number.isSafeInteger(rawCount) ||
+      rawCount < 0
+    ) {
+      throw new Error("Invalid badge count.");
+    }
+    app.setBadgeCount(Math.min(rawCount, 9999));
   });
   ipcMain.handle("app:check-updates", async (_event, ...rawArgs: unknown[]) => {
     const channel = "app:check-updates";

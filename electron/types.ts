@@ -129,11 +129,61 @@ export interface CollaboratorPermission {
   name: string;
   role: CollaboratorRole;
   isCurrent?: boolean;
+  /** Admin rights offered to this person, waiting for them to accept. */
+  adminOffer?: AdminOffer;
+}
+
+export interface AdminOffer {
+  /** The admin who offered it. */
+  from: string;
+  /** True when that admin steps down to editor once it is accepted. */
+  transfer: boolean;
+  offeredAt: number;
+}
+
+/**
+ * One person's edit to one file in a shared project: a burst of typing,
+ * stored as a small line diff. Recorded by the author's app, end-to-end
+ * encrypted on the server.
+ */
+export interface HistoryChange {
+  path: string;
+  startedAt: number;
+  endedAt: number;
+  added: number;
+  removed: number;
+  /** Each line starts with " " (context), "+" (added) or "-" (removed). */
+  hunks: HistoryHunk[];
+}
+
+export interface HistoryHunk {
+  /** 1-based first line in the file before and after the change. */
+  oldStart: number;
+  newStart: number;
+  lines: string[];
+}
+
+export interface ProjectHistoryEntry {
+  seq: number;
+  /** When the server received it. */
+  at: number;
+  /** The author's client id. */
+  from: string;
+  change: HistoryChange;
+}
+
+export interface ProjectHistoryPage {
+  entries: ProjectHistoryEntry[];
+  hasMore: boolean;
+  /** Pass as `before` to load older changes. */
+  cursor: number | null;
 }
 
 export interface PermissionUpdate {
   clientId: string;
   role: CollaboratorRole;
+  /** With role "admin": hand over your own admin seat (you become editor). */
+  transfer?: boolean;
 }
 
 export interface DocxImportResult {
@@ -501,6 +551,8 @@ export interface WhatsNewResult {
   notesAvailable: boolean;
   /** What changed between the previous build and this one, newest first. */
   buildChanges?: BuildChangeNote[];
+  /** True when buildChanges are what the last update brought; else recent ones. */
+  buildChangesSinceUpdate?: boolean;
 }
 
 export interface BuildChangeNote {
@@ -646,6 +698,12 @@ export interface DiscussionMessage {
   createdAt: number;
   editedAt?: number;
   updatedSeq?: number;
+  bodySeq?: number;
+  /** Each person's reaction (an emoji), by client id. */
+  reactions?: Record<string, string>;
+  /** Set when an admin removed the message; its body is then empty. */
+  deletedAt?: number;
+  deletedBy?: string;
   /** Set when the message could not be decrypted on this computer. */
   undecryptable?: boolean;
 }
@@ -678,6 +736,11 @@ export interface DiscussionQuery {
 export interface DiscussionMessageInput {
   edit?: boolean;
   expectedRevision?: number;
+  /** Sets (or, with a null reaction, removes) this person's reaction. */
+  react?: boolean;
+  reaction?: string | null;
+  /** An admin removes the message for everyone. */
+  delete?: boolean;
   id: string;
   to: string | null;
   body: string;

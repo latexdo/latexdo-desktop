@@ -729,6 +729,22 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
       throw browserUnavailable("Cloud collaboration permissions");
     },
 
+    async getProjectHistory() {
+      throw browserUnavailable("Project history");
+    },
+
+    async sendProjectHistory() {
+      // The browser editor does not record history.
+    },
+
+    async answerAdminOffer() {
+      throw browserUnavailable("Cloud collaboration permissions");
+    },
+
+    async withdrawAdminOffer() {
+      throw browserUnavailable("Cloud collaboration permissions");
+    },
+
     async isProjectAdmin() {
       return false;
     },
@@ -891,6 +907,10 @@ function createBrowserLatexDoApi(): BrowserLatexDoApi {
 
     onGitChanged() {
       return () => {};
+    },
+
+    async setUnreadBadge() {
+      // A browser tab has no app icon to badge.
     },
 
     async checkForUpdates() {

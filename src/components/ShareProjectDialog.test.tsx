@@ -46,6 +46,38 @@ describe("ShareProjectDialog", () => {
     expect(p.onClose).not.toHaveBeenCalled();
   });
 
+  it("asks the invited person to accept or decline admin rights", () => {
+    const onAnswerAdminOffer = vi.fn();
+    const view = render(
+      <ShareProjectDialog
+        {...props({
+          isAdmin: false,
+          currentUserRole: "editor",
+          adminOffer: { fromName: "Ada", transfer: false },
+          onAnswerAdminOffer,
+        })}
+      />,
+    );
+    const invitation = screen.getByRole("region", { name: "Admin invitation" });
+    expect(invitation.textContent).toContain("Ada invited you to become an admin");
+    fireEvent.click(screen.getByRole("button", { name: "Become admin" }));
+    expect(onAnswerAdminOffer).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+    expect(onAnswerAdminOffer).toHaveBeenLastCalledWith(false);
+
+    view.rerender(
+      <ShareProjectDialog
+        {...props({
+          adminOffer: { fromName: "Ada", transfer: true },
+          answeringAdminOffer: true,
+          onAnswerAdminOffer,
+        })}
+      />,
+    );
+    expect(screen.getByText(/They will become an editor/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
   it("warns about a missing name without a Profile shortcut", () => {
     render(<ShareProjectDialog {...props({ displayName: "  " })} />);
     expect(screen.getByText(/Collaborators will see you as Guest/)).toBeTruthy();

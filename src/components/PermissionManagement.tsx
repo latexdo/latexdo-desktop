@@ -17,7 +17,13 @@ export interface PermissionManagementProps {
   onUpdatePermission: (update: PermissionUpdate) => Promise<void>;
   onRemoveCollaborator: (clientId: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  /** Admins other than the owner may hand over their own admin role. */
+  canTransferAdmin?: boolean;
+  onWithdrawAdminOffer?: (clientId: string) => Promise<void>;
 }
+
+/** What the role menu can do: set a role, or hand over my admin role. */
+type RoleChoice = CollaboratorRole | "transfer";
 
 const roleLabels: Record<CollaboratorRole, string> = {
   admin: "Admin",
@@ -45,25 +51,49 @@ export function PermissionManagement({
   onUpdatePermission,
   onRemoveCollaborator,
   onRefresh,
+  canTransferAdmin = false,
+  onWithdrawAdminOffer,
 }: PermissionManagementProps) {
   const [loading, setLoading] = useState<{
     action: "update" | "remove";
     clientId: string;
   } | null>(null);
   const [error, setError] = useState<string>("");
+  const [notice, setNotice] = useState<string>("");
 
   const handleRoleChange = useCallback(
-    async (clientId: string, newRole: CollaboratorRole) => {
+    async (permission: CollaboratorPermission, choice: RoleChoice) => {
       if (!isAdmin) {
         setError("Only admin can change permissions");
+        return;
+      }
+      const { clientId, name } = permission;
+      const transfer = choice === "transfer";
+      if (
+        transfer &&
+        !window.confirm(
+          `Hand over your admin role to ${name}? Once they accept, you become an editor.`,
+        )
+      ) {
         return;
       }
 
       setLoading({ action: "update", clientId });
       setError("");
+      setNotice("");
 
       try {
-        await onUpdatePermission({ clientId, role: newRole });
+        await onUpdatePermission(
+          transfer
+            ? { clientId, role: "admin", transfer: true }
+            : { clientId, role: choice },
+        );
+        // Admin rights are offered: the person becomes admin once they accept.
+        if (transfer || (choice === "admin" && permission.role !== "admin")) {
+          setNotice(
+            `Invitation sent. ${name} becomes admin once they accept it in LatexDo.`,
+          );
+        }
         await onRefresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to update permission");
@@ -72,6 +102,25 @@ export function PermissionManagement({
       }
     },
     [isAdmin, onUpdatePermission, onRefresh],
+  );
+
+  const handleWithdraw = useCallback(
+    async (clientId: string) => {
+      if (!onWithdrawAdminOffer) return;
+      setLoading({ action: "update", clientId });
+      setError("");
+      setNotice("");
+      try {
+        await onWithdrawAdminOffer(clientId);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Could not withdraw the invitation",
+        );
+      } finally {
+        setLoading(null);
+      }
+    },
+    [onWithdrawAdminOffer],
   );
 
   const handleRemove = useCallback(
@@ -134,6 +183,11 @@ export function PermissionManagement({
       <h4>People with access</h4>
 
       {error ? <div className="permission-error">{error}</div> : null}
+      {notice ? (
+        <div className="permission-notice" role="status">
+          {notice}
+        </div>
+      ) : null}
 
       {permissions.length === 0 ? (
         <p className="permission-empty">
@@ -178,6 +232,23 @@ export function PermissionManagement({
                                 : "Active now"}
                           </small>
                         ) : null}
+                        {perm.adminOffer ? (
+                          <small className="permission-admin-offer">
+                            <Crown size={11} aria-hidden="true" />
+                            {perm.adminOffer.transfer
+                              ? "Admin hand-over waiting for their answer"
+                              : "Admin invitation waiting for their answer"}
+                            {onWithdrawAdminOffer ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleWithdraw(perm.clientId)}
+                                disabled={loading?.clientId === perm.clientId}
+                              >
+                                Withdraw
+                              </button>
+                            ) : null}
+                          </small>
+                        ) : null}
                       </span>
                     </span>
                   </td>
@@ -185,11 +256,9 @@ export function PermissionManagement({
                     {isAdmin && !isCurrent ? (
                       <select
                         value={perm.role}
+                        aria-label={`Role of ${perm.name}`}
                         onChange={(e) => {
-                          void handleRoleChange(
-                            perm.clientId,
-                            e.target.value as CollaboratorRole,
-                          );
+                          void handleRoleChange(perm, e.target.value as RoleChoice);
                         }}
                         disabled={
                           loading?.action === "update" &&
@@ -198,9 +267,14 @@ export function PermissionManagement({
                       >
                         {getAvailableRoles(isCurrent).map((role) => (
                           <option key={role} value={role}>
-                            {roleLabels[role]}
+                            {role === "admin" && perm.role !== "admin"
+                              ? "Admin (invite)"
+                              : roleLabels[role]}
                           </option>
                         ))}
+                        {canTransferAdmin && perm.role !== "admin" ? (
+                          <option value="transfer">Hand over my admin role</option>
+                        ) : null}
                       </select>
                     ) : (
                       <span

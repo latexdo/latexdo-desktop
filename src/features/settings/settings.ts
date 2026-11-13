@@ -681,6 +681,8 @@ export interface AppSettings {
   intelligentCompletion: boolean;
   inlineBlame: boolean;
   showRawLatex: boolean;
+  /** Occasional "Did you know?" tips about features not used yet. */
+  featureTips: boolean;
   projectTreeIgnoredNames: string[];
   projectTreeMaxDepth: number;
   projectTreeMaxEntries: number;
@@ -823,6 +825,7 @@ export const defaultSettings: AppSettings = {
   intelligentCompletion: false,
   inlineBlame: true,
   showRawLatex: true,
+  featureTips: true,
   projectTreeIgnoredNames: defaultProjectTreeIgnoredNames,
   projectTreeMaxDepth: 8,
   projectTreeMaxEntries: 5000,
@@ -1237,6 +1240,10 @@ function readSavedSettings(): AppSettings {
         typeof saved.inlineBlame === "boolean"
           ? saved.inlineBlame
           : defaultSettings.inlineBlame,
+      featureTips:
+        typeof saved.featureTips === "boolean"
+          ? saved.featureTips
+          : defaultSettings.featureTips,
       showRawLatex:
         typeof saved.showRawLatex === "boolean"
           ? saved.showRawLatex

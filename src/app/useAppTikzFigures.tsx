@@ -1,3 +1,4 @@
+import { emitProductEvent } from "../features/onboarding/core/ProductEvents";
 import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useRef } from "react";
 import {
@@ -127,6 +128,7 @@ export function useAppTikzFigures(ctx: AppCtx10) {
     (id: ToolTabId) => {
       const key = toolTabKey(id);
       if (!key) return;
+      emitProductEvent({ type: "tool:opened", tool: key });
       rememberReturnTarget();
       setToolOpen(key, true);
       goTo(id);

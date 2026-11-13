@@ -1,3 +1,4 @@
+import { emitProductEvent } from "../../features/onboarding/core/ProductEvents";
 import { usePdfReviewMarkers } from "../../features/review/usePdfReviewMarkers";
 import { PdfThemePicker } from "../../components/PdfThemePicker";
 import { supportLatexDoUrl } from "../../features/settings/settings";
@@ -641,7 +642,10 @@ function PdfPreviewPane({ ctx }: { ctx: AppCtx }) {
             />
             <button
               className={listening ? "is-active" : undefined}
-              onClick={() => setListening((open) => !open)}
+              onClick={() => {
+                if (!listening) emitProductEvent({ type: "pdf:listen-opened" });
+                setListening((open) => !open);
+              }}
               disabled={!pdfData}
               title={listening ? "Close listening" : "Listen to paper"}
               aria-label="Listen to paper"

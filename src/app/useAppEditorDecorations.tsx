@@ -48,6 +48,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
     spellCheckerSettings,
     revealPendingSource,
     reviewChats,
+    activeReviewChatId,
     saveActiveAndCompile,
     setActivePath,
     setBookmarkStore,
@@ -716,6 +717,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
         normalizeRelativePath(activeDocument.relativePath),
     );
     const decorations = relevantChats.flatMap((chat) => {
+      const isActive = Boolean(activeReviewChatId) && chat.id === activeReviewChatId;
       const selection = locateReviewSelection(
         editor.getModel()!.getValue(),
         chat.selection,
@@ -737,7 +739,9 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
           ),
           options: {
             isWholeLine: false,
-            inlineClassName: "review-comment-decoration",
+            inlineClassName: isActive
+              ? "review-comment-decoration is-active"
+              : "review-comment-decoration",
             stickiness:
               monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
             hoverMessage,
@@ -747,7 +751,9 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
           range: new monaco.Range(selection.startLine, 1, selection.startLine, 1),
           options: {
             isWholeLine: true,
-            glyphMarginClassName: "review-comment-glyph",
+            glyphMarginClassName: isActive
+              ? "review-comment-glyph is-active"
+              : "review-comment-glyph",
             glyphMargin: { position: monaco.editor.GlyphMarginLane.Center },
             stickiness:
               monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -761,7 +767,7 @@ export function useAppEditorDecorations(ctx: AppCtx05) {
       reviewDecorationsRef.current,
       decorations,
     );
-  }, [activeDocument, reviewChats]);
+  }, [activeDocument, activeReviewChatId, reviewChats]);
 
   const latexDecorationsRef = useRef<string[]>([]);
 

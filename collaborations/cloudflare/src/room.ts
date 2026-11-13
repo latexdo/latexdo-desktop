@@ -49,6 +49,31 @@ import {
   type DiscussionMessage,
   type DiscussionState,
 } from "../../discussion.mjs";
+import {
+  HistoryError,
+  historyEntriesFrom,
+  historyLimits,
+  historyPageSize,
+} from "../../history.mjs";
+import {
+  AdminOfferError,
+  adminOfferFor,
+  answerAdminOffer,
+  cancelAdminOffer,
+  offerAdmin,
+  type AdminOffer,
+} from "../../adminOffers.mjs";
+
+/** Runs an admin-offer rule, reporting its refusals as HTTP errors. */
+function adminOfferRule<T>(rule: () => T): T {
+  try {
+    return rule();
+  } catch (error) {
+    if (error instanceof AdminOfferError)
+      throw new HttpError(error.status, error.message);
+    throw error;
+  }
+}
 
 /** Project presence (plaintext JSON: ids, roles and encrypted names). */
 const messageProjectPresence = 4;
@@ -72,6 +97,8 @@ interface Permission {
   sessionHash: string;
   createdAt: number;
   updatedAt: number;
+  /** Admin rights offered to this person, waiting for their answer. */
+  adminOffer?: AdminOffer;
 }
 
 interface PendingRequest {
@@ -226,6 +253,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         PRIMARY KEY (path, part)
       );
       CREATE TABLE IF NOT EXISTS discussion (seq INTEGER PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS history (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        author TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
     `);
   }
 
@@ -427,6 +460,15 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       );
       return json(200, { relativePath: to });
     }
+    if (route === "history") {
+      try {
+        return await this.historyRoute(request, url);
+      } catch (error) {
+        if (error instanceof HistoryError)
+          throw new HttpError(error.status, error.message);
+        throw error;
+      }
+    }
     if (route === "discussion" || route === "discussion/receipts") {
       try {
         return await this.discussionRoute(request, url, route);
@@ -495,6 +537,9 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       return json(200, {
         permissions: this.permissionList(auth.meta, auth.identity.clientId),
         isAdmin: auth.role === "admin",
+        // The owner always stays admin, so only other admins can hand over theirs.
+        canTransferAdmin:
+          auth.role === "admin" && auth.meta.ownerSessionHash !== auth.sessionHash,
         currentUserRole: auth.role,
         requireApproval: auth.meta.requireApproval,
         ...(auth.role === "admin" ? { pending: this.pendingList(auth.meta) } : {}),
@@ -556,8 +601,28 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         ? auth.meta.permissions[body.clientId]
         : undefined;
       if (!existing) throw new HttpError(404, "Collaborator not found.");
+      if (body.role === "admin" && existing.role !== "admin") {
+        // Admin rights are offered; the person accepts them in their app.
+        const adminOffer = adminOfferRule(() =>
+          offerAdmin(auth.meta, {
+            from: auth.identity.clientId,
+            to: existing.clientId,
+            transfer: body.transfer === true,
+            fromIsOwner: auth.meta.ownerSessionHash === auth.sessionHash,
+            now: now(),
+          }),
+        );
+        this.writeMeta(auth.meta);
+        return json(200, {
+          clientId: existing.clientId,
+          name: existing.name,
+          role: existing.role,
+          adminOffer,
+        });
+      }
       existing.role = body.role;
       existing.updatedAt = now();
+      delete existing.adminOffer;
       this.writeMeta(auth.meta);
       this.closeClient(body.clientId, 1008, "Permissions changed");
       return json(200, {
@@ -565,6 +630,37 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         name: existing.name,
         role: existing.role,
       });
+    }
+    if (route === "admin-offer" && method === "POST") {
+      // The invited person answers; they are not an admin yet.
+      const auth = await this.authorize(request, url, "viewer");
+      const body = await this.body(request);
+      if (body.action !== "accept" && body.action !== "decline") {
+        throw new HttpError(400, "Invalid answer.");
+      }
+      const { changed } = adminOfferRule(() =>
+        answerAdminOffer(auth.meta, {
+          clientId: auth.identity.clientId,
+          accept: body.action === "accept",
+          now: now(),
+        }),
+      );
+      this.writeMeta(auth.meta);
+      for (const clientId of changed)
+        this.closeClient(clientId, 1008, "Permissions changed");
+      return json(200, {
+        permissions: this.permissionList(auth.meta, auth.identity.clientId),
+        role: auth.meta.permissions[auth.identity.clientId]?.role ?? null,
+      });
+    }
+    if (route.startsWith("admin-offer/") && method === "DELETE") {
+      const auth = await this.authorize(request, url, "admin");
+      const to = parts[4] ?? "";
+      if (!to || !cancelAdminOffer(auth.meta, to, now())) {
+        throw new HttpError(404, "No admin invitation to withdraw.");
+      }
+      this.writeMeta(auth.meta);
+      return empty();
     }
     if (route.startsWith("collaborators/") && method === "DELETE") {
       const auth = await this.authorize(request, url, "admin");
@@ -584,6 +680,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       // Keep the session binding so an old invite cannot re-enroll them, and
       // retire the invite so they cannot come back under a new identity.
       permission.role = null;
+      delete permission.adminOffer;
       this.presence.delete(removeId);
       this.rotateShare(auth.meta);
       this.closeClient(removeId, 1008, "Removed from project");
@@ -594,6 +691,93 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   }
 
   // --- Discussion ----------------------------------------------------------
+
+  // --- History -------------------------------------------------------------
+
+  /**
+   * Who changed which file and when: each app sends its own person's edits,
+   * sealed, and reads everyone's back (newest first).
+   */
+  private async historyRoute(request: Request, url: URL): Promise<Response> {
+    if (request.method === "GET") {
+      await this.authorize(request, url, "viewer");
+      const size = historyPageSize(url.searchParams.get("limit"));
+      const before = Number(url.searchParams.get("before"));
+      const rows = this.sql
+        .exec<{
+          seq: number;
+          at: number;
+          author: string;
+          data: string;
+        }>(
+          "SELECT seq, at, author, data FROM history WHERE seq < ? ORDER BY seq DESC LIMIT ?",
+          Number.isSafeInteger(before) && before > 0 ? before : Number.MAX_SAFE_INTEGER,
+          size + 1,
+        )
+        .toArray();
+      return json(200, {
+        entries: rows.slice(0, size).map((row) => ({
+          seq: row.seq,
+          at: row.at,
+          from: row.author,
+          data: row.data,
+        })),
+        hasMore: rows.length > size,
+      });
+    }
+    if (request.method === "POST") {
+      // Viewers cannot edit, so they have no changes to record.
+      const auth = await this.authorize(request, url, "editor");
+      const data = historyEntriesFrom(await this.body(request));
+      await this.assertAccountSpace(data.reduce((sum, item) => sum + item.length, 0));
+      const at = now();
+      for (const item of data) {
+        this.sql.exec(
+          "INSERT INTO history (at, author, data) VALUES (?, ?, ?)",
+          at,
+          auth.identity.clientId,
+          item,
+        );
+      }
+      this.trimHistory();
+      this.reportUsage();
+      return json(200, { recorded: data.length });
+    }
+    throw new HttpError(405, "Method not allowed.");
+  }
+
+  private historyBytes(): number {
+    return (
+      this.sql
+        .exec<{
+          total: number | null;
+        }>("SELECT SUM(LENGTH(data)) AS total FROM history")
+        .one().total ?? 0
+    );
+  }
+
+  /** Keeps the newest changes within the project's history budget. */
+  private trimHistory(): void {
+    const { count, total } = this.sql
+      .exec<{
+        count: number;
+        total: number | null;
+      }>("SELECT COUNT(*) AS count, SUM(LENGTH(data)) AS total FROM history")
+      .one();
+    let excessEntries = Math.max(0, count - historyLimits.maxEntries);
+    let excessChars = Math.max(0, (total ?? 0) - historyLimits.maxTotalChars);
+    if (!excessEntries && !excessChars) return;
+    let cutoff = 0;
+    for (const row of this.sql.exec<{ seq: number; size: number }>(
+      "SELECT seq, LENGTH(data) AS size FROM history ORDER BY seq",
+    )) {
+      if (excessEntries <= 0 && excessChars <= 0) break;
+      cutoff = row.seq;
+      excessEntries -= 1;
+      excessChars -= row.size;
+    }
+    this.sql.exec("DELETE FROM history WHERE seq <= ?", cutoff);
+  }
 
   private async discussionRoute(
     request: Request,
@@ -634,6 +818,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         now: now(),
         // The body arrives encrypted, so it is longer than the text typed.
         maxBodyChars: discussionLimits.maxStoredBodyChars,
+        canModerate: auth.role === "admin",
       });
       if (created || updated) {
         this.saveDiscussionMessage(state, message);
@@ -809,6 +994,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         sessionHash,
         createdAt: existing?.createdAt ?? now(),
         updatedAt: now(),
+        // A renamed person keeps their admin invitation; another device does not.
+        ...(existing?.adminOffer &&
+        existing.sessionHash === sessionHash &&
+        nextRole !== "admin"
+          ? { adminOffer: existing.adminOffer }
+          : {}),
       };
       changed = true;
     }
@@ -911,12 +1102,16 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
           roleRank(right.role) - roleRank(left.role) ||
           left.name.localeCompare(right.name),
       )
-      .map((item) => ({
-        clientId: item.clientId,
-        name: item.name || "Anonymous",
-        role: item.role,
-        ...(item.clientId === currentClientId ? { isCurrent: true } : {}),
-      }));
+      .map((item) => {
+        const adminOffer = adminOfferFor(meta, item.clientId);
+        return {
+          clientId: item.clientId,
+          name: item.name || "Anonymous",
+          role: item.role,
+          ...(item.clientId === currentClientId ? { isCurrent: true } : {}),
+          ...(adminOffer ? { adminOffer } : {}),
+        };
+      });
   }
 
   private pendingList(meta: ProjectMeta) {
@@ -1061,7 +1256,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
 
   /** Reports this project's size to the account-wide meter now and then. */
   private reportUsage(): void {
-    const bytes = this.projectBytes();
+    // The change history counts too: it lives in the same storage.
+    const bytes = this.projectBytes() + this.historyBytes();
     if (
       this.reportedBytes >= 0 &&
       Math.abs(bytes - this.reportedBytes) < limits.usageReportStepBytes

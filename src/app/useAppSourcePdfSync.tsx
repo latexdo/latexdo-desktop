@@ -631,9 +631,9 @@ export function useAppSourcePdfSync(ctx: AppCtx04) {
       return false;
     }
 
-    if (
-      normalizeRelativePath(model.uri.fsPath) !== normalizeRelativePath(pending.path)
-    ) {
+    // Cloud and browser projects name models differently from their paths
+    // ("main.tex" vs "file:///main.tex"), so use the shared matcher.
+    if (!editorModelMatchesPath(editor, pending.path)) {
       return false;
     }
 

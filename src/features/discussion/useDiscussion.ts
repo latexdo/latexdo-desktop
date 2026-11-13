@@ -13,7 +13,12 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import { notify } from "../notifications/notifications";
+import {
+  deleteNotification,
+  loadNotificationMode,
+  notify,
+  type NotificationMode,
+} from "../notifications/notifications";
 import type {
   CollaboratorPermission,
   CollaboratorPresence,
@@ -30,6 +35,7 @@ import {
   mergeMessages,
   myReadSeq,
   newMessageId,
+  noticeKind,
   notifiesMe,
   oldestSeq,
   pendingSeq,
@@ -40,10 +46,15 @@ import {
   type ConversationKey,
 } from "./discussionModel";
 
-/** How often to look for news while the discussion is open… */
-const openPollMs = 4_000;
-/** …and while it is not (the live connection usually comes first). */
-const backgroundPollMs = 15_000;
+/*
+ * Polling is only a backstop: the live connection signals every new message,
+ * edit, reaction or deletion at once, and focusing the window fetches too.
+ * Each poll is a request on the always-on server's daily allowance, so they
+ * stay slow: while the discussion is open…
+ */
+const openPollMs = 15_000;
+/** …and while it is not. */
+const backgroundPollMs = 90_000;
 const maxNotices = 3;
 const catchUpPages = 10;
 
@@ -53,7 +64,7 @@ export interface DiscussionNotice {
   conversation: ConversationKey;
   senderId: string;
   senderName: string;
-  kind: "mention" | "private";
+  kind: "mention" | "private" | "message";
   preview: string;
   at: number;
 }
@@ -106,6 +117,32 @@ function windowIsFocused(): boolean {
   );
 }
 
+/**
+ * Whether a message may pop up (in the app and through the system) in the
+ * notification mode chosen in the notification center. Every message still
+ * goes to the notification history and the unread counts.
+ */
+export function discussionPopupAllowed(
+  mode: NotificationMode,
+  kind: DiscussionNotice["kind"],
+): boolean {
+  if (mode === "do-not-disturb" || mode === "reading") return false;
+  // While writing, only what is addressed to me interrupts.
+  if (mode === "writing") return kind !== "message";
+  return true;
+}
+
+/** One line for the app's notification center. */
+function noticeText(notice: DiscussionNotice): string {
+  if (notice.kind === "private") {
+    return `${notice.senderName} sent you a private message: ${notice.preview}`;
+  }
+  if (notice.kind === "mention") {
+    return `${notice.senderName} mentioned you: ${notice.preview}`;
+  }
+  return `${notice.senderName} in the discussion: ${notice.preview}`;
+}
+
 function showSystemNotification(notice: DiscussionNotice, onClick: () => void): void {
   if (typeof Notification === "undefined" || Notification.permission === "denied") {
     return;
@@ -115,8 +152,11 @@ function showSystemNotification(notice: DiscussionNotice, onClick: () => void): 
       const notification = new Notification(
         notice.kind === "private"
           ? `${notice.senderName} (private message)`
-          : `${notice.senderName} mentioned you`,
-        { body: notice.preview, tag: `latexdo-discussion-${notice.id}` },
+          : notice.kind === "mention"
+            ? `${notice.senderName} mentioned you`
+            : `${notice.senderName} · Discussion`,
+        // One notification per conversation: a newer message replaces it.
+        { body: notice.preview, tag: `latexdo-discussion-${notice.conversation}` },
       );
       notification.onclick = () => {
         window.focus();
@@ -152,6 +192,8 @@ export function useDiscussion(options: UseDiscussionOptions) {
 
   const fallbackMe = useMemo(() => window.latexdo?.collaborationClientId?.() ?? "", []);
   const me = permissions.find((item) => item.isCurrent)?.clientId ?? fallbackMe;
+  /** Admins may delete any message they can see. */
+  const isAdmin = permissions.find((item) => item.isCurrent)?.role === "admin";
 
   const messagesRef = useRef(messages);
   const receiptsRef = useRef(receipts);
@@ -165,6 +207,8 @@ export function useDiscussion(options: UseDiscussionOptions) {
   const inFlightRef = useRef(false);
   const againRef = useRef(false);
   const notifiedRef = useRef(new Set<string>());
+  /** The notification-center entry each message created, by message id. */
+  const historyRef = useRef(new Map<string, number>());
   // My own receipts as the server confirmed them. What is shown may run ahead
   // (it is updated at once), but a receipt is only settled once it is here, so
   // one that failed to send goes out again.
@@ -214,6 +258,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
     fetchedSeqRef.current = 0;
     againRef.current = false;
     notifiedRef.current = new Set();
+    historyRef.current = new Map();
     confirmedRef.current = { delivered: 0, read: {} };
     deliveredSentRef.current = 0;
     readSentRef.current = new Map();
@@ -275,35 +320,57 @@ export function useDiscussion(options: UseDiscussionOptions) {
         conversation: key,
         senderId: message.from,
         senderName: message.name || "Someone",
-        kind: message.to === meNow ? "private" : "mention",
+        kind: noticeKind(message, meNow),
         preview: previewText(message.body, 140),
         at: message.createdAt,
       });
     }
     if (!created.length) return;
     for (const notice of created) {
-      notify(
-        notice.kind === "private"
-          ? `${notice.senderName} sent you a private message: ${notice.preview}`
-          : `${notice.senderName} mentioned you: ${notice.preview}`,
-        { severity: "info", source: "Discussion" },
-      );
+      const entry = notify(noticeText(notice), {
+        severity: "info",
+        source: "Discussion",
+      });
+      if (entry) historyRef.current.set(notice.id, entry.id);
     }
+    const mode = loadNotificationMode();
+    const newestFirst = [...created]
+      .reverse()
+      .filter((notice) => discussionPopupAllowed(mode, notice.kind));
     setNotices((current) =>
-      [...created.reverse(), ...current]
+      [...newestFirst, ...current]
         .filter(
           (notice, index, all) =>
             all.findIndex((item) => item.id === notice.id) === index,
         )
         .slice(0, maxNotices),
     );
-    if (!windowIsFocused()) {
-      const latest = created[0];
-      if (latest) {
-        showSystemNotification(latest, () => onOpenRef.current?.(latest.conversation));
-      }
+    // Also through the operating system, so it is seen outside this panel.
+    const latest = newestFirst[0];
+    if (latest) {
+      showSystemNotification(latest, () => onOpenRef.current?.(latest.conversation));
     }
   }, []);
+
+  // What an admin deleted must not live on in notices or the history.
+  useEffect(() => {
+    const deleted = new Set(
+      messages.filter((message) => message.deletedAt).map((message) => message.id),
+    );
+    if (!deleted.size) return;
+    for (const id of deleted) {
+      const entry = historyRef.current.get(id);
+      if (entry !== undefined) {
+        deleteNotification(entry);
+        historyRef.current.delete(id);
+      }
+    }
+    setNotices((current) =>
+      current.some((notice) => deleted.has(notice.id))
+        ? current.filter((notice) => !deleted.has(notice.id))
+        : current,
+    );
+  }, [messages]);
 
   const confirm = useCallback((receipt: DiscussionReceipt | undefined) => {
     if (!receipt) return;
@@ -381,6 +448,7 @@ export function useDiscussion(options: UseDiscussionOptions) {
         (message) =>
           message.seq > deliveredBefore &&
           notifiesMe(message, meNow) &&
+          !message.deletedAt &&
           !notifiedRef.current.has(message.id),
       );
       for (const message of incoming) notifiedRef.current.add(message.id);
@@ -588,6 +656,79 @@ export function useDiscussion(options: UseDiscussionOptions) {
     [permissions, setMessagesNow],
   );
 
+  /** Sets this person's reaction to a message, or removes it with null. */
+  const react = useCallback(
+    async (message: ChatMessage, emoji: string | null) => {
+      const project = projectRef.current;
+      const me = meRef.current;
+      if (!project || !enabledRef.current || message.local) return;
+      const previous = message.reactions?.[me] ?? null;
+      if (previous === emoji) return;
+      const withReaction = (value: string | null) => (current: ChatMessage[]) =>
+        current.map((item) => {
+          if (item.id !== message.id) return item;
+          const reactions = { ...item.reactions };
+          if (value === null) delete reactions[me];
+          else reactions[me] = value;
+          return {
+            ...item,
+            reactions: Object.keys(reactions).length ? reactions : undefined,
+          };
+        });
+      // Shown at once; the server's copy replaces it when it arrives.
+      setMessagesNow(withReaction(emoji));
+      try {
+        const result = await window.latexdo.sendDiscussionMessage(project, {
+          id: message.id,
+          to: message.to,
+          replyTo: null,
+          body: "",
+          mentions: [],
+          react: true,
+          reaction: emoji,
+        });
+        if (projectRef.current !== project) return;
+        if ((result.message.reactions?.[me] ?? null) !== emoji) {
+          throw new Error("The collaboration server does not support reactions yet.");
+        }
+        setMessagesNow((current) => mergeMessages(current, [result.message]));
+      } catch (caught) {
+        if (projectRef.current !== project) return;
+        setMessagesNow(withReaction(previous));
+        setError(errorMessage(caught));
+      }
+    },
+    [setMessagesNow],
+  );
+
+  /** Admins only: removes a message for everyone ("deleted by an admin"). */
+  const remove = useCallback(
+    async (message: ChatMessage) => {
+      const project = projectRef.current;
+      if (!project || !enabledRef.current || message.local || message.deletedAt) return;
+      try {
+        const result = await window.latexdo.sendDiscussionMessage(project, {
+          id: message.id,
+          to: message.to,
+          replyTo: null,
+          body: "",
+          mentions: [],
+          delete: true,
+        });
+        if (projectRef.current !== project) return;
+        if (!result.message.deletedAt) {
+          throw new Error(
+            "The collaboration server does not support deleting messages yet.",
+          );
+        }
+        setMessagesNow((current) => mergeMessages(current, [result.message]));
+      } catch (caught) {
+        if (projectRef.current === project) setError(errorMessage(caught));
+      }
+    },
+    [setMessagesNow],
+  );
+
   const retry = useCallback(
     (id: string) => {
       const message = messagesRef.current.find(
@@ -707,6 +848,9 @@ export function useDiscussion(options: UseDiscussionOptions) {
     loadOlder,
     send,
     edit,
+    react,
+    remove,
+    isAdmin,
     retry,
     discard,
     refresh,

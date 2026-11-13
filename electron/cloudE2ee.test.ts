@@ -1237,6 +1237,150 @@ describe("discussion", () => {
     });
   });
 
+  it("seals history changes and refuses ones moved to another author", async () => {
+    const key = newProjectKey();
+    let stored: Array<{ data: string }> = [];
+    const env = setup(
+      async (_path, method, _headers, body) => {
+        if (method === "POST") {
+          stored = JSON.parse(body ?? "{}").entries;
+          return ok({ recorded: stored.length });
+        }
+        return ok({
+          entries: [
+            { seq: 9, at: 2000, from: "ada", data: stored[0]!.data },
+            // The same sealed change, claimed for someone else.
+            { seq: 8, at: 1000, from: "eve", data: stored[0]!.data },
+            { seq: 7, at: 900, from: "ada", data: "damaged" },
+          ],
+          hasMore: true,
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const change = {
+      path: "main.tex",
+      startedAt: 1,
+      endedAt: 2,
+      added: 1,
+      removed: 0,
+      hunks: [{ oldStart: 3, newStart: 3, lines: ["+Secret sentence"] }],
+    };
+    const historyRoute = `${base}/history`;
+    await env.e2ee.request(
+      historyRoute,
+      "POST",
+      headers,
+      JSON.stringify({ entries: [change] }),
+      1000,
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.data).not.toContain("Secret sentence");
+    const page = JSON.parse(
+      (await env.e2ee.request(historyRoute, "GET", headers, undefined, 1000)).text,
+    );
+    expect(page).toEqual({
+      entries: [{ seq: 9, at: 2000, from: "ada", change }],
+      hasMore: true,
+      cursor: 7,
+    });
+  });
+
+  it("forwards admin deletions and shows deleted messages without decrypting", async () => {
+    const key = newProjectKey();
+    const sent: Array<Record<string, unknown>> = [];
+    const env = setup(
+      async (_path, _method, _headers, body) => {
+        sent.push(JSON.parse(body ?? "{}"));
+        return ok({
+          seq: 3,
+          message: {
+            id: "msg-0001",
+            seq: 1,
+            updatedSeq: 3,
+            from: "bob",
+            to: null,
+            body: "",
+            mentions: [],
+            createdAt: 1000,
+            deletedAt: 2000,
+            deletedBy: "ada",
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", delete: true, body: "ignored" }),
+      1000,
+    );
+    expect(sent).toEqual([{ id: "msg-0001", delete: true }]);
+    const { message } = JSON.parse(response.text);
+    expect(message).toMatchObject({ body: "", deletedAt: 2000, deletedBy: "ada" });
+    expect(message.undecryptable).toBeUndefined();
+  });
+
+  it("seals reactions so the server never learns the emoji", async () => {
+    const key = newProjectKey();
+    const sent: Array<Record<string, unknown>> = [];
+    const env = setup(
+      async (_path, _method, _headers, body) => {
+        const stored = JSON.parse(body ?? "{}");
+        sent.push(stored);
+        return ok({
+          seq: 5,
+          message: {
+            id: stored.id,
+            seq: 1,
+            updatedSeq: 5,
+            from: "bob",
+            to: null,
+            body: "not sealed",
+            createdAt: 1000,
+            // A copy moved to another person must not be shown as theirs.
+            reactions: stored.reaction
+              ? { ada: stored.reaction, eve: stored.reaction, zed: "damaged" }
+              : {},
+          },
+        });
+      },
+      memoryKeys({ [projectId]: key }),
+    );
+    const response = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: "👍" }),
+      1000,
+    );
+    expect(sent[0]).toMatchObject({ id: "msg-0001", react: true });
+    expect(String(sent[0].reaction)).not.toContain("👍");
+    expect(JSON.parse(response.text).message.reactions).toEqual({ ada: "👍" });
+
+    const removed = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: null }),
+      1000,
+    );
+    expect(sent[1]).toEqual({ id: "msg-0001", react: true, reaction: null });
+    expect(JSON.parse(removed.text).message.reactions).toBeUndefined();
+
+    const tooLong = await env.e2ee.request(
+      route,
+      "POST",
+      headers,
+      JSON.stringify({ id: "msg-0001", react: true, reaction: "x".repeat(17) }),
+      1000,
+    );
+    expect(tooLong.status).toBe(400);
+    expect(sent).toHaveLength(2);
+  });
+
   it("refuses empty messages and passes server errors through", async () => {
     const key = newProjectKey();
     const env = setup(

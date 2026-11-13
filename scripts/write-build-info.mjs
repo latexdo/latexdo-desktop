@@ -31,8 +31,18 @@ function gitHead() {
 /** Changes kept in each build so What's New can list what a build update brought. */
 const maxBuildChanges = 200;
 
-/** First-parent history of the build, newest first: { commit, subject }. */
-export function recentChanges(readLog = gitLog) {
+/** Commits one merge can contribute to What's New. */
+const maxMergedChanges = 50;
+
+const mergeSubjectPattern = /^Merge (?:pull request|branch|remote-tracking branch)\b/;
+
+/**
+ * First-parent history of the build, newest first: { commit, subject }. The
+ * main branch is built from pull-request merges, whose own subject says
+ * nothing ("Merge pull request #12 from …"), so each merge also carries the
+ * subjects of the commits it brought in, as `merged`.
+ */
+export function recentChanges(readLog = gitLog, readMerged = gitMergedSubjects) {
   const output = readLog();
   if (!output) return [];
   return output
@@ -41,7 +51,34 @@ export function recentChanges(readLog = gitLog) {
       const [commit, ...subject] = line.split("\t");
       return { commit, subject: subject.join("\t").trim() };
     })
-    .filter((change) => commitPattern.test(change.commit) && change.subject);
+    .filter((change) => commitPattern.test(change.commit) && change.subject)
+    .map((change) => {
+      if (!mergeSubjectPattern.test(change.subject)) return change;
+      const merged = readMerged(change.commit)
+        .split("\n")
+        .map((subject) => subject.trim())
+        .filter(Boolean)
+        .slice(0, maxMergedChanges);
+      return merged.length ? { ...change, merged } : change;
+    });
+}
+
+function gitMergedSubjects(commit) {
+  try {
+    return execFileSync(
+      "git",
+      [
+        "log",
+        "--no-merges",
+        `-${maxMergedChanges}`,
+        "--format=%s",
+        `${commit}^1..${commit}`,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+  } catch {
+    return "";
+  }
 }
 
 function gitLog() {

@@ -27,6 +27,10 @@ export const discussionLimits = Object.freeze({
   /** …within this window. */
   burstWindowMs: 10_000,
   maxConversationKeys: 200,
+  /** A stored reaction (sealed, so longer than the emoji itself). */
+  maxReactionChars: 1024,
+  /** People who may react to one message. */
+  maxReactionsPerMessage: 200,
 });
 
 export const everyoneConversation = "*";
@@ -112,12 +116,98 @@ function cleanMentions(value, members) {
   return mentions;
 }
 
+/** The revision at which a message's text last changed. */
+function bodyRevision(message) {
+  if (isSeq(message.bodySeq)) return message.bodySeq;
+  // Edited before reactions existed: the last update was the edit.
+  return message.editedAt && isSeq(message.updatedSeq)
+    ? message.updatedSeq
+    : message.seq;
+}
+
+/**
+ * An admin removes a message for everyone. What it said, its mentions and
+ * reactions are dropped; it stays in place as "deleted by an admin" so the
+ * order, replies and read receipts around it keep making sense.
+ */
+function deleteMessage(state, identity, existing, { canModerate, now }) {
+  if (!existing || !canSeeMessage(existing, identity.clientId)) {
+    throw new DiscussionError(404, "Message not found.");
+  }
+  if (!canModerate) {
+    throw new DiscussionError(403, "Only an admin can delete messages.");
+  }
+  if (existing.deletedAt) return { message: existing, created: false };
+  const message = {
+    ...existing,
+    body: "",
+    mentions: [],
+    deletedAt: now,
+    deletedBy: identity.clientId,
+    updatedSeq: state.seq + 1,
+  };
+  message.bodySeq = message.updatedSeq;
+  delete message.reactions;
+  delete message.editedAt;
+  state.seq = message.updatedSeq;
+  state.messages[state.messages.indexOf(existing)] = message;
+  return { message, created: false, updated: true };
+}
+
+/**
+ * Sets or clears this person's reaction to a message they can see: one
+ * reaction per person, stored as an opaque value (the apps seal the emoji, so
+ * the server never learns it). A null reaction removes theirs.
+ */
+function reactToMessage(state, identity, existing, input) {
+  if (!existing || !canSeeMessage(existing, identity.clientId)) {
+    throw new DiscussionError(404, "Message not found.");
+  }
+  const reaction = input.reaction ?? null;
+  if (
+    reaction !== null &&
+    (typeof reaction !== "string" ||
+      !reaction ||
+      reaction.length > discussionLimits.maxReactionChars)
+  ) {
+    throw new DiscussionError(400, "Invalid reaction.");
+  }
+  const reactions = new Map(
+    existing.reactions && typeof existing.reactions === "object"
+      ? Object.entries(existing.reactions)
+      : [],
+  );
+  const current = reactions.get(identity.clientId);
+  if ((current ?? null) === reaction) return { message: existing, created: false };
+  if (reaction === null) {
+    reactions.delete(identity.clientId);
+  } else {
+    if (!current && reactions.size >= discussionLimits.maxReactionsPerMessage) {
+      throw new DiscussionError(413, "This message has too many reactions.");
+    }
+    reactions.set(identity.clientId, reaction);
+  }
+  const message = {
+    ...existing,
+    bodySeq: bodyRevision(existing),
+    updatedSeq: state.seq + 1,
+  };
+  if (reactions.size) message.reactions = Object.fromEntries(reactions);
+  else delete message.reactions;
+  state.seq = message.updatedSeq;
+  state.messages[state.messages.indexOf(existing)] = message;
+  return { message, created: false, updated: true };
+}
+
 /**
  * Validates and stores a new message. `members` maps every client id with
  * access to the project to its name. Re-sending a message with the same id
  * (a retry) returns the stored one instead of a duplicate.
  */
-export function postMessage(state, { identity, members, input, now, maxBodyChars }) {
+export function postMessage(
+  state,
+  { identity, members, input, now, maxBodyChars, canModerate = false },
+) {
   if (!input || typeof input !== "object") {
     throw new DiscussionError(400, "Message must be JSON.");
   }
@@ -126,12 +216,25 @@ export function postMessage(state, { identity, members, input, now, maxBodyChars
     throw new DiscussionError(400, "Invalid message id.");
   }
   const existing = state.messages.find((message) => message.id === id);
+  if (input.delete === true) {
+    return deleteMessage(state, identity, existing, { canModerate, now });
+  }
+  if (existing?.deletedAt && (input.react === true || input.edit === true)) {
+    throw new DiscussionError(409, "This message was deleted.");
+  }
+  if (input.react === true) return reactToMessage(state, identity, existing, input);
   if (existing) {
     if (existing.from !== identity.clientId) {
       throw new DiscussionError(409, "Message id already used.");
     }
     if (input.edit === true) {
-      if (input.expectedRevision !== (existing.updatedSeq ?? existing.seq)) {
+      // Reactions also bump the revision; only a newer body makes this edit stale.
+      const revision = existing.updatedSeq ?? existing.seq;
+      if (
+        !isSeq(input.expectedRevision) ||
+        input.expectedRevision < bodyRevision(existing) ||
+        input.expectedRevision > revision
+      ) {
         throw new DiscussionError(
           409,
           "This message changed. Reopen it to edit the latest version.",
@@ -162,6 +265,7 @@ export function postMessage(state, { identity, members, input, now, maxBodyChars
         mentions,
         editedAt: now,
         updatedSeq: state.seq + 1,
+        bodySeq: state.seq + 1,
       };
       state.seq = message.updatedSeq;
       state.messages[state.messages.indexOf(existing)] = message;

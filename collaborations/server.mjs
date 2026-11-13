@@ -1,5 +1,20 @@
 #!/usr/bin/env node
 import { isReviewDataPath, mergeReviewContent } from "./reviewData.mjs";
+import {
+  HistoryError,
+  appendHistory,
+  emptyHistory,
+  historyEntriesFrom,
+  listHistory,
+  normalizeHistory,
+} from "./history.mjs";
+import {
+  AdminOfferError,
+  adminOfferFor,
+  answerAdminOffer,
+  cancelAdminOffer,
+  offerAdmin,
+} from "./adminOffers.mjs";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   cp,
@@ -106,6 +121,8 @@ const messageDiscussion = 7;
 const rooms = new Map();
 // Each project's discussion, loaded on first use and saved on every change.
 const discussions = new Map();
+/** Change histories loaded so far, by project id. */
+const histories = new Map();
 const discussionBursts = new Map();
 
 class HttpError extends Error {
@@ -219,6 +236,10 @@ function projectMetaPath(projectId) {
 
 function projectDiscussionPath(projectId) {
   return path.join(projectDir(projectId), "discussion.json");
+}
+
+function projectHistoryPath(projectId) {
+  return path.join(projectDir(projectId), "history.json");
 }
 
 function sharesIndexPath() {
@@ -522,6 +543,12 @@ function ensureProjectPermission(meta, identity, role) {
       sessionHash: sessionHash(identity.sessionId),
       createdAt: existing?.createdAt ?? now(),
       updatedAt: now(),
+      // A renamed person keeps their admin invitation; another device does not.
+      ...(existing?.adminOffer &&
+      existing.sessionHash === sessionHash(identity.sessionId) &&
+      nextRole !== "admin"
+        ? { adminOffer: existing.adminOffer }
+        : {}),
     },
     enumerable: true,
     writable: true,
@@ -685,12 +712,27 @@ function permissionList(meta, currentClientId) {
       if (rankDelta) return rankDelta;
       return String(left.name).localeCompare(String(right.name));
     })
-    .map((permission) => ({
-      clientId: permission.clientId,
-      name: permission.name || "Anonymous",
-      role: isRole(permission.role) ? permission.role : "viewer",
-      isCurrent: permission.clientId === currentClientId || undefined,
-    }));
+    .map((permission) => {
+      const adminOffer = adminOfferFor(meta, permission.clientId);
+      return {
+        clientId: permission.clientId,
+        name: permission.name || "Anonymous",
+        role: isRole(permission.role) ? permission.role : "viewer",
+        isCurrent: permission.clientId === currentClientId || undefined,
+        ...(adminOffer ? { adminOffer } : {}),
+      };
+    });
+}
+
+/** Runs an admin-offer rule, reporting its refusals as HTTP errors. */
+function adminOfferRule(rule) {
+  try {
+    return rule();
+  } catch (error) {
+    if (error instanceof AdminOfferError)
+      throw new HttpError(error.status, error.message);
+    throw error;
+  }
 }
 
 function activePresence(meta) {
@@ -1279,6 +1321,7 @@ async function handleProjectRoute(request, response, url, parts) {
       }
     }
     discussions.delete(projectId);
+    histories.delete(projectId);
     await rm(projectDir(projectId), { recursive: true, force: true });
     if (knownProjectCount !== null) {
       knownProjectCount = Math.max(0, knownProjectCount - 1);
@@ -1434,6 +1477,11 @@ async function handleProjectRoute(request, response, url, parts) {
     return;
   }
 
+  if (route === "history") {
+    await handleHistoryRoute(request, response, url, projectId);
+    return;
+  }
+
   if (route === "files/collaborate") {
     throw new HttpError(426, "Use WebSocket upgrade for collaboration.");
   }
@@ -1498,6 +1546,8 @@ async function handleShareRoute(request, response, url, parts) {
     sendJson(response, request, 200, {
       permissions: permissionList(meta, identity.clientId),
       isAdmin: role === "admin",
+      // The owner always stays admin, so only other admins can hand over theirs.
+      canTransferAdmin: role === "admin" && meta.ownerSession !== identity.sessionId,
       currentUserRole: role,
       requireApproval: Boolean(meta.requireApproval),
       ...(role === "admin" ? { pending: pendingList(meta) } : {}),
@@ -1571,8 +1621,29 @@ async function handleShareRoute(request, response, url, parts) {
       ? meta.permissions[body.clientId]
       : undefined;
     if (!existing) throw new HttpError(404, "Collaborator not found.");
+    if (body.role === "admin" && existing.role !== "admin") {
+      // Admin rights are offered; the person accepts them in their app.
+      const adminOffer = adminOfferRule(() =>
+        offerAdmin(meta, {
+          from: identity.clientId,
+          to: body.clientId,
+          transfer: body.transfer === true,
+          fromIsOwner: meta.ownerSession === identity.sessionId,
+          now: now(),
+        }),
+      );
+      await writeProjectMeta(meta);
+      sendJson(response, request, 200, {
+        clientId: existing.clientId,
+        name: existing.name,
+        role: existing.role,
+        adminOffer,
+      });
+      return;
+    }
     existing.role = body.role;
     existing.updatedAt = now();
+    delete existing.adminOffer;
     await writeProjectMeta(meta);
     closeClientConnections(meta.id, body.clientId, 1008, "Permissions changed");
     const updated = {
@@ -1581,6 +1652,42 @@ async function handleShareRoute(request, response, url, parts) {
       role: existing.role,
     };
     sendJson(response, request, 200, updated);
+    return;
+  }
+
+  if (route === "admin-offer" && request.method === "POST") {
+    // The invited person answers; they are not an admin yet.
+    const { meta, identity } = await authorizeShare(request, url, token, "viewer");
+    const body = await readJsonBody(request);
+    if (body.action !== "accept" && body.action !== "decline") {
+      throw new HttpError(400, "Invalid answer.");
+    }
+    const { changed } = adminOfferRule(() =>
+      answerAdminOffer(meta, {
+        clientId: identity.clientId,
+        accept: body.action === "accept",
+        now: now(),
+      }),
+    );
+    await writeProjectMeta(meta);
+    for (const clientId of changed) {
+      closeClientConnections(meta.id, clientId, 1008, "Permissions changed");
+    }
+    sendJson(response, request, 200, {
+      permissions: permissionList(meta, identity.clientId),
+      role: meta.permissions[identity.clientId]?.role ?? null,
+    });
+    return;
+  }
+
+  if (route.startsWith("admin-offer/") && request.method === "DELETE") {
+    const { meta } = await authorizeShare(request, url, token, "admin");
+    const to = parts[4];
+    if (!to || !cancelAdminOffer(meta, to, now())) {
+      throw new HttpError(404, "No admin invitation to withdraw.");
+    }
+    await writeProjectMeta(meta);
+    sendEmpty(response, request);
     return;
   }
 
@@ -1603,6 +1710,7 @@ async function handleShareRoute(request, response, url, parts) {
     // Keep the session binding so possession of an old share link cannot
     // silently re-enroll a removed collaborator.
     meta.permissions[clientIdToRemove].role = null;
+    delete meta.permissions[clientIdToRemove].adminOffer;
     delete meta.presence[clientIdToRemove];
     // The removed person still holds the invite. Retire it so they cannot come
     // back under a fresh identity; everyone else stays signed in.
@@ -1632,6 +1740,54 @@ async function loadDiscussion(projectId) {
 
 async function saveDiscussion(projectId, state) {
   await atomicWriteJson(projectDiscussionPath(projectId), state);
+}
+
+// --- Change history ---------------------------------------------------------
+
+async function loadHistory(projectId) {
+  const cached = histories.get(projectId);
+  if (cached) return cached;
+  const raw = safeJsonParse(
+    await readFile(projectHistoryPath(projectId), "utf8").catch(() => ""),
+    null,
+  );
+  const state = raw ? normalizeHistory(raw) : emptyHistory();
+  histories.set(projectId, state);
+  return state;
+}
+
+/** Who changed which file and when (each change sealed by its author's app). */
+async function handleHistoryRoute(request, response, url, projectId) {
+  try {
+    if (request.method === "GET") {
+      await authorizeProject(request, url, projectId, "viewer");
+      const state = await loadHistory(projectId);
+      sendJson(
+        response,
+        request,
+        200,
+        listHistory(state, {
+          before: url.searchParams.get("before") ?? undefined,
+          limit: url.searchParams.get("limit") ?? undefined,
+        }),
+      );
+      return;
+    }
+    if (request.method === "POST") {
+      // Viewers cannot edit, so they have no changes to record.
+      const { identity } = await authorizeProject(request, url, projectId, "editor");
+      const data = historyEntriesFrom(await readJsonBody(request));
+      const state = await loadHistory(projectId);
+      appendHistory(state, { from: identity.clientId, data, now: now() });
+      await atomicWriteJson(projectHistoryPath(projectId), state);
+      sendJson(response, request, 200, { recorded: data.length });
+      return;
+    }
+    throw new HttpError(405, "Method not allowed.");
+  } catch (error) {
+    if (error instanceof HistoryError) throw new HttpError(error.status, error.message);
+    throw error;
+  }
 }
 
 /** Everyone with access to the project, by client id. */
@@ -1694,7 +1850,7 @@ async function handleDiscussionRoute(request, response, url, projectId, route) {
     }
     if (route === "discussion" && request.method === "POST") {
       // Viewers read the files but still take part in the discussion.
-      const { meta, identity } = await authorizeProject(
+      const { meta, identity, role } = await authorizeProject(
         request,
         url,
         projectId,
@@ -1709,6 +1865,7 @@ async function handleDiscussionRoute(request, response, url, projectId, route) {
         members: discussionMembers(meta),
         input: await readJsonBody(request),
         now: now(),
+        canModerate: role === "admin",
       });
       if (created || updated) {
         await saveDiscussion(projectId, state);

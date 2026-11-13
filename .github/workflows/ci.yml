@@ -892,7 +892,10 @@ jobs:
             exit 0
           fi
 
-          node scripts/render-release-notes.mjs "release-notes/${RELEASE_VERSION}.json" /tmp/latexdo-notes.md
+          # List what this build brought since the previous release (builds
+          # share one version, so the summary alone never changes).
+          previous_release="$(git describe --tags --abbrev=0 --match 'v*' "${LATEXDO_RELEASE_TARGET_SHA}^" 2>/dev/null || true)"
+          node scripts/render-release-notes.mjs "release-notes/${RELEASE_VERSION}.json" /tmp/latexdo-notes.md "$previous_release"
           gh release create "$RELEASE_TAG" "${assets[@]}" \
             --target "$LATEXDO_RELEASE_TARGET_SHA" \
             --title "$RELEASE_TITLE" \

@@ -10,6 +10,7 @@ import {
   Link,
   ClipboardCheck,
   MessageCircleMore,
+  History,
   Pencil,
   Plus,
   MessageSquare,
@@ -214,6 +215,18 @@ export function renderActivityBar(ctx: AppCtx) {
             </span>
           )}
         </button>
+        {ctx.discussion.available ? (
+          <button
+            className={`activity-button ${
+              sidebarVisible && activeSidebar === "history" ? "active" : ""
+            }`}
+            onClick={() => openSidebar("history")}
+            title="History"
+            aria-label="History: who changed what"
+          >
+            <History size={21} />
+          </button>
+        ) : null}
         {productIsPro ? (
           <button
             className={`activity-button ${

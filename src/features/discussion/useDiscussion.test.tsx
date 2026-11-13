@@ -11,6 +11,7 @@ import type { CollaboratorPermission, DiscussionPage } from "../../types";
 import * as notifications from "../notifications/notifications";
 import { everyone } from "./discussionModel";
 import {
+  discussionPopupAllowed,
   mergeReceipts,
   useDiscussion,
   type UseDiscussionOptions,
@@ -134,7 +135,7 @@ describe("useDiscussion", () => {
     expect(result.current.totals.unread).toBe(0);
   });
 
-  it("raises a notice for mentions and private messages, not for plain ones", async () => {
+  it("raises a notice for every message from others, labelled by kind", async () => {
     const notify = vi.spyOn(notifications, "notify");
     const { result, signalRef, onOpen } = renderDiscussion();
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -142,29 +143,84 @@ describe("useDiscussion", () => {
     server.postAs("eve", { body: "Plain" });
     server.postAs("bob", { body: "Secret", to: "me" });
     act(() => signalRef.current(3));
-    await waitFor(() => expect(result.current.notices).toHaveLength(2));
+    await waitFor(() => expect(result.current.notices).toHaveLength(3));
     expect(
       result.current.notices.map((notice) => [notice.kind, notice.preview]),
     ).toEqual([
       ["private", "Secret"],
+      ["message", "Plain"],
       ["mention", "Hey @Me"],
     ]);
     expect(notify).toHaveBeenCalledWith(
       "Bob mentioned you: Hey @Me",
       expect.objectContaining({ source: "Discussion" }),
     );
+    expect(notify).toHaveBeenCalledWith(
+      "Eve in the discussion: Plain",
+      expect.objectContaining({ source: "Discussion" }),
+    );
 
     // Older news does not come back on the next fetch.
     await act(() => result.current.refresh());
-    expect(result.current.notices).toHaveLength(2);
+    expect(result.current.notices).toHaveLength(3);
 
     const notice = result.current.notices[0]!;
     act(() => result.current.openNotice(notice));
     expect(onOpen).toHaveBeenCalledWith("bob");
     expect(result.current.conversation).toBe("bob");
-    expect(result.current.notices.map((item) => item.kind)).toEqual(["mention"]);
-    act(() => result.current.dismissNotice(result.current.notices[0]!.id));
+    expect(result.current.notices.map((item) => item.kind)).toEqual([
+      "message",
+      "mention",
+    ]);
+    for (const item of [...result.current.notices]) {
+      act(() => result.current.dismissNotice(item.id));
+    }
     expect(result.current.notices).toEqual([]);
+  });
+
+  it("follows the notification mode for popups but always keeps history", async () => {
+    const notify = vi.spyOn(notifications, "notify");
+    localStorage.setItem("latexdo.notificationMode", "writing");
+    try {
+      const { result, signalRef } = renderDiscussion();
+      await waitFor(() => expect(result.current.status).toBe("ready"));
+      server.postAs("eve", { body: "Group chatter" });
+      server.postAs("bob", { body: "Just for you", to: "me" });
+      act(() => signalRef.current(2));
+      await waitFor(() => expect(result.current.notices).toHaveLength(1));
+      expect(result.current.notices[0]!.kind).toBe("private");
+      expect(notify).toHaveBeenCalledWith(
+        "Eve in the discussion: Group chatter",
+        expect.anything(),
+      );
+    } finally {
+      localStorage.removeItem("latexdo.notificationMode");
+    }
+    expect(discussionPopupAllowed("do-not-disturb", "private")).toBe(false);
+    expect(discussionPopupAllowed("reading", "mention")).toBe(false);
+    expect(discussionPopupAllowed("writing", "mention")).toBe(true);
+    expect(discussionPopupAllowed("reviewing", "message")).toBe(true);
+  });
+
+  it("notifies the system about group messages while the panel is closed", async () => {
+    const shown: Array<{ title: string }> = [];
+    class FakeNotification {
+      static permission = "granted";
+      static requestPermission = vi.fn(async () => "granted");
+      onclick: (() => void) | null = null;
+      close = vi.fn();
+      constructor(readonly title: string) {
+        shown.push(this);
+      }
+    }
+    vi.stubGlobal("Notification", FakeNotification);
+    const { result, signalRef } = renderDiscussion({ visible: false });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    server.postAs("eve", { body: "Draft is ready" });
+    act(() => signalRef.current(1));
+    await waitFor(() => expect(shown).toHaveLength(1));
+    expect(shown[0]!.title).toBe("Eve · Discussion");
+    expect(result.current.totals.unread).toBe(1);
   });
 
   it("stays quiet about the conversation on screen and notifies the system when away", async () => {
@@ -233,6 +289,54 @@ describe("useDiscussion", () => {
     await expect(result.current.edit(other, "Not mine")).rejects.toThrow("Only your");
     await expect(result.current.edit(mine, "Stale edit")).rejects.toThrow("changed");
     expect(result.current.messages[0].body).toBe("My correction");
+  });
+
+  it("reacts to messages, fetches others' reactions and rolls back failures", async () => {
+    const other = server.postAs("bob", { body: "Ready to submit?" });
+    const { result } = renderDiscussion({ visible: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    server.postAs("eve", { id: other.id, react: true, reaction: "🎉" });
+    await act(async () => result.current.react(result.current.messages[0], "✅"));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉", me: "✅" });
+    await act(async () => result.current.react(result.current.messages[0], null));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉" });
+
+    server.api.sendDiscussionMessage.mockRejectedValueOnce(new Error("Offline"));
+    await act(async () => result.current.react(result.current.messages[0], "👍"));
+    expect(result.current.messages[0].reactions).toEqual({ eve: "🎉" });
+    expect(result.current.error).toBe("Offline");
+  });
+
+  it("drops a deleted message from notices and the notification history", async () => {
+    const remove = vi.spyOn(notifications, "deleteNotification");
+    const { result, signalRef } = renderDiscussion();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const sent = server.postAs("bob", { body: "Something regrettable" });
+    act(() => signalRef.current(1));
+    await waitFor(() => expect(result.current.notices).toHaveLength(1));
+    // An admin (Eve, here) deletes it.
+    postMessage(server.state, {
+      identity: { clientId: "eve", clientName: "Eve" },
+      members,
+      input: { id: sent.id, delete: true },
+      now: Date.now(),
+      canModerate: true,
+    });
+    await act(() => result.current.refresh());
+    expect(result.current.messages[0]).toMatchObject({ body: "", deletedBy: "eve" });
+    expect(result.current.notices).toEqual([]);
+    expect(remove).toHaveBeenCalled();
+    expect(result.current.totals.unread).toBe(0);
+  });
+
+  it("knows whether I am an admin and reports refused deletions", async () => {
+    const other = server.postAs("bob", { body: "Hello" });
+    const { result } = renderDiscussion({ visible: true });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.isAdmin).toBe(false);
+    await act(async () => result.current.remove(result.current.messages[0]!));
+    expect(result.current.error).toContain("Only an admin");
+    expect(result.current.messages[0]).toMatchObject({ id: other.id, body: "Hello" });
   });
 
   it("sends optimistically, keeps failures to retry or delete", async () => {

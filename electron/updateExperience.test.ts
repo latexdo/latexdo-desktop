@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   changesBetweenBuilds,
   emptyUpdateExperienceState,
+  recentBuildChanges,
   loadUpdateExperienceState,
   markVersionPresented,
   recordConfirmedUpdate,
@@ -295,6 +296,41 @@ describe("changesBetweenBuilds", () => {
   it("lists nothing when the previous build is unknown", () => {
     expect(changesBetweenBuilds(changes, null)).toEqual([]);
     expect(changesBetweenBuilds(changes, "f".repeat(40))).toEqual([]);
+  });
+
+  const merges = [
+    {
+      commit: sha(9),
+      subject: "Merge pull request #123 from latexdo/ui-fixes-conv",
+      merged: [
+        "feat(review): add PDF review markers",
+        "docs: explain markers",
+        "fix: keep the review sidebar in sync",
+      ],
+    },
+    {
+      commit: sha(8),
+      subject: "Merge pull request #105 from latexdo/discussion",
+      merged: ["feat(review): add PDF review markers", "perf: faster discussion"],
+    },
+    { commit: sha(7), subject: "Merge pull request #90 from latexdo/old" },
+  ];
+
+  it("reads pull-request merges as the commits they brought in", () => {
+    expect(changesBetweenBuilds(merges, sha(7))).toEqual([
+      { kind: "new", text: "Add PDF review markers" },
+      { kind: "fixed", text: "Keep the review sidebar in sync" },
+      { kind: "improved", text: "Faster discussion" },
+    ]);
+  });
+
+  it("lists the latest builds' changes when no update was recorded", () => {
+    expect(recentBuildChanges(merges, 1)).toEqual([
+      { kind: "new", text: "Add PDF review markers" },
+      { kind: "fixed", text: "Keep the review sidebar in sync" },
+    ]);
+    expect(recentBuildChanges(merges, 8, 2)).toHaveLength(2);
+    expect(recentBuildChanges([])).toEqual([]);
   });
 });
 

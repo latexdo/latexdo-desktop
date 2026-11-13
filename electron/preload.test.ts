@@ -126,6 +126,7 @@ describe("isolated desktop bridge", () => {
     ],
     ["getGitBlame", "git:blame", ["local", "main.tex", { kind: "working" }]],
     ["revealGitFile", "git:reveal-file", ["local", "main.tex"]],
+    ["setUnreadBadge", "app:set-unread-badge", [2]],
     ["checkForUpdates", "app:check-updates", []],
     ["updateNow", "app:update-now", []],
     ["lastUpdateStatus", "app:last-update-status", []],

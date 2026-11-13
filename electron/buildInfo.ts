@@ -5,6 +5,8 @@ import path from "node:path";
 export interface BuildChange {
   commit: string;
   subject: string;
+  /** For a merge: the subjects of the commits it brought in, newest first. */
+  merged?: string[];
 }
 
 export interface BuildInfo {
@@ -16,14 +18,25 @@ export interface BuildInfo {
 
 function parseChanges(value: unknown): BuildChange[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (change): change is BuildChange =>
-      typeof change === "object" &&
-      change !== null &&
-      typeof (change as BuildChange).commit === "string" &&
-      /^[a-f0-9]{40}$/.test((change as BuildChange).commit) &&
-      typeof (change as BuildChange).subject === "string",
-  );
+  return value
+    .filter(
+      (change): change is BuildChange =>
+        typeof change === "object" &&
+        change !== null &&
+        typeof (change as BuildChange).commit === "string" &&
+        /^[a-f0-9]{40}$/.test((change as BuildChange).commit) &&
+        typeof (change as BuildChange).subject === "string",
+    )
+    .map((change) => {
+      const merged = Array.isArray(change.merged)
+        ? change.merged.filter(
+            (subject): subject is string => typeof subject === "string",
+          )
+        : [];
+      return merged.length
+        ? { commit: change.commit, subject: change.subject, merged }
+        : { commit: change.commit, subject: change.subject };
+    });
 }
 
 export function readBuildInfo(directory: string): BuildInfo | null {
