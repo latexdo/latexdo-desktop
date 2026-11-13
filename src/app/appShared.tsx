@@ -166,10 +166,20 @@ export const texInstallerOptions = [
 ] as const;
 
 export function preferredTexInstallerId(): (typeof texInstallerOptions)[number]["id"] {
-  const platform = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
-  if (platform.includes("win")) return "windows";
-  if (platform.includes("mac")) return "macos";
+  const platform = navigator.platform.toLowerCase();
+  const userAgent = navigator.userAgent.toLowerCase();
+  // Whole words only: a bare "win" also matches "darwin".
+  if (platform.startsWith("mac") || /\bmac(intosh| os x)\b/.test(userAgent)) {
+    return "macos";
+  }
+  if (platform.startsWith("win") || /\bwindows\b/.test(userAgent)) return "windows";
   return "linux";
+}
+
+/** The installer for the computer LatexDo runs on; other systems are not offered. */
+export function texInstallerForThisComputer(): (typeof texInstallerOptions)[number] {
+  const id = preferredTexInstallerId();
+  return texInstallerOptions.find((option) => option.id === id) ?? texInstallerOptions[0];
 }
 
 export const citationSearchShortcutLabel = /mac/i.test(
@@ -264,12 +274,7 @@ export function ToolchainSetupCard({
     }
   };
 
-  const preferredId = preferredTexInstallerId();
-  const options = [...texInstallerOptions].sort((left, right) => {
-    if (left.id === preferredId) return -1;
-    if (right.id === preferredId) return 1;
-    return 0;
-  });
+  const installer = texInstallerForThisComputer();
   const isAsymptote = issue === "asymptote";
 
   return (
@@ -326,9 +331,6 @@ export function ToolchainSetupCard({
 
       <div className="toolchain-setup-steps" aria-label="Setup steps">
         <span>
-          <CircleCheck size={14} /> Pick your computer
-        </span>
-        <span>
           <CircleCheck size={14} /> Install once
         </span>
         <span>
@@ -340,22 +342,19 @@ export function ToolchainSetupCard({
       </div>
 
       <div className="toolchain-install-grid">
-        {options.map((option) => (
-          <button
-            className={option.id === preferredId ? "recommended" : ""}
-            key={option.id}
-            type="button"
-            onClick={() => onOpenExternal(option.url)}
-          >
-            <span>
-              {option.label}
-              {option.id === preferredId ? <em>Recommended</em> : null}
-            </span>
-            <strong>{option.title}</strong>
-            <small>{option.body}</small>
-            <ExternalLink size={13} />
-          </button>
-        ))}
+        <button
+          className="recommended"
+          type="button"
+          onClick={() => onOpenExternal(installer.url)}
+        >
+          <span>
+            {installer.label}
+            <em>Recommended</em>
+          </span>
+          <strong>{installer.title}</strong>
+          <small>{installer.body}</small>
+          <ExternalLink size={13} />
+        </button>
       </div>
 
       <details className="toolchain-setup-details">

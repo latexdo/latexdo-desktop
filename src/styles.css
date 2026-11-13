@@ -6386,7 +6386,7 @@ button {
   display: grid;
   max-width: 860px;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 360px);
 }
 
 .toolchain-install-grid button {
@@ -16089,7 +16089,7 @@ button {
   display: grid;
   max-width: 860px;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 360px);
 }
 
 .toolchain-install-grid button {

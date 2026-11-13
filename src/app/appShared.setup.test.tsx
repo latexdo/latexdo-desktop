@@ -87,9 +87,13 @@ describe("compiler setup card", () => {
       expect(screen.getByRole("button", { name: "Install it for me" })).toBeEnabled();
     },
   );
-  it.each(["Win32", "MacIntel", "Linux x86_64"])(
-    "offers external installers for %s",
-    (platform) => {
+  it.each([
+    ["Win32", "https://miktex.org/download", "Install MiKTeX"],
+    ["MacIntel", "https://www.tug.org/mactex/", "Install MacTeX"],
+    ["Linux x86_64", "https://www.tug.org/texlive/", "Install TeX Live"],
+  ])(
+    "offers only the installer for %s",
+    (platform, url, title) => {
       vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
       const open = vi.fn();
       render(
@@ -100,9 +104,13 @@ describe("compiler setup card", () => {
         />,
       );
       expect(screen.getByRole("heading")).toHaveTextContent("drawing builder");
-      for (const button of screen.getAllByRole("button")) fireEvent.click(button);
-      expect(open).toHaveBeenCalledTimes(3);
-      expect(open).toHaveBeenCalledWith(expect.stringMatching(/^https:/));
+      const buttons = screen.getAllByRole("button");
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]).toHaveTextContent(title);
+      expect(screen.queryByText("Pick your computer")).not.toBeInTheDocument();
+      fireEvent.click(buttons[0]);
+      expect(open).toHaveBeenCalledOnce();
+      expect(open).toHaveBeenCalledWith(url);
     },
   );
   it("handles unavailable runtime status without showing automatic installation", async () => {

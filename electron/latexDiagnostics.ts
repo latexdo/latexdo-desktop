@@ -1,3 +1,4 @@
+import { latexPackageInstallAdvice } from "./texInstallAdvice.js";
 import type { Diagnostic, DiagnosticContextLine, DiagnosticFix } from "./types.js";
 
 interface DiagnosticAnalysis {
@@ -1013,7 +1014,7 @@ function explainDiagnostic(
       return {
         title: `LaTeX package "${packageName}" is not installed`,
         detail: `The document loads the package ${packageName}, but ${file} is not available in the local TeX installation.`,
-        suggestion: `Install it (TeX Live: "tlmgr install ${packageName}", MiKTeX installs on demand), fix the package name if it is misspelled, or remove the \\usepackage{${packageName}} line.`,
+        suggestion: `${latexPackageInstallAdvice(packageName)}, fix the package name if it is misspelled, or remove the \\usepackage{${packageName}} line.`,
       };
     }
     if (file?.toLowerCase().endsWith(".cls")) {

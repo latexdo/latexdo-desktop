@@ -5,6 +5,10 @@ import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import { analyzeLatexDiagnostic, rankLatexDiagnostics } from "./latexDiagnostics.js";
 import { assertProjectPath } from "./projectPaths.js";
+import {
+  asymptoteInstallAdvice,
+  latexToolchainInstallAdvice,
+} from "./texInstallAdvice.js";
 import type { CompileResult, Diagnostic } from "./types.js";
 
 type CompileLatexRequest = {
@@ -167,8 +171,7 @@ function missingLatexToolchainDiagnostic(rootFile: string): Diagnostic {
     title: "Set up PDF building",
     detail:
       "Your document may be fine. LatexDo needs a TeX distribution installed before it can turn .tex files into PDFs.",
-    suggestion:
-      "Install MacTeX on macOS, MiKTeX or TeX Live on Windows, or TeX Live with latexmk on Linux. Then restart LatexDo and press Compile again.",
+    suggestion: latexToolchainInstallAdvice(),
     source: "latex",
     code: missingLatexToolchainCode,
     locationAccuracy: "inferred",
@@ -187,8 +190,7 @@ function missingAsymptoteToolchainDiagnostic(relativePath: string): Diagnostic {
     title: "Set up Asymptote drawing builds",
     detail:
       "LatexDo can edit .asy files now, but this computer needs the Asymptote compiler before it can render them to PDF.",
-    suggestion:
-      "Install Asymptote from TeX Live, MacTeX, or MiKTeX. Then restart LatexDo and compile again.",
+    suggestion: asymptoteInstallAdvice(),
     source: "latex",
     code: missingAsymptoteToolchainCode,
     locationAccuracy: "inferred",
@@ -1217,8 +1219,7 @@ export async function compileAsymptote(
       output:
         "LatexDo could not find Asymptote, the program that renders .asy drawings. Install Asymptote, restart LatexDo, and compile again.",
       diagnostics: [missingAsymptoteToolchainDiagnostic(request.relativePath)],
-      error:
-        "Asymptote was not found. Install Asymptote from TeX Live, MacTeX, or MiKTeX and restart LatexDo.",
+      error: `Asymptote was not found. ${asymptoteInstallAdvice()}`,
     };
   }
 
