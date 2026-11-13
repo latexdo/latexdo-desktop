@@ -46,10 +46,15 @@ import {
   type ConversationKey,
 } from "./discussionModel";
 
-/** How often to look for news while the discussion is open… */
-const openPollMs = 4_000;
-/** …and while it is not (the live connection usually comes first). */
-const backgroundPollMs = 15_000;
+/*
+ * Polling is only a backstop: the live connection signals every new message,
+ * edit, reaction or deletion at once, and focusing the window fetches too.
+ * Each poll is a request on the always-on server's daily allowance, so they
+ * stay slow: while the discussion is open…
+ */
+const openPollMs = 15_000;
+/** …and while it is not. */
+const backgroundPollMs = 90_000;
 const maxNotices = 3;
 const catchUpPages = 10;
 

@@ -9,7 +9,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadNotificationMode, notify } from "../features/notifications/notifications";
 import type { AdminOffer, CollaboratorPermission } from "../types";
 
-const pollMs = 15_000;
+/*
+ * Invitations are not urgent, and every check is a request on the always-on
+ * server's daily allowance: look rarely, and often only while the Share
+ * window (where they are answered) is open.
+ */
+const backgroundPollMs = 5 * 60_000;
+const sharePollMs = 15_000;
 
 /** An admin invitation waiting for this person. */
 export interface MyAdminOffer extends AdminOffer {
@@ -108,6 +114,8 @@ export interface UseAdminOffersOptions {
   openShare: () => void;
   /** Reloads the project's permissions after an answer. */
   reload: () => Promise<void>;
+  /** True while the Share window is open: checked more often then. */
+  watching?: boolean;
 }
 
 export function useAdminOffers({
@@ -115,6 +123,7 @@ export function useAdminOffers({
   onPermissions,
   openShare,
   reload,
+  watching = false,
 }: UseAdminOffersOptions) {
   const [offer, setOffer] = useState<MyAdminOffer | null>(null);
   const [answering, setAnswering] = useState(false);
@@ -124,11 +133,15 @@ export function useAdminOffers({
   const callbacksRef = useRef({ onPermissions, openShare });
   callbacksRef.current = { onPermissions, openShare };
 
+  // A different project starts from scratch (opening Share does not).
   useEffect(() => {
     previousRef.current = null;
     seenRef.current = null;
     withdrawnRef.current = new Set();
     setOffer(null);
+  }, [projectId]);
+
+  useEffect(() => {
     if (!projectId) return;
     let stopped = false;
     const check = async () => {
@@ -170,12 +183,15 @@ export function useAdminOffers({
       }
     };
     void check();
-    const timer = window.setInterval(() => void check(), pollMs);
+    const timer = window.setInterval(
+      () => void check(),
+      watching ? sharePollMs : backgroundPollMs,
+    );
     return () => {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [projectId]);
+  }, [projectId, watching]);
 
   const answer = useCallback(
     async (accept: boolean) => {

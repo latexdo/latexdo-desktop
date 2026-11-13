@@ -275,7 +275,8 @@ export function useAppProjectCreation(ctx: AppCtx09) {
     // often so a free account's daily allowance goes further.
     const interval = window.setInterval(
       () => void sendPresence(),
-      isAlwaysOnCollaborationServer(collaborationState.apiBaseUrl) ? 30_000 : 8000,
+      // The server keeps people present for 150 s, so a minute is plenty.
+      isAlwaysOnCollaborationServer(collaborationState.apiBaseUrl) ? 60_000 : 8000,
     );
     return () => {
       cancelled = true;

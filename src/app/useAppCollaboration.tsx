@@ -29,8 +29,9 @@ import {
 } from "./appShared";
 import type { AppCtx08 } from "./appContext";
 
-// The backstop for join requests when no live connection is open to push them.
-const joinRequestPollMs = 10_000;
+// The backstop for join requests when no live connection is open to push them
+// (an open document hears of them at once). Slow, to spare the daily allowance.
+const joinRequestPollMs = 30_000;
 
 export function useAppCollaboration(ctx: AppCtx08) {
   const {
@@ -1166,6 +1167,7 @@ export function useAppCollaboration(ctx: AppCtx08) {
       [setCollaborationPermissions, setIsProjectAdmin],
     ),
     openShare: useCallback(() => setShareDialogOpen(true), [setShareDialogOpen]),
+    watching: ctx.shareDialogOpen,
     reload: useCallback(async () => {
       if (adminOfferProjectId) await loadCollaborationPermissions(adminOfferProjectId);
     }, [adminOfferProjectId, loadCollaborationPermissions]),
