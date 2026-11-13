@@ -44,6 +44,8 @@ export interface ShareProjectDialogProps {
   /** Shown while the owner has not yet let this person in. */
   joinWaitingMessage?: string;
   onCopy: (value: string) => void;
+  /** Takes you to a person's file and cursor (from their emoji). */
+  onGoToCollaborator?: (clientId: string) => void;
   onJoinTokenChange: (value: string) => void;
   /** Opens Profile, where the name collaborators see is set. */
   onEditName?: () => void;
@@ -87,6 +89,7 @@ export function ShareProjectDialog({
   hasProject = true,
   joinWaitingMessage = "",
   onCopy,
+  onGoToCollaborator,
   onJoinTokenChange,
   onEditName,
   onJoin,
@@ -502,7 +505,7 @@ export function ShareProjectDialog({
         {showPeople && !onlyOwner && !managePeople ? (
           <div className="share-section">
             <h4>Online now</h4>
-            <CollaboratorsList users={state.users} />
+            <CollaboratorsList users={state.users} onGoTo={onGoToCollaborator} />
           </div>
         ) : null}
         {showPeople &&
@@ -520,6 +523,7 @@ export function ShareProjectDialog({
             onRefresh={onRefreshPermissions}
             canTransferAdmin={canTransferAdmin}
             onWithdrawAdminOffer={onWithdrawAdminOffer}
+            onGoTo={onGoToCollaborator}
           />
         ) : null}
       </section>

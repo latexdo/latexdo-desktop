@@ -409,6 +409,15 @@ export class LatexDoWebsocketProvider {
     origin: unknown,
   ) => {
     if (origin === this) {
+      // Someone new opened this file. The always-on server only passes
+      // cursors along and keeps none, so tell them where this cursor is now
+      // instead of when it next moves; they already know everyone else.
+      if (
+        changes.added.some((id) => id !== this.doc.clientID) &&
+        this.awareness.getLocalState() !== null
+      ) {
+        this.sendAwarenessUpdate([this.doc.clientID]);
+      }
       return;
     }
     this.sendAwarenessUpdate([

@@ -37,7 +37,7 @@ import type { AppCtx08 } from "./appContext";
 const joinRequestPollMs = 30_000;
 // Clicking someone in another file opens it, then jumps to them once their
 // cursor arrives; a late arrival after this long no longer moves the view.
-const followCollaboratorMs = 15_000;
+const followCollaboratorMs = 20_000;
 
 function sameLines(a: Record<string, number>, b: Record<string, number>): boolean {
   const keys = Object.keys(a);

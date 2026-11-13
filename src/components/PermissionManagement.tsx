@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Crown, User, Pencil, Eye, Trash2, Loader2 } from "lucide-react";
 import { presenceDescription, presenceState } from "../collaboration/presence";
+import { collaboratorLook } from "../collaboration/collaboratorLook";
 import type {
   CollaboratorPermission,
   CollaboratorPresence,
@@ -20,6 +21,8 @@ export interface PermissionManagementProps {
   /** Admins other than the owner may hand over their own admin role. */
   canTransferAdmin?: boolean;
   onWithdrawAdminOffer?: (clientId: string) => Promise<void>;
+  /** Clicking an online person's emoji takes you to their file and cursor. */
+  onGoTo?: (clientId: string) => void;
 }
 
 /** What the role menu can do: set a role, or hand over my admin role. */
@@ -53,6 +56,7 @@ export function PermissionManagement({
   onRefresh,
   canTransferAdmin = false,
   onWithdrawAdminOffer,
+  onGoTo,
 }: PermissionManagementProps) {
   const [loading, setLoading] = useState<{
     action: "update" | "remove";
@@ -198,14 +202,38 @@ export function PermissionManagement({
           <tbody>
             {permissions.map((perm) => {
               const isCurrent = perm.isCurrent === true;
+              const look = collaboratorLook(perm.clientId);
               const online = presence.find((user) => user.clientId === perm.clientId);
               return (
                 <tr key={perm.clientId}>
                   <td>
                     <span className="permission-person">
-                      <span className="collaborator-avatar" aria-hidden="true">
-                        {perm.name.slice(0, 1).toUpperCase()}
-                      </span>
+                      {online && onGoTo && online.currentFile && !isCurrent ? (
+                        <button
+                          type="button"
+                          className="collaborator-avatar collaborator-emoji"
+                          style={{
+                            borderColor: look.color,
+                            background: `${look.color}33`,
+                          }}
+                          onClick={() => onGoTo(perm.clientId)}
+                          title={`Go to ${perm.name} in ${online.currentFile}`}
+                          aria-label={`Go to ${perm.name}`}
+                        >
+                          {look.emoji}
+                        </button>
+                      ) : (
+                        <span
+                          className="collaborator-avatar collaborator-emoji"
+                          style={{
+                            borderColor: look.color,
+                            background: `${look.color}33`,
+                          }}
+                          aria-hidden="true"
+                        >
+                          {look.emoji}
+                        </span>
+                      )}
                       <span className="permission-person-text">
                         <span className="collaborator-name">
                           {perm.name}

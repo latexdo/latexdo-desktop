@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CollaboratorPermission } from "../types";
 import { PermissionManagement } from "./PermissionManagement";
+import { collaboratorLook } from "../collaboration/collaboratorLook";
 
 const people: CollaboratorPermission[] = [
   { clientId: "me", name: "ada", role: "admin", isCurrent: true },
@@ -83,7 +84,22 @@ describe("PermissionManagement", () => {
         .map((o) => o.textContent),
     ).toEqual(["Admin (invite)", "Editor", "Viewer"]);
     expect(within(row("linus")).getByText("Active now")).toBeVisible();
-    expect(screen.getByText("G")).toBeInTheDocument();
+    // Everyone shows with their emoji, as on their cursor.
+    expect(within(row("linus")).getByText(collaboratorLook("c2").emoji)).toBeVisible();
+  });
+
+  it("goes to an online person when their emoji is clicked", () => {
+    const onGoTo = vi.fn();
+    setup({
+      onGoTo,
+      presence: [
+        { clientId: "c1", name: "grace", currentFile: "main.tex", lastSeen: 1 },
+        { clientId: "c2", name: "linus", currentFile: null, lastSeen: 1 },
+      ],
+    });
+    fireEvent.click(within(row("grace")).getByRole("button", { name: "Go to grace" }));
+    expect(onGoTo).toHaveBeenCalledWith("c1");
+    expect(within(row("linus")).queryByRole("button", { name: /Go to/ })).toBeNull();
   });
 
   it("invites to admin instead of promoting, and can hand over the admin role", async () => {

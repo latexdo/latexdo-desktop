@@ -30771,6 +30771,29 @@ body.pane-resizing .preview-pane > * {
   opacity: 0.8;
 }
 
+/* People in the Share window: their emoji, the same as on their cursor;
+   click it to go to them. */
+.collaborator-avatar.collaborator-emoji {
+  padding: 0;
+  border: 1.5px solid;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+button.collaborator-avatar.collaborator-emoji:not(:disabled) {
+  cursor: pointer;
+}
+
+button.collaborator-avatar.collaborator-emoji:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button.collaborator-avatar.collaborator-emoji:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 /* Status bar: sharing state and the people working with you. */
 .statusbar-sharing {
   display: inline-flex;

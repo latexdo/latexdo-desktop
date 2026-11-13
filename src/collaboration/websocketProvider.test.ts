@@ -1,5 +1,6 @@
 import * as sync from "y-protocols/sync";
-import { encodeAwarenessUpdate } from "y-protocols/awareness";
+import { applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protocols/awareness";
+import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
@@ -143,6 +144,63 @@ describe("LatexDoWebsocketProvider", () => {
       expect(onProjectChanged).toHaveBeenCalledOnce();
       socket.dispatchEvent(new Event("error"));
       expect(onStatusChange).toHaveBeenLastCalledWith("error");
+    } finally {
+      provider.destroy();
+      awareness.destroy();
+      remoteAwareness.destroy();
+      doc.destroy();
+      remote.destroy();
+    }
+  });
+
+  it("tells someone new where this cursor is, once, without echoing them", async () => {
+    const doc = new Y.Doc();
+    const remote = new Y.Doc();
+    const awareness = new Awareness(doc);
+    const remoteAwareness = new Awareness(remote);
+    awareness.setLocalState({ user: { name: "Ada" }, selection: { head: 3 } });
+    const provider = new LatexDoWebsocketProvider({
+      url: "wss://collab.example.org/socket",
+      doc,
+      awareness,
+    });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    const sentAwareness = () =>
+      socket.sent
+        .map((message) => new Uint8Array(message as ArrayBuffer))
+        .filter((bytes) => bytes[0] === 1);
+    const receiveRemote = () => {
+      const frame = encoding.createEncoder();
+      encoding.writeVarUint(frame, 1);
+      encoding.writeVarUint8Array(
+        frame,
+        encodeAwarenessUpdate(remoteAwareness, [remote.clientID]),
+      );
+      socket.receive(encoding.toUint8Array(frame).buffer);
+    };
+    try {
+      const before = sentAwareness().length;
+      remoteAwareness.setLocalState({ user: { name: "Grace" } });
+      receiveRemote();
+      await Promise.resolve();
+      // Grace just arrived: she hears where Ada is right away.
+      expect(sentAwareness().length).toBe(before + 1);
+      const reply = new Awareness(new Y.Doc());
+      const decoded = sentAwareness().at(-1)!;
+      const decoder = decoding.createDecoder(decoded);
+      decoding.readVarUint(decoder);
+      applyAwarenessUpdate(reply, decoding.readVarUint8Array(decoder), "test");
+      expect(reply.getStates().get(doc.clientID)).toEqual({
+        user: { name: "Ada" },
+        selection: { head: 3 },
+      });
+      reply.destroy();
+      // Grace moving her cursor is no news about Ada: nothing is sent back.
+      remoteAwareness.setLocalStateField("selection", { head: 1 });
+      receiveRemote();
+      await Promise.resolve();
+      expect(sentAwareness().length).toBe(before + 1);
     } finally {
       provider.destroy();
       awareness.destroy();

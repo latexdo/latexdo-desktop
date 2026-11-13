@@ -605,7 +605,7 @@ async function openWorkspace(
     // jump once their cursor shows up.
     if (revealRemoteCursor(editor, cursors, person.clientId)) return;
     if (!person.currentFile) return;
-    follow = { clientId: person.clientId, until: Date.now() + 15_000 };
+    follow = { clientId: person.clientId, until: Date.now() + 20_000 };
     void openPath(person.currentFile);
   };
 

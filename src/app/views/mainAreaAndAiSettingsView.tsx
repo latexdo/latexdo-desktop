@@ -284,14 +284,7 @@ export function renderStatusbarGroup(ctx: AppCtx) {
                 className="statusbar-avatar"
                 data-presence={state}
                 style={{ borderColor: look.color, background: `${look.color}33` }}
-                onClick={() => {
-                  // In this file: jump to their cursor. Elsewhere: open their
-                  // file, then jump once their cursor shows up.
-                  if (ctx.revealCollaborator(user.clientId)) return;
-                  if (!user.currentFile) return;
-                  ctx.followCollaboratorOnOpen(user.clientId);
-                  void ctx.openGitFile(user.currentFile);
-                }}
+                onClick={() => void ctx.goToCollaborator(user.clientId)}
                 title={`${user.name || "Guest"} — ${presenceLabels[state]} · ${where}${user.currentFile ? " (click to go to them)" : ""}`}
                 aria-label={`${user.name || "Guest"}, ${status}, ${where}`}
               >
@@ -410,6 +403,11 @@ export function renderShareProjectDialog(ctx: AppCtx) {
       permissions={collaborationPermissions}
       isAdmin={isProjectAdmin}
       currentUserRole={currentUserRole}
+      onGoToCollaborator={(clientId) => {
+        // Close the window so you see where they are.
+        setShareDialogOpen(false);
+        void ctx.goToCollaborator(clientId);
+      }}
       onCopy={(text) => {
         void (async () => {
           await copyToClipboard(text);

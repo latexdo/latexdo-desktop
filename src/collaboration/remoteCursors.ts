@@ -84,7 +84,7 @@ function markdownText(text: string): string {
  * in each person's color on the scrollbar and minimap.
  */
 export function remoteCursorDecorations(
-  model: Pick<monaco.editor.ITextModel, "getPositionAt">,
+  model: { getPositionAt(offset: number): { lineNumber: number } },
   cursors: readonly RemoteCursorPosition[],
 ): monaco.editor.IModelDeltaDecoration[] {
   const byLine = new Map<number, RemoteCursorPosition[]>();
