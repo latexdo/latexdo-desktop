@@ -45,6 +45,7 @@ validates each report.
 | `GET`   | `/api/issues`              | admin | `?status=open\|fixed\|ignored\|regressed&limit=50`                                            |
 | `GET`   | `/api/issues/:fingerprint` | admin | One problem and its newest 20 samples                                                         |
 | `PATCH` | `/api/issues/:fingerprint` | admin | `{ status?, fixedIn?, githubIssue? }`                                                         |
+| `GET`   | `/api/stats`               | admin | `?days=30` (1–365): exact report counts per day, version, platform and category, top problems |
 
 Admin calls send `Authorization: Bearer $ADMIN_TOKEN`. Until that secret is
 set, the admin routes return 404. If an issue is marked

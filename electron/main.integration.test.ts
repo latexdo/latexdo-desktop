@@ -617,10 +617,26 @@ describe("compilation and settings", () => {
 
 describe("network and external navigation policy", () => {
   it.each([
+    { name: "LinkedIn", url: "https://www.linkedin.com/company/135904658/" },
+    { name: "GitHub", url: "https://github.com/latexdo" },
+    { name: "Bluesky", url: "https://bsky.app/profile/latexdo.bsky.social" },
+    { name: "YouTube", url: "https://www.youtube.com/@latexdo-project" },
+    { name: "X", url: "https://x.com/latexdoproject" },
+  ])(
+    "opens the association's $name link in the browser",
+    async ({ url }) => {
+      await call("app:open-external", url);
+      expect(native.external).toHaveBeenCalledWith(url);
+    },
+  );
+
+  it.each([
     "file:///etc/passwd",
     "javascript:alert(1)",
     "https://evil.example/",
     "https://user:pass@latexdo.org/",
+    "https://www.linkedin.com.evil.example/company/135904658/",
+    "https://www.linkedin.com@evil.example/",
     "not a url",
   ])("blocks unsafe external destination %s", async (url) => {
     await expect(call("app:open-external", url)).rejects.toThrow(

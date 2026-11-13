@@ -92,10 +92,6 @@ export const VoiceSettingsPanel: React.FC<VoiceSettingsPanelProps> = ({
     <div className="voice-settings-panel">
       <div className="settings-section-heading">
         <strong>Voice dictation</strong>
-        <span>
-          Talk to the AI instead of typing: press the microphone, speak, then ■ to edit
-          the text or ↑ to send it.
-        </span>
       </div>
 
       <div className="voice-settings-group">

@@ -91,5 +91,13 @@ npx wrangler login
 npm run deploy
 ```
 
+## Admin API
+
+`GET /api/admin/stats` returns the shared storage in use, the limit, the number
+of shared projects and the ten largest (ids and sizes only; contents are
+end-to-end encrypted). It answers only with `Authorization: Bearer
+$ADMIN_TOKEN`, and until that secret is set (`npx wrangler secret put
+ADMIN_TOKEN`) the route returns 404. The LatexDo Administrator app reads it.
+
 Point the app elsewhere with `LATEXDO_COLLAB_URL`. Projects shared before
 encryption (server version 2) cannot be opened; share them again.

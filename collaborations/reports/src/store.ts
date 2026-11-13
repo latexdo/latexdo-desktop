@@ -29,6 +29,21 @@ export interface IssueSummary {
   githubIssue: string | null;
 }
 
+/** Report counts for the admin dashboard; every count is exact, not sampled. */
+export interface ReportStats {
+  days: number;
+  generatedAt: number;
+  issuesByStatus: Record<IssueStatus, number>;
+  /** One row per UTC day in the window, oldest first, zeros included. */
+  daily: Array<{ day: string; reports: number; newIssues: number }>;
+  byVersion: Array<{ key: string; reports: number }>;
+  byPlatform: Array<{ key: string; reports: number }>;
+  byCategory: Array<{ key: string; reports: number }>;
+  /** The problems reported most in the window. */
+  top: Array<{ fingerprint: string; title: string; status: IssueStatus; reports: number }>;
+  totals: { reports: number; reporters: number; samples: number };
+}
+
 export interface IngestResult {
   id: string;
   known: boolean;
@@ -115,6 +130,16 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
         reporter TEXT NOT NULL,
         PRIMARY KEY (fingerprint, reporter)
       );
+      -- Every accepted report, counted per UTC day: samples are capped per
+      -- problem, so charts cannot be drawn from them.
+      CREATE TABLE IF NOT EXISTS daily_counts (
+        day INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        app_version TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        reports INTEGER NOT NULL,
+        PRIMARY KEY (day, fingerprint, app_version, platform)
+      );
     `);
   }
 
@@ -199,6 +224,15 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
     }
 
     this.sql.exec(
+      `INSERT INTO daily_counts (day, fingerprint, app_version, platform, reports)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT(day, fingerprint, app_version, platform) DO UPDATE SET reports = reports + 1`,
+      Math.floor(now / dayMs),
+      report.fingerprint,
+      version,
+      report.environment.platform,
+    );
+    this.sql.exec(
       "INSERT INTO reports (id, fingerprint, received_at, app_version, platform, payload) VALUES (?, ?, ?, ?, ?, ?)",
       report.id,
       report.fingerprint,
@@ -282,11 +316,113 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
     return summary(this.issueRow(fingerprint)!);
   }
 
+  stats(days: number, now = Date.now()): ReportStats {
+    const today = Math.floor(now / dayMs);
+    const firstDay = today - days + 1;
+    const grouped = (column: "app_version" | "platform") =>
+      this.sql
+        .exec<{ key: string; reports: number }>(
+          `SELECT ${column} AS key, SUM(reports) AS reports FROM daily_counts
+           WHERE day >= ? GROUP BY ${column} ORDER BY reports DESC LIMIT 12`,
+          firstDay,
+        )
+        .toArray();
+
+    const issuesByStatus: Record<IssueStatus, number> = {
+      open: 0,
+      fixed: 0,
+      ignored: 0,
+      regressed: 0,
+    };
+    for (const row of this.sql
+      .exec<{ status: IssueStatus; n: number }>(
+        "SELECT status, COUNT(*) AS n FROM issues GROUP BY status",
+      )
+      .toArray()) {
+      issuesByStatus[row.status] = row.n;
+    }
+
+    const reportsByDay = new Map(
+      this.sql
+        .exec<{ day: number; reports: number }>(
+          "SELECT day, SUM(reports) AS reports FROM daily_counts WHERE day >= ? GROUP BY day",
+          firstDay,
+        )
+        .toArray()
+        .map((row) => [row.day, row.reports]),
+    );
+    const newIssuesByDay = new Map(
+      this.sql
+        .exec<{ day: number; n: number }>(
+          "SELECT CAST(first_seen / ? AS INTEGER) AS day, COUNT(*) AS n FROM issues WHERE first_seen >= ? GROUP BY day",
+          dayMs,
+          firstDay * dayMs,
+        )
+        .toArray()
+        .map((row) => [row.day, row.n]),
+    );
+    const daily: ReportStats["daily"] = [];
+    for (let day = firstDay; day <= today; day += 1) {
+      daily.push({
+        day: new Date(day * dayMs).toISOString().slice(0, 10),
+        reports: reportsByDay.get(day) ?? 0,
+        newIssues: newIssuesByDay.get(day) ?? 0,
+      });
+    }
+
+    const byCategory = this.sql
+      .exec<{ key: string; reports: number }>(
+        `SELECT issues.category AS key, SUM(daily_counts.reports) AS reports
+         FROM daily_counts JOIN issues USING (fingerprint)
+         WHERE daily_counts.day >= ? GROUP BY issues.category ORDER BY reports DESC`,
+        firstDay,
+      )
+      .toArray();
+    const top = this.sql
+      .exec<{ fingerprint: string; title: string; status: IssueStatus; reports: number }>(
+        `SELECT issues.fingerprint AS fingerprint, issues.title AS title, issues.status AS status,
+           SUM(daily_counts.reports) AS reports
+         FROM daily_counts JOIN issues USING (fingerprint)
+         WHERE daily_counts.day >= ?
+         GROUP BY issues.fingerprint ORDER BY reports DESC LIMIT 8`,
+        firstDay,
+      )
+      .toArray();
+    const totals = this.sql
+      .exec<{ reports: number | null; reporters: number | null }>(
+        "SELECT SUM(reports) AS reports, SUM(reporters) AS reporters FROM issues",
+      )
+      .one();
+    const samples = this.sql
+      .exec<{ n: number }>("SELECT COUNT(*) AS n FROM reports")
+      .one().n;
+
+    return {
+      days,
+      generatedAt: now,
+      issuesByStatus,
+      daily,
+      byVersion: grouped("app_version"),
+      byPlatform: grouped("platform"),
+      byCategory,
+      top,
+      totals: {
+        reports: totals.reports ?? 0,
+        reporters: totals.reporters ?? 0,
+        samples,
+      },
+    };
+  }
+
   async alarm(): Promise<void> {
     const now = Date.now();
     this.sql.exec(
       "DELETE FROM reports WHERE received_at < ?",
       now - reportLimits.reportLifetimeMs,
+    );
+    this.sql.exec(
+      "DELETE FROM daily_counts WHERE day < ?",
+      Math.floor((now - reportLimits.issueLifetimeMs) / dayMs),
     );
     const stale = this.sql
       .exec<{

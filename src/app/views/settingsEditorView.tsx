@@ -197,7 +197,6 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
     <>
       <div className="settings-section-heading">
         <strong>Appearance</strong>
-        <span>How the whole app looks: windows, panels, the editor and dialogs.</span>
       </div>
 
       <div className="settings-row settings-row-stack">
@@ -279,7 +278,6 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <div className="settings-section-heading">
         <strong>Editor and compiler</strong>
-        <span>Configure how LaTeX source is edited and built.</span>
       </div>
 
       <label className="settings-row">
@@ -472,7 +470,6 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <div className="settings-section-heading">
         <strong>Project tree</strong>
-        <span>Control which folders are scanned when opening projects.</span>
       </div>
 
       <div className="settings-row settings-row-stack">

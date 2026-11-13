@@ -39,6 +39,30 @@ export class UsageMeter extends DurableObject<Record<string, unknown>> {
     );
   }
 
+  /** Totals for the admin dashboard: sizes only, never names or content. */
+  stats(): {
+    usedBytes: number;
+    limitBytes: number;
+    projects: number;
+    largest: Array<{ id: string; bytes: number }>;
+  } {
+    const projects = this.sql
+      .exec<{ n: number }>("SELECT COUNT(*) AS n FROM projects")
+      .one().n;
+    const largest = this.sql
+      .exec<{ id: string; bytes: number }>(
+        "SELECT id, bytes FROM projects ORDER BY bytes DESC LIMIT 10",
+      )
+      .toArray()
+      .map((row) => ({ id: row.id, bytes: row.bytes }));
+    return {
+      usedBytes: this.total(),
+      limitBytes: limits.maxAccountBytes,
+      projects,
+      largest,
+    };
+  }
+
   allows(incomingBytes: number): boolean {
     return this.total() + Math.max(0, incomingBytes) <= limits.maxAccountBytes;
   }

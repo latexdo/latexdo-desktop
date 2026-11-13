@@ -448,3 +448,23 @@ test("refuses browsers, unsafe paths and floods", async () => {
   }
   assert.equal(refused, true);
 });
+
+test("the admin stats are closed without the token", async () => {
+  const response = await fetch(new URL("/api/admin/stats", base));
+  assert.ok(response.status === 401 || response.status === 404);
+});
+
+test(
+  "admins see the shared storage totals",
+  { skip: !process.env.ADMIN_TOKEN },
+  async () => {
+    const response = await fetch(new URL("/api/admin/stats", base), {
+      headers: { authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
+    });
+    assert.equal(response.status, 200);
+    const stats = await response.json();
+    assert.equal(typeof stats.usedBytes, "number");
+    assert.ok(stats.limitBytes > 0);
+    assert.ok(Array.isArray(stats.largest));
+  },
+);
