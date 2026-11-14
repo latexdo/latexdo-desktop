@@ -311,6 +311,21 @@ describe("editor and provider settings", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Original" }));
     expect(current.pdfReadingTheme).toBe("original");
   });
+  it.each([
+    ["author", "#355a7a"],
+    ["reviewer", "#65537f"],
+    ["rebuttal", "#346b73"],
+  ] as const)("shows the %s mode's resting color when no custom color is set", (mode, color) => {
+    render(
+      <Harness
+        view={renderSettingsSectionHeading}
+        extra={{ mode, resolvedAppearance: "light", setEngine: () => {} }}
+      />,
+    );
+    expect(
+      (screen.getByLabelText("Status bar color") as HTMLInputElement).value,
+    ).toBe(color);
+  });
   it("saves, tests and removes cloud credentials and edits the endpoint", () => {
     const ctx = {
       aiConfig: {

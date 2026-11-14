@@ -779,12 +779,7 @@ describe("automated release checks", () => {
   it("does not treat an unrequested renderer crash as part of the recovery check", async () => {
     const { promise } = e2eBoot({
       crash: (contents, boot) =>
-        boot().appEvent(
-          "render-process-gone",
-          {},
-          contents,
-          crashed("killed", 0),
-        ),
+        boot().appEvent("render-process-gone", {}, contents, crashed("killed", 0)),
     });
     const boot = await promise;
     // Let the crash-recovery step run to completion: it forces a crash, reloads

@@ -8,7 +8,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { LayoutOptions } from "../../components/LayoutMenu";
-import type { Engine } from "../../types";
+import type { EditorMode, Engine } from "../../types";
 import {
   boundedInteger,
   defaultSettings,
@@ -191,8 +191,21 @@ export function renderCloudForm2(ctx: AppCtx) {
   );
 }
 
+/**
+ * The resting status bar color the app shows for each mode when the user has not
+ * picked a custom one. These mirror the calm-mode colors in the stylesheet
+ * (--bg-statusbar-* in src/styles/tokens.css); connection and error states use
+ * their own colors regardless. Shown as the color input's value so it never
+ * claims a fixed color the bar does not actually use.
+ */
+function defaultStatusbarColor(mode: EditorMode): string {
+  if (mode === "reviewer") return "#65537f";
+  if (mode === "rebuttal") return "#346b73";
+  return "#355a7a";
+}
+
 export function renderSettingsSectionHeading(ctx: AppCtx) {
-  const { resolvedAppearance, setEngine, setSettings, settings } = ctx;
+  const { mode, resolvedAppearance, setEngine, setSettings, settings } = ctx;
   return (
     <>
       <div className="settings-section-heading">
@@ -225,7 +238,7 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
           <input
             type="color"
             className="statusbar-color-input"
-            value={settings.statusbarColor || "#355a7a"}
+            value={settings.statusbarColor || defaultStatusbarColor(mode)}
             onChange={(event) =>
               setSettings((current) => ({
                 ...current,

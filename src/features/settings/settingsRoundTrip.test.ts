@@ -25,7 +25,9 @@ function alteredValue(key: keyof AppSettings, value: unknown): unknown {
     case "defaultEngine":
       return "xelatex";
     case "statusbarColor":
-      return defaultSettings.statusbarColor === "#355a7a" ? "#102a43" : "#355a7a";
+      // The default is "" (theme's default colors); store a real hex to prove
+      // a custom choice survives the round trip.
+      return defaultSettings.statusbarColor === "" ? "#355a7a" : defaultSettings.statusbarColor;
     default:
       return `${String(value)}-altered`;
   }
