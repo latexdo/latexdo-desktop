@@ -777,9 +777,22 @@ describe("automated release checks", () => {
   });
 
   it("does not treat an unrequested renderer crash as part of the recovery check", async () => {
-    const { promise } = e2eBoot({ crash: () => undefined });
+    const { promise } = e2eBoot({
+      crash: (contents, boot) =>
+        boot().appEvent(
+          "render-process-gone",
+          {},
+          contents,
+          crashed("killed", 0),
+        ),
+    });
     const boot = await promise;
-    H.executeJavaScript = () => new Promise(() => undefined);
+    // Let the crash-recovery step run to completion: it forces a crash, reloads
+    // the renderer and finishes the whole e2e run with exit 0. Only once it has
+    // finished is the recovery window closed, so an unrelated "killed" crash from
+    // here on must terminate the app rather than being swallowed as the expected
+    // recovery crash.
+    await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(0));
     boot.appEvent(
       "render-process-gone",
       {},
