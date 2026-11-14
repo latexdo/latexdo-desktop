@@ -654,6 +654,11 @@ function isColorTheme(value: unknown): value is ColorTheme {
   return colorThemeOptions.some((theme) => theme.id === value);
 }
 
+/** A 6-digit hex color like "#355a7a"; the native color input always writes this. */
+function isStatusbarColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
 export function monacoThemeFor(
   theme: ColorTheme,
   appearance: AppearanceMode = "dark",
@@ -670,6 +675,8 @@ export interface AppSettings {
   colorTheme: ColorTheme;
   appearanceMode: AppearanceMode;
   pdfReadingTheme: PdfReadingTheme;
+  /** Custom resting status bar color; "" uses the theme's default colors. */
+  statusbarColor: string;
   defaultEngine: Engine;
   livePreview: boolean;
   editorFontSize: number;
@@ -816,6 +823,7 @@ export const defaultSettings: AppSettings = {
   // New users start on the white theme; anyone who chose a look keeps it.
   appearanceMode: "light",
   pdfReadingTheme: "original",
+  statusbarColor: "",
   defaultEngine: "pdflatex",
   livePreview: false,
   editorFontSize: 13.5,
@@ -1218,6 +1226,9 @@ function readSavedSettings(): AppSettings {
       pdfReadingTheme: isPdfReadingTheme(saved.pdfReadingTheme)
         ? saved.pdfReadingTheme
         : defaultSettings.pdfReadingTheme,
+      statusbarColor: isStatusbarColor(saved.statusbarColor)
+        ? saved.statusbarColor
+        : defaultSettings.statusbarColor,
       editorFontSize:
         typeof saved.editorFontSize === "number" &&
         saved.editorFontSize >= minEditorFontSize &&

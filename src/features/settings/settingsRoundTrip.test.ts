@@ -24,6 +24,10 @@ function alteredValue(key: keyof AppSettings, value: unknown): unknown {
       return defaultSettings.pdfReadingTheme === "dark" ? "sepia" : "dark";
     case "defaultEngine":
       return "xelatex";
+    case "statusbarColor":
+      return defaultSettings.statusbarColor === "#355a7a"
+        ? "#102a43"
+        : "#355a7a";
     default:
       return `${String(value)}-altered`;
   }

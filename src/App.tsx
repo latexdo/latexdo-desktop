@@ -103,6 +103,27 @@ import {
   renderSettingsSectionHeading11,
   renderSettingsSectionHeading12,
 } from "./app/views/settingsAboutView";
+import type { CSSProperties } from "react";
+
+/**
+ * Inline style for a custom resting status bar color. The text color is picked
+ * white or dark from the background's relative luminance so it stays readable.
+ * Only used when the bar is idle, so live states keep their own colors.
+ */
+function statusbarCustomStyle(color: string): CSSProperties {
+  const hex = color.replace("#", "");
+  const toLinear = (channel: number) => {
+    const s = channel / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance =
+    0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  const textColor = luminance > 0.4 ? "#111827" : "#ffffff";
+  return { background: color, color: textColor };
+}
 
 export default function App() {
   const networkOnline = useNetworkOnline();
@@ -610,6 +631,11 @@ export default function App() {
         data-state={statusbarState}
         data-mode={mode}
         aria-label="Project diagnostics"
+        style={
+          statusbarState === "idle" && settings.statusbarColor
+            ? statusbarCustomStyle(settings.statusbarColor)
+            : undefined
+        }
       >
         {renderStatusbarGroup(ctx)}
         <div className="statusbar-group">

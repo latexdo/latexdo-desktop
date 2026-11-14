@@ -215,6 +215,40 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
 
       <div className="settings-row settings-row-stack">
         <span>
+          <strong>Status bar color</strong>
+          <small>
+            Pick a color for the status bar at rest. Reset to use the theme's
+            default colors. Connection and error states keep their own colors.
+          </small>
+        </span>
+        <div className="statusbar-color-row">
+          <input
+            type="color"
+            className="statusbar-color-input"
+            value={settings.statusbarColor || "#355a7a"}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                statusbarColor: event.target.value,
+              }))
+            }
+            aria-label="Status bar color"
+          />
+          <button
+            type="button"
+            className="statusbar-color-reset"
+            disabled={!settings.statusbarColor}
+            onClick={() =>
+              setSettings((current) => ({ ...current, statusbarColor: "" }))
+            }
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-row settings-row-stack">
+        <span>
           <strong>PDF reading theme</strong>
           <small>
             Choose the page appearance for reading. Exports keep the original PDF
