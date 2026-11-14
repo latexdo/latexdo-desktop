@@ -18,6 +18,8 @@ export const limits = {
    * project near the limit may go this far past it instead of failing.
    */
   editHeadroomBytes: 2 * 1024 * 1024,
+  /** The admin dashboard flags projects past this share of the limit. */
+  nearProjectLimitShare: 0.8,
   maxProjectEntries: 2000,
   /** Projects one person can own. */
   maxProjectsPerOwner: 20,
