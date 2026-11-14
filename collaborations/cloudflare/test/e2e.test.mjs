@@ -466,5 +466,55 @@ test(
     assert.equal(typeof stats.usedBytes, "number");
     assert.ok(stats.limitBytes > 0);
     assert.ok(Array.isArray(stats.largest));
+    // The project limit and how close projects are to it.
+    assert.equal(stats.projectLimitBytes, 10 * 1024 * 1024);
+    assert.equal(typeof stats.nearLimit, "number");
+    assert.equal(typeof stats.overLimit, "number");
+    assert.ok(Array.isArray(stats.refusals));
+    // What is live: null on a plain `wrangler dev`.
+    assert.ok(stats.build === null || typeof stats.build.commit === "string");
+  },
+);
+
+test(
+  "a project over 10 MB is refused, and the refusal is counted",
+  { skip: !process.env.ADMIN_TOKEN, timeout: 120_000 },
+  async () => {
+    const stats = async () =>
+      (
+        await fetch(new URL("/api/admin/stats", base), {
+          headers: { authorization: `Bearer ${process.env.ADMIN_TOKEN}` },
+        })
+      ).json();
+    const refused = (value) => value.refusals.reduce((sum, day) => sum + day.count, 0);
+    const before = refused(await stats());
+    const owner = person("Big");
+    // New projects are rate limited (5 a minute): wait for room after the
+    // tests above.
+    let created = await call(owner, "POST", "/api/projects", {
+      folderName: "enc1:big",
+    });
+    for (let attempt = 0; attempt < 14 && created.status === 429; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      created = await call(owner, "POST", "/api/projects", { folderName: "enc1:big" });
+    }
+    assert.equal(created.status, 200);
+    const id = created.body.id;
+    // Two 6 MB files: the first fits, the second takes it past 10 MB.
+    const upload = (path) =>
+      call(owner, "PUT", `/api/projects/${id}/files/binary?path=${path}`, {
+        base64: b64(sealed(6 * 1024 * 1024)),
+      });
+    assert.equal((await upload("data/a.bin")).status, 204);
+    const second = await upload("data/b.bin");
+    assert.equal(second.status, 413);
+    assert.match(second.body.error, /limited to 10 MB/);
+    // The count is written right after the refusal.
+    let after = before;
+    for (let attempt = 0; attempt < 20 && after === before; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      after = refused(await stats());
+    }
+    assert.equal(after, before + 1);
   },
 );

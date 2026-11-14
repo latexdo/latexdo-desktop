@@ -145,7 +145,69 @@ export class ReportStore extends DurableObject<Record<string, unknown>> {
         reports INTEGER NOT NULL,
         PRIMARY KEY (day, fingerprint, app_version, platform)
       );
+      CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `);
+    this.backfillDailyCounts();
+  }
+
+  /**
+   * Once: counts the reports received before daily_counts existed, so the
+   * charts include them. Kept samples count on the day they arrived; reports
+   * beyond the kept samples go on their problem's last-seen day, with its
+   * last version. Nothing already counted is counted twice.
+   */
+  private backfillDailyCounts(): void {
+    const done = this.sql
+      .exec<{ value: string }>("SELECT value FROM meta WHERE key = 'daily_backfill'")
+      .toArray()[0];
+    if (done) return;
+    this.ctx.storage.transactionSync(() => {
+      // Samples from days with nothing counted yet (before the counter existed).
+      this.sql.exec(
+        `INSERT INTO daily_counts (day, fingerprint, app_version, platform, reports)
+         SELECT CAST(received_at / ? AS INTEGER) AS day, fingerprint, app_version, platform, COUNT(*)
+         FROM reports
+         WHERE CAST(received_at / ? AS INTEGER) < COALESCE((SELECT MIN(day) FROM daily_counts), 1e15)
+         GROUP BY day, fingerprint, app_version, platform
+         ON CONFLICT(day, fingerprint, app_version, platform) DO UPDATE SET reports = reports + excluded.reports`,
+        dayMs,
+        dayMs,
+      );
+      // Whatever each problem still lacks: reports whose samples were dropped.
+      const missing = this.sql
+        .exec<{
+          fingerprint: string;
+          last_seen: number;
+          last_version: string;
+          missing: number;
+          platform: string | null;
+        }>(
+          `SELECT issues.fingerprint, issues.last_seen, issues.last_version,
+             issues.reports - COALESCE((SELECT SUM(reports) FROM daily_counts
+               WHERE daily_counts.fingerprint = issues.fingerprint), 0) AS missing,
+             (SELECT platform FROM reports WHERE reports.fingerprint = issues.fingerprint
+               ORDER BY received_at DESC LIMIT 1) AS platform
+           FROM issues`,
+        )
+        .toArray()
+        .filter((row) => row.missing > 0);
+      for (const row of missing) {
+        this.sql.exec(
+          `INSERT INTO daily_counts (day, fingerprint, app_version, platform, reports)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(day, fingerprint, app_version, platform) DO UPDATE SET reports = reports + excluded.reports`,
+          Math.floor(row.last_seen / dayMs),
+          row.fingerprint,
+          row.last_version,
+          row.platform ?? "unknown",
+          row.missing,
+        );
+      }
+      this.sql.exec(
+        "INSERT INTO meta (key, value) VALUES ('daily_backfill', ?)",
+        String(Date.now()),
+      );
+    });
   }
 
   private issueRow(fingerprint: string): IssueRow | null {
