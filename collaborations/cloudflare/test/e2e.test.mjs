@@ -491,7 +491,9 @@ test(
     const owner = person("Big");
     // New projects are rate limited (5 a minute): wait for room after the
     // tests above.
-    let created = await call(owner, "POST", "/api/projects", { folderName: "enc1:big" });
+    let created = await call(owner, "POST", "/api/projects", {
+      folderName: "enc1:big",
+    });
     for (let attempt = 0; attempt < 14 && created.status === 429; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));
       created = await call(owner, "POST", "/api/projects", { folderName: "enc1:big" });

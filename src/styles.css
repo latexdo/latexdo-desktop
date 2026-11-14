@@ -4846,7 +4846,10 @@ button {
   color: #fff;
 }
 
-.modal-header .share-confirm .share-confirm-actions .share-danger-solid:hover:not(:disabled) {
+.modal-header
+  .share-confirm
+  .share-confirm-actions
+  .share-danger-solid:hover:not(:disabled) {
   background: var(--error);
   filter: brightness(1.1);
 }

@@ -91,7 +91,9 @@ export class UsageMeter extends DurableObject<Record<string, unknown>> {
       .map((row) => ({ id: row.id, bytes: row.bytes, contentBytes: row.content }));
     const count = (where: string, ...values: number[]) =>
       this.sql
-        .exec<{ n: number }>(`SELECT COUNT(*) AS n FROM projects WHERE ${where}`, ...values)
+        .exec<{
+          n: number;
+        }>(`SELECT COUNT(*) AS n FROM projects WHERE ${where}`, ...values)
         .one().n;
     const nearFrom = Math.round(limits.maxProjectBytes * limits.nearProjectLimitShare);
     const since = new Date(Date.now() - 29 * 86_400_000).toISOString().slice(0, 10);

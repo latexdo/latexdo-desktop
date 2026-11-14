@@ -34,7 +34,12 @@ const branch = git("rev-parse", "--abbrev-ref", "HEAD");
 // trimmed: each line starts with a two-letter status that may be a space.
 const dirty = gitOutput("status", "--porcelain", "--", ...livePaths)
   .split("\n")
-  .map((line) => line.slice(3).replace(/^.* -> /, "").replace(/^"|"$/g, ""))
+  .map((line) =>
+    line
+      .slice(3)
+      .replace(/^.* -> /, "")
+      .replace(/^"|"$/g, ""),
+  )
   .some((file) => file && !notShipped.test(file));
 const deployedAt = new Date().toISOString();
 

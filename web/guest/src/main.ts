@@ -410,11 +410,7 @@ function showAppMissing(code: string, onBrowser: () => void): void {
     show(
       card(
         h("h1", {}, "LatexDo didn’t open"),
-        h(
-          "p",
-          {},
-          "When your browser asks whether to open LatexDo, choose Allow.",
-        ),
+        h("p", {}, "When your browser asks whether to open LatexDo, choose Allow."),
         h("div", { class: "actions" }, tryAgain("Open LatexDo again", true)),
         browserChoice,
       ),

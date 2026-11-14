@@ -117,7 +117,9 @@ describe("ShareProjectDialog", () => {
       onStopSharing,
     });
     render(<ShareProjectDialog {...p} />);
-    expect(screen.getByRole("status").textContent).toBe("Anyone with the link has access");
+    expect(screen.getByRole("status").textContent).toBe(
+      "Anyone with the link has access",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Copied" }));
     expect(p.onCopy).toHaveBeenCalledWith("plain-invite");
     const approval = screen.getByRole("checkbox") as HTMLInputElement;

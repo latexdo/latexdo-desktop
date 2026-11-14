@@ -232,8 +232,8 @@ export function ShareProjectDialog({
                   >
                     <strong>Stop sharing?</strong>
                     <p>
-                      The link stops working and everyone loses access. Your
-                      changes are saved back to your folder.
+                      The link stops working and everyone loses access. Your changes are
+                      saved back to your folder.
                     </p>
                     <div className="share-confirm-actions">
                       <button type="button" onClick={closeMenu}>
@@ -579,7 +579,11 @@ export function ShareProjectDialog({
                   className={`share-access-icon${hostLive ? " on" : ""}`}
                   aria-hidden="true"
                 >
-                  {hostLive ? <Globe size={16} /> : <Loader2 size={16} className="spin" />}
+                  {hostLive ? (
+                    <Globe size={16} />
+                  ) : (
+                    <Loader2 size={16} className="spin" />
+                  )}
                 </span>
                 <div className="share-access-text">
                   <strong role="status">
@@ -596,7 +600,9 @@ export function ShareProjectDialog({
                   <input
                     type="checkbox"
                     checked={state.requireApproval !== false}
-                    onChange={(event) => onRequireApprovalChange?.(event.target.checked)}
+                    onChange={(event) =>
+                      onRequireApprovalChange?.(event.target.checked)
+                    }
                   />
                   Ask me before someone new joins
                 </label>

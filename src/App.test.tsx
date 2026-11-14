@@ -3764,7 +3764,9 @@ describe("App critical UI controls", () => {
       ),
     );
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "More sharing options" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "More sharing options" }),
+    );
     fireEvent.click(within(dialog).getByRole("menuitem", { name: /Stop sharing/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop sharing" }));
     await waitFor(() => expect(api.stopCollaboration).toHaveBeenCalledWith(project.id));

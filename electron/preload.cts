@@ -775,7 +775,8 @@ function assertFitsOnline(paths: string[], sizes: number[] | undefined): void {
   if (!Array.isArray(sizes) || sizes.length !== paths.length) return;
   const total = sizes.reduce((sum, size) => sum + (Number(size) || 0), 0);
   // The server counts encrypted files, a few bytes larger each.
-  if (total + paths.length * encryptedFileOverheadBytes <= maxInternetProjectBytes) return;
+  if (total + paths.length * encryptedFileOverheadBytes <= maxInternetProjectBytes)
+    return;
   const largest = paths
     .map((relativePath, index) => ({ relativePath, size: Number(sizes[index]) || 0 }))
     .sort((a, b) => b.size - a.size)
