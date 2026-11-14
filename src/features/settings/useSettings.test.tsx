@@ -122,6 +122,56 @@ describe("useSettings", () => {
     expect(result.current.extensionCatalogLoading).toBe(false);
   });
 
+  it("does not update state after unmount while the catalog refresh is in flight", async () => {
+    const postUnmountSetterCalls: unknown[] = [];
+    let unmounted = false;
+    vi.doMock("react", async () => {
+      const React = await vi.importActual<typeof import("react")>("react");
+      return {
+        ...React,
+        useState: (initial: unknown) => {
+          const [value, setter] = React.useState(initial);
+          return [
+            value,
+            (next: unknown) => {
+              if (unmounted) postUnmountSetterCalls.push(next);
+              setter(next);
+            },
+          ] as const;
+        },
+      };
+    });
+    try {
+      let resolveCatalog!: (value: {
+        catalog: LatexDoExtensionCatalog;
+        source: "remote" | "fallback";
+      }) => void;
+      fetchExtensionCatalog.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCatalog = resolve;
+          }),
+      );
+      const { useSettings: wrappedUseSettings } = await import("./useSettings");
+      const { result, unmount } = renderHook(() => wrappedUseSettings(vi.fn()));
+      // Let the scheduled startup refresh begin; its promise is still pending.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(fetchExtensionCatalog).toHaveBeenCalledTimes(1);
+
+      unmount();
+      unmounted = true;
+      await act(async () => {
+        resolveCatalog({ catalog: remoteCatalog, source: "remote" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    } finally {
+      vi.doUnmock("react");
+    }
+    expect(postUnmountSetterCalls).toEqual([]);
+  });
+
   it("filters extensions by category and query", async () => {
     const { result } = renderHook(() => useSettings(vi.fn()));
     await waitFor(() => expect(result.current.extensionCatalogSource).toBe("remote"));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fallbackExtensionCatalog,
   fetchExtensionCatalog,
@@ -94,15 +94,23 @@ export function useSettings(onStatusMessage: (message: string) => void) {
     [extensionCatalog.extensions, extensionCategoryFilter, extensionQuery],
   );
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const refreshExtensionCatalog = useCallback(async () => {
     setExtensionCatalogLoading(true);
     try {
       const result = await fetchExtensionCatalog();
+      if (!isMountedRef.current) return;
       setExtensionCatalog(result.catalog);
       setExtensionCatalogSource(result.source);
       setExtensionCatalogError(result.error ?? "");
     } finally {
-      setExtensionCatalogLoading(false);
+      if (isMountedRef.current) setExtensionCatalogLoading(false);
     }
   }, []);
 
