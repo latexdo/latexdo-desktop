@@ -772,6 +772,29 @@ describe("sharing from this computer", () => {
     ).rejects.toThrow("larger than 32 MB");
   });
 
+  it("refuses a project over 10 MB before uploading anything online", async () => {
+    const api = await load();
+    const request = vi.fn(() => reply({ id: "project_x", name: "X" }));
+    const upload = vi.fn();
+    routeInvoke({
+      "project:list": () => [
+        { type: "file", relativePath: "main.tex" },
+        { type: "file", relativePath: "figures/scan.pdf" },
+        { type: "file", relativePath: "data.csv" },
+      ],
+      "project:upload-sizes": () => [20_000, 8 * 1024 * 1024, 3 * 1024 * 1024],
+      "file:read": upload,
+      "file:read-cloud-upload": upload,
+      "peer:request": request,
+      "peer:host-start": () => status,
+    });
+    await expect(api.createCollaborationLink("local")).rejects.toThrow(
+      "This project is 11 MB. Shared projects can be up to 10 MB. Largest files: figures/scan.pdf (8.0 MB), data.csv (3.0 MB), main.tex (20 KB).",
+    );
+    expect(request).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+  });
+
   it("restores a project on another host without a stored invite as nothing", async () => {
     const api = await load();
     localStorage.setItem("latexdo.cloud.activeProject", "project_r");

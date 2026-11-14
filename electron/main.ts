@@ -7384,6 +7384,28 @@ async function startApp(): Promise<void> {
       size: content.byteLength,
     };
   });
+  // Sizes of the files about to be shared, so a project over the online limit
+  // is refused before anything is uploaded.
+  ipcMain.handle("project:upload-sizes", async (_event, ...rawArgs: unknown[]) => {
+    const channel = "project:upload-sizes";
+    const [rawProjectId, rawPaths] = expectIpcArgs(channel, rawArgs, 2);
+    const projectId = parseProjectId(channel, rawProjectId);
+    if (!Array.isArray(rawPaths) || rawPaths.length > 5_000) {
+      throw new Error(`${channel}: expected a list of files.`);
+    }
+    const sizes: number[] = [];
+    for (const rawPath of rawPaths) {
+      const filePath = parseRelativePath(channel, rawPath);
+      try {
+        const location = await resolveOpenProjectPath(projectId, filePath);
+        const file = await stat(location.resolvedPath);
+        sizes.push(file.isFile() ? file.size : 0);
+      } catch {
+        sizes.push(0);
+      }
+    }
+    return sizes;
+  });
   ipcMain.handle("file:choose-hosted-import", async (event, ...rawArgs: unknown[]) => {
     const channel = "file:choose-hosted-import";
     const [rawKind] = expectIpcArgs(channel, rawArgs, 1);

@@ -1,14 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Check,
   Copy,
   Crown,
   FolderDown,
+  Globe,
   KeyRound,
   Link,
   Loader2,
   LogIn,
+  MoreHorizontal,
   RefreshCw,
   Square,
   UserRound,
@@ -116,18 +118,49 @@ export function ShareProjectDialog({
   const webLink = webLinkForInvite(state.inviteCode);
   const shareLink = webLink ?? state.inviteCode ?? "";
 
+  // The "⋯" menu with the rarer actions, and its "Stop sharing?" step.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setConfirmStop(false);
+  };
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setMenuOpen(false);
+      setConfirmStop(false);
+      return;
+    }
     // Capture phase, so the editor underneath cannot swallow the key first.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      onClose();
+      // Escape closes the open menu first, then the window.
+      if (menuOpen) {
+        setMenuOpen(false);
+        setConfirmStop(false);
+      } else {
+        onClose();
+      }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, onClose]);
+  }, [open, onClose, menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+        setConfirmStop(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menuOpen]);
 
   if (!open) {
     return null;
@@ -151,6 +184,13 @@ export function ShareProjectDialog({
   const managePeople = Boolean(
     isAdmin && onUpdatePermission && onRemoveCollaborator && onRefreshPermissions,
   );
+  // Sharing is on (or starting): the window reads like a document's Share
+  // window: people, who else can get in, then Copy link and Done.
+  const sharingLive = hostFlow && (hostLive || hostStarting);
+  const canRegenerate = Boolean(isAdmin && onRegenerate);
+  // Stop sharing already brings every change home to the folder, so there
+  // is no separate "save" while sharing.
+  const hasMenu = sharingLive && (canRegenerate || onStopSharing);
 
   return (
     <div
@@ -161,21 +201,101 @@ export function ShareProjectDialog({
       }}
     >
       <section
-        className="modal-panel share-project-dialog"
+        className={`modal-panel share-project-dialog${sharingLive ? " share-live" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-project-title"
       >
         <header className="modal-header">
           <h2 id="share-project-title">Share Project</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            title="Close (Esc)"
-          >
-            <X size={16} />
-          </button>
+          <div className="share-header-actions">
+            {hasMenu ? (
+              <div className="share-menu-anchor" ref={menuRef}>
+                <button
+                  type="button"
+                  aria-label="More sharing options"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  title="More options"
+                  onClick={() => {
+                    setConfirmStop(false);
+                    setMenuOpen((value) => !value);
+                  }}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+                {menuOpen && confirmStop && onStopSharing ? (
+                  <div
+                    className="share-menu share-confirm"
+                    role="alertdialog"
+                    aria-label="Stop sharing?"
+                  >
+                    <strong>Stop sharing?</strong>
+                    <p>
+                      The link stops working and everyone loses access. Your
+                      changes are saved back to your folder.
+                    </p>
+                    <div className="share-confirm-actions">
+                      <button type="button" onClick={closeMenu}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="share-danger-solid"
+                        disabled={busy}
+                        onClick={() => {
+                          closeMenu();
+                          onStopSharing();
+                        }}
+                      >
+                        Stop sharing
+                      </button>
+                    </div>
+                  </div>
+                ) : menuOpen ? (
+                  <div className="share-menu" role="menu">
+                    {canRegenerate ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={busy || !state.inviteCode}
+                        onClick={() => {
+                          closeMenu();
+                          onRegenerate?.();
+                        }}
+                      >
+                        <RefreshCw size={14} aria-hidden="true" />
+                        <span>
+                          New link
+                          <small>The current link stops working for new people</small>
+                        </span>
+                      </button>
+                    ) : null}
+                    {onStopSharing ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="share-menu-danger"
+                        disabled={busy}
+                        onClick={() => setConfirmStop(true)}
+                      >
+                        <Square size={13} aria-hidden="true" />
+                        <span>Stop sharing…</span>
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              title="Close (Esc)"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </header>
         {adminOffer && onAnswerAdminOffer ? (
           <div
@@ -230,83 +350,6 @@ export function ShareProjectDialog({
                 </button>
               ) : null}
             </p>
-          </div>
-        ) : null}
-
-        {hostFlow && (hostLive || hostStarting) ? (
-          <div className="share-section">
-            <p className="share-status" role="status">
-              {hostLive ? (
-                <span className="share-status-dot" aria-hidden="true" />
-              ) : (
-                <Loader2 size={14} className="spin" aria-hidden="true" />
-              )}
-              {hostLive ? "Sharing is on." : (host?.message ?? "Starting…")}
-            </p>
-            <div className="share-link-field">
-              <Link size={15} aria-hidden="true" />
-              <input
-                readOnly
-                value={shareLink}
-                placeholder={hostLive ? "Preparing link…" : "Your link appears here"}
-                aria-label="Share link"
-                onFocus={(event) => event.target.select()}
-              />
-              <button
-                type="button"
-                className="share-copy"
-                onClick={() => shareLink && onCopy(shareLink)}
-                disabled={!shareLink}
-              >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? "Copied" : "Copy link"}
-              </button>
-            </div>
-            <p className="share-hint">
-              {webLink
-                ? "The link opens the project in LatexDo, or in a simple browser editor for people without the app. Stays online when LatexDo is closed."
-                : "Paste it under Join in LatexDo. Works while LatexDo stays open."}
-            </p>
-            {isAdmin ? (
-              <label className="share-check">
-                <input
-                  type="checkbox"
-                  checked={state.requireApproval !== false}
-                  onChange={(event) => onRequireApprovalChange?.(event.target.checked)}
-                />
-                Ask me before someone new joins
-              </label>
-            ) : null}
-            <div className="share-actions">
-              {isAdmin && onRegenerate ? (
-                <button
-                  type="button"
-                  onClick={onRegenerate}
-                  disabled={busy || !state.inviteCode}
-                  title="Make a new link. The current one stops working for new people."
-                >
-                  <RefreshCw size={14} />
-                  New link
-                </button>
-              ) : null}
-              {onSaveToFolder ? (
-                <button type="button" onClick={onSaveToFolder} disabled={busy}>
-                  <FolderDown size={14} />
-                  Save to my folder
-                </button>
-              ) : null}
-              {onStopSharing ? (
-                <button
-                  type="button"
-                  className="share-danger"
-                  onClick={onStopSharing}
-                  disabled={busy}
-                >
-                  <Square size={13} />
-                  Stop sharing
-                </button>
-              ) : null}
-            </div>
           </div>
         ) : null}
 
@@ -525,6 +568,56 @@ export function ShareProjectDialog({
             onWithdrawAdminOffer={onWithdrawAdminOffer}
             onGoTo={onGoToCollaborator}
           />
+        ) : null}
+
+        {sharingLive ? (
+          <>
+            <div className="share-section share-access">
+              <h4>General access</h4>
+              <div className="share-access-row">
+                <span
+                  className={`share-access-icon${hostLive ? " on" : ""}`}
+                  aria-hidden="true"
+                >
+                  {hostLive ? <Globe size={16} /> : <Loader2 size={16} className="spin" />}
+                </span>
+                <div className="share-access-text">
+                  <strong role="status">
+                    {!hostLive
+                      ? (host?.message ?? "Starting…")
+                      : state.requireApproval !== false
+                        ? "Anyone with the link can ask to join"
+                        : "Anyone with the link has access"}
+                  </strong>
+                </div>
+              </div>
+              {isAdmin ? (
+                <label className="share-check">
+                  <input
+                    type="checkbox"
+                    checked={state.requireApproval !== false}
+                    onChange={(event) => onRequireApprovalChange?.(event.target.checked)}
+                  />
+                  Ask me before someone new joins
+                </label>
+              ) : null}
+            </div>
+            <footer className="share-footer">
+              <button
+                type="button"
+                className="share-copy-link"
+                onClick={() => shareLink && onCopy(shareLink)}
+                disabled={!shareLink}
+                title={shareLink || undefined}
+              >
+                {copied ? <Check size={14} /> : <Link size={14} />}
+                {copied ? "Copied" : "Copy link"}
+              </button>
+              <button type="button" className="share-done" onClick={onClose}>
+                Done
+              </button>
+            </footer>
+          </>
         ) : null}
       </section>
     </div>

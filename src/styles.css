@@ -4739,6 +4739,222 @@ button {
   opacity: 0.6;
 }
 
+/* Live sharing reads like a document's Share window: people, general
+   access, then Copy link and Done. Rare actions live in the "⋯" menu. */
+.share-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.share-menu-anchor {
+  position: relative;
+}
+
+.modal-header .share-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: 280px;
+  padding: 6px;
+  border: 1px solid var(--border-dialog);
+  border-radius: 10px;
+  background: var(--bg-dialog, var(--bg-input));
+  box-shadow: 0 12px 32px rgb(0 0 0 / 28%);
+}
+
+.modal-header .share-menu button {
+  display: flex;
+  width: 100%;
+  height: auto;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  place-items: initial;
+  text-align: left;
+}
+
+.modal-header .share-menu button svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.modal-header .share-menu button span {
+  display: grid;
+  gap: 2px;
+}
+
+.modal-header .share-menu button small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.modal-header .share-menu button:hover:not(:disabled) {
+  background: var(--bg-button-secondary);
+}
+
+.modal-header .share-menu button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.modal-header .share-menu .share-menu-danger,
+.modal-header .share-menu .share-menu-danger svg {
+  color: var(--error);
+}
+
+.modal-header .share-confirm {
+  gap: 8px;
+  padding: 14px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.share-confirm p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.modal-header .share-confirm .share-confirm-actions button {
+  width: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border-card);
+  font-weight: 600;
+}
+
+.modal-header .share-confirm .share-confirm-actions .share-danger-solid {
+  border-color: var(--error);
+  background: var(--error);
+  color: #fff;
+}
+
+.modal-header .share-confirm .share-confirm-actions .share-danger-solid:hover:not(:disabled) {
+  background: var(--error);
+  filter: brightness(1.1);
+}
+
+.share-section.share-access {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-card);
+}
+
+/* People come first while sharing: no divider under the header. */
+.share-live .permission-management,
+.share-live .share-people-empty {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* "Admin" lines up with the role names in the dropdowns below it. */
+.permission-table td .role-badge {
+  padding-left: 9px;
+}
+
+.share-access-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.share-access-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bg-button-secondary);
+  color: var(--text-secondary);
+  place-items: center;
+}
+
+.share-access-icon.on {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+  color: #16a34a;
+}
+
+.share-access-text {
+  display: grid;
+  gap: 2px;
+}
+
+.share-access-text strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.share-access-text small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.share-access .share-check {
+  padding-left: 46px;
+  color: var(--text-secondary);
+}
+
+.share-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 2px;
+}
+
+.share-copy-link,
+.share-done {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 17px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.share-copy-link {
+  border: 1px solid var(--border-input);
+  background: transparent;
+  color: var(--accent);
+}
+
+.share-copy-link:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.share-done {
+  border: 0;
+  background: var(--accent-bg);
+  color: var(--text-on-accent);
+}
+
+.share-copy-link:disabled,
+.share-done:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .share-people-empty {
   padding: 14px 18px 0;
   border-top: 1px solid var(--border-card);

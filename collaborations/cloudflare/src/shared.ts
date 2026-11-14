@@ -11,8 +11,13 @@ export const limits = {
   maxUpdateBytes: 24 * 1024 * 1024,
   /** One binary file (figure, PDF, data). */
   maxBinaryBytes: 25 * 1024 * 1024,
-  /** Everything in one project. */
-  maxProjectBytes: 100 * 1024 * 1024,
+  /** Everything in one project (the desktop app checks it before sharing). */
+  maxProjectBytes: 10 * 1024 * 1024,
+  /**
+   * Live edits are stored as a log until a client compacts it, so typing in a
+   * project near the limit may go this far past it instead of failing.
+   */
+  editHeadroomBytes: 2 * 1024 * 1024,
   maxProjectEntries: 2000,
   /** Projects one person can own. */
   maxProjectsPerOwner: 20,
