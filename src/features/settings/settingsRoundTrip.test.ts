@@ -25,9 +25,7 @@ function alteredValue(key: keyof AppSettings, value: unknown): unknown {
     case "defaultEngine":
       return "xelatex";
     case "statusbarColor":
-      return defaultSettings.statusbarColor === "#355a7a"
-        ? "#102a43"
-        : "#355a7a";
+      return defaultSettings.statusbarColor === "#355a7a" ? "#102a43" : "#355a7a";
     default:
       return `${String(value)}-altered`;
   }

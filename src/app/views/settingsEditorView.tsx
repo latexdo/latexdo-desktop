@@ -217,8 +217,8 @@ export function renderSettingsSectionHeading(ctx: AppCtx) {
         <span>
           <strong>Status bar color</strong>
           <small>
-            Pick a color for the status bar at rest. Reset to use the theme's
-            default colors. Connection and error states keep their own colors.
+            Pick a color for the status bar at rest. Reset to use the theme's default
+            colors. Connection and error states keep their own colors.
           </small>
         </span>
         <div className="statusbar-color-row">
