@@ -84,6 +84,10 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     setWhatsNew,
     setWhatsNewOpen,
     showWelcome,
+    collaborationState,
+    collaboratorLines,
+    revealCollaborator,
+    followCollaboratorOnOpen,
   } = ctx;
 
   const discardAllGitEntries = useCallback(async () => {
@@ -406,6 +410,52 @@ export function useAppGitNavigation(ctx: AppCtx12) {
       await openDocument(entry);
     },
     [allProjectEntries, openDocument, refreshProject],
+  );
+
+  /**
+   * Clicking a person's emoji: takes you to their file and to their cursor,
+   * like Overleaf. Their cursor arrives a moment after the file opens, so the
+   * jump to their line happens then.
+   */
+  const goToCollaborator = useCallback(
+    async (clientId: string) => {
+      const user = collaborationState.users.find((item) => item.clientId === clientId);
+      const name = user?.name || "Guest";
+      if (!user) {
+        setStatusMessage(`${name} is no longer in this project.`);
+        return;
+      }
+      setWelcomeOpen(false);
+      const here =
+        Boolean(user.currentFile) && activeDocument?.relativePath === user.currentFile;
+      if (here && revealCollaborator(clientId)) {
+        editorRef.current?.focus();
+        const line = collaboratorLines[clientId];
+        setStatusMessage(
+          `${name} is here${line ? `, on line ${line}` : ""} in ${pathForDisplay(user.currentFile!)}.`,
+        );
+        return;
+      }
+      if (!user.currentFile) {
+        setStatusMessage(`${name} doesn’t have a file open right now.`);
+        return;
+      }
+      followCollaboratorOnOpen(clientId);
+      if (!here) await openGitFile(user.currentFile);
+      editorRef.current?.focus();
+      setStatusMessage(`Went to ${name} in ${pathForDisplay(user.currentFile)}.`);
+    },
+    [
+      activeDocument?.relativePath,
+      collaborationState.users,
+      collaboratorLines,
+      editorRef,
+      followCollaboratorOnOpen,
+      openGitFile,
+      revealCollaborator,
+      setStatusMessage,
+      setWelcomeOpen,
+    ],
   );
 
   const openGitDiffEditor = useCallback(
@@ -783,6 +833,7 @@ export function useAppGitNavigation(ctx: AppCtx12) {
     closeWelcomePage,
     openDiagnostic,
     openGitFile,
+    goToCollaborator,
     openGitDiffEditor,
     revealGitFile,
     copyGitPath,

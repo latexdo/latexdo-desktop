@@ -38,6 +38,15 @@ function setup(overrides = {}) {
       hideProjectEntries: false,
       compileProgress: 0,
       gitContextMenu: null,
+      collaborationState: {
+        enabled: true,
+        users: [
+          { clientId: "ada", name: "Ada", currentFile: "main.tex", lastSeen: 0 },
+          { clientId: "bo", name: "Bo", currentFile: "other.tex", lastSeen: 0 },
+          { clientId: "cy", name: "", currentFile: null, lastSeen: 0 },
+        ],
+      },
+      collaboratorLines: { ada: 3 },
       ...overrides,
     },
     [
@@ -73,6 +82,8 @@ function setup(overrides = {}) {
       "refreshProject",
       "revealPendingSource",
       "scheduleGitRefresh",
+      "revealCollaborator",
+      "followCollaboratorOnOpen",
     ],
   );
   ctx.refreshProject.mockResolvedValue([entry]);
@@ -161,6 +172,32 @@ describe("Git navigation", () => {
     expect(h.state.statusMessage).toContain("abcdef1");
     expect(h.state.gitActionBusy).toBeNull();
   });
+  it("goes to a person from their emoji: their cursor here, or their file", async () => {
+    const h = setup();
+    h.ctx.revealCollaborator.mockReturnValue(true);
+    await h.result.current.goToCollaborator("ada");
+    expect(h.ctx.revealCollaborator).toHaveBeenCalledWith("ada");
+    expect(h.ctx.setWelcomeOpen).toHaveBeenCalledWith(false);
+    expect(h.state.statusMessage).toBe("Ada is here, on line 3 in main.tex.");
+    expect(h.ctx.followCollaboratorOnOpen).not.toHaveBeenCalled();
+
+    // Their cursor has not arrived yet: jump once it does, without reopening.
+    h.ctx.revealCollaborator.mockReturnValue(false);
+    await h.result.current.goToCollaborator("ada");
+    expect(h.ctx.followCollaboratorOnOpen).toHaveBeenLastCalledWith("ada");
+    expect(h.ctx.openDocument).not.toHaveBeenCalled();
+
+    // In another file: open it, then jump to them there.
+    await h.result.current.goToCollaborator("bo");
+    expect(h.ctx.followCollaboratorOnOpen).toHaveBeenLastCalledWith("bo");
+    expect(h.ctx.refreshProject).toHaveBeenCalled();
+
+    await h.result.current.goToCollaborator("cy");
+    expect(h.state.statusMessage).toBe("Guest doesn’t have a file open right now.");
+    await h.result.current.goToCollaborator("gone");
+    expect(h.state.statusMessage).toBe("Guest is no longer in this project.");
+  });
+
   it("opens working-tree files, refreshes missing entries and reports deletions", async () => {
     const h = setup();
     await h.result.current.openGitFile("main.tex");

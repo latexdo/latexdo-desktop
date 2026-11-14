@@ -15,6 +15,12 @@ import {
   type RemoteCursor,
 } from "../../../src/collaboration/collaboratorLook";
 import {
+  remoteCursorDecorations,
+  remoteCursorPositions,
+  revealRemoteCursor,
+  type RemoteCursorPosition,
+} from "../../../src/collaboration/remoteCursors";
+import {
   appLinkForCode,
   appSeenBefore,
   choseBrowser,
@@ -570,6 +576,8 @@ async function openWorkspace(
     readOnly: true,
     wordWrap: "on",
     minimap: { enabled: false },
+    // Other people's emoji show in the gutter on the line they are on.
+    glyphMargin: true,
     fontSize: 14,
     theme: dark.matches ? "vs-dark" : "vs",
     scrollBeyondLastLine: false,
@@ -586,15 +594,37 @@ async function openWorkspace(
   let currentPath: string | null = null;
   let entries: TreeEntry[] = [];
   let previewUrl: string | null = null;
+  // Where the others are in the open file, and the last presence list.
+  const remoteMarkers = editor.createDecorationsCollection();
+  let cursors: RemoteCursorPosition[] = [];
+  let people: Person[] = initialPeople;
+  let follow: { clientId: string; until: number } | null = null;
 
-  const renderPeople = (people: Person[]) => {
-    const others = people.filter(
+  const goTo = (person: Person) => {
+    // In this file: jump to their cursor. Elsewhere: open their file, then
+    // jump once their cursor shows up.
+    if (revealRemoteCursor(editor, cursors, person.clientId)) return;
+    if (!person.currentFile) return;
+    follow = { clientId: person.clientId, until: Date.now() + 20_000 };
+    void openPath(person.currentFile);
+  };
+
+  const renderPeople = (next: Person[] = people) => {
+    people = next;
+    const others = next.filter(
       (person) => person.clientId !== session.identity.clientId,
     );
     peopleBar.replaceChildren(
       ...others.slice(0, 8).map((person) => {
         const look = collaboratorLook(person.clientId);
-        const where = person.currentFile ? `in ${person.currentFile}` : "not in a file";
+        const cursor = cursors.find((item) => item.clientId === person.clientId);
+        const line =
+          cursor && editor.getModel()
+            ? editor.getModel()!.getPositionAt(cursor.index).lineNumber
+            : null;
+        const where = person.currentFile
+          ? `in ${person.currentFile}${line ? `, line ${line}` : ""}`
+          : "not in a file";
         const button = h(
           "button",
           {
@@ -606,10 +636,7 @@ async function openWorkspace(
           },
           look.emoji,
         );
-        if (person.currentFile) {
-          const target = person.currentFile;
-          button.addEventListener("click", () => void openPath(target));
-        }
+        if (person.currentFile) button.addEventListener("click", () => goTo(person));
         return button;
       }),
       ...(others.length > 8
@@ -682,6 +709,8 @@ async function openWorkspace(
     preview.replaceChildren();
     if (!closing) return;
     closing.binding.destroy();
+    remoteMarkers.clear();
+    cursors = [];
     editor.setModel(null);
     closing.model.dispose();
     await closing.live.close();
@@ -757,19 +786,25 @@ async function openWorkspace(
     );
     current = { live, binding, model };
     live.awareness.on("change", () => {
-      const cursors: RemoteCursor[] = [];
+      if (current?.live !== live) return;
+      cursors = remoteCursorPositions(live.awareness, live.doc, live.text);
+      remoteMarkers.set(remoteCursorDecorations(model, cursors));
+      if (follow && Date.now() > follow.until) follow = null;
+      if (follow && revealRemoteCursor(editor, cursors, follow.clientId)) follow = null;
+      renderPeople();
+      const labels: RemoteCursor[] = [];
       live.awareness.getStates().forEach((state, clientID) => {
         if (clientID === live.doc.clientID) return;
         const user = (state as { user?: Record<string, unknown> }).user;
         if (!user) return;
-        cursors.push({
+        labels.push({
           clientID,
           name: typeof user.name === "string" ? user.name : "",
           emoji: typeof user.emoji === "string" ? user.emoji : "",
           color: typeof user.color === "string" ? user.color : "",
         });
       });
-      cursorStyle.textContent = remoteCursorCss(cursors);
+      cursorStyle.textContent = remoteCursorCss(labels);
     });
     void session
       .presence(path)

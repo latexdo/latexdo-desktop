@@ -23,6 +23,8 @@ export interface CollaborationRoomOptions extends CollaborationIdentity {
   projectId: string;
   relativePath: string;
   shareToken?: string;
+  /** Shared in the cursor data, so avatars can be matched to cursors. */
+  clientId?: string;
 }
 
 export interface CollaborationProviderState extends CollaborationIdentity {

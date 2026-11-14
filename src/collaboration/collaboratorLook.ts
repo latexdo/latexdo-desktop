@@ -84,6 +84,9 @@ export function remoteCursorCss(cursors: readonly RemoteCursor[]): string {
         `.monaco-editor .yRemoteSelection-${id} { background-color: ${tint}38; }`,
         `.monaco-editor .yRemoteSelectionHead-${id} { border-left-color: ${tint}; }`,
         `.monaco-editor .yRemoteSelectionHead-${id}::after { content: ${label}; background: ${tint}; }`,
+        // Their emoji in the gutter, on the line their cursor is on.
+        `.monaco-editor .yRemoteGlyph-${id}::before { content: ${cssString(emoji || "•")}; }`,
+        `.monaco-editor .yRemoteGlyph-${id} { box-shadow: inset 2px 0 0 ${tint}; }`,
       ].join("\n");
     })
     .join("\n");

@@ -1,6 +1,7 @@
 import { User, Crown, Pencil, Eye } from "lucide-react";
 import type { CollaboratorPresence } from "../types";
 import { presenceLabels, presenceState } from "../collaboration/presence";
+import { collaboratorLook } from "../collaboration/collaboratorLook";
 
 const roleIcons: Record<string, React.ReactNode> = {
   admin: <Crown size={12} />,
@@ -8,7 +9,14 @@ const roleIcons: Record<string, React.ReactNode> = {
   viewer: <Eye size={12} />,
 };
 
-export function CollaboratorsList({ users }: { users: CollaboratorPresence[] }) {
+export function CollaboratorsList({
+  users,
+  onGoTo,
+}: {
+  users: CollaboratorPresence[];
+  /** Clicking a person takes you to their file and cursor. */
+  onGoTo?: (clientId: string) => void;
+}) {
   if (!users.length) {
     return (
       <span className="collaborators-empty">
@@ -22,11 +30,27 @@ export function CollaboratorsList({ users }: { users: CollaboratorPresence[] }) 
     <ul className="collaborators-list">
       {users.map((user) => {
         const state = presenceState(user);
+        const look = collaboratorLook(user.clientId);
+        const canGo = Boolean(onGoTo && user.currentFile);
         return (
           <li key={user.clientId} data-presence={state}>
-            <span className="collaborator-avatar" aria-hidden="true">
-              {user.name.slice(0, 1).toUpperCase()}
-            </span>
+            <button
+              type="button"
+              className="collaborator-avatar collaborator-emoji"
+              style={{ borderColor: look.color, background: `${look.color}33` }}
+              disabled={!canGo}
+              onClick={() => onGoTo?.(user.clientId)}
+              title={
+                canGo
+                  ? `Go to ${user.name || "Guest"} in ${user.currentFile}`
+                  : `${user.name || "Guest"} has no file open`
+              }
+              aria-label={
+                canGo ? `Go to ${user.name || "Guest"}` : `${user.name || "Guest"}`
+              }
+            >
+              {look.emoji}
+            </button>
             <span className="collaborator-meta">
               <strong>{user.name}</strong>
               <small className="collaborator-presence" title={presenceLabels[state]}>

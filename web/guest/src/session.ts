@@ -266,7 +266,12 @@ export class LiveFile {
   ) {
     const { identity } = session;
     this.awareness.setLocalState({
-      user: { name: identity.name, color: identity.color, emoji: identity.emoji },
+      user: {
+        name: identity.name,
+        color: identity.color,
+        emoji: identity.emoji,
+        clientId: identity.clientId,
+      },
       file: path,
     });
     this.doc.on("update", (update: Uint8Array, origin: unknown) => {
@@ -280,6 +285,21 @@ export class LiveFile {
         changes: { added: number[]; updated: number[]; removed: number[] },
         origin: unknown,
       ) => {
+        if (origin === "remote") {
+          // Someone new opened this file: the server keeps no cursors, so
+          // tell them where this one is now instead of when it next moves.
+          if (
+            changes.added.some((id) => id !== this.doc.clientID) &&
+            this.awareness.getLocalState() !== null
+          ) {
+            void this.sendCursor(
+              awarenessProtocol.encodeAwarenessUpdate(this.awareness, [
+                this.doc.clientID,
+              ]),
+            );
+          }
+          return;
+        }
         if (origin !== "local") return;
         const clients = [...changes.added, ...changes.updated, ...changes.removed];
         void this.sendCursor(
