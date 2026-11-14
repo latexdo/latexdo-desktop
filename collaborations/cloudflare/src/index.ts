@@ -31,6 +31,22 @@ interface Env {
   CREATES?: RateLimit;
   /** `wrangler secret put ADMIN_TOKEN`; without it the admin API is off. */
   ADMIN_TOKEN?: string;
+  /** Set by `npm run deploy` (scripts/deploy.mjs): what is live. */
+  BUILD_COMMIT?: string;
+  BUILD_BRANCH?: string;
+  BUILD_DIRTY?: string;
+  BUILD_DEPLOYED_AT?: string;
+}
+
+/** The commit this server and its web page were deployed from. */
+function buildInfo(env: Env) {
+  if (!env.BUILD_COMMIT) return null;
+  return {
+    commit: env.BUILD_COMMIT,
+    branch: env.BUILD_BRANCH || null,
+    dirty: env.BUILD_DIRTY === "1",
+    deployedAt: env.BUILD_DEPLOYED_AT || null,
+  };
 }
 
 function sameSecret(left: string, right: string): boolean {
@@ -150,7 +166,8 @@ export default {
       if (parts[1] === "admin" && parts[2] === "stats" && parts.length === 3) {
         requireAdmin(request, env);
         if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
-        return json(200, await env.USAGE.get(env.USAGE.idFromName("global")).stats());
+        const stats = await env.USAGE.get(env.USAGE.idFromName("global")).stats();
+        return json(200, { ...stats, build: buildInfo(env) });
       }
 
       if (parts[1] === "projects" && parts.length === 2) {

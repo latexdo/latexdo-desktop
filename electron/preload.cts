@@ -107,7 +107,10 @@ const internetCollaborationOrigin = (
 ).replace(/\/+$/, "");
 const maxInternetTextBytes = 16 * 1024 * 1024;
 const maxInternetBinaryBytes = 25 * 1024 * 1024;
-const maxInternetProjectBytes = 200 * 1024 * 1024;
+// collab.latexdo.org takes projects up to 10 MB (see limits in
+// collaborations/cloudflare/src/shared.ts).
+const maxInternetProjectBytes = 10 * 1024 * 1024;
+const encryptedFileOverheadBytes = 256;
 const maxInternetProjectFiles = 2000;
 const maxCloudProjectFiles = 500;
 // Sharing from this computer: the hosted server is started with these limits.
@@ -761,12 +764,35 @@ async function restoreCloudProject(): Promise<OpenProject | null> {
   }
 }
 
+function formatSize(bytes: number): string {
+  const megabytes = bytes / 1024 / 1024;
+  if (megabytes < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
+}
+
+/** Refuses a project too big for collab.latexdo.org, naming its largest files. */
+function assertFitsOnline(paths: string[], sizes: number[] | undefined): void {
+  if (!Array.isArray(sizes) || sizes.length !== paths.length) return;
+  const total = sizes.reduce((sum, size) => sum + (Number(size) || 0), 0);
+  // The server counts encrypted files, a few bytes larger each.
+  if (total + paths.length * encryptedFileOverheadBytes <= maxInternetProjectBytes)
+    return;
+  const largest = paths
+    .map((relativePath, index) => ({ relativePath, size: Number(sizes[index]) || 0 }))
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 3)
+    .filter((file) => file.size > 0)
+    .map((file) => `${file.relativePath} (${formatSize(file.size)})`);
+  throw new Error(
+    `This project is ${formatSize(total)}. Shared projects can be up to ${formatSize(maxInternetProjectBytes)}. Largest files: ${largest.join(", ")}.`,
+  );
+}
+
 async function uploadLocalProjectToCloud(
   localProjectId: string,
   folderName?: string,
   origin = collaborationApiBaseUrl,
 ): Promise<OpenProject> {
-  const cloudProject = await createCloudProject(folderName, origin);
   const tree = (await ipcRenderer.invoke("project:list", localProjectId, {
     maxDepth: 50,
     maxEntries: 2_000,
@@ -798,6 +824,19 @@ async function uploadLocalProjectToCloud(
   if (fileEntries.length > maxFiles) {
     throw new Error(`${where} are limited to ${maxFiles} files.`);
   }
+  if (internet) {
+    // Checked before anything is uploaded: a project over the limit must not
+    // leave a half-uploaded copy online.
+    assertFitsOnline(
+      fileEntries.map((entry) => entry.relativePath),
+      (await ipcRenderer.invoke(
+        "project:upload-sizes",
+        localProjectId,
+        fileEntries.map((entry) => entry.relativePath),
+      )) as number[] | undefined,
+    );
+  }
+  const cloudProject = await createCloudProject(folderName, origin);
 
   const projectPath = `/api/projects/${encodeURIComponent(cloudProject.id)}`;
   let totalBytes = 0;

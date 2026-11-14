@@ -31,9 +31,21 @@ export function isDesktopBrowser(userAgent: string, maxTouchPoints = 0): boolean
   return true;
 }
 
-function isChromium(userAgent: string): boolean {
-  return /Chrome\/|Chromium\/|Edg\//.test(userAgent) && !/Firefox\//.test(userAgent);
+/**
+ * Firefox shows an error page for an unknown scheme at the top level, but
+ * launches the app from a hidden frame. Chromium and Safari ignore a frame:
+ * they only open the app (after asking "Open LatexDo?") for a top-level link.
+ */
+function opensFromHiddenFrame(userAgent: string): boolean {
+  return /Firefox\//.test(userAgent);
 }
+
+/**
+ * Long enough to answer the browser's "Open LatexDo?" question: the page
+ * keeps focus while it is shown, so a short wait reads a slow "Allow" as
+ * "not installed".
+ */
+export const appOpenTimeoutMs = 8000;
 
 export interface LaunchEnvironment {
   window: Pick<
@@ -70,7 +82,7 @@ function browserEnvironment(): LaunchEnvironment {
  */
 export function tryOpenApp(
   url: string,
-  timeoutMs = 2500,
+  timeoutMs = appOpenTimeoutMs,
   env: LaunchEnvironment = browserEnvironment(),
 ): Promise<boolean> {
   return new Promise((resolve) => {
@@ -98,17 +110,13 @@ export function tryOpenApp(
     env.window.addEventListener("pagehide", onLeave);
     env.document.addEventListener("visibilitychange", onVisibility);
     const timer = env.window.setTimeout(() => finish(false), timeoutMs);
-    if (isChromium(env.userAgent)) {
-      // Chromium asks "Open LatexDo?" for a top-level link, and ignores an
-      // unknown scheme without leaving the page.
-      env.navigate(url);
-    } else {
-      // Firefox and Safari show an error page or alert for an unknown scheme
-      // at the top level; inside a hidden frame they fail quietly.
+    if (opensFromHiddenFrame(env.userAgent)) {
       frame = env.document.createElement("iframe");
       frame.hidden = true;
       frame.src = url;
       env.document.body.append(frame);
+    } else {
+      env.navigate(url);
     }
   });
 }

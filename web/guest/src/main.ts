@@ -285,9 +285,12 @@ function featureList(): HTMLElement {
   );
 }
 
-/** First screen on a computer: open in the app, get it, or stay in the browser. */
+/**
+ * First screen on a computer: open in the app or stay in the browser. A
+ * browser cannot tell whether LatexDo is installed, so the download is only
+ * offered once the app failed to open (see showAppMissing).
+ */
 function chooseHowToOpen(code: string, onBrowser: () => void): void {
-  const installed = appSeenBefore();
   show(
     wideCard(
       h("h1", {}, "You’re invited to a LatexDo project"),
@@ -308,23 +311,7 @@ function chooseHowToOpen(code: string, onBrowser: () => void): void {
           },
           "Open in LatexDo",
         ),
-        h(
-          "p",
-          { class: "muted small" },
-          installed
-            ? "LatexDo is installed on this computer."
-            : "Already have the app? It opens this project.",
-        ),
       ),
-      installed
-        ? null
-        : h(
-            "div",
-            { class: "offer" },
-            h("h2", {}, "Don’t have it yet? Get the full experience, free"),
-            featureList(),
-            downloadButton(false),
-          ),
       h(
         "div",
         { class: "choice browser-choice" },
@@ -345,6 +332,7 @@ function openInApp(code: string, onBrowser: () => void): void {
       h("div", { class: "spinner", "aria-hidden": "true" }),
       h("h1", {}, "Opening LatexDo…"),
       h("p", { class: "muted" }, "If your browser asks, allow it to open LatexDo."),
+      browserButton(onBrowser, "Use the browser instead"),
     ),
   );
   void tryOpenApp(appLinkForCode(code)).then((opened) => {
@@ -396,39 +384,55 @@ function showOpenedInApp(code: string, onBrowser: () => void): void {
 }
 
 function showAppMissing(code: string, onBrowser: () => void): void {
+  const tryAgain = (label: string, primary: boolean) =>
+    h(
+      "button",
+      {
+        class: primary ? "button primary" : "button",
+        type: "button",
+        onClick: () => openInApp(code, onBrowser),
+      },
+      label,
+    );
+  const browserChoice = h(
+    "div",
+    { class: "choice browser-choice" },
+    browserButton(onBrowser),
+    h(
+      "p",
+      { class: "muted small" },
+      "Simple editor: edit the text and work together live. No PDF, no AI.",
+    ),
+  );
+  // LatexDo opened from this browser before: it is installed, never offer
+  // the download; the browser's question was most likely dismissed.
+  if (appSeenBefore()) {
+    show(
+      card(
+        h("h1", {}, "LatexDo didn’t open"),
+        h("p", {}, "When your browser asks whether to open LatexDo, choose Allow."),
+        h("div", { class: "actions" }, tryAgain("Open LatexDo again", true)),
+        browserChoice,
+      ),
+    );
+    return;
+  }
   show(
     wideCard(
       h("h1", {}, "LatexDo didn’t open"),
       h(
         "p",
         {},
-        "It doesn’t seem to be installed on this computer. It’s free, and takes a minute to install.",
+        "If you have LatexDo, try again and choose Allow when your browser asks. If you don’t have it yet, it’s free and takes a minute to install.",
       ),
       featureList(),
       h(
         "div",
         { class: "actions" },
-        downloadButton(true),
-        h(
-          "button",
-          {
-            class: "button",
-            type: "button",
-            onClick: () => openInApp(code, onBrowser),
-          },
-          "I installed it, open it",
-        ),
+        tryAgain("Open LatexDo again", true),
+        downloadButton(false),
       ),
-      h(
-        "div",
-        { class: "choice browser-choice" },
-        browserButton(onBrowser),
-        h(
-          "p",
-          { class: "muted small" },
-          "Simple editor: edit the text and work together live. No PDF, no AI.",
-        ),
-      ),
+      browserChoice,
     ),
   );
 }

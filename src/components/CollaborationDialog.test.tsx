@@ -217,8 +217,9 @@ describe("CollaborationDialog", () => {
     });
     render(<CollaborationDialog {...props} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Sharing is on.");
-    expect(screen.getByLabelText("Share link")).toHaveValue("latexdo-invite:abc");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Anyone with the link can ask to join",
+    );
     expect(screen.getAllByRole("button", { name: /^Copy/ })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     expect(props.onCopy).toHaveBeenCalledWith("latexdo-invite:abc");
@@ -231,10 +232,14 @@ describe("CollaborationDialog", () => {
     expect(props.onResolveRequest).toHaveBeenLastCalledWith("client-new", true);
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
     expect(props.onResolveRequest).toHaveBeenLastCalledWith("client-new", false);
-    fireEvent.click(screen.getByRole("button", { name: "New link" }));
+    const menu = () =>
+      fireEvent.click(screen.getByRole("button", { name: "More sharing options" }));
+    menu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /New link/ }));
     expect(props.onRegenerate).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Save to my folder" }));
-    expect(props.onSaveToFolder).toHaveBeenCalledOnce();
+    menu();
+    expect(screen.queryByRole("menuitem", { name: /Save to my folder/ })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Stop sharing/ }));
     fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
     expect(props.onStopSharing).toHaveBeenCalledOnce();
     // Joining another project is not offered while this one is being shared.
@@ -262,7 +267,6 @@ describe("CollaborationDialog", () => {
     });
     render(<CollaborationDialog {...props} />);
 
-    expect(screen.getByLabelText("Share link")).toHaveValue(webLink);
     expect(screen.queryByDisplayValue(invite)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
     expect(props.onCopy).toHaveBeenCalledWith(webLink);

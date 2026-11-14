@@ -376,6 +376,13 @@ describe("project files and data preservation", () => {
     expect(Buffer.from(uploaded.contentBase64, "base64").toString()).toBe(
       "second version",
     );
+    // Sizes for the 10 MB check before sharing; a missing file counts as 0.
+    expect(
+      await call("project:upload-sizes", project.id, ["notes.tex", "absent.tex"]),
+    ).toEqual([Buffer.byteLength("second version"), 0]);
+    await expect(call("project:upload-sizes", project.id, "notes.tex")).rejects.toThrow(
+      "expected a list of files",
+    );
   });
   it("creates BibTeX starter content and moves files without overwriting destinations", async () => {
     await call("file:create", project.id, "refs.bib");

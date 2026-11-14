@@ -1232,7 +1232,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     );
   }
 
-  private assertRoom(path: string, bytes: number, replacing = true): void {
+  private assertRoom(
+    path: string,
+    bytes: number,
+    replacing = true,
+    liveEdit = false,
+  ): void {
     const existing = this.entry(path);
     if (!existing) {
       const count = this.sql
@@ -1242,7 +1247,14 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
         throw new HttpError(413, "Project has too many files.");
     }
     const base = replacing ? this.projectBytes(path) : this.projectBytes();
-    if (base + bytes > limits.maxProjectBytes) {
+    const limit = limits.maxProjectBytes + (liveEdit ? limits.editHeadroomBytes : 0);
+    if (base + bytes > limit) {
+      // Counted for the admin dashboard: is the limit too tight?
+      this.ctx.waitUntil(
+        this.usage()
+          .recordRefusal()
+          .catch(() => undefined),
+      );
       throw new HttpError(
         413,
         `Shared projects are limited to ${limits.maxProjectBytes / 1024 / 1024} MB.`,
@@ -1257,7 +1269,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
   /** Reports this project's size to the account-wide meter now and then. */
   private reportUsage(): void {
     // The change history counts too: it lives in the same storage.
-    const bytes = this.projectBytes() + this.historyBytes();
+    const contentBytes = this.projectBytes();
+    const bytes = contentBytes + this.historyBytes();
     if (
       this.reportedBytes >= 0 &&
       Math.abs(bytes - this.reportedBytes) < limits.usageReportStepBytes
@@ -1269,7 +1282,7 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     if (!meta) return;
     this.ctx.waitUntil(
       this.usage()
-        .report(meta.id, bytes)
+        .report(meta.id, bytes, contentBytes)
         .catch(() => undefined),
     );
   }
@@ -1515,7 +1528,13 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       throw new HttpError(413, "This change is too large.");
     }
     const created = this.createTextEntry(path);
-    this.assertRoom(path, (this.entry(path)?.size ?? 0) + data.byteLength);
+    // Uploads (no socket) get the plain limit; typing gets some headroom.
+    this.assertRoom(
+      path,
+      (this.entry(path)?.size ?? 0) + data.byteLength,
+      true,
+      origin !== null,
+    );
     const seq = this.takeSeq(path);
     const queue = this.pending.get(path) ?? [];
     queue.push({ seq, data });

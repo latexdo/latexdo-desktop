@@ -119,19 +119,31 @@ describe("tryOpenApp", () => {
     await expect(result).resolves.toBe(false);
   });
 
-  it.each([firefox, safari])(
-    "uses a hidden frame elsewhere, so a missing app shows no error page (%#)",
-    async (userAgent) => {
-      const { env, navigate } = environment(userAgent);
-      const result = tryOpenApp("latexdo-app://join/abc", 2500, env);
-      expect(navigate).not.toHaveBeenCalled();
-      const frame = document.body.querySelector("iframe")!;
-      expect(frame.hidden).toBe(true);
-      expect(frame.getAttribute("src")).toBe("latexdo-app://join/abc");
-      vi.advanceTimersByTime(2500);
-      await expect(result).resolves.toBe(false);
-      vi.advanceTimersByTime(1000);
-      expect(document.body.querySelector("iframe")).toBeNull();
-    },
-  );
+  it("in Safari, navigates too: Safari never opens an app from a frame", () => {
+    const { env, navigate } = environment(safari);
+    void tryOpenApp("latexdo-app://join/abc", 2500, env);
+    expect(navigate).toHaveBeenCalledWith("latexdo-app://join/abc");
+    expect(document.body.querySelector("iframe")).toBeNull();
+  });
+
+  it("waits long enough by default to answer the browser's question", async () => {
+    const { env, events } = environment(safari);
+    const result = tryOpenApp("latexdo-app://join/abc", undefined, env);
+    vi.advanceTimersByTime(5000);
+    events.dispatchEvent(new Event("blur"));
+    await expect(result).resolves.toBe(true);
+  });
+
+  it("in Firefox, uses a hidden frame, so a missing app shows no error page", async () => {
+    const { env, navigate } = environment(firefox);
+    const result = tryOpenApp("latexdo-app://join/abc", 2500, env);
+    expect(navigate).not.toHaveBeenCalled();
+    const frame = document.body.querySelector("iframe")!;
+    expect(frame.hidden).toBe(true);
+    expect(frame.getAttribute("src")).toBe("latexdo-app://join/abc");
+    vi.advanceTimersByTime(2500);
+    await expect(result).resolves.toBe(false);
+    vi.advanceTimersByTime(1000);
+    expect(document.body.querySelector("iframe")).toBeNull();
+  });
 });

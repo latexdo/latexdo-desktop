@@ -98,8 +98,6 @@ describe("ShareProjectDialog", () => {
       />,
     );
     expect(screen.getByRole("status").textContent).toContain("Starting…");
-    const link = screen.getByLabelText("Share link") as HTMLInputElement;
-    expect(link.placeholder).toBe("Your link appears here");
     const copy = screen.getByRole("button", { name: "Copy link" }) as HTMLButtonElement;
     expect(copy.disabled).toBe(true);
     fireEvent.click(copy);
@@ -119,12 +117,9 @@ describe("ShareProjectDialog", () => {
       onStopSharing,
     });
     render(<ShareProjectDialog {...p} />);
-    expect(screen.getByRole("status").textContent).toContain("Sharing is on.");
-    const link = screen.getByLabelText("Share link") as HTMLInputElement;
-    const select = vi.spyOn(link, "select");
-    fireEvent.focus(link);
-    expect(select).toHaveBeenCalled();
-    expect(screen.getByText(/Paste it under Join in LatexDo/)).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe(
+      "Anyone with the link has access",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Copied" }));
     expect(p.onCopy).toHaveBeenCalledWith("plain-invite");
     const approval = screen.getByRole("checkbox") as HTMLInputElement;
@@ -132,10 +127,22 @@ describe("ShareProjectDialog", () => {
     fireEvent.click(approval);
     expect(onRequireApprovalChange).toHaveBeenCalledWith(true);
     expect(screen.queryByRole("button", { name: /New link/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Save to my folder/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Stop sharing/ }));
-    expect(onSaveToFolder).toHaveBeenCalled();
-    expect(onStopSharing).toHaveBeenCalled();
+    // The rarer actions are in the "⋯" menu; stopping asks first.
+    // Stop sharing brings the changes home, so there is no separate save.
+    fireEvent.click(screen.getByRole("button", { name: "More sharing options" }));
+    expect(screen.queryByRole("menuitem", { name: /Save to my folder/ })).toBeNull();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(onSaveToFolder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "More sharing options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Stop sharing/ }));
+    expect(onStopSharing).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More sharing options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Stop sharing/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
+    expect(onStopSharing).toHaveBeenCalledOnce();
   });
 
   it("hides admin-only controls from a non-admin host view", () => {
