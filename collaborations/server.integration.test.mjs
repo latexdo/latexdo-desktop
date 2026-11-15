@@ -938,6 +938,38 @@ describe("live collaboration room lifecycle", () => {
         ).toEqual({ content: "Live replacement" });
     },
   );
+  it("closes a connection that sends a frame over the size limit", async () => {
+    const { id } = await create();
+    const socket = await connectDocument(id);
+    // A medium frame (16-bit length) of an unknown message type is ignored.
+    const medium = new Uint8Array(1000);
+    medium[0] = 99;
+    socket.send(medium);
+    const closed = closedSocket(socket);
+    socket.send(new Uint8Array(600 * 1024));
+    expect((await closed).code).toBe(1009);
+    expect((await request(`/api/projects/${id}/files`)).status).toBe(200);
+  });
+  it("keeps viewers from editing over the live connection", async () => {
+    const { id, token } = await shared();
+    const base = `/api/shares/${token}`;
+    await request(base + "/open", guest, "POST", { askToJoin: true });
+    await request(base + `/pending/${guest.client}`, owner, "POST", {
+      action: "approve",
+      role: "viewer",
+    });
+    const viewer = await connectDocument(id, guest);
+    const doc = new Y.Doc();
+    doc.getText("content").insert(0, "not allowed");
+    const frame = encoding.createEncoder();
+    encoding.writeVarUint(frame, 0);
+    sync.writeUpdate(frame, Y.encodeStateAsUpdate(doc));
+    const closed = closedSocket(viewer);
+    viewer.send(encoding.toUint8Array(frame));
+    const event = await closed;
+    expect(event.code).toBe(1008);
+    expect(event.reason).toBe("Viewer access is read-only");
+  });
   it("disconnects guests when sharing stops while leaving the owner's connection usable", async () => {
     const { id, token } = await shared();
     await approveGuest(token);
@@ -1199,5 +1231,120 @@ describe("project discussion", () => {
       socket.close();
       sockets.delete(socket);
     }
+  });
+});
+
+describe("sharing server refuses malformed and unsafe requests", () => {
+  const raw = (route, method, body, identity = owner) =>
+    fetch(origin + route, {
+      method,
+      headers: {
+        "content-type": "application/json",
+        "x-latexdo-session": identity.session,
+        "x-latexdo-client": identity.client,
+        "x-latexdo-client-name": "Ada",
+      },
+      body,
+    });
+
+  it("rejects bad project ids, unknown invites and unknown routes", async () => {
+    expect((await request("/api/projects/bad!/files")).status).toBe(400);
+    expect(
+      (await request("/api/shares/no-such-token/open", guest, "POST", {})).status,
+    ).toBe(404);
+    const { id, token } = await shared();
+    expect((await request(`/api/projects/${id}/nowhere`)).status).toBe(404);
+    expect(
+      (await request(`/api/shares/${token}/nowhere`, owner, "POST", {})).status,
+    ).toBe(404);
+    expect((await request(`/api/projects/${id}/history`, owner, "DELETE")).status).toBe(
+      405,
+    );
+  });
+
+  it("rejects JSON bodies that are too large or not objects", async () => {
+    const { id } = await create();
+    const route = `/api/projects/${id}/files`;
+    expect((await raw(route, "POST", "[1, 2]")).status).toBe(400);
+    expect((await raw(route, "POST", "not json")).status).toBe(400);
+    const huge = JSON.stringify({ relativePath: "a.tex", pad: "x".repeat(9000) });
+    expect((await raw(route, "POST", huge)).status).toBe(413);
+  });
+
+  it("refuses unsafe file operations", async () => {
+    const { id } = await create();
+    const base = `/api/projects/${id}`;
+    await request(`${base}/files`, owner, "POST", {
+      relativePath: "chapters",
+      type: "directory",
+    });
+    expect(
+      (
+        await request(`${base}/files`, owner, "POST", {
+          relativePath: "chapters",
+          type: "directory",
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request(`${base}/files`, owner, "POST", {
+          relativePath: "odd",
+          type: "symlink",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(`${base}/files/move`, owner, "POST", {
+          fromRelativePath: "chapters",
+          toRelativePath: "chapters/inner",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(`${base}/files/copy`, owner, "POST", {
+          fromRelativePath: "chapters",
+          toRelativePath: "chapters/inner",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request(`${base}/files/binary?path=figure.png`, owner, "PUT", {})).status,
+    ).toBe(400);
+  });
+
+  it("keeps the owner in charge of the project and its admins", async () => {
+    const { id, token } = await shared();
+    const base = `/api/shares/${token}`;
+    await approveGuest(token);
+    await request(base + "/permissions", owner, "PUT", {
+      clientId: guest.client,
+      role: "admin",
+    });
+    await request(base + "/admin-offer", guest, "POST", { action: "accept" });
+    expect((await request(`/api/projects/${id}`, guest, "DELETE")).status).toBe(403);
+    // Removing someone who never joined is refused.
+    const lone = await shared();
+    expect(
+      (
+        await request(
+          `/api/shares/${lone.token}/collaborators/${guest.client}`,
+          owner,
+          "DELETE",
+        )
+      ).status,
+    ).toBe(404);
+    const late = { session: "late-role-session", client: "late-role-id" };
+    await request(base + "/open", late, "POST", { askToJoin: true });
+    expect(
+      (
+        await request(base + `/pending/${late.client}`, owner, "POST", {
+          action: "approve",
+          role: "owner",
+        })
+      ).status,
+    ).toBe(400);
   });
 });
