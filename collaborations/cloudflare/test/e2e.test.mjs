@@ -419,6 +419,90 @@ test("approval defaults on and can be disabled and re-enabled", async () => {
   }
 });
 
+test("a removed collaborator can ask to come back through the same invite", async () => {
+  const owner = person("enc1:rejoin-owner");
+  const guest = person("enc1:rejoin-guest");
+  const created = await call(owner, "POST", "/api/projects", {
+    folderName: "enc1:rejoin-test",
+  });
+  assert.equal(created.status, 200);
+  const id = created.body.id;
+  try {
+    const token = (await call(owner, "POST", `/api/projects/${id}/share`, {})).body
+      .token;
+    const route = `/api/shares/${token}`;
+    await call(guest, "POST", `${route}/open`, { askToJoin: true }, token);
+    await call(
+      owner,
+      "POST",
+      `${route}/pending/${guest.client}`,
+      { action: "approve" },
+      token,
+    );
+    assert.equal((await call(guest, "POST", `${route}/open`, {}, token)).status, 200);
+    assert.equal(
+      (
+        await call(
+          owner,
+          "DELETE",
+          `${route}/collaborators/${guest.client}`,
+          undefined,
+          token,
+        )
+      ).status,
+      204,
+    );
+    // Approval off must not let a removed person straight back in.
+    await call(owner, "PUT", `${route}/approval`, { requireApproval: false }, token);
+    assert.equal(
+      (await call(guest, "POST", `${route}/open`, {}, token)).body.code,
+      "access-removed",
+    );
+    assert.equal(
+      (await call(guest, "POST", `${route}/open`, { askToJoin: true }, token)).body
+        .code,
+      "approval-pending",
+    );
+    const waiting = await call(owner, "GET", `${route}/permissions`, undefined, token);
+    assert.deepEqual(
+      waiting.body.pending.map((entry) => entry.clientId),
+      [guest.client],
+    );
+    await call(
+      owner,
+      "POST",
+      `${route}/pending/${guest.client}`,
+      { action: "approve" },
+      token,
+    );
+    const back = await call(guest, "POST", `${route}/open`, { askToJoin: true }, token);
+    assert.equal(back.status, 200);
+    assert.equal(back.body.collaboration.currentUserRole, "editor");
+    // Turned down a second time, they stay out.
+    await call(
+      owner,
+      "DELETE",
+      `${route}/collaborators/${guest.client}`,
+      undefined,
+      token,
+    );
+    await call(guest, "POST", `${route}/open`, { askToJoin: true }, token);
+    await call(
+      owner,
+      "POST",
+      `${route}/pending/${guest.client}`,
+      { action: "deny" },
+      token,
+    );
+    assert.equal(
+      (await call(guest, "POST", `${route}/open`, { askToJoin: true }, token)).body
+        .code,
+      "access-removed",
+    );
+  } finally {
+    assert.equal((await call(owner, "DELETE", `/api/projects/${id}`)).status, 200);
+  }
+});
 test("refuses browsers, unsafe paths and floods", async () => {
   const owner = person("enc1:omar");
   const preflight = await fetch(new URL("/api/projects", base), { method: "OPTIONS" });

@@ -94,6 +94,8 @@ interface Permission {
   clientId: string;
   name: string;
   role: Role | null;
+  /** Removed by an admin, so they may ask to come back (a turned-down request may not). */
+  removed?: boolean;
   sessionHash: string;
   createdAt: number;
   updatedAt: number;
@@ -512,7 +514,11 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
     const method = request.method;
 
     if (route === "open" && method === "POST") {
-      const auth = await this.authorize(request, url, "viewer");
+      const body = await this.body(request);
+      // Only an explicit join asks the owner; reopening a project at startup does not.
+      const auth = await this.authorize(request, url, "viewer", {
+        askToJoin: body.askToJoin === true,
+      });
       this.touchPresence(auth, null);
       return json(200, {
         project: { id: auth.meta.id, rootPath: "", name: auth.meta.name },
@@ -680,6 +686,8 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       // Keep the session binding so an old invite cannot re-enroll them, and
       // retire the invite so they cannot come back under a new identity.
       permission.role = null;
+      // Unlike a turned-down request, a removed person may ask to come back.
+      permission.removed = true;
       delete permission.adminOffer;
       this.presence.delete(removeId);
       this.rotateShare(auth.meta);
@@ -933,7 +941,12 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       : null;
   }
 
-  private async authorize(request: Request, url: URL, minimum: Role): Promise<Auth> {
+  private async authorize(
+    request: Request,
+    url: URL,
+    minimum: Role,
+    options: { askToJoin?: boolean } = {},
+  ): Promise<Auth> {
     const identity = requestIdentity(request, url);
     const token = requestShareToken(request, url);
     const sessionHash = await sha256Hex(identity.sessionId);
@@ -953,6 +966,22 @@ export class ProjectRoom extends DurableObject<RoomEnv> {
       : undefined;
     if (!role) {
       if (existing && existing.role === null && existing.sessionHash === sessionHash) {
+        // Someone the owner removed may open their invite again to ask to come
+        // back. The owner always decides, whatever the approval setting.
+        if (
+          options.askToJoin === true &&
+          existing.removed === true &&
+          token &&
+          ((meta.shareToken && sameSecret(token, meta.shareToken)) ||
+            meta.retiredShareTokens.includes(token))
+        ) {
+          this.recordPending(meta, identity, sessionHash);
+          throw new HttpError(
+            403,
+            "Waiting for the project owner to let you in.",
+            "approval-pending",
+          );
+        }
         throw new HttpError(
           403,
           "The owner declined or removed your access to this project.",

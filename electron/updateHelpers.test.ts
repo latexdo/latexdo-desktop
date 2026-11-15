@@ -5,7 +5,11 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { linuxUpdateHelper, macUpdateHelper } from "./updateHelpers.js";
+import {
+  linuxUpdateHelper,
+  macUpdateHelper,
+  windowsUpdateHelper,
+} from "./updateHelpers.js";
 import { runUpdateVersionProbe } from "./updateVersionProbe.js";
 
 const exec = promisify(execFile);
@@ -158,4 +162,43 @@ describe.skipIf(process.platform !== "darwin")("macOS bundle replacement", () =>
         );
     },
   );
+});
+
+// PowerShell is not available on every CI runner, so these pin the Windows
+// helper's behaviour that broke real updates.
+describe("Windows update helper", () => {
+  const lines = windowsUpdateHelper.split("\r\n");
+  const indexOf = (needle: string) => lines.findIndex((line) => line.includes(needle));
+
+  it("reads the probe handle before waiting so Windows PowerShell 5.1 reports its exit code", () => {
+    const handle = indexOf("$probe.Handle");
+    const wait = indexOf("$probe.WaitForExit(");
+    expect(handle).toBeGreaterThan(-1);
+    expect(handle).toBeLessThan(wait);
+    expect(windowsUpdateHelper).toContain("$null -ne $probeExitCode");
+  });
+
+  it("runs the NSIS installer as an update with the install directory last", () => {
+    expect(windowsUpdateHelper).toContain('"--updated /S /D=$Directory"');
+  });
+
+  it("waits for every process in the install directory instead of failing after 60 seconds", () => {
+    expect(windowsUpdateHelper).not.toContain("Wait-Process -Id $appPid -Timeout 60");
+    expect(windowsUpdateHelper).toContain("-TimeoutSeconds 300");
+    expect(
+      indexOf("Stop-InstallDirectoryProcesses -Directory $targetDirectory"),
+    ).toBeLessThan(indexOf("Invoke-LatexDoInstaller -Installer $installer"));
+  });
+
+  it("never stops processes for a drive root or empty install directory", () => {
+    expect(windowsUpdateHelper).toContain(
+      "if (-not (Test-SafeInstallDirectory -Directory $Directory)) { return @() }",
+    );
+  });
+
+  it("reopens LatexDo after a failure once the old process has exited", () => {
+    const catchBlock = lines.slice(lines.lastIndexOf("} catch {")).join("\n");
+    expect(catchBlock).toContain("Wait-ForProcessExit -ProcessId $appPid");
+    expect(catchBlock).toContain("Start-Process -FilePath $targetExe");
+  });
 });

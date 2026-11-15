@@ -167,7 +167,10 @@ export class GuestSession {
       const opened = await this.request<{
         project?: { name?: unknown };
         collaboration?: { currentUserRole?: unknown; users?: unknown };
-      }>("POST", `/api/shares/${encodeURIComponent(this.invite.token)}/open`, {});
+      }>("POST", `/api/shares/${encodeURIComponent(this.invite.token)}/open`, {
+        // Opening the invite is asking to join, also for someone who was removed.
+        askToJoin: true,
+      });
       return {
         status: "ready",
         projectName: (await this.openName(opened.project?.name)) || "Shared project",

@@ -641,6 +641,9 @@ async function openCloudShare(
   tokenOrUrl: string,
   origin = collaborationApiBaseUrl,
   timeoutMs = cloudRequestTimeoutMs,
+  // True only when the person chose to join: someone removed from the project
+  // then asks the owner to let them back in instead of being turned away.
+  askToJoin = false,
 ): Promise<{
   project: OpenProject;
   collaboration: CollaborationState;
@@ -653,7 +656,7 @@ async function openCloudShare(
     `/api/shares/${encodeURIComponent(token)}/open`,
     {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify(askToJoin ? { askToJoin: true } : {}),
     },
     token,
     timeoutMs,
@@ -679,7 +682,12 @@ async function joinCloudShare(rawInput: string): Promise<JoinCollaborationResult
           'Paste the invite you were sent. It starts with "latexdo-invite:".',
         );
       }
-      return await openCloudShare(input);
+      return await openCloudShare(
+        input,
+        collaborationApiBaseUrl,
+        cloudRequestTimeoutMs,
+        true,
+      );
     }
     let resolved: { origin: string; token: string };
     try {
@@ -690,7 +698,12 @@ async function joinCloudShare(rawInput: string): Promise<JoinCollaborationResult
     } catch (error) {
       throw new Error(ipcErrorMessage(error));
     }
-    return await openCloudShare(resolved.token, resolved.origin);
+    return await openCloudShare(
+      resolved.token,
+      resolved.origin,
+      cloudRequestTimeoutMs,
+      true,
+    );
   } catch (error) {
     // The owner asked to approve newcomers; the caller keeps knocking.
     if (error instanceof CloudApiError && error.code === "approval-pending") {

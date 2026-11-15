@@ -242,6 +242,7 @@ export function electronModule() {
         return H.packaged;
       },
       requestSingleInstanceLock: () => H.lock,
+      setAppUserModelId: vi.fn(),
       getName: () => H.appName,
       getVersion: () => H.version,
       getPath: (name: string) => H.paths[name] ?? H.defaultPath,

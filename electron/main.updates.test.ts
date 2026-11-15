@@ -212,6 +212,7 @@ describe("verified automatic update installation", () => {
       ];
       expect(command).toBe(platform === "win32" ? "powershell.exe" : "/bin/sh");
       expect(options.env.LATEXDO_UPDATE_EXPECTED_VERSION).toBe("0.4.0");
+      if (platform === "win32") expect(options.cwd).toBe(H.paths.temp);
       const helper = args.at(-1)!;
       expect(await readFile(helper, "utf8")).toContain("LATEXDO_UPDATE");
       const progress = boot.window.webContents.send.mock.calls

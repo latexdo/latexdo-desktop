@@ -702,6 +702,50 @@ describe("real collaboration HTTP service", () => {
       (await request(`/api/shares/${state.token}/open`, sneaky, "POST", {})).status,
     ).toBe(403);
   });
+  it("lets a removed collaborator ask to come back through the same invite", async () => {
+    const { token } = await shared();
+    const base = `/api/shares/${token}`;
+    await approveGuest(token);
+    await request(base + "/collaborators/" + guest.client, owner, "DELETE");
+    // Approval off must not let a removed person straight back in.
+    await request(base + "/approval", owner, "PUT", { requireApproval: false });
+    // Reopening the project (no explicit join) is still turned away quietly.
+    const quiet = await request(base + "/open", guest, "POST", {});
+    expect((await quiet.json()).code).toBe("access-removed");
+    expect((await (await request(base + "/permissions")).json()).pending).toEqual([]);
+
+    const knock = await request(base + "/open", guest, "POST", { askToJoin: true });
+    expect(knock.status).toBe(403);
+    expect((await knock.json()).code).toBe("approval-pending");
+    const waiting = await (await request(base + "/permissions")).json();
+    expect(waiting.pending.map((entry) => entry.clientId)).toEqual([guest.client]);
+
+    await request(base + `/pending/${guest.client}`, owner, "POST", {
+      action: "approve",
+    });
+    const back = await request(base + "/open", guest, "POST", { askToJoin: true });
+    expect(back.status).toBe(200);
+    expect((await back.json()).collaboration.currentUserRole).toBe("editor");
+  });
+  it("keeps a turned-down request out, even when they ask again", async () => {
+    const { token } = await shared();
+    const base = `/api/shares/${token}`;
+    await request(base + "/open", guest, "POST", { askToJoin: true });
+    await request(base + `/pending/${guest.client}`, owner, "POST", { action: "deny" });
+    const again = await request(base + "/open", guest, "POST", { askToJoin: true });
+    expect((await again.json()).code).toBe("access-removed");
+    expect((await (await request(base + "/permissions")).json()).pending).toEqual([]);
+  });
+  it("turns a removed collaborator away for good when their second request is denied", async () => {
+    const { token } = await shared();
+    const base = `/api/shares/${token}`;
+    await approveGuest(token);
+    await request(base + "/collaborators/" + guest.client, owner, "DELETE");
+    await request(base + "/open", guest, "POST", { askToJoin: true });
+    await request(base + `/pending/${guest.client}`, owner, "POST", { action: "deny" });
+    const again = await request(base + "/open", guest, "POST", { askToJoin: true });
+    expect((await again.json()).code).toBe("access-removed");
+  });
   it("stops sharing for everyone but the owner and can share again", async () => {
     const { id, token } = await shared();
     await approveGuest(token);

@@ -5039,6 +5039,9 @@ async function launchWindowsNsisUpdater(
     "powershell.exe",
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", helperPath],
     {
+      // Shortcuts start LatexDo inside its install folder; a helper inheriting that
+      // working directory keeps the folder busy while the installer replaces it.
+      cwd: app.getPath("temp"),
       windowsHide: true,
       env: {
         ...process.env,
@@ -6730,6 +6733,11 @@ installMainProcessFailureHandlers();
 if (!startupAutomationTest && !app.requestSingleInstanceLock()) {
   app.exit(0);
 }
+
+// Windows only shows a notification (such as "someone wants to join") when the
+// process ID matches the Start menu shortcut the installer made from `build.appId`.
+// Electron's default ID does not, so those notifications were silently dropped.
+if (process.platform === "win32") app.setAppUserModelId("com.latexdo.editor");
 
 // Set once startApp has registered IPC and opened the first window.
 let appWindowsAvailable = false;
