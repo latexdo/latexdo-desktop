@@ -4774,11 +4774,14 @@ async function downloadUpdateInstaller(
   };
 
   const temporaryPath = path.join(
-    app.getPath("temp"),
+    // Keep staging on the destination volume: Windows users can move Downloads
+    // to another drive, and rename cannot move a file across volumes.
+    app.getPath("downloads"),
     `latexdo-update-${randomUUID()}-${file.filename}.download`,
   );
 
   try {
+    await mkdir(app.getPath("downloads"), { recursive: true });
     emitDownloadProgress(true);
     await pipeline(
       Readable.fromWeb(response.body as unknown as NodeReadableStream<Uint8Array>),

@@ -49,7 +49,13 @@ vi.mock("node:fs", async (importOriginal) =>
   (await import("./__tests__/mainWrappers.js")).wrapFs(await importOriginal()),
 );
 vi.mock("node:fs/promises", async (importOriginal) =>
-  (await import("./__tests__/mainWrappers.js")).wrapFsPromises(await importOriginal()),
+  (await import("./__tests__/mainWrappers.js")).overridable(
+    (await import("./__tests__/mainWrappers.js")).wrapFsPromises(
+      await importOriginal<typeof import("node:fs/promises")>(),
+    ),
+    "fs",
+    ["rename"],
+  ),
 );
 vi.mock("./git.js", async (importOriginal) =>
   (await import("./__tests__/mainWrappers.js")).wrapGit(await importOriginal()),
@@ -191,6 +197,23 @@ async function bootUpdater(
   return { boot, file, spawn };
 }
 describe("verified automatic update installation", () => {
+  it("installs when Downloads and the system temp folder are on different volumes", async () => {
+    const { boot } = await bootUpdater("win32");
+    const realFs =
+      await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    H.overrides["fs.rename"] = async (source: string, destination: string) => {
+      if (path.dirname(source) !== path.dirname(destination)) {
+        throw Object.assign(new Error("cross-device link not permitted"), {
+          code: "EXDEV",
+        });
+      }
+      return realFs.rename(source, destination);
+    };
+    const result = await boot.call("app:update-now");
+    expect(result).toMatchObject({ opened: true, quitScheduled: true });
+    expect(await readFile(result.installerPath)).toEqual(installer);
+    expect(await readdir(H.paths.downloads)).toEqual(["LatexDo.exe"]);
+  });
   it.each(["darwin", "linux", "win32"] as const)(
     "verifies the installer and launches the %s helper with safe arguments",
     async (platform) => {

@@ -472,6 +472,9 @@ jobs:
             throw "Packaged Windows smoke test failed with exit code $($process.ExitCode)."
           }
 
+      - name: Test real Windows automatic update
+        run: node scripts/test-windows-updater.mjs
+
       - name: Prepare Windows artifact
         shell: pwsh
         run: |
