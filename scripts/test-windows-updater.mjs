@@ -76,29 +76,63 @@ function installedJson(file) {
 }
 async function quitThroughElectron() {
   // Exercise app.quit(), just like the real update countdown, instead of WM_CLOSE.
-  const targets = await (await fetch("http://127.0.0.1:9230/json/list")).json();
+  const targets = await (
+    await fetch("http://127.0.0.1:9230/json/list", {
+      signal: AbortSignal.timeout(10_000),
+    })
+  ).json();
   const socket = new WebSocket(targets[0].webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error("Inspector connection timed out"));
+    }, 10_000);
+    socket.addEventListener(
+      "open",
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      { once: true },
+    );
+    socket.addEventListener(
+      "error",
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+      { once: true },
+    );
   });
   await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error("Inspector quit request timed out"));
+    }, 10_000);
     socket.addEventListener("message", (event) => {
       const result = JSON.parse(event.data);
       if (result.id !== 1) return;
+      clearTimeout(timeout);
       socket.close();
       if (result.error || result.result?.exceptionDetails)
         reject(new Error(JSON.stringify(result)));
       else resolve();
     });
-    socket.addEventListener("error", reject, { once: true });
+    socket.addEventListener(
+      "error",
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+      { once: true },
+    );
     socket.send(
       JSON.stringify({
         id: 1,
         method: "Runtime.evaluate",
         params: {
           expression:
-            "process.getBuiltinModule('module').createRequire(process.execPath)('electron').app.quit()",
+            "setTimeout(() => process.getBuiltinModule('module').createRequire(process.execPath)('electron').app.quit(), 250); 'quit-scheduled'",
         },
       }),
     );
