@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +58,29 @@ async function relaunched(root: string, version: string) {
     .poll(() => readFile(path.join(root, "relaunched.txt"), "utf8"))
     .toBe(version);
 }
+
+it.skipIf(process.platform !== "win32" || !process.env.CI)(
+  "reproduces cross-volume Windows rename failure and verifies destination-volume staging",
+  async () => {
+    const sourceRoot = await fixture();
+    const destinationRoot = await mkdtemp(
+      path.join(process.cwd(), ".updater-download-test-"),
+    );
+    roots.push(destinationRoot);
+    // Hosted Windows runners place TEMP on C: and the checkout on D:.
+    expect(path.parse(sourceRoot).root.toLowerCase()).not.toBe(
+      path.parse(destinationRoot).root.toLowerCase(),
+    );
+    const source = path.join(sourceRoot, "installer.download");
+    const destination = path.join(destinationRoot, "installer.exe");
+    await writeFile(source, "verified installer bytes");
+    await expect(rename(source, destination)).rejects.toMatchObject({ code: "EXDEV" });
+    const staged = path.join(destinationRoot, "installer.download");
+    await writeFile(staged, await readFile(source));
+    await rename(staged, destination);
+    expect(await readFile(destination, "utf8")).toBe("verified installer bytes");
+  },
+);
 
 describe("installed application probe", () => {
   it("only writes a receipt for a matching packaged runtime version", async () => {
