@@ -901,8 +901,8 @@ export function useAppCollaboration(ctx: AppCtx08) {
       !collaborationAvailable ||
       !collaborationState.enabled ||
       !collaborationState.token ||
-      // Nobody waits when approval is off; turning it on restarts the checks.
-      collaborationState.requireApproval === false ||
+      // Checked even with approval off: someone who was removed and asks to
+      // come back always waits for the owner.
       !sharedProjectId
     ) {
       return;
@@ -941,7 +941,6 @@ export function useAppCollaboration(ctx: AppCtx08) {
     announceJoinRequests,
     collaborationAvailable,
     collaborationState.enabled,
-    collaborationState.requireApproval,
     collaborationState.token,
     sharedProjectId,
   ]);

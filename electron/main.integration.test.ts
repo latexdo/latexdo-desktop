@@ -112,6 +112,7 @@ vi.mock("electron", async () => {
         return native.packaged;
       },
       requestSingleInstanceLock: () => true,
+      setAppUserModelId: vi.fn(),
       getName: () => "LatexDo",
       getVersion: () => "0.3.0",
       getPath: () => native.path,

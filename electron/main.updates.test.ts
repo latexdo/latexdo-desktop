@@ -212,6 +212,7 @@ describe("verified automatic update installation", () => {
       ];
       expect(command).toBe(platform === "win32" ? "powershell.exe" : "/bin/sh");
       expect(options.env.LATEXDO_UPDATE_EXPECTED_VERSION).toBe("0.4.0");
+      if (platform === "win32") expect(options.cwd).toBe(H.paths.temp);
       const helper = args.at(-1)!;
       expect(await readFile(helper, "utf8")).toContain("LATEXDO_UPDATE");
       const progress = boot.window.webContents.send.mock.calls
@@ -283,6 +284,34 @@ describe("verified automatic update installation", () => {
     });
     expect(H.external).toHaveBeenCalledWith("https://latexdo.org/downloads/v0.4.0/");
     expect(spawn).not.toHaveBeenCalled();
+  });
+  it("sends the user to the downloads page after three unverified Windows attempts", async () => {
+    const { boot, spawn } = await bootUpdater("win32");
+    H.overrides["pending.pendingUpdateAttemptLimitReached"] = () => true;
+    const result = await boot.call("app:update-now");
+    expect(result).toMatchObject({
+      opened: true,
+      manualDownload: true,
+      automaticInstallAvailable: false,
+      phase: "failed",
+    });
+    expect(result.error).toContain("after three attempts");
+    expect(H.external).toHaveBeenCalledWith("https://latexdo.org/downloads/v0.4.0/");
+    expect(spawn).not.toHaveBeenCalled();
+    const progress = boot.window.webContents.send.mock.calls
+      .filter(([channel]: any[]) => channel === "app:update-progress")
+      .map(([, payload]: any[]) => payload.message);
+    expect(progress).toContain(
+      "The automatic update could not be verified. Opening downloads page",
+    );
+  });
+  it("refuses a second update while the first is handed to the installer", async () => {
+    const { boot, spawn } = await bootUpdater("win32");
+    expect((await boot.call("app:update-now")).quitScheduled).toBe(true);
+    const again = await boot.call("app:update-now");
+    expect(again).toMatchObject({ opened: false });
+    expect(again.error).toContain("already in progress");
+    expect(spawn).toHaveBeenCalledOnce();
   });
   it("serves release notes and validates the presented version", async () => {
     const boot = await bootMain({

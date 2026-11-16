@@ -557,7 +557,13 @@ function ensureProjectPermission(meta, identity, role) {
   return true;
 }
 
-async function authorizeProject(request, url, projectId, minimumRole = "viewer") {
+async function authorizeProject(
+  request,
+  url,
+  projectId,
+  minimumRole = "viewer",
+  options = {},
+) {
   const identity = requestIdentity(request, url);
   const token = requestShareToken(request, url);
   const meta = await readProjectMeta(projectId);
@@ -579,6 +585,25 @@ async function authorizeProject(request, url, projectId, minimumRole = "viewer")
       existing.role === null &&
       existing.sessionHash === sessionHash(identity.sessionId)
     ) {
+      // Someone the owner removed may open their invite again to ask to come
+      // back. The owner always decides, whatever the approval setting; someone
+      // the owner turned down stays out.
+      if (
+        options.askToJoin === true &&
+        existing.removed === true &&
+        token &&
+        (token === meta.shareToken || meta.retiredShareTokens.includes(token))
+      ) {
+        if (recordPendingRequest(meta, identity)) {
+          await writeProjectMeta(meta);
+          broadcastJoinRequests(meta);
+        }
+        throw new HttpError(
+          403,
+          "Waiting for the project owner to let you in.",
+          "approval-pending",
+        );
+      }
       throw new HttpError(
         403,
         "The owner declined or removed your access to this project.",
@@ -613,14 +638,20 @@ async function authorizeProject(request, url, projectId, minimumRole = "viewer")
   return { meta, identity, token, role };
 }
 
-async function authorizeShare(request, url, token, minimumRole = "viewer") {
+async function authorizeShare(
+  request,
+  url,
+  token,
+  minimumRole = "viewer",
+  options = {},
+) {
   const index = await readSharesIndex();
   const projectId = index[token];
   if (!projectId) {
     throw new HttpError(404, "Share token not found.");
   }
   url.searchParams.set("share", token);
-  return authorizeProject(request, url, projectId, minimumRole);
+  return authorizeProject(request, url, projectId, minimumRole, options);
 }
 
 async function ensureShare(meta) {
@@ -1494,11 +1525,16 @@ async function handleShareRoute(request, response, url, parts) {
   const route = parts.slice(3).join("/");
 
   if (route === "open" && request.method === "POST") {
+    const body = await readJsonBody(request);
+    // Only an explicit join asks the owner; reopening a project at startup does not.
     const { meta, identity, role } = await authorizeShare(
       request,
       url,
       token,
       "viewer",
+      {
+        askToJoin: body?.askToJoin === true,
+      },
     );
     updatePresence(meta, identity, null);
     await writeProjectMeta(meta);
@@ -1710,6 +1746,8 @@ async function handleShareRoute(request, response, url, parts) {
     // Keep the session binding so possession of an old share link cannot
     // silently re-enroll a removed collaborator.
     meta.permissions[clientIdToRemove].role = null;
+    // Unlike a turned-down request, a removed person may ask to come back.
+    meta.permissions[clientIdToRemove].removed = true;
     delete meta.permissions[clientIdToRemove].adminOffer;
     delete meta.presence[clientIdToRemove];
     // The removed person still holds the invite. Retire it so they cannot come
