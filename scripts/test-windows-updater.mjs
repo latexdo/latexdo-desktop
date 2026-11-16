@@ -74,7 +74,38 @@ function installedJson(file) {
   uncache(archive);
   return JSON.parse(extractFile(archive, file).toString());
 }
+async function quitThroughElectron() {
+  // Exercise app.quit(), just like the real update countdown, instead of WM_CLOSE.
+  const targets = await (await fetch("http://127.0.0.1:9230/json/list")).json();
+  const socket = new WebSocket(targets[0].webSocketDebuggerUrl);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("message", (event) => {
+      const result = JSON.parse(event.data);
+      if (result.id !== 1) return;
+      socket.close();
+      if (result.error || result.result?.exceptionDetails)
+        reject(new Error(JSON.stringify(result)));
+      else resolve();
+    });
+    socket.addEventListener("error", reject, { once: true });
+    socket.send(
+      JSON.stringify({
+        id: 1,
+        method: "Runtime.evaluate",
+        params: {
+          expression:
+            "process.getBuiltinModule('module').createRequire(process.execPath)('electron').app.quit()",
+        },
+      }),
+    );
+  });
+}
 let helperProcess;
+let helperSettled = false;
 try {
   await powershell(`
     $ErrorActionPreference = 'Stop'
@@ -102,11 +133,12 @@ try {
   const document =
     "\\documentclass{article}\n\\begin{document}Preserve my work.\\end{document}";
   await writeFile(sentinel, document);
-  const oldApp = spawn(target, [], { cwd: path.dirname(target), env, stdio: "ignore" });
-  const oldExit = new Promise((resolve, reject) => {
-    oldApp.once("exit", resolve);
-    oldApp.once("error", reject);
+  const oldApp = spawn(target, ["--inspect=127.0.0.1:9230"], {
+    cwd: path.dirname(target),
+    env,
+    stdio: "ignore",
   });
+  oldApp.once("error", (error) => console.error("Old application launch:", error));
   env.LATEXDO_UPDATE_APP_PID = String(oldApp.pid);
   await until(async () => {
     const result = await powershell(
@@ -140,22 +172,26 @@ try {
     },
   );
   // Attach immediately so an early PowerShell failure is not an unhandled rejection.
-  helperProcess.catch(() => {});
+  helperProcess.then(
+    () => {
+      helperSettled = true;
+    },
+    () => {
+      helperSettled = true;
+    },
+  );
   await until(
     async () =>
       (await readFile(log, "utf8").catch(() => "")).includes("Waiting for PID"),
     "helper startup",
   );
-  await powershell(`
-    $p = Get-Process -Id ${oldApp.pid} -ErrorAction Stop
-    if (-not $p.CloseMainWindow()) { throw 'Could not request a normal application close' }
-  `);
-  await Promise.race([
-    oldExit,
-    delay(60_000).then(() => {
-      throw new Error("Old app did not close normally");
-    }),
-  ]);
+  console.log(`Requesting normal close of old application PID ${oldApp.pid}`);
+  await quitThroughElectron();
+  await until(
+    async () => oldApp.exitCode !== null || oldApp.signalCode !== null,
+    "old application normal close",
+  );
+  console.log("Old application exited; waiting for installer and verification");
   await helperProcess;
   const contents = await readFile(log, "utf8");
   if (!contents.includes("Verification=PASS") || !contents.includes("RelaunchedPid=")) {
@@ -179,7 +215,20 @@ try {
   };
   await writeFile(path.join(evidence, "result.json"), JSON.stringify(receipt, null, 2));
   console.log(JSON.stringify(receipt, null, 2));
+} catch (error) {
+  console.error("Upgrade test failure:", error);
+  await writeFile(path.join(evidence, "failure.txt"), String(error));
+  throw error;
 } finally {
+  if (helperProcess && !helperSettled) {
+    await exec("taskkill.exe", [
+      "/PID",
+      String(helperProcess.child.pid),
+      "/T",
+      "/F",
+    ]).catch(console.error);
+    await helperProcess.catch(() => {});
+  }
   const contents = await readFile(log, "utf8").catch(
     () => "No updater log was created.",
   );
@@ -196,6 +245,11 @@ try {
     if (Test-Path -LiteralPath $uninstaller) {
       Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait
     }
-  `);
-  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 });
+  `).catch((error) => console.error("Test cleanup:", error));
+  await rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 1000,
+  }).catch((error) => console.error("Test directory cleanup:", error));
 }
