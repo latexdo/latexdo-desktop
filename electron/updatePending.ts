@@ -194,6 +194,31 @@ export async function resolvePendingUpdate(
     return resolutionFromRecord(null, currentVersion);
   }
 
+  const wrongPath = Boolean(
+    record.installedPath && record.installedPath !== installedPath,
+  );
+
+  // Running the exact build the update targeted, from the place it was meant to be
+  // installed, proves the update worked. That proof overrides the helper's own
+  // report: the Windows helper shipped before build 183 always reported failure
+  // (Windows PowerShell 5.1 leaves the probe's ExitCode empty), even after the
+  // installer replaced the app. It also clears failures left by earlier launches,
+  // for instance when the person installed the same build by hand afterwards.
+  const runningExpectedBuild = Boolean(
+    record.expectedCommit &&
+    currentCommit &&
+    record.expectedCommit === currentCommit &&
+    !wrongPath &&
+    versionsEquivalent(currentVersion, record.expectedVersion),
+  );
+  if (runningExpectedBuild) {
+    if (record.state === "confirmed")
+      return resolutionFromRecord(record, currentVersion);
+    const confirmed = await markPendingUpdateConfirmed(dataDirectory, record);
+    if (record.failurePath) await unlink(record.failurePath).catch(() => undefined);
+    return resolutionFromRecord(confirmed, currentVersion);
+  }
+
   if (record.state === "failed") {
     return resolutionFromRecord(record, currentVersion);
   }
@@ -206,9 +231,6 @@ export async function resolvePendingUpdate(
         },
       )
     : "";
-  const wrongPath = Boolean(
-    record.installedPath && record.installedPath !== installedPath,
-  );
   // The version alone cannot prove the app was replaced: builds share it.
   const wrongBuild = Boolean(
     record.expectedCommit && currentCommit && record.expectedCommit !== currentCommit,

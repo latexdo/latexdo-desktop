@@ -373,6 +373,89 @@ describe("same-version builds", () => {
     });
   });
 
+  // Windows helpers shipped before build 183 reported every update as failed, even
+  // after the installer had replaced the app with the expected build.
+  it("confirms the expected build even when an older helper reported a failure", async () => {
+    const directory = await temporaryDirectory();
+    const record = await begin(directory);
+    await writeFile(
+      record.failurePath!,
+      "Update failed: Installed application did not confirm its packaged version.",
+    );
+    const resolution = await resolvePendingUpdate(
+      directory,
+      "0.3.0",
+      undefined,
+      newCommit,
+    );
+    expect(resolution).toMatchObject({ status: "confirmed", error: null });
+    expect((await loadPendingUpdate(directory))?.state).toBe("confirmed");
+    await expect(readFile(record.failurePath!, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("heals a failure recorded by an earlier launch once the expected build runs", async () => {
+    const directory = await temporaryDirectory();
+    const record = await begin(directory);
+    await markPendingUpdateFailed(
+      directory,
+      record,
+      "Update failed: Installed application did not confirm its packaged version.",
+    );
+    const resolution = await resolvePendingUpdate(
+      directory,
+      "0.3.0",
+      undefined,
+      newCommit,
+    );
+    expect(resolution.status).toBe("confirmed");
+    expect(
+      pendingUpdateAttemptLimitReached(
+        await loadPendingUpdate(directory),
+        "0.3.0",
+        newCommit,
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the helper failure when the old build is still running", async () => {
+    const directory = await temporaryDirectory();
+    const record = await begin(directory);
+    await writeFile(record.failurePath!, "Update failed: Installer exited with code 2");
+    const resolution = await resolvePendingUpdate(
+      directory,
+      "0.3.0",
+      undefined,
+      oldCommit,
+    );
+    expect(resolution).toMatchObject({
+      status: "failed",
+      error: "Update failed: Installer exited with code 2",
+    });
+  });
+
+  it("does not confirm the expected build when it runs from another location", async () => {
+    const directory = await temporaryDirectory();
+    await beginPendingUpdate(directory, {
+      fromVersion: "0.3.0",
+      expectedVersion: "0.3.0",
+      expectedCommit: newCommit,
+      installerSha256: "c".repeat(64),
+      installedPath: "C:\\Users\\me\\AppData\\Local\\Programs\\LatexDo\\LatexDo.exe",
+    });
+    const resolution = await resolvePendingUpdate(
+      directory,
+      "0.3.0",
+      "C:\\Users\\me\\Downloads\\LatexDo\\LatexDo.exe",
+      newCommit,
+    );
+    expect(resolution).toMatchObject({
+      status: "failed",
+      error: "installed-application-path-mismatch",
+    });
+  });
+
   it("does not let failures of one build block the next build", async () => {
     const directory = await temporaryDirectory();
     let record = await begin(directory);
