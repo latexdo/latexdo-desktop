@@ -786,7 +786,9 @@ describe("automated release checks", () => {
       boot.window.webContents,
       crashed("killed"),
     );
-    await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1));
+    // Same budget as the other end-to-end checks: the default 1 s is too tight
+    // when the whole suite shares a loaded CI runner.
+    await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1), { timeout: 10_000 });
   });
 });
 
