@@ -666,10 +666,12 @@ describe("automated release checks", () => {
     child?: () => unknown;
     recovery?: unknown;
     crash?: (contents: any, boot: () => any) => void;
+    /** Replaces the renderer workflow result; runs while that workflow is in progress. */
+    workflow?: (booted: Promise<any>) => unknown;
   }) => {
     let current: any;
     const spawned: string[][] = [];
-    const promise = bootMain({
+    const promise: Promise<any> = bootMain({
       argv: ["--e2e-test"],
       before: () => {
         H.spawn = (_command: string, args: string[]) => {
@@ -677,10 +679,11 @@ describe("automated release checks", () => {
           return (options.child ?? (() => fakeChild()))();
         };
         let calls = 0;
-        H.executeJavaScript = async () =>
-          ++calls === 1
-            ? [{ name: "list-project", status: "passed" }]
-            : (options.recovery ?? recovered);
+        H.executeJavaScript = async () => {
+          if (++calls !== 1) return options.recovery ?? recovered;
+          if (options.workflow) return options.workflow(promise);
+          return [{ name: "list-project", status: "passed" }];
+        };
         H.crashRenderer =
           options.crash === undefined
             ? (contents) =>
@@ -777,18 +780,25 @@ describe("automated release checks", () => {
   });
 
   it("does not treat an unrequested renderer crash as part of the recovery check", async () => {
-    const { promise } = e2eBoot({ crash: () => undefined });
+    // Crash while the renderer workflow is still running. Firing it after boot instead
+    // raced the app: once the app has asked for its own crash, a "killed" crash is the
+    // expected one, so the run recovered instead of failing.
+    const { promise } = e2eBoot({
+      crash: () => undefined,
+      workflow: async (booted) => {
+        const boot = await booted;
+        boot.appEvent(
+          "render-process-gone",
+          {},
+          boot.window.webContents,
+          crashed("killed"),
+        );
+        return new Promise(() => undefined);
+      },
+    });
     const boot = await promise;
-    H.executeJavaScript = () => new Promise(() => undefined);
-    boot.appEvent(
-      "render-process-gone",
-      {},
-      boot.window.webContents,
-      crashed("killed"),
-    );
-    // Same budget as the other end-to-end checks: the default 1 s is too tight
-    // when the whole suite shares a loaded CI runner.
     await vi.waitFor(() => expect(H.exit).toHaveBeenCalledWith(1), { timeout: 10_000 });
+    expect(boot.window.webContents.forcefullyCrashRenderer).not.toHaveBeenCalled();
   });
 });
 
