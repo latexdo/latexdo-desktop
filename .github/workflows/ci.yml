@@ -119,7 +119,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
 
       - name: Verify release trust chain
         run: npm run test:supply-chain

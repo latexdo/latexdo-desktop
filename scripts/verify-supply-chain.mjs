@@ -111,7 +111,7 @@ for (const requiredCiControl of [
   "npm run typecheck",
   "npm test",
   "npm run test:coverage",
-  "npm audit --audit-level=high",
+  "npm run audit:dependencies",
   "npm run test:supply-chain",
   "npm run build",
   "Test packaged macOS application",
