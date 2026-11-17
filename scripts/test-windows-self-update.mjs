@@ -47,6 +47,11 @@ import { extractFile, uncache } from "@electron/asar";
 if (process.platform !== "win32" || process.env.CI !== "true") {
   throw new Error("This test requires a disposable Windows CI runner.");
 }
+// The workflow step runs under PowerShell 7. Its module path makes every Windows
+// PowerShell 5.1 child (ours, the updater helper's and the installer's own process
+// checks) load 7.x modules and lose the Cert: drive and CIM cmdlets. LatexDo started
+// from Explorer has no such variable, so remove it for everything this test starts.
+delete process.env.PSModulePath;
 
 const exec = promisify(execFile);
 const repository = process.cwd();

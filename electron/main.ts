@@ -5019,6 +5019,17 @@ async function launchLinuxAppImageUpdater(
   });
 }
 
+/**
+ * LatexDo started from PowerShell 7 inherits its module path, and Windows PowerShell 5.1
+ * then loads 7.x modules: the Cert: drive and CIM cmdlets break in the helper and in the
+ * installer's own process checks. Without the variable, 5.1 uses its default path.
+ */
+function windowsPowerShellEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => key.toLowerCase() !== "psmodulepath"),
+  );
+}
+
 async function launchWindowsNsisUpdater(
   installerPath: string,
   expectedVersion: string,
@@ -5047,7 +5058,7 @@ async function launchWindowsNsisUpdater(
       cwd: app.getPath("temp"),
       windowsHide: true,
       env: {
-        ...process.env,
+        ...windowsPowerShellEnvironment(process.env),
         LATEXDO_UPDATE_APP_PID: String(process.pid),
         LATEXDO_UPDATE_INSTALLER: installerPath,
         LATEXDO_UPDATE_LOG: path.join(logsDirectory, "updater.log"),

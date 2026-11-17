@@ -15,6 +15,11 @@ import { beginPendingUpdate } from "../dist-electron/updatePending.js";
 if (process.platform !== "win32" || process.env.CI !== "true") {
   throw new Error("This test requires a disposable Windows CI runner.");
 }
+// The workflow step runs under PowerShell 7. Its module path makes every Windows
+// PowerShell 5.1 child (ours, the updater helper's and the installer's own process
+// checks) load 7.x modules and lose the Cert: drive and CIM cmdlets. LatexDo started
+// from Explorer has no such variable, so remove it for everything this test starts.
+delete process.env.PSModulePath;
 const exec = promisify(execFile);
 const root = await mkdtemp(path.join(os.tmpdir(), "latexdo-update-test-"));
 const target = path.join(root, "Installed LatexDo é [test]", "LatexDo.exe");
@@ -41,6 +46,9 @@ const env = {
   LATEXDO_UPDATE_LOG: log,
   LATEXDO_UPDATE_FAILURE_FILE: failure,
   LATEXDO_TEST_BASELINE: baseline,
+  // Below the watchdog below, so the candidate helper records what the installer is
+  // waiting for itself. Released helpers ignore it and wait without a limit.
+  LATEXDO_UPDATE_INSTALLER_TIMEOUT_SECONDS: "180",
 };
 const evidence = path.resolve("test-results/windows-updater");
 await mkdir(evidence, { recursive: true });
@@ -69,6 +77,37 @@ async function until(check, label, timeout = 60_000) {
     await delay(500);
   }
   throw new Error(`Timed out: ${label}`);
+}
+/** Saves the process table and prints whatever belongs to this test, before cleanup kills it. */
+async function recordProcesses() {
+  const { stdout } = await powershell(`
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, CreationDate, ExecutablePath, CommandLine) | ConvertTo-Json -Depth 2 -Compress
+  `);
+  const processes = JSON.parse(stdout);
+  await writeFile(
+    path.join(evidence, "processes.json"),
+    JSON.stringify(processes, null, 2),
+  );
+  const related = new Set(helperProcess ? [helperProcess.child.pid] : []);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const { ProcessId, ParentProcessId } of processes) {
+      if (!related.has(ProcessId) && related.has(ParentProcessId)) {
+        related.add(ProcessId);
+        grew = true;
+      }
+    }
+  }
+  const mark = root.toLowerCase();
+  for (const p of processes) {
+    const text = `${p.ExecutablePath ?? ""} ${p.CommandLine ?? ""}`;
+    if (related.has(p.ProcessId) || text.toLowerCase().includes(mark)) {
+      console.log(
+        `Running: PID ${p.ProcessId} (parent ${p.ParentProcessId}) ${p.Name}: ${p.CommandLine ?? p.ExecutablePath ?? ""}`,
+      );
+    }
+  }
 }
 function installedJson(file) {
   uncache(archive);
@@ -202,7 +241,8 @@ try {
     {
       env,
       cwd: root,
-      timeout: 240_000,
+      // Backstop only: the watchdog below fires first and records the process table.
+      timeout: 420_000,
     },
   );
   // Attach immediately so an early PowerShell failure is not an unhandled rejection.
@@ -226,6 +266,7 @@ try {
     "old application normal close",
   );
   console.log("Old application exited; waiting for installer and verification");
+  await until(async () => helperSettled, "updater helper to finish", 300_000);
   await helperProcess;
   const contents = await readFile(log, "utf8");
   if (!contents.includes("Verification=PASS") || !contents.includes("RelaunchedPid=")) {
@@ -251,6 +292,9 @@ try {
   console.log(JSON.stringify(receipt, null, 2));
 } catch (error) {
   console.error("Upgrade test failure:", error);
+  await recordProcesses().catch((snapshotError) =>
+    console.error("Process snapshot:", snapshotError),
+  );
   await writeFile(path.join(evidence, "failure.txt"), String(error));
   throw error;
 } finally {
@@ -272,8 +316,13 @@ try {
   await powershell(`
     $directory = Split-Path -Parent $env:LATEXDO_UPDATE_TARGET_EXE
     $prefix = $directory + '\\'
+    # Also stop processes that only name the folder, such as the old uninstaller that
+    # NSIS copies out and runs with _?=<folder> as its working directory.
     Get-CimInstance Win32_Process | Where-Object {
-      $_.ExecutablePath -and $_.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
+      $_.ProcessId -ne $PID -and (
+        ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) -or
+        ($_.CommandLine -and $_.CommandLine.IndexOf($directory, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+      )
     } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     $uninstaller = Join-Path $directory 'Uninstall LatexDo.exe'
     if (Test-Path -LiteralPath $uninstaller) {

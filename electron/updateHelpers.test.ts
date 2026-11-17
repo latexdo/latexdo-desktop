@@ -213,6 +213,28 @@ describe("Windows update helper", () => {
     ).toBeLessThan(indexOf("Invoke-LatexDoInstaller -Installer $installer"));
   });
 
+  it("waits for the installer itself, bounded, instead of every process it starts", () => {
+    const start = indexOf("function Invoke-LatexDoInstaller");
+    const end = lines.findIndex((line, index) => index > start && line === "}");
+    const body = lines
+      .slice(start, end)
+      .filter((line) => !line.trim().startsWith("#"))
+      .join("\n");
+    expect(body).toContain("Start-Process -FilePath $Installer");
+    expect(body).not.toMatch(/Start-Process[^\n]*-Wait/);
+    expect(body.indexOf("$process.Handle")).toBeGreaterThan(-1);
+    expect(body.indexOf("$process.Handle")).toBeLessThan(
+      body.indexOf("$process.WaitForExit($installerTimeoutSeconds * 1000)"),
+    );
+    expect(body).toContain("-Label 'StuckProcess'");
+  });
+
+  it("writes the log as UTF-8 so non-ASCII install paths stay readable", () => {
+    expect(windowsUpdateHelper).toContain(
+      "Add-Content -LiteralPath $logFile -Encoding UTF8",
+    );
+  });
+
   it("never stops processes for a drive root or empty install directory", () => {
     expect(windowsUpdateHelper).toContain(
       "if (-not (Test-SafeInstallDirectory -Directory $Directory)) { return @() }",

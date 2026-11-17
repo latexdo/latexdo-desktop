@@ -247,6 +247,20 @@ describe("verified automatic update installation", () => {
       expect(H.quit).toHaveBeenCalled();
     },
   );
+  it("does not pass a PowerShell 7 module path to the Windows helper", async () => {
+    const { boot, spawn } = await bootUpdater("win32");
+    process.env.PSModulePath = "C:\\Program Files\\PowerShell\\7\\Modules";
+    try {
+      await boot.call("app:update-now");
+    } finally {
+      delete process.env.PSModulePath;
+    }
+    const [, , options] = spawn.mock.calls[0] as unknown as [string, string[], any];
+    expect(Object.keys(options.env).map((key) => key.toLowerCase())).not.toContain(
+      "psmodulepath",
+    );
+    expect(options.env.LATEXDO_UPDATE_APP_PID).toBe(String(process.pid));
+  });
   it("rejects checksum mismatches and removes partial installer data", async () => {
     const { boot, spawn } = await bootUpdater("darwin", { checksum: "0".repeat(64) });
     const result = await boot.call("app:update-now");
