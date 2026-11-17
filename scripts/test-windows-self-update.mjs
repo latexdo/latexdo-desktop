@@ -398,6 +398,27 @@ const appPaths = `async (electron) => ({
 })`;
 
 // The same call the Update button makes, with a user gesture.
+/**
+ * Users reach latexdo.org with a publicly trusted certificate. Here the app must trust
+ * the local test certificate instead, and NODE_EXTRA_CA_CERTS alone did not reach its
+ * fetch. Record the real error first, then add the certificate to the main process.
+ */
+const trustLocalServer = (ca) => `async () => {
+  const probe = () =>
+    fetch("https://latexdo.org/updates/latest.json", { cache: "no-store" }).then(
+      (response) => "HTTP " + response.status,
+      (error) => "failed: " + (error.cause?.code ?? error.cause?.message ?? error.message),
+    );
+  const before = await probe();
+  if (before === "HTTP 200") return { before };
+  const tls = process.getBuiltinModule("tls");
+  if (typeof tls.setDefaultCACertificates !== "function") {
+    return { before, after: "tls.setDefaultCACertificates is not available" };
+  }
+  tls.setDefaultCACertificates([...tls.getCACertificates("default"), ${JSON.stringify(ca)}]);
+  return { before, after: await probe() };
+}`;
+
 const pressUpdate = `async (electron) => {
   const contents = electron.webContents
     .getAllWebContents()
@@ -559,6 +580,14 @@ try {
   paths = await evaluateInApp(appPaths);
   receipt.paths = paths;
   note(`Old app ${oldApp.pid}: ${JSON.stringify(paths)}`);
+  const trust = await evaluateInApp(trustLocalServer(ca));
+  receipt.trust = trust;
+  note(`Released app reaching latexdo.org: ${JSON.stringify(trust)}`);
+  if ((trust.after ?? trust.before) !== "HTTP 200") {
+    throw new Error(
+      `The released app cannot reach the local latexdo.org: ${JSON.stringify(trust)}`,
+    );
+  }
   await mkdir(paths.downloads, { recursive: true });
   const sameDrive = drive(paths.temp) === drive(paths.downloads);
   if (sameDrive !== (scenario !== "cross-volume")) {

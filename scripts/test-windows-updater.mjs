@@ -3,7 +3,15 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import os from "node:os";
@@ -21,7 +29,12 @@ if (process.platform !== "win32" || process.env.CI !== "true") {
 // from Explorer has no such variable, so remove it for everything this test starts.
 delete process.env.PSModulePath;
 const exec = promisify(execFile);
-const root = await mkdtemp(path.join(os.tmpdir(), "latexdo-update-test-"));
+// os.tmpdir() is C:\Users\RUNNER~1\... on the runner, but Windows reports running
+// processes by their long path, so neither the helper nor the installer could match
+// the old app's leftover processes to this folder. Installed apps use long paths.
+const root = await realpath(
+  await mkdtemp(path.join(os.tmpdir(), "latexdo-update-test-")),
+);
 const target = path.join(root, "Installed LatexDo é [test]", "LatexDo.exe");
 const archive = path.join(path.dirname(target), "resources/app.asar");
 const log = path.join(root, "updater.log");
@@ -80,14 +93,22 @@ async function until(check, label, timeout = 60_000) {
 }
 /** Saves the process table and prints whatever belongs to this test, before cleanup kills it. */
 async function recordProcesses() {
-  const { stdout } = await powershell(`
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-    @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, CreationDate, ExecutablePath, CommandLine) | ConvertTo-Json -Depth 2 -Compress
-  `);
-  const processes = JSON.parse(stdout);
+  const { stdout } = await exec(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      path.resolve("scripts/windows-test-snapshot.ps1"),
+    ],
+    { env, timeout: 120_000, maxBuffer: 32 * 1024 * 1024 },
+  );
+  const { processes, windows } = JSON.parse(stdout);
   await writeFile(
     path.join(evidence, "processes.json"),
-    JSON.stringify(processes, null, 2),
+    JSON.stringify({ processes, windows }, null, 2),
   );
   const related = new Set(helperProcess ? [helperProcess.child.pid] : []);
   for (let grew = true; grew; ) {
@@ -107,6 +128,10 @@ async function recordProcesses() {
         `Running: PID ${p.ProcessId} (parent ${p.ParentProcessId}) ${p.Name}: ${p.CommandLine ?? p.ExecutablePath ?? ""}`,
       );
     }
+  }
+  for (const window of windows) {
+    if (related.has(window.ProcessId) || window.ProcessId === 0)
+      console.log(`Window: PID ${window.ProcessId}: ${window.Text}`);
   }
 }
 function installedJson(file) {
