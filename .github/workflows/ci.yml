@@ -700,6 +700,74 @@ jobs:
           path: test-results/windows-updater/
           if-no-files-found: warn
 
+  windows_self_update_verification:
+    # Existing users update with the code they already have installed. Here the
+    # released app itself checks, downloads and starts the update from a local
+    # latexdo.org, instead of the test handing it the installer.
+    name: verify / Windows released app updates itself
+    needs: [pipeline, package_windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, windows-2025]
+        scenario: [same-volume, cross-volume, manual]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 200
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.17.0
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      - name: Compile updater test support
+        run: |
+          npx tsc -p tsconfig.electron.json
+          node scripts/write-build-info.mjs dist-electron
+      - name: Download candidate installer
+        uses: actions/download-artifact@v8
+        with:
+          name: latexdo-windows-x64
+          path: release/windows
+      - name: Download existing released installation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Same pinned releases as the existing-installation job.
+          $tag = if ('${{ matrix.runner }}' -eq 'windows-2022') {
+            'v1.0.0-build.183.1.73626277bea4'
+          } else {
+            'v1.0.0-build.175.1.c8cb4c589024'
+          }
+          gh release download $tag --repo '${{ github.repository }}' --pattern 'LatexDo-windows-x64.exe' --pattern 'SHA256SUMS.txt' --dir baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download baseline release' }
+          $expected = ((Get-Content baseline/SHA256SUMS.txt | Where-Object { $_ -match 'LatexDo-windows-x64.exe$' }) -split '\s+')[0]
+          $actual = (Get-FileHash baseline/LatexDo-windows-x64.exe -Algorithm SHA256).Hash
+          if (-not $expected -or $expected -ne $actual) { throw 'Baseline checksum mismatch' }
+          "LATEXDO_BASELINE_INSTALLER=$((Resolve-Path baseline/LatexDo-windows-x64.exe).Path)" >> $env:GITHUB_ENV
+          "LATEXDO_BASELINE_TAG=$tag" >> $env:GITHUB_ENV
+      - name: Released app updates itself
+        run: node scripts/test-windows-self-update.mjs
+        env:
+          LATEXDO_SELF_UPDATE_SCENARIO: ${{ matrix.scenario }}
+          # Both pinned baselines stage downloads in TEMP and rename them into
+          # Downloads, which fails across drives. Switch to "succeeds" once the
+          # pinned baselines are builds that contain the destination-volume fix.
+          LATEXDO_EXPECT_CROSS_VOLUME: fails
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: self-update-${{ matrix.runner }}-${{ matrix.scenario }}
+          path: test-results/windows-self-update/
+          if-no-files-found: warn
+
   installers:
     name: verify / installers
     needs:
@@ -707,6 +775,7 @@ jobs:
       - package_windows
       - package_linux
       - windows_update_verification
+      - windows_self_update_verification
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -791,12 +860,19 @@ jobs:
         env:
           LATEXDO_UPDATE_SIGNING_KEY: ${{ secrets.LATEXDO_UPDATE_SIGNING_KEY }}
           LATEXDO_WEBSITE_TOKEN: ${{ secrets.LATEXDO_WEBSITE_TOKEN }}
+          # Repository variable. "false" publishes downloads only and keeps the
+          # previous signed feed, so installed apps open the downloads page for a
+          # manual install instead of updating themselves (one-time rollouts).
+          LATEXDO_UPDATE_FEED_SWITCH: ${{ vars.LATEXDO_UPDATE_FEED_ENABLED }}
         run: |
           if [ -z "${LATEXDO_WEBSITE_TOKEN:-}" ]; then
             echo "::error::LATEXDO_WEBSITE_TOKEN is required to update latexdo.org downloads."
             exit 1
           fi
-          if [ -z "${LATEXDO_UPDATE_SIGNING_KEY:-}" ]; then
+          if [ "${LATEXDO_UPDATE_FEED_SWITCH:-}" = "false" ]; then
+            echo "::warning::Signed update feed switched off by the LATEXDO_UPDATE_FEED_ENABLED repository variable. Downloads will be published and latexdo.org updates/ will be left unchanged, so installed apps send users to the downloads page."
+            echo "update_feed_enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "${LATEXDO_UPDATE_SIGNING_KEY:-}" ]; then
             echo "::warning::Signed update feed disabled; LATEXDO_UPDATE_SIGNING_KEY is not configured. Downloads will be published and latexdo.org updates/ will be left unchanged."
             echo "update_feed_enabled=false" >> "$GITHUB_OUTPUT"
           else
@@ -1177,6 +1253,7 @@ jobs:
       - package_linux
       - installers
       - windows_update_verification
+      - windows_self_update_verification
       - publish_release
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -1197,6 +1274,7 @@ jobs:
             echo "| package / Windows EXE | ${{ needs.package_windows.result }} |"
             echo "| package / Linux AppImage | ${{ needs.package_linux.result }} |"
             echo "| verify / Windows existing installation | ${{ needs.windows_update_verification.result }} |"
+            echo "| verify / Windows released app updates itself | ${{ needs.windows_self_update_verification.result }} |"
             echo "| verify / installers | ${{ needs.installers.result }} |"
             echo "| publish / GitHub release and latexdo.org downloads | ${{ needs.publish_release.result }} |"
             echo
