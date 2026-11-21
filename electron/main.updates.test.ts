@@ -49,7 +49,13 @@ vi.mock("node:fs", async (importOriginal) =>
   (await import("./__tests__/mainWrappers.js")).wrapFs(await importOriginal()),
 );
 vi.mock("node:fs/promises", async (importOriginal) =>
-  (await import("./__tests__/mainWrappers.js")).wrapFsPromises(await importOriginal()),
+  (await import("./__tests__/mainWrappers.js")).overridable(
+    (await import("./__tests__/mainWrappers.js")).wrapFsPromises(
+      await importOriginal<typeof import("node:fs/promises")>(),
+    ),
+    "fs",
+    ["rename"],
+  ),
 );
 vi.mock("./git.js", async (importOriginal) =>
   (await import("./__tests__/mainWrappers.js")).wrapGit(await importOriginal()),
@@ -191,6 +197,23 @@ async function bootUpdater(
   return { boot, file, spawn };
 }
 describe("verified automatic update installation", () => {
+  it("installs when Downloads and the system temp folder are on different volumes", async () => {
+    const { boot } = await bootUpdater("win32");
+    const realFs =
+      await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    H.overrides["fs.rename"] = async (source: string, destination: string) => {
+      if (path.dirname(source) !== path.dirname(destination)) {
+        throw Object.assign(new Error("cross-device link not permitted"), {
+          code: "EXDEV",
+        });
+      }
+      return realFs.rename(source, destination);
+    };
+    const result = await boot.call("app:update-now");
+    expect(result).toMatchObject({ opened: true, quitScheduled: true });
+    expect(await readFile(result.installerPath)).toEqual(installer);
+    expect(await readdir(H.paths.downloads)).toEqual(["LatexDo.exe"]);
+  });
   it.each(["darwin", "linux", "win32"] as const)(
     "verifies the installer and launches the %s helper with safe arguments",
     async (platform) => {
@@ -224,6 +247,30 @@ describe("verified automatic update installation", () => {
       expect(H.quit).toHaveBeenCalled();
     },
   );
+  it("does not pass a PowerShell 7 module path to the Windows helper", async () => {
+    const { boot, spawn } = await bootUpdater("win32");
+    process.env.PSModulePath = "C:\\Program Files\\PowerShell\\7\\Modules";
+    try {
+      await boot.call("app:update-now");
+    } finally {
+      delete process.env.PSModulePath;
+    }
+    const [, , options] = spawn.mock.calls[0] as unknown as [string, string[], any];
+    expect(Object.keys(options.env).map((key) => key.toLowerCase())).not.toContain(
+      "psmodulepath",
+    );
+    expect(options.env.LATEXDO_UPDATE_APP_PID).toBe(String(process.pid));
+  });
+  it("gives the Windows helper the canonical install path for process matching", async () => {
+    const { boot, spawn } = await bootUpdater("win32");
+    await boot.call("app:update-now");
+    const [, , options] = spawn.mock.calls[0] as unknown as [string, string[], any];
+    const { realpath } =
+      await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    expect(options.env.LATEXDO_UPDATE_TARGET_CANONICAL_EXE).toBe(
+      await realpath(options.env.LATEXDO_UPDATE_TARGET_EXE),
+    );
+  });
   it("rejects checksum mismatches and removes partial installer data", async () => {
     const { boot, spawn } = await bootUpdater("darwin", { checksum: "0".repeat(64) });
     const result = await boot.call("app:update-now");

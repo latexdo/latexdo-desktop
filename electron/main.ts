@@ -4774,11 +4774,14 @@ async function downloadUpdateInstaller(
   };
 
   const temporaryPath = path.join(
-    app.getPath("temp"),
+    // Keep staging on the destination volume: Windows users can move Downloads
+    // to another drive, and rename cannot move a file across volumes (EXDEV).
+    app.getPath("downloads"),
     `latexdo-update-${randomUUID()}-${file.filename}.download`,
   );
 
   try {
+    await mkdir(app.getPath("downloads"), { recursive: true });
     emitDownloadProgress(true);
     await pipeline(
       Readable.fromWeb(response.body as unknown as NodeReadableStream<Uint8Array>),
@@ -5016,6 +5019,17 @@ async function launchLinuxAppImageUpdater(
   });
 }
 
+/**
+ * LatexDo started from PowerShell 7 inherits its module path, and Windows PowerShell 5.1
+ * then loads 7.x modules: the Cert: drive and CIM cmdlets break in the helper and in the
+ * installer's own process checks. Without the variable, 5.1 uses its default path.
+ */
+function windowsPowerShellEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => key.toLowerCase() !== "psmodulepath"),
+  );
+}
+
 async function launchWindowsNsisUpdater(
   installerPath: string,
   expectedVersion: string,
@@ -5027,6 +5041,11 @@ async function launchWindowsNsisUpdater(
 
   const targetExePath = app.getPath("exe");
   await access(targetExePath, fsConstants.R_OK);
+  // Windows reports running processes by their long path; the app may have been
+  // started through an 8.3 short path. The helper matches leftovers against both.
+  const canonicalTargetExePath = await realpath(targetExePath).catch(
+    () => targetExePath,
+  );
   const logsDirectory = app.getPath("logs");
   await mkdir(logsDirectory, { recursive: true });
   const helperPath = await writeUpdaterHelperFile(
@@ -5044,11 +5063,12 @@ async function launchWindowsNsisUpdater(
       cwd: app.getPath("temp"),
       windowsHide: true,
       env: {
-        ...process.env,
+        ...windowsPowerShellEnvironment(process.env),
         LATEXDO_UPDATE_APP_PID: String(process.pid),
         LATEXDO_UPDATE_INSTALLER: installerPath,
         LATEXDO_UPDATE_LOG: path.join(logsDirectory, "updater.log"),
         LATEXDO_UPDATE_TARGET_EXE: targetExePath,
+        LATEXDO_UPDATE_TARGET_CANONICAL_EXE: canonicalTargetExePath,
         LATEXDO_UPDATE_EXPECTED_VERSION: expectedVersion,
         LATEXDO_UPDATE_FAILURE_FILE: failurePath,
       },
