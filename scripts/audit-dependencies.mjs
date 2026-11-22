@@ -6,17 +6,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const auditExceptions = [
-  {
-    advisory: "GHSA-fc5q-39xc-vjpf",
-    package: "picomatch",
-    reason:
-      "ReDoS on crafted glob patterns. No patched picomatch release exists yet. It is only " +
-      "used by build and test tools (vite, vitest, electron-builder, typescript-eslint), " +
-      "which match globs from this repository, never from users.",
-    expires: "2026-12-17",
-  },
-];
+export const auditExceptions = [];
 
 const blockingSeverities = new Set(["high", "critical"]);
 
