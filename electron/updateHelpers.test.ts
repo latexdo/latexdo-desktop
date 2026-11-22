@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +58,29 @@ async function relaunched(root: string, version: string) {
     .poll(() => readFile(path.join(root, "relaunched.txt"), "utf8"))
     .toBe(version);
 }
+
+it.skipIf(process.platform !== "win32" || !process.env.CI)(
+  "reproduces cross-volume Windows rename failure and verifies destination-volume staging",
+  async () => {
+    const sourceRoot = await fixture();
+    const destinationRoot = await mkdtemp(
+      path.join(process.cwd(), ".updater-download-test-"),
+    );
+    roots.push(destinationRoot);
+    // Hosted Windows runners place TEMP on C: and the checkout on D:.
+    expect(path.parse(sourceRoot).root.toLowerCase()).not.toBe(
+      path.parse(destinationRoot).root.toLowerCase(),
+    );
+    const source = path.join(sourceRoot, "installer.download");
+    const destination = path.join(destinationRoot, "installer.exe");
+    await writeFile(source, "verified installer bytes");
+    await expect(rename(source, destination)).rejects.toMatchObject({ code: "EXDEV" });
+    const staged = path.join(destinationRoot, "installer.download");
+    await writeFile(staged, await readFile(source));
+    await rename(staged, destination);
+    expect(await readFile(destination, "utf8")).toBe("verified installer bytes");
+  },
+);
 
 describe("installed application probe", () => {
   it("only writes a receipt for a matching packaged runtime version", async () => {
@@ -190,9 +213,40 @@ describe("Windows update helper", () => {
     ).toBeLessThan(indexOf("Invoke-LatexDoInstaller -Installer $installer"));
   });
 
+  it("waits for the installer itself, bounded, instead of every process it starts", () => {
+    const start = indexOf("function Invoke-LatexDoInstaller");
+    const end = lines.findIndex((line, index) => index > start && line === "}");
+    const body = lines
+      .slice(start, end)
+      .filter((line) => !line.trim().startsWith("#"))
+      .join("\n");
+    expect(body).toContain("Start-Process -FilePath $Installer");
+    expect(body).not.toMatch(/Start-Process[^\n]*-Wait/);
+    expect(body.indexOf("$process.Handle")).toBeGreaterThan(-1);
+    expect(body.indexOf("$process.Handle")).toBeLessThan(
+      body.indexOf("$process.WaitForExit($installerTimeoutSeconds * 1000)"),
+    );
+    expect(body).toContain("-Label 'StuckProcess'");
+  });
+
+  it("writes the log as UTF-8 so non-ASCII install paths stay readable", () => {
+    expect(windowsUpdateHelper).toContain(
+      "Add-Content -LiteralPath $logFile -Encoding UTF8",
+    );
+  });
+
   it("never stops processes for a drive root or empty install directory", () => {
     expect(windowsUpdateHelper).toContain(
       "if (-not (Test-SafeInstallDirectory -Directory $Directory)) { return @() }",
+    );
+  });
+
+  it("also matches leftover processes against the canonical long install path", () => {
+    const start = indexOf("function Get-InstallDirectoryProcesses");
+    const body = lines.slice(start, indexOf("function Wait-ForProcessExit")).join("\n");
+    expect(body).toContain("$script:canonicalTargetDirectory");
+    expect(windowsUpdateHelper).toContain(
+      "$script:canonicalTargetDirectory = Split-Path -Parent $env:LATEXDO_UPDATE_TARGET_CANONICAL_EXE",
     );
   });
 
@@ -200,5 +254,22 @@ describe("Windows update helper", () => {
     const catchBlock = lines.slice(lines.lastIndexOf("} catch {")).join("\n");
     expect(catchBlock).toContain("Wait-ForProcessExit -ProcessId $appPid");
     expect(catchBlock).toContain("Start-Process -FilePath $targetExe");
+  });
+});
+
+describe("NSIS silent update", () => {
+  it("never waits on an unanswerable dialog when the old uninstaller fails", async () => {
+    // electron-builder's default check shows "uninstall failed" without /SD, and NSIS
+    // shows such boxes even under /S: the hidden dialog hung every silent update.
+    const include = await readFile(
+      path.join(process.cwd(), "build", "installer.nsh"),
+      "utf8",
+    );
+    expect(include).toContain("!macro customUnInstallCheck\n");
+    expect(include).toContain("!macro customUnInstallCheckCurrentUser\n");
+    for (const line of include.split("\n").filter((l) => l.includes("MessageBox"))) {
+      expect(line).toContain("/SD ");
+    }
+    expect(include).toContain("SetErrorLevel 2");
   });
 });

@@ -126,10 +126,11 @@ describe("resolvePendingUpdate", () => {
       expectedVersion: "0.3.0",
       installerSha256: "abc123",
     });
-    // A path beneath a regular file reliably fails with ENOTDIR on all platforms.
-    const blocker = path.join(directory, "not-a-directory");
-    await writeFile(blocker, "preserved");
-    record.failurePath = path.join(blocker, "failure.txt");
+    // Reading a directory fails with EISDIR on every platform. A path beneath a
+    // regular file does not: Windows reports ENOENT there, which means "no report".
+    const unreadable = path.join(directory, "failure-report-directory");
+    await mkdir(unreadable);
+    record.failurePath = unreadable;
     await writeFile(
       path.join(directory, "pending-update.json"),
       JSON.stringify(record),
